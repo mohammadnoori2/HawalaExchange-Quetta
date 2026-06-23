@@ -30,7 +30,6 @@ namespace HawalaExchange.Infrastructure.Services
                     AccountType = x.AccountType,
                     ReferenceType = x.ReferenceType,
                     ReferenceId = x.ReferenceId,
-                    IsActive = x.IsActive,
                     IsArchived = x.IsArchived,
                     DateTime = x.CreatedAt
                 })
@@ -50,7 +49,6 @@ namespace HawalaExchange.Infrastructure.Services
                     AccountType = x.AccountType,
                     ReferenceType = x.ReferenceType,
                     ReferenceId = x.ReferenceId,
-                    IsActive = x.IsActive,
                     IsArchived = x.IsArchived,
                     DateTime = x.CreatedAt
                 })
@@ -73,7 +71,6 @@ namespace HawalaExchange.Infrastructure.Services
                 AccountType = request.AccountType,
                 ReferenceType = request.ReferenceType,
                 ReferenceId = request.ReferenceId,
-                IsActive = true,
                 IsArchived = false,
                 CreatedAt = DateTime.UtcNow
             };

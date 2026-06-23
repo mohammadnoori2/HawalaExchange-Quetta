@@ -12,7 +12,6 @@ namespace HawalaExchange.Application.DTOs
         public string AccountType { get; set; } = string.Empty;
         public string ReferenceType { get; set; } = string.Empty;
         public long ? ReferenceId { get; set; }
-        public bool IsActive { get; set; }
         public bool IsArchived { get; set; }
         public DateTime DateTime { get; set; }
     }

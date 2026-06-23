@@ -27,8 +27,6 @@ namespace YourNamespace.Entities
 
         public long? ReferenceId { get; set; }
 
-        public bool IsActive { get; set; } = true;
-
         public bool IsArchived { get; set; } = false;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

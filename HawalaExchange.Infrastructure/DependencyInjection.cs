@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(connectionString));
         services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<IAccountService, AccountService>();
 
         return services;
     }

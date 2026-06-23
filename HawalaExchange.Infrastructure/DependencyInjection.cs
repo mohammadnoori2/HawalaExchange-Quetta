@@ -1,4 +1,6 @@
 ﻿
+using HawalaExchange.Application.Interfaces;
+using HawalaExchange.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +19,7 @@ public static class DependencyInjection
 
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(connectionString));
+        services.AddScoped<ICustomerService, CustomerService>();
 
         return services;
     }

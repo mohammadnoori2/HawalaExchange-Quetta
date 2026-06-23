@@ -134,7 +134,6 @@ namespace YourNamespace.Data
                     AccountType = "Cash",
                     ReferenceType = null,
                     ReferenceId = null,
-                    IsActive = true,
                     IsArchived = false,
                     CreatedAt = createdAt
                 },
@@ -146,7 +145,6 @@ namespace YourNamespace.Data
                     AccountType = "Bank",
                     ReferenceType = null,
                     ReferenceId = null,
-                    IsActive = true,
                     IsArchived = false,
                     CreatedAt = createdAt
                 },
@@ -158,7 +156,6 @@ namespace YourNamespace.Data
                     AccountType = "Income",
                     ReferenceType = null,
                     ReferenceId = null,
-                    IsActive = true,
                     IsArchived = false,
                     CreatedAt = createdAt
                 },
@@ -170,7 +167,6 @@ namespace YourNamespace.Data
                     AccountType = "Income",
                     ReferenceType = null,
                     ReferenceId = null,
-                    IsActive = true,
                     IsArchived = false,
                     CreatedAt = createdAt
                 },
@@ -182,7 +178,6 @@ namespace YourNamespace.Data
                     AccountType = "Expense",
                     ReferenceType = null,
                     ReferenceId = null,
-                    IsActive = true,
                     IsArchived = false,
                     CreatedAt = createdAt
                 },
@@ -194,7 +189,6 @@ namespace YourNamespace.Data
                     AccountType = "Equity",
                     ReferenceType = null,
                     ReferenceId = null,
-                    IsActive = true,
                     IsArchived = false,
                     CreatedAt = createdAt
                 }
@@ -265,10 +259,6 @@ namespace YourNamespace.Data
                 .HasDefaultValue(2);
 
             modelBuilder.Entity<Currency>()
-                .Property(x => x.IsActive)
-                .HasDefaultValue(true);
-
-            modelBuilder.Entity<Account>()
                 .Property(x => x.IsActive)
                 .HasDefaultValue(true);
 

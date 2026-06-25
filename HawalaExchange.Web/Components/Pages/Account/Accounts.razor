@@ -1,0 +1,599 @@
+﻿@page "/accounts"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces
+@inject IAccountService AccountService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-wallet2 me-2"></i> مدیریت حساب‌ها
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
+                    <i class="bi bi-plus-circle"></i> حساب جدید
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- نوار جستجوی لحظه‌ای -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="جستجوی حساب‌ها (کد، نام، مرجع)..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
+                            <i class="bi bi-x-circle"></i> پاک کردن
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-start">
+                    <span class="badge bg-info fs-6 p-2">
+                        <i class="bi bi-list-ul"></i> تعداد: @filteredAccounts.Count
+                    </span>
+                </div>
+            </div>
+
+            <!-- جدول حساب‌ها -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">کد حساب</th>
+                            <th scope="col">نام حساب</th>
+                            <th scope="col">نوع حساب</th>
+                            <th scope="col">مرجع</th>
+                            <th scope="col">تاریخ ایجاد</th>
+                            <th scope="col">وضعیت</th>
+                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && accounts == null)
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredAccounts.Any())
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ حسابی یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var account in filteredAccounts)
+                            {
+                                <tr class="@(account.IsArchived ? "table-secondary" : "")">
+                                    <td>@rowIndex</td>
+                                    <td><strong>@account.AccountCode</strong></td>
+                                    <td>@account.AccountName</td>
+                                    <td>
+                                        <span class="badge @GetAccountTypeBadge(account.AccountType) px-3 py-2">
+                                            @GetAccountTypeName(account.AccountType)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(account.ReferenceType))
+                                        {
+                                            <small>
+                                                <span class="badge bg-light text-dark">@GetReferenceTypeName(account.ReferenceType)</span>
+                                                <span class="fw-bold">@account.ReferenceId</span>
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td dir="ltr" class="text-start">@account.DateTime.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td>
+                                        @if (account.IsArchived)
+                                        {
+                                            <span class="badge bg-secondary px-3 py-2">بایگانی شده</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success px-3 py-2">فعال</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            @if (!account.IsArchived)
+                                            {
+                                                <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(account.Id)" title="ویرایش">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger" @onclick="() => ShowArchiveConfirm(account.Id)" title="بایگانی">
+                                                    <i class="bi bi-archive"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-outline-warning" @onclick="() => ShowUnarchiveConfirm(account.Id)" title="خروج از بایگانی">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                </button>
+                                            }
+                                            <button class="btn btn-outline-info" @onclick="() => ViewLedger(account.Id)" title="دفتر کل">
+                                                <i class="bi bi-journal"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال ایجاد/ویرایش حساب -->
+@if (showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش حساب" : "ایجاد حساب جدید")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @successMessage
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-hash"></i> کد حساب <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentAccount.AccountCode) ? "is-invalid" : "")"
+                                   @bind="currentAccount.AccountCode" placeholder="مثال: ACC-001" />
+                            <div class="invalid-feedback">کد حساب الزامی است</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person"></i> نام حساب <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentAccount.AccountName) ? "is-invalid" : "")"
+                                   @bind="currentAccount.AccountName" placeholder="نام حساب را وارد کنید" />
+                            <div class="invalid-feedback">نام حساب الزامی است</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-tag"></i> نوع حساب <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select @(string.IsNullOrEmpty(currentAccount.AccountType) ? "is-invalid" : "")"
+                                    @bind="currentAccount.AccountType">
+                                <option value="">انتخاب نوع</option>
+                                <option value="Bank">بانک</option>
+                                <option value="Hawaladar">حواله‌دار</option>
+                                <option value="Customer">مشتری</option>
+                                <option value="Merchant">تاجر</option>
+                                <option value="Intermediary">واسطه</option>
+                                <option value="Settlement">تسویه</option>
+                                <option value="Expense">هزینه</option>
+                                <option value="Revenue">درآمد</option>
+                            </select>
+                            <div class="invalid-feedback">نوع حساب الزامی است</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-link"></i> نوع مرجع
+                            </label>
+                            <select class="form-select" @bind="currentAccount.ReferenceType">
+                                <option value="">بدون مرجع</option>
+                                <option value="Customer">مشتری</option>
+                                <option value="Partner">شریک</option>
+                                <option value="Branch">شعبه</option>
+                                <option value="Agent">کارگزار</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-hash"></i> شناسه مرجع
+                            </label>
+                            <input type="number" class="form-control" @bind="currentAccount.ReferenceId"
+                                   placeholder="شناسه مرجع را وارد کنید" />
+                        </div>
+                    </div>
+
+                    @if (isEditMode)
+                    {
+                        <div class="alert alert-info mt-2">
+                            <i class="bi bi-info-circle"></i>
+                            <small>در حال ویرایش حساب با کد: <strong>@currentAccount.AccountCode</strong></small>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="() => SaveAccount()" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save"></i>
+                        }
+                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال تأیید بایگانی/خروج از بایگانی -->
+@if (showConfirmModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> تأیید عملیات
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">@confirmMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseConfirmModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                        <i class="bi bi-check-circle"></i> تأیید
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AccountDtos> accounts = new();
+    private List<AccountDtos> filteredAccounts = new();
+    
+    // پراپرتی با setter برای جستجوی لحظه‌ای
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchAccounts(); // با هر تغییر، فیلتر انجام می‌شود
+            }
+        }
+    }
+
+    private bool showModal = false;
+    private bool showConfirmModal = false;
+    private bool isEditMode = false;
+    private bool isLoading = false;
+    private long editId = 0;
+    private long confirmId = 0;
+    private string confirmMessage = string.Empty;
+    private string confirmActionType = string.Empty;
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+
+    private CreateAccountRequest currentAccount = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAccounts();
+    }
+
+    private async Task LoadAccounts()
+    {
+        try
+        {
+            isLoading = true;
+            accounts = await AccountService.GetAllAsync();
+            filteredAccounts = accounts;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری حساب‌ها: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // متد جستجو (با پراپرتی setter فراخوانی می‌شود)
+    private void SearchAccounts()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            filteredAccounts = accounts;
+        }
+        else
+        {
+            var term = _searchTerm.Trim();
+            filteredAccounts = accounts.Where(a =>
+                a.AccountCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                a.AccountName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (a.ReferenceType != null && a.ReferenceType.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                (a.ReferenceId.HasValue && a.ReferenceId.Value.ToString().Contains(term))
+            ).ToList();
+        }
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        filteredAccounts = accounts;
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        currentAccount = new CreateAccountRequest();
+        isEditMode = false;
+        editId = 0;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var account = await AccountService.GetByIdAsync(id);
+            if (account != null)
+            {
+                currentAccount = new CreateAccountRequest
+                {
+                    AccountCode = account.AccountCode,
+                    AccountName = account.AccountName,
+                    AccountType = account.AccountType,
+                    ReferenceType = account.ReferenceType,
+                    ReferenceId = account.ReferenceId
+                };
+                isEditMode = true;
+                editId = id;
+                validationErrors.Clear();
+                successMessage = string.Empty;
+                showModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری حساب: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveAccount()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(currentAccount.AccountCode))
+            validationErrors.Add("کد حساب الزامی است");
+        if (string.IsNullOrWhiteSpace(currentAccount.AccountName))
+            validationErrors.Add("نام حساب الزامی است");
+        if (string.IsNullOrWhiteSpace(currentAccount.AccountType))
+            validationErrors.Add("نوع حساب الزامی است");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            if (isEditMode)
+            {
+                var updateRequest = new UpdateAccountRequest
+                {
+                    AccountCode = currentAccount.AccountCode,
+                    AccountName = currentAccount.AccountName,
+                    AccountType = currentAccount.AccountType,
+                    ReferenceType = currentAccount.ReferenceType,
+                    ReferenceId = currentAccount.ReferenceId,
+                    IsArrived = false
+                };
+                await AccountService.UpdateAsync(editId, updateRequest);
+                successMessage = "حساب با موفقیت ویرایش شد";
+            }
+            else
+            {
+                await AccountService.CreateAsync(currentAccount);
+                successMessage = "حساب با موفقیت ایجاد شد";
+            }
+
+            showModal = false;
+            await LoadAccounts();
+        }
+        catch (InvalidOperationException ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowArchiveConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "archive";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این حساب را بایگانی کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private void ShowUnarchiveConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "unarchive";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این حساب را از بایگانی خارج کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        try
+        {
+            if (confirmActionType == "archive")
+            {
+                await AccountService.ArchiveAsync(confirmId);
+                successMessage = "حساب با موفقیت بایگانی شد";
+            }
+            else if (confirmActionType == "unarchive")
+            {
+                // در صورت نیاز متد Unarchive را در سرویس پیاده‌سازی کنید
+                // await AccountService.UnarchiveAsync(confirmId);
+                successMessage = "حساب با موفقیت از بایگانی خارج شد";
+            }
+
+            showConfirmModal = false;
+            await LoadAccounts();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در عملیات: {ex.Message}");
+            showConfirmModal = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void ViewLedger(long id)
+    {
+        NavigationManager.NavigateTo($"/accounts/{id}/ledger");
+    }
+
+    private string GetAccountTypeBadge(string type)
+    {
+        return type?.ToLower() switch
+        {
+            "bank" => "bg-primary",
+            "hawaladar" => "bg-warning text-dark",
+            "customer" => "bg-success",
+            "merchant" => "bg-info text-dark",
+            "intermediary" => "bg-secondary",
+            "settlement" => "bg-dark",
+            "expense" => "bg-danger",
+            "revenue" => "bg-success",
+            _ => "bg-light text-dark"
+        };
+    }
+
+    private string GetAccountTypeName(string type)
+    {
+        return type?.ToLower() switch
+        {
+            "bank" => "بانک",
+            "hawaladar" => "حواله‌دار",
+            "customer" => "مشتری",
+            "merchant" => "تاجر",
+            "intermediary" => "واسطه",
+            "settlement" => "تسویه",
+            "expense" => "هزینه",
+            "revenue" => "درآمد",
+            _ => type ?? "نامشخص"
+        };
+    }
+
+    private string GetReferenceTypeName(string type)
+    {
+        return type?.ToLower() switch
+        {
+            "customer" => "مشتری",
+            "partner" => "شریک",
+            "branch" => "شعبه",
+            "agent" => "کارگزار",
+            _ => type ?? "نامشخص"
+        };
+    }
+}

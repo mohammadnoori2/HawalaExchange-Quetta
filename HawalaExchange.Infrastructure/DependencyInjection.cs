@@ -21,7 +21,9 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString));
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IAccountService, AccountService>();
-
+        services.AddScoped<ICorrespondentService, CorrespondentService>();
+        services.AddScoped<ICurrencyService, CurrencyService>();
+        services.AddScoped<IExchangeRatesService, ExchangeRatesService>();
         return services;
     }
 }

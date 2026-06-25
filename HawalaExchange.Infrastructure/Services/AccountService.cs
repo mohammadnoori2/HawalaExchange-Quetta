@@ -107,14 +107,5 @@ namespace HawalaExchange.Infrastructure.Services
             account.IsArchived = true;
             await _context.SaveChangesAsync();
         }
-
-        
-
-        
-
-        
-
-        
     }
-    
 }

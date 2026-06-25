@@ -1,0 +1,539 @@
+﻿@page "/customers"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces
+@inject ICustomerService CustomerService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-people me-2"></i> مدیریت مشتریان
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
+                    <i class="bi bi-plus-circle"></i> مشتری جدید
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- نوار جستجوی لحظه‌ای -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="جستجوی مشتریان (کد، نام، تلفن، تذکره)..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
+                            <i class="bi bi-x-circle"></i> پاک کردن
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-start">
+                    <span class="badge bg-info fs-6 p-2">
+                        <i class="bi bi-list-ul"></i> تعداد: @filteredCustomers.Count
+                    </span>
+                </div>
+            </div>
+
+            <!-- جدول مشتریان -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">کد مشتری</th>
+                            <th scope="col">نام کامل</th>
+                            <th scope="col">شماره تلفن</th>
+                            <th scope="col">شماره تذکره</th>
+                            <th scope="col">آدرس</th>
+                            <th scope="col">وضعیت</th>
+                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && customers == null)
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredCustomers.Any())
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ مشتری‌ای یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var customer in filteredCustomers)
+                            {
+                                <tr class="@(customer.IsArchived ? "table-secondary" : "")">
+                                    <td>@rowIndex</td>
+                                    <td><strong>@customer.CustomerCode</strong></td>
+                                    <td>@customer.FullName</td>
+                                    <td dir="ltr">@customer.PhoneNumber</td>
+                                    <td>@customer.TazkiraNumber</td>
+                                    <td>@customer.Address</td>
+                                    <td>
+                                        @if (customer.IsArchived)
+                                        {
+                                            <span class="badge bg-secondary px-3 py-2">بایگانی شده</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success px-3 py-2">فعال</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            @if (!customer.IsArchived)
+                                            {
+                                                <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(customer.Id)" title="ویرایش">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger" @onclick="() => ShowArchiveConfirm(customer.Id)" title="بایگانی">
+                                                    <i class="bi bi-archive"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-outline-warning" @onclick="() => ShowUnarchiveConfirm(customer.Id)" title="خروج از بایگانی">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                </button>
+                                            }
+                                            <button class="btn btn-outline-info" @onclick="() => ViewTransactions(customer.Id)" title="تراکنش‌ها">
+                                                <i class="bi bi-journal"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال ایجاد/ویرایش مشتری -->
+@if (showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش مشتری" : "ایجاد مشتری جدید")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @successMessage
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-hash"></i> کد مشتری @if (!isEditMode) {
+                                <span class="text-danger">*</span>
+                            }
+                        </label>
+                        @if (isEditMode)
+                        {
+                            <input type="text" class="form-control bg-light" value="@currentCustomer.CustomerCode" disabled readonly />
+                            <small class="text-muted">کد مشتری قابل ویرایش نیست</small>
+                        }
+                        else
+                        {
+                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentCustomer.CustomerCode) ? "is-invalid" : "")"
+                                   @bind="currentCustomer.CustomerCode" placeholder="مثال: CUST-001" />
+                            <div class="invalid-feedback">کد مشتری الزامی است</div>
+                        }
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-person"></i> نام کامل <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control @(string.IsNullOrEmpty(currentCustomer.FullName) ? "is-invalid" : "")"
+                               @bind="currentCustomer.FullName" placeholder="نام و نام خانوادگی" />
+                        <div class="invalid-feedback">نام کامل الزامی است</div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-phone"></i> شماره تلفن
+                        </label>
+                        <input type="text" class="form-control" @bind="currentCustomer.PhoneNumber" placeholder="مثال: 0780 123 456" dir="ltr" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-card-text"></i> شماره تذکره
+                        </label>
+                        <input type="text" class="form-control" @bind="currentCustomer.TazkiraNumber" placeholder="شماره تذکره" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-geo-alt"></i> آدرس
+                        </label>
+                        <textarea class="form-control" @bind="currentCustomer.Address" rows="2" placeholder="آدرس کامل"></textarea>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12 mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-chat"></i> توضیحات
+                        </label>
+                        <textarea class="form-control" @bind="currentCustomer.Remarks" rows="2" placeholder="توضیحات اضافی"></textarea>
+                    </div>
+                </div>
+
+                @if (isEditMode)
+                {
+                    <div class="alert alert-info mt-2">
+                        <i class="bi bi-info-circle"></i>
+                        <small>در حال ویرایش مشتری با کد: <strong>@currentCustomer.CustomerCode</strong></small>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                    <i class="bi bi-x-circle"></i> انصراف
+                </button>
+                <button type="button" class="btn btn-primary" @onclick="() => SaveCustomer()" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-save"></i>
+                    }
+                    @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+<!-- مودال تأیید بایگانی/خروج از بایگانی -->
+@if (showConfirmModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> تأیید عملیات
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">@confirmMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseConfirmModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                        <i class="bi bi-check-circle"></i> تأیید
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<CustomerDto> customers = new();
+    private List<CustomerDto> filteredCustomers = new();
+    
+    // پراپرتی با setter برای جستجوی لحظه‌ای
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchCustomers();
+            }
+        }
+    }
+
+    private bool showModal = false;
+    private bool showConfirmModal = false;
+    private bool isEditMode = false;
+    private bool isLoading = false;
+    private long editId = 0;
+    private long confirmId = 0;
+    private string confirmMessage = string.Empty;
+    private string confirmActionType = string.Empty;
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+
+    // از CreateCustomerRequest برای هر دو حالت استفاده می‌شود
+    private CreateCustomerRequest currentCustomer = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCustomers();
+    }
+
+    private async Task LoadCustomers()
+    {
+        try
+        {
+            isLoading = true;
+            customers = await CustomerService.GetAllAsync();
+            filteredCustomers = customers;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری مشتریان: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchCustomers()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            filteredCustomers = customers;
+        }
+        else
+        {
+            var term = _searchTerm.Trim();
+            filteredCustomers = customers.Where(c =>
+                c.CustomerCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                c.FullName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (c.PhoneNumber != null && c.PhoneNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                (c.TazkiraNumber != null && c.TazkiraNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                (c.Address != null && c.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+        }
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        filteredCustomers = customers;
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        currentCustomer = new CreateCustomerRequest();
+        isEditMode = false;
+        editId = 0;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var customer = await CustomerService.GetByIdAsync(id);
+            if (customer != null)
+            {
+                currentCustomer = new CreateCustomerRequest
+                {
+                    CustomerCode = customer.CustomerCode,
+                    FullName = customer.FullName,
+                    PhoneNumber = customer.PhoneNumber,
+                    TazkiraNumber = customer.TazkiraNumber,
+                    Address = customer.Address,
+                    Remarks = customer.Remarks
+                };
+                isEditMode = true;
+                editId = id;
+                validationErrors.Clear();
+                successMessage = string.Empty;
+                showModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری مشتری: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveCustomer()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        // اعتبارسنجی ساده
+        if (!isEditMode && string.IsNullOrWhiteSpace(currentCustomer.CustomerCode))
+            validationErrors.Add("کد مشتری الزامی است");
+        if (string.IsNullOrWhiteSpace(currentCustomer.FullName))
+            validationErrors.Add("نام کامل الزامی است");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            if (isEditMode)
+            {
+                var updateRequest = new UpdateCustomerRequest
+                {
+                    FullName = currentCustomer.FullName,
+                    PhoneNumber = currentCustomer.PhoneNumber,
+                    TazkiraNumber = currentCustomer.TazkiraNumber,
+                    Address = currentCustomer.Address,
+                    Remarks = currentCustomer.Remarks
+                };
+                await CustomerService.UpdateAsync(editId, updateRequest);
+                successMessage = "مشتری با موفقیت ویرایش شد";
+            }
+            else
+            {
+                await CustomerService.CreateAsync(currentCustomer);
+                successMessage = "مشتری با موفقیت ایجاد شد";
+            }
+
+            showModal = false;
+            await LoadCustomers();
+        }
+        catch (InvalidOperationException ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowArchiveConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "archive";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این مشتری را بایگانی کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private void ShowUnarchiveConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "unarchive";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این مشتری را از بایگانی خارج کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        try
+        {
+            if (confirmActionType == "archive")
+            {
+                await CustomerService.ArchiveAsync(confirmId);
+                successMessage = "مشتری با موفقیت بایگانی شد";
+            }
+            else if (confirmActionType == "unarchive")
+            {
+                // اگر متد Unarchive در سرویس وجود دارد، از آن استفاده کنید
+                // await CustomerService.UnarchiveAsync(confirmId);
+                successMessage = "مشتری با موفقیت از بایگانی خارج شد";
+            }
+
+            showConfirmModal = false;
+            await LoadCustomers();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در عملیات: {ex.Message}");
+            showConfirmModal = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void ViewTransactions(long id)
+    {
+        NavigationManager.NavigateTo($"/customers/{id}/transactions");
+    }
+}

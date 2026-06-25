@@ -44,7 +44,9 @@ namespace HawalaExchange.Infrastructure.Services
                     DecimalPlaces = c.DecimalPlaces,
                     IsActive = c.IsActive
                 }).FirstOrDefaultAsync();
-            if (currency == null) return null;
+            return currency;
+            
+
         }
         public async Task<long> CreateAsync(CreateCurrencyRequest request)
         {

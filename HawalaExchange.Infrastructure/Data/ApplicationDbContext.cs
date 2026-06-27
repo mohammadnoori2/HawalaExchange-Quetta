@@ -1,7 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
-using YourNamespace.Entities;
+﻿using HawalaExchange.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
-namespace YourNamespace.Data
+namespace HawalaExchange.Infrastructure.Data   // ✅ Corrected namespace
 {
     public class ApplicationDbContext : DbContext
     {
@@ -10,6 +10,7 @@ namespace YourNamespace.Data
         {
         }
 
+        // DbSets
         public DbSet<Branch> Branches { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<Customer> Customers { get; set; }
@@ -37,6 +38,7 @@ namespace YourNamespace.Data
             ConfigureRelationships(modelBuilder);
             SeedData(modelBuilder);
         }
+
         private static void SeedData(ModelBuilder modelBuilder)
         {
             var createdAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -47,8 +49,8 @@ namespace YourNamespace.Data
                     Id = 1,
                     Code = "MAIN",
                     Name = "Main Branch",
-                    PhoneNumber = "null",
-                    Address = " ",
+                    PhoneNumber = null,
+                    Address = "",
                     IsArchived = false,
                     CreatedAt = createdAt
                 }
@@ -69,269 +71,68 @@ namespace YourNamespace.Data
             );
 
             modelBuilder.Entity<Currency>().HasData(
-                new Currency
-                {
-                    Id = 1,
-                    Code = "AFN",
-                    Name = "Afghani",
-                    Symbol = "؋",
-                    DecimalPlaces = 2,
-                    IsActive = true
-                },
-                new Currency
-                {
-                    Id = 2,
-                    Code = "USD",
-                    Name = "US Dollar",
-                    Symbol = "$",
-                    DecimalPlaces = 2,
-                    IsActive = true
-                },
-                new Currency
-                {
-                    Id = 3,
-                    Code = "EUR",
-                    Name = "Euro",
-                    Symbol = "€",
-                    DecimalPlaces = 2,
-                    IsActive = true
-                },
-                new Currency
-                {
-                    Id = 4,
-                    Code = "AED",
-                    Name = "UAE Dirham",
-                    Symbol = "د.إ",
-                    DecimalPlaces = 2,
-                    IsActive = true
-                },
-                new Currency
-                {
-                    Id = 5,
-                    Code = "IRR",
-                    Name = "Iranian Rial",
-                    Symbol = "﷼",
-                    DecimalPlaces = 2,
-                    IsActive = true
-                },
-                new Currency
-                {
-                    Id = 6,
-                    Code = "PKR",
-                    Name = "Pakistani Rupee",
-                    Symbol = "₨",
-                    DecimalPlaces = 2,
-                    IsActive = true
-                }
+                new Currency { Id = 1, Code = "AFN", Name = "Afghani", Symbol = "؋", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 2, Code = "USD", Name = "US Dollar", Symbol = "$", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 3, Code = "EUR", Name = "Euro", Symbol = "€", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 4, Code = "AED", Name = "UAE Dirham", Symbol = "د.إ", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 5, Code = "IRR", Name = "Iranian Rial", Symbol = "﷼", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 6, Code = "PKR", Name = "Pakistani Rupee", Symbol = "₨", DecimalPlaces = 2, IsActive = true }
             );
 
             modelBuilder.Entity<Account>().HasData(
-                new Account
-                {
-                    Id = 1,
-                    AccountCode = "1001",
-                    AccountName = "Cash",
-                    AccountType = "Cash",
-                    ReferenceType = null,
-                    ReferenceId = null,
-                    IsArchived = false,
-                    CreatedAt = createdAt
-                },
-                new Account
-                {
-                    Id = 2,
-                    AccountCode = "1101",
-                    AccountName = "Bank",
-                    AccountType = "Bank",
-                    ReferenceType = null,
-                    ReferenceId = null,
-                    IsArchived = false,
-                    CreatedAt = createdAt
-                },
-                new Account
-                {
-                    Id = 3,
-                    AccountCode = "3001",
-                    AccountName = "Hawala Commission Income",
-                    AccountType = "Income",
-                    ReferenceType = null,
-                    ReferenceId = null,
-                    IsArchived = false,
-                    CreatedAt = createdAt
-                },
-                new Account
-                {
-                    Id = 4,
-                    AccountCode = "3002",
-                    AccountName = "Exchange Income",
-                    AccountType = "Income",
-                    ReferenceType = null,
-                    ReferenceId = null,
-                    IsArchived = false,
-                    CreatedAt = createdAt
-                },
-                new Account
-                {
-                    Id = 5,
-                    AccountCode = "4001",
-                    AccountName = "Office Expense",
-                    AccountType = "Expense",
-                    ReferenceType = null,
-                    ReferenceId = null,
-                    IsArchived = false,
-                    CreatedAt = createdAt
-                },
-                new Account
-                {
-                    Id = 6,
-                    AccountCode = "5001",
-                    AccountName = "Owner Capital",
-                    AccountType = "Equity",
-                    ReferenceType = null,
-                    ReferenceId = null,
-                    IsArchived = false,
-                    CreatedAt = createdAt
-                }
+                new Account { Id = 1, AccountCode = "1001", AccountName = "Cash", AccountType = "Cash", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 2, AccountCode = "1101", AccountName = "Bank", AccountType = "Bank", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 3, AccountCode = "3001", AccountName = "Hawala Commission Income", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 4, AccountCode = "3002", AccountName = "Exchange Income", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 5, AccountCode = "4001", AccountName = "Office Expense", AccountType = "Expense", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 6, AccountCode = "5001", AccountName = "Owner Capital", AccountType = "Equity", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt }
             );
         }
+
         private static void ConfigureIndexes(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Branch>()
-                .HasIndex(x => x.Code)
-                .IsUnique();
-
-            modelBuilder.Entity<User>()
-                .HasIndex(x => x.UserName)
-                .IsUnique();
-
-            modelBuilder.Entity<Customer>()
-                .HasIndex(x => x.CustomerCode)
-                .IsUnique();
-
-            modelBuilder.Entity<Correspondent>()
-                .HasIndex(x => x.Code)
-                .IsUnique();
-
-            modelBuilder.Entity<Currency>()
-                .HasIndex(x => x.Code)
-                .IsUnique();
-
-            modelBuilder.Entity<Account>()
-                .HasIndex(x => x.AccountCode)
-                .IsUnique();
-
-            modelBuilder.Entity<Transaction>()
-                .HasIndex(x => x.TransactionNo)
-                .IsUnique();
-
-            modelBuilder.Entity<AccountBadehkarLimit>()
-                .HasIndex(x => new { x.AccountId, x.CurrencyId })
-                .IsUnique();
-
-            modelBuilder.Entity<LedgerEntry>()
-                .HasIndex(x => new { x.AccountId, x.CurrencyId });
-
-            modelBuilder.Entity<LedgerEntry>()
-                .HasIndex(x => x.TransactionId);
-
-            modelBuilder.Entity<ExchangeRate>()
-                .HasIndex(x => new { x.FromCurrencyId, x.ToCurrencyId, x.EffectiveDate });
-
-            modelBuilder.Entity<Document>()
-                .HasIndex(x => new { x.EntityType, x.EntityId });
-
-            modelBuilder.Entity<AuditLog>()
-                .HasIndex(x => new { x.TableName, x.RecordId });
+            modelBuilder.Entity<Branch>().HasIndex(x => x.Code).IsUnique();
+            modelBuilder.Entity<User>().HasIndex(x => x.UserName).IsUnique();
+            modelBuilder.Entity<Customer>().HasIndex(x => x.CustomerCode).IsUnique();
+            modelBuilder.Entity<Correspondent>().HasIndex(x => x.Code).IsUnique();
+            modelBuilder.Entity<Currency>().HasIndex(x => x.Code).IsUnique();
+            modelBuilder.Entity<Account>().HasIndex(x => x.AccountCode).IsUnique();
+            modelBuilder.Entity<Transaction>().HasIndex(x => x.TransactionNo).IsUnique();
+            modelBuilder.Entity<AccountBadehkarLimit>().HasIndex(x => new { x.AccountId, x.CurrencyId }).IsUnique();
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.AccountId, x.CurrencyId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => x.TransactionId);
+            modelBuilder.Entity<ExchangeRate>().HasIndex(x => new { x.FromCurrencyId, x.ToCurrencyId, x.EffectiveDate });
+            modelBuilder.Entity<Document>().HasIndex(x => new { x.EntityType, x.EntityId });
+            modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TableName, x.RecordId });
         }
 
         private static void ConfigureDefaultValues(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Branch>()
-                .Property(x => x.IsArchived)
-                .HasDefaultValue(false);
-
-            modelBuilder.Entity<User>()
-                .Property(x => x.IsActive)
-                .HasDefaultValue(true);
-
-            modelBuilder.Entity<Currency>()
-                .Property(x => x.DecimalPlaces)
-                .HasDefaultValue(2);
-
-            modelBuilder.Entity<Currency>()
-                .Property(x => x.IsActive)
-                .HasDefaultValue(true);
-
-            modelBuilder.Entity<Account>()
-                .Property(x => x.IsArchived)
-                .HasDefaultValue(false);
-
-            modelBuilder.Entity<Customer>()
-                .Property(x => x.IsArchived)
-                .HasDefaultValue(false);
-
-            modelBuilder.Entity<Correspondent>()
-                .Property(x => x.IsArchived)
-                .HasDefaultValue(false);
-
-            modelBuilder.Entity<AccountBadehkarLimit>()
-                .Property(x => x.IsActive)
-                .HasDefaultValue(true);
+            modelBuilder.Entity<Branch>().Property(x => x.IsArchived).HasDefaultValue(false);
+            modelBuilder.Entity<User>().Property(x => x.IsActive).HasDefaultValue(true);
+            modelBuilder.Entity<Currency>().Property(x => x.DecimalPlaces).HasDefaultValue(2);
+            modelBuilder.Entity<Currency>().Property(x => x.IsActive).HasDefaultValue(true);
+            modelBuilder.Entity<Account>().Property(x => x.IsArchived).HasDefaultValue(false);
+            modelBuilder.Entity<Customer>().Property(x => x.IsArchived).HasDefaultValue(false);
+            modelBuilder.Entity<Correspondent>().Property(x => x.IsArchived).HasDefaultValue(false);
+            modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.IsActive).HasDefaultValue(true);
         }
 
         private static void ConfigureDecimalPrecision(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<LedgerEntry>()
-                .Property(x => x.TalabKar)
-                .HasPrecision(18, 4);
-
-            modelBuilder.Entity<LedgerEntry>()
-                .Property(x => x.BadehKar)
-                .HasPrecision(18, 4);
-
-            modelBuilder.Entity<TransactionDetail>()
-                .Property(x => x.FromAmount)
-                .HasPrecision(18, 4);
-
-            modelBuilder.Entity<TransactionDetail>()
-                .Property(x => x.ToAmount)
-                .HasPrecision(18, 4);
-
-            modelBuilder.Entity<TransactionDetail>()
-                .Property(x => x.ExchangeRate)
-                .HasPrecision(18, 8);
-
-            modelBuilder.Entity<TransactionDetail>()
-                .Property(x => x.TransferAmount)
-                .HasPrecision(18, 4);
-
-            modelBuilder.Entity<TransactionDetail>()
-                .Property(x => x.CommissionAmount)
-                .HasPrecision(18, 4);
-
-            modelBuilder.Entity<TransactionDetail>()
-                .Property(x => x.AgentCommissionAmount)
-                .HasPrecision(18, 4);
-
-            modelBuilder.Entity<Transfer>()
-                .Property(x => x.Amount)
-                .HasPrecision(18, 4);
-
-            modelBuilder.Entity<ExchangeRate>()
-                .Property(x => x.BuyRate)
-                .HasPrecision(18, 8);
-
-            modelBuilder.Entity<ExchangeRate>()
-                .Property(x => x.SellRate)
-                .HasPrecision(18, 8);
-
-            modelBuilder.Entity<Expense>()
-                .Property(x => x.Amount)
-                .HasPrecision(18, 4);
-
-            modelBuilder.Entity<AccountBadehkarLimit>()
-                .Property(x => x.BadehkarLimit)
-                .HasPrecision(18, 4);
+            modelBuilder.Entity<LedgerEntry>().Property(x => x.TalabKar).HasPrecision(18, 4);
+            modelBuilder.Entity<LedgerEntry>().Property(x => x.BadehKar).HasPrecision(18, 4);
+            modelBuilder.Entity<TransactionDetail>().Property(x => x.FromAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<TransactionDetail>().Property(x => x.ToAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<TransactionDetail>().Property(x => x.ExchangeRate).HasPrecision(18, 8);
+            modelBuilder.Entity<TransactionDetail>().Property(x => x.TransferAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<TransactionDetail>().Property(x => x.CommissionAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<TransactionDetail>().Property(x => x.AgentCommissionAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<Transfer>().Property(x => x.Amount).HasPrecision(18, 4);
+            modelBuilder.Entity<ExchangeRate>().Property(x => x.BuyRate).HasPrecision(18, 8);
+            modelBuilder.Entity<ExchangeRate>().Property(x => x.SellRate).HasPrecision(18, 8);
+            modelBuilder.Entity<Expense>().Property(x => x.Amount).HasPrecision(18, 4);
+            modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.BadehkarLimit).HasPrecision(18, 4);
         }
 
         private static void ConfigureLedgerConstraints(ModelBuilder modelBuilder)
@@ -350,172 +151,196 @@ namespace YourNamespace.Data
 
         private static void ConfigureRelationships(ModelBuilder modelBuilder)
         {
+            // --- User <-> Branch ---
             modelBuilder.Entity<User>()
-                .HasOne(x => x.Branch)
-                .WithMany(x => x.Users)
-                .HasForeignKey(x => x.BranchId)
+                .HasOne(u => u.Branch)
+                .WithMany(b => b.Users)
+                .HasForeignKey(u => u.BranchId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Transaction <-> Branch ---
             modelBuilder.Entity<Transaction>()
-                .HasOne(x => x.Branch)
-                .WithMany(x => x.Transactions)
-                .HasForeignKey(x => x.BranchId)
+                .HasOne(t => t.Branch)
+                .WithMany(b => b.Transactions)
+                .HasForeignKey(t => t.BranchId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Transaction <-> Customer ---
             modelBuilder.Entity<Transaction>()
-                .HasOne(x => x.Customer)
-                .WithMany(x => x.Transactions)
-                .HasForeignKey(x => x.CustomerId)
+                .HasOne(t => t.Customer)
+                .WithMany(c => c.Transactions)
+                .HasForeignKey(t => t.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Transaction <-> CreatedByUser ---
             modelBuilder.Entity<Transaction>()
-                .HasOne(x => x.CreatedByUser)
-                .WithMany(x => x.CreatedTransactions)
-                .HasForeignKey(x => x.CreatedBy)
+                .HasOne(t => t.CreatedByUser)
+                .WithMany(u => u.CreatedTransactions)
+                .HasForeignKey(t => t.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Transaction <-> CancelledByUser ---
             modelBuilder.Entity<Transaction>()
-                .HasOne(x => x.CancelledByUser)
-                .WithMany(x => x.CancelledTransactions)
-                .HasForeignKey(x => x.CancelledBy)
+                .HasOne(t => t.CancelledByUser)
+                .WithMany(u => u.CancelledTransactions)   // User must have ICollection<Transaction> CancelledTransactions
+                .HasForeignKey(t => t.CancelledBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Transaction <-> ReversedTransaction (self-ref) ---
             modelBuilder.Entity<Transaction>()
-                .HasOne<Transaction>()
+                .HasOne(t => t.ReversedTransaction)
                 .WithMany()
-                .HasForeignKey(x => x.ReversedTransactionId)
+                .HasForeignKey(t => t.ReversedTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- TransactionDetail <-> Transaction ---
+            modelBuilder.Entity<TransactionDetail>()
+                .HasOne(td => td.Transaction)
+                .WithMany(t => t.TransactionDetails)
+                .HasForeignKey(td => td.TransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- TransactionDetail <-> Correspondent ---
+            modelBuilder.Entity<TransactionDetail>()
+                .HasOne(td => td.Correspondent)
+                .WithMany(c => c.TransactionDetails)
+                .HasForeignKey(td => td.CorrespondentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- TransactionDetail <-> Currencies ---
+            modelBuilder.Entity<TransactionDetail>()
+                .HasOne(td => td.FromCurrency)
+                .WithMany()
+                .HasForeignKey(td => td.FromCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<TransactionDetail>()
-                .HasOne(x => x.Transaction)
+                .HasOne(td => td.ToCurrency)
                 .WithMany()
-                .HasForeignKey(x => x.TransactionId)
+                .HasForeignKey(td => td.ToCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<TransactionDetail>()
-                .HasOne(x => x.Correspondent)
-                .WithMany(x => x.TransactionDetails)
-                .HasForeignKey(x => x.CorrespondentId)
+                .HasOne(td => td.CommissionCurrency)
+                .WithMany()
+                .HasForeignKey(td => td.CommissionCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<TransactionDetail>()
-                .HasOne(x => x.FromCurrency)
+                .HasOne(td => td.AgentCommissionCurrency)
                 .WithMany()
-                .HasForeignKey(x => x.FromCurrencyId)
+                .HasForeignKey(td => td.AgentCommissionCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<TransactionDetail>()
-                .HasOne(x => x.ToCurrency)
-                .WithMany()
-                .HasForeignKey(x => x.ToCurrencyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<TransactionDetail>()
-                .HasOne(x => x.CommissionCurrency)
-                .WithMany()
-                .HasForeignKey(x => x.CommissionCurrencyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<TransactionDetail>()
-                .HasOne(x => x.AgentCommissionCurrency)
-                .WithMany()
-                .HasForeignKey(x => x.AgentCommissionCurrencyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
+            // --- LedgerEntry <-> Transaction ---
             modelBuilder.Entity<LedgerEntry>()
-                .HasOne(x => x.Transaction)
-                .WithMany(x => x.LedgerEntries)
-                .HasForeignKey(x => x.TransactionId)
+                .HasOne(le => le.Transaction)
+                .WithMany(t => t.LedgerEntries)
+                .HasForeignKey(le => le.TransactionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- LedgerEntry <-> Account ---
             modelBuilder.Entity<LedgerEntry>()
-                .HasOne(x => x.Account)
-                .WithMany(x => x.LedgerEntries)
-                .HasForeignKey(x => x.AccountId)
+                .HasOne(le => le.Account)
+                .WithMany(a => a.LedgerEntries)
+                .HasForeignKey(le => le.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- LedgerEntry <-> Currency ---
             modelBuilder.Entity<LedgerEntry>()
-                .HasOne(x => x.Currency)
-                .WithMany(x => x.LedgerEntries)
-                .HasForeignKey(x => x.CurrencyId)
+                .HasOne(le => le.Currency)
+                .WithMany(c => c.LedgerEntries)
+                .HasForeignKey(le => le.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Transfer <-> Transaction ---
             modelBuilder.Entity<Transfer>()
-                .HasOne(x => x.Transaction)
-                .WithMany(x => x.Transfers)
-                .HasForeignKey(x => x.TransactionId)
+                .HasOne(t => t.Transaction)
+                .WithMany(tr => tr.Transfers)
+                .HasForeignKey(t => t.TransactionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Transfer <-> FromAccount ---
             modelBuilder.Entity<Transfer>()
-                .HasOne(x => x.FromAccount)
-                .WithMany(x => x.FromTransfers)
-                .HasForeignKey(x => x.FromAccountId)
+                .HasOne(t => t.FromAccount)
+                .WithMany(a => a.FromTransfers)    // Account must have ICollection<Transfer> FromTransfers
+                .HasForeignKey(t => t.FromAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Transfer <-> ToAccount ---
             modelBuilder.Entity<Transfer>()
-                .HasOne(x => x.ToAccount)
-                .WithMany(x => x.ToTransfers)
-                .HasForeignKey(x => x.ToAccountId)
+                .HasOne(t => t.ToAccount)
+                .WithMany(a => a.ToTransfers)      // Account must have ICollection<Transfer> ToTransfers
+                .HasForeignKey(t => t.ToAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Transfer <-> Currency ---
             modelBuilder.Entity<Transfer>()
-                .HasOne(x => x.Currency)
+                .HasOne(t => t.Currency)
                 .WithMany()
-                .HasForeignKey(x => x.CurrencyId)
+                .HasForeignKey(t => t.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Expense <-> Transaction ---
             modelBuilder.Entity<Expense>()
-                .HasOne(x => x.Transaction)
-                .WithMany(x => x.Expenses)
-                .HasForeignKey(x => x.TransactionId)
+                .HasOne(e => e.Transaction)
+                .WithMany(t => t.Expenses)
+                .HasForeignKey(e => e.TransactionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- Expense <-> Currency ---
             modelBuilder.Entity<Expense>()
-                .HasOne(x => x.Currency)
+                .HasOne(e => e.Currency)
                 .WithMany()
-                .HasForeignKey(x => x.CurrencyId)
+                .HasForeignKey(e => e.CurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- ExchangeRate <-> Currencies ---
+            modelBuilder.Entity<ExchangeRate>()
+                .HasOne(er => er.FromCurrency)
+                .WithMany()
+                .HasForeignKey(er => er.FromCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<ExchangeRate>()
-                .HasOne(x => x.FromCurrency)
+                .HasOne(er => er.ToCurrency)
                 .WithMany()
-                .HasForeignKey(x => x.FromCurrencyId)
+                .HasForeignKey(er => er.ToCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // --- ExchangeRate <-> User (CreatedBy) ---
             modelBuilder.Entity<ExchangeRate>()
-                .HasOne(x => x.ToCurrency)
+                .HasOne(er => er.CreatedByUser)
                 .WithMany()
-                .HasForeignKey(x => x.ToCurrencyId)
+                .HasForeignKey(er => er.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<ExchangeRate>()
-                .HasOne(x => x.CreatedByUser)
+            // --- AccountBadehkarLimit <-> Account ---
+            modelBuilder.Entity<AccountBadehkarLimit>()
+                .HasOne(abl => abl.Account)
+                .WithMany(a => a.AccountBadehkarLimits)   // Account must have ICollection<AccountBadehkarLimit>
+                .HasForeignKey(abl => abl.AccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- AccountBadehkarLimit <-> Currency ---
+            modelBuilder.Entity<AccountBadehkarLimit>()
+                .HasOne(abl => abl.Currency)
+                .WithMany(c => c.AccountBadehkarLimits)   // Currency must have ICollection<AccountBadehkarLimit>
+                .HasForeignKey(abl => abl.CurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // --- AccountBadehkarLimit <-> User (CreatedBy) ---
+            modelBuilder.Entity<AccountBadehkarLimit>()
+                .HasOne(abl => abl.CreatedByUser)
                 .WithMany()
-                .HasForeignKey(x => x.CreatedBy)
+                .HasForeignKey(abl => abl.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<AccountBadehkarLimit>()
-                .HasOne(x => x.Account)
-                .WithMany(x => x.AccountBadehkarLimits)
-                .HasForeignKey(x => x.AccountId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<AccountBadehkarLimit>()
-                .HasOne(x => x.Currency)
-                .WithMany(x => x.AccountBadehkarLimits)
-                .HasForeignKey(x => x.CurrencyId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<AccountBadehkarLimit>()
-                .HasOne(x => x.CreatedByUser)
-                .WithMany()
-                .HasForeignKey(x => x.CreatedBy)
-                .OnDelete(DeleteBehavior.Restrict);
-
+            // --- AuditLog <-> User ---
             modelBuilder.Entity<AuditLog>()
-                .HasOne(x => x.User)
+                .HasOne(al => al.User)
                 .WithMany()
-                .HasForeignKey(x => x.UserId)
+                .HasForeignKey(al => al.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

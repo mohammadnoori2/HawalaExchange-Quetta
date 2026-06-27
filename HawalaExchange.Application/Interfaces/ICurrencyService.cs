@@ -1,16 +1,13 @@
 ﻿using HawalaExchange.Application.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using HawalaExchange.Domain.Entities;
 
-namespace HawalaExchange.Application.Interfaces
+namespace HawalaExchange.Application.Interfaces.Services
 {
-    public interface ICurrencyService
+    public interface ICurrencyService : IBaseService<Currency, CurrencyDto, CreateCurrencyDto, UpdateCurrencyDto>
     {
-        Task<List<CurrencyDtos>> GetAllAsync();
-        Task<CurrencyDtos?> GetByIdAsync(long id);
-        Task<long> CreateAsync(CreateCurrencyRequest request);
-        Task UpdateAsync(long id, UpdateCurrencyRequest request);
-        Task DeleteAsync(long id);
+        Task<CurrencyDto?> GetByCodeAsync(string code);
+        Task<IEnumerable<CurrencyDto>> GetActiveCurrenciesAsync();
+        Task<CurrencyDto> DeactivateAsync(long id);
+        Task<CurrencyDto> ActivateAsync(long id);
     }
 }

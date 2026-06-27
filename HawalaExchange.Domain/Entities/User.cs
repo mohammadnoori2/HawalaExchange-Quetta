@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Transactions;
 
-namespace YourNamespace.Entities
+namespace HawalaExchange.Domain.Entities
 {
     [Table("Users")]
     public class User
@@ -36,13 +34,16 @@ namespace YourNamespace.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation Properties
-        [ForeignKey("BranchId")]
-        public virtual Branch Branch { get; set; }
+        [ForeignKey(nameof(BranchId))]
+        public virtual Branch? Branch { get; set; }
 
-        public virtual ICollection<ExchangeRate> ExchangeRates { get; set; }
-        public virtual ICollection<AccountBadehkarLimit> AccountBadehkarLimits { get; set; }
-        public virtual ICollection<AuditLog> AuditLogs { get; set; }
-        public virtual ICollection<Transaction> CreatedTransactions { get; set; }
-        public virtual ICollection<Transaction> CancelledTransactions { get; set; }
+        public virtual ICollection<Transaction>? CreatedTransactions { get; set; }
+
+        // ✅ Added: Transactions that this user cancelled
+        public virtual ICollection<Transaction>? CancelledTransactions { get; set; }
+
+        public virtual ICollection<ExchangeRate>? ExchangeRates { get; set; }
+        public virtual ICollection<AccountBadehkarLimit>? AccountLimits { get; set; }
+        public virtual ICollection<AuditLog>? AuditLogs { get; set; }
     }
 }

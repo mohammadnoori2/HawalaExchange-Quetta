@@ -2,7 +2,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace YourNamespace.Entities
+
+namespace HawalaExchange.Domain.Entities
 {
     [Table("ExchangeRates")]
     public class ExchangeRate
@@ -17,10 +18,10 @@ namespace YourNamespace.Entities
         [Required]
         public long ToCurrencyId { get; set; }
 
-        [Column(TypeName = "decimal(18,8)")]
+        [Required]
         public decimal BuyRate { get; set; }
 
-        [Column(TypeName = "decimal(18,8)")]
+        [Required]
         public decimal SellRate { get; set; }
 
         public DateTime EffectiveDate { get; set; } = DateTime.UtcNow;
@@ -29,13 +30,13 @@ namespace YourNamespace.Entities
         public long CreatedBy { get; set; }
 
         // Navigation Properties
-        [ForeignKey("FromCurrencyId")]
-        public virtual Currency FromCurrency { get; set; }
+        [ForeignKey(nameof(FromCurrencyId))]
+        public virtual Currency? FromCurrency { get; set; }
 
-        [ForeignKey("ToCurrencyId")]
-        public virtual Currency ToCurrency { get; set; }
+        [ForeignKey(nameof(ToCurrencyId))]
+        public virtual Currency? ToCurrency { get; set; }
 
-        [ForeignKey("CreatedBy")]
-        public virtual User CreatedByUser { get; set; }
+        [ForeignKey(nameof(CreatedBy))]
+        public virtual User? CreatedByUser { get; set; }
     }
 }

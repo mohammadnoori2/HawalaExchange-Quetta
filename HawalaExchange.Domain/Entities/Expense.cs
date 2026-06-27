@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace YourNamespace.Entities
+namespace HawalaExchange.Domain.Entities
 {
     [Table("Expenses")]
     public class Expense
@@ -23,17 +23,17 @@ namespace YourNamespace.Entities
         [Required]
         public long CurrencyId { get; set; }
 
-        [Column(TypeName = "decimal(18,4)")]
+        [Required]
         public decimal Amount { get; set; }
 
         [MaxLength(1000)]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         // Navigation Properties
-        [ForeignKey("TransactionId")]
-        public virtual Transaction Transaction { get; set; }
+        [ForeignKey(nameof(TransactionId))]
+        public virtual Transaction? Transaction { get; set; }
 
-        [ForeignKey("CurrencyId")]
-        public virtual Currency Currency { get; set; }
+        [ForeignKey(nameof(CurrencyId))]
+        public virtual Currency? Currency { get; set; }
     }
 }

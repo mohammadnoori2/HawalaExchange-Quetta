@@ -1,90 +1,53 @@
-﻿using HawalaExchange.Application.DTOs;
-using HawalaExchange.Application.Interfaces;
+﻿using AutoMapper;
+using HawalaExchange.Application.DTOs;
+using HawalaExchange.Application.Interfaces.Services;
+using HawalaExchange.Domain.Entities;
+using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using YourNamespace.Data;
-using YourNamespace.Entities;
 
-namespace HawalaExchange.Infrastructure.Services
+namespace HawalaExchange.Application.Services
 {
-    public class CurrencyService : ICurrencyService
+    public class CurrencyService : BaseService<Currency, CurrencyDto, CreateCurrencyDto, UpdateCurrencyDto>, ICurrencyService
     {
-        public readonly ApplicationDbContext _context;
-        public CurrencyService(ApplicationDbContext context)
+        public CurrencyService(ApplicationDbContext context, IMapper mapper)
+            : base(context, mapper) { }
+
+        public async Task<CurrencyDto?> GetByCodeAsync(string code)
         {
-            _context = context;
+            var entity = await _dbSet.FirstOrDefaultAsync(c => c.Code == code);
+            return entity == null ? null : _mapper.Map<CurrencyDto>(entity);
         }
 
-        public async Task<List<CurrencyDtos>> GetAllAsync()
+        public async Task<IEnumerable<CurrencyDto>> GetActiveCurrenciesAsync()
         {
-            return await Task.FromResult(_context.Currencies.Select(c => new CurrencyDtos
-            {
-                Id = c.Id,
-                Code = c.Code,
-                Name = c.Name,
-                Symbol = c.Symbol,
-                DecimalPlaces = c.DecimalPlaces,
-                IsActive = c.IsActive
-            }).ToList());
+            var entities = await _dbSet.Where(c => c.IsActive).ToListAsync();
+            return _mapper.Map<IEnumerable<CurrencyDto>>(entities);
         }
 
-        public async Task<CurrencyDtos?> GetByIdAsync(long id)
+        public async Task<CurrencyDto> DeactivateAsync(long id)
         {
-            var currency = await _context.Currencies
-                .AsNoTracking()
-                .Where(c => c.Id == id)
-                .Select(c => new CurrencyDtos
-                {
-                    Id = c.Id,
-                    Code = c.Code,
-                    Name = c.Name,
-                    Symbol = c.Symbol,
-                    DecimalPlaces = c.DecimalPlaces,
-                    IsActive = c.IsActive
-                }).FirstOrDefaultAsync();
-            return currency;
-            
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"Currency with ID {id} not found.");
 
-        }
-        public async Task<long> CreateAsync(CreateCurrencyRequest request)
-        {
-            var exist = await _context.Currencies.AnyAsync(c => c.Code == request.Code);
-            if (exist) throw new InvalidOperationException("Currency with the same code already exists.");
-
-            var currency = new Currency
-            {
-                Code = request.Code,
-                Name = request.Name,
-                Symbol = request.Symbol,
-                DecimalPlaces = request.DecimalPlaces,
-                IsActive = request.IsActive
-            };
-
-            _context.Currencies.Add(currency);
+            entity.IsActive = false;
             await _context.SaveChangesAsync();
-            return currency.Id;
+            return _mapper.Map<CurrencyDto>(entity);
         }
 
-        public async Task DeleteAsync(long id)
+        public async Task<CurrencyDto> ActivateAsync(long id)
         {
-            var currency = await _context.Currencies.FindAsync(id);
-            if (currency == null)
-                { 
-                    throw new InvalidOperationException("Currency not found.");
-                }
-            _context.Currencies.Remove(currency);
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"Currency with ID {id} not found.");
+
+            entity.IsActive = true;
             await _context.SaveChangesAsync();
+            return _mapper.Map<CurrencyDto>(entity);
         }
 
-        
-
-        
-
-        public Task UpdateAsync(long id, UpdateCurrencyRequest request)
+        protected override async Task ValidateCreateAsync(Currency entity, CreateCurrencyDto dto)
         {
-            throw new NotImplementedException();
+            if (await _dbSet.AnyAsync(c => c.Code == entity.Code))
+                throw new InvalidOperationException($"Currency with code '{entity.Code}' already exists.");
         }
     }
 }

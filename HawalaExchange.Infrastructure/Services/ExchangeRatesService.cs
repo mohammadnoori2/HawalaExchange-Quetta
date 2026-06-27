@@ -1,109 +1,76 @@
-﻿using HawalaExchange.Application.DTOs;
-using HawalaExchange.Application.Interfaces;
+﻿using AutoMapper;
+using HawalaExchange.Application.DTOs;
+using HawalaExchange.Application.Interfaces.Services;
+using HawalaExchange.Domain.Entities;
+using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using YourNamespace.Data;
-using YourNamespace.Entities;
 
-namespace HawalaExchange.Infrastructure.Services
+namespace HawalaExchange.Application.Services
 {
-    public class ExchangeRatesService : IExchangeRatesService
+    public class ExchangeRateService : BaseService<ExchangeRate, ExchangeRateDto, CreateExchangeRateDto, UpdateExchangeRateDto>, IExchangeRateService
     {
-        private readonly ApplicationDbContext _context;
-        public ExchangeRatesService(ApplicationDbContext context)
-        {
-            _context = context;
-        }
+        public ExchangeRateService(ApplicationDbContext context, IMapper mapper)
+            : base(context, mapper) { }
 
-        public async Task<List<ExchangeRatesDtos>> GetAllAsync()
+        public async Task<ExchangeRateDto?> GetLatestRateAsync(long fromCurrencyId, long toCurrencyId)
         {
-            return await _context.ExchangeRates
-                .AsNoTracking()
-                .OrderBy(x => x.EffectiveDate)
-                .Select(x => new ExchangeRatesDtos
-                {
-                    Id = x.Id,
-                    FromCurrencyId = x.FromCurrencyId,
-                    ToCurrencyId = x.ToCurrencyId,
-                    BuyRate = x.BuyRate,
-                    SellRate = x.SellRate,
-                    EffectiveDate = x.EffectiveDate,
-                    CreatedBy = x.CreatedBy
-                })
-                .ToListAsync();
-        }
-
-        public async Task<ExchangeRatesDtos?> GetByIdAsync(long id)
-        {
-            var entity = await _context.ExchangeRates
-                .AsNoTracking()
-                .Where(x => x.Id == id)
+            var rate = await _dbSet
+                .Where(r => r.FromCurrencyId == fromCurrencyId && r.ToCurrencyId == toCurrencyId)
+                .OrderByDescending(r => r.EffectiveDate)
                 .FirstOrDefaultAsync();
-
-            if (entity == null)
-            {
-                return null;
-            }
-
-            return new ExchangeRatesDtos
-            {
-                Id = entity.Id,
-                FromCurrencyId = entity.FromCurrencyId,
-                ToCurrencyId = entity.ToCurrencyId,
-                BuyRate = entity.BuyRate,
-                SellRate = entity.SellRate,
-                EffectiveDate = entity.EffectiveDate,
-                CreatedBy = entity.CreatedBy
-            };
+            return rate == null ? null : _mapper.Map<ExchangeRateDto>(rate);
         }
 
-        public async Task<long> CreateAsync(CreateExchangeRatesRequest request)
+        public async Task<decimal> ConvertAsync(long fromCurrencyId, long toCurrencyId, decimal amount)
         {
-            var entity = new ExchangeRate
-            {
-                FromCurrencyId = request.FromCurrencyId,
-                ToCurrencyId = request.ToCurrencyId,
-                BuyRate = request.BuyRate,
-                SellRate = request.SellRate,
-                EffectiveDate = request.EffectiveDate,
-                CreatedBy = request.CreatedBy
-            };
+            if (fromCurrencyId == toCurrencyId) return amount;
 
-            _context.ExchangeRates.Add(entity);
-            await _context.SaveChangesAsync();
-            return entity.Id;
+            var rate = await GetLatestRateAsync(fromCurrencyId, toCurrencyId);
+            if (rate == null)
+                throw new InvalidOperationException($"Exchange rate not found from {fromCurrencyId} to {toCurrencyId}.");
+
+            return amount * rate.SellRate;
         }
 
-        
-        public async Task UpdateAsync(long id, UpdateExchangeRatesRequest request)
+        public async Task<ExchangeRateDto?> GetRateByDateAsync(long fromCurrencyId, long toCurrencyId, DateTime date)
         {
-            var existing = await _context.ExchangeRates.FindAsync(id);
-            if (existing == null)
-            {
-                throw new Exception("Exchange rate not found.");
-            }   
-
-            existing.FromCurrencyId = request.FromCurrencyId;
-            existing.ToCurrencyId = request.ToCurrencyId;
-            existing.BuyRate = request.BuyRate;
-            existing.SellRate = request.SellRate;
-            existing.EffectiveDate = request.EffectiveDate;
-            existing.CreatedBy = request.CreatedBy;
-            _context.ExchangeRates.Update(existing);
-            await _context.SaveChangesAsync();
+            var rate = await _dbSet
+                .Where(r =>
+                    r.FromCurrencyId == fromCurrencyId &&
+                    r.ToCurrencyId == toCurrencyId &&
+                    r.EffectiveDate.Date <= date.Date)
+                .OrderByDescending(r => r.EffectiveDate)
+                .FirstOrDefaultAsync();
+            return rate == null ? null : _mapper.Map<ExchangeRateDto>(rate);
         }
 
-        public async Task DeleteAsync(long id)
+        public async Task<IEnumerable<ExchangeRateDto>> GetRateHistoryAsync(long fromCurrencyId, long toCurrencyId, DateTime fromDate, DateTime toDate)
         {
-            var entity = await _context.ExchangeRates.FindAsync(id);
-            if (entity == null)
-            {
-                throw new Exception("Exchange rate not found.");
-            }
-            _context.ExchangeRates.Remove(entity);
-            _context.SaveChanges();
+            var rates = await _dbSet
+                .Where(r =>
+                    r.FromCurrencyId == fromCurrencyId &&
+                    r.ToCurrencyId == toCurrencyId &&
+                    r.EffectiveDate >= fromDate &&
+                    r.EffectiveDate <= toDate)
+                .OrderBy(r => r.EffectiveDate)
+                .ToListAsync();
+            return _mapper.Map<IEnumerable<ExchangeRateDto>>(rates);
+        }
+
+        public async Task<ExchangeRateDto?> GetCurrentBuyRateAsync(long fromCurrencyId, long toCurrencyId)
+        {
+            return await GetLatestRateAsync(fromCurrencyId, toCurrencyId);
+        }
+
+        public async Task<ExchangeRateDto?> GetCurrentSellRateAsync(long fromCurrencyId, long toCurrencyId)
+        {
+            return await GetLatestRateAsync(fromCurrencyId, toCurrencyId);
+        }
+
+        protected override async Task ValidateCreateAsync(ExchangeRate entity, CreateExchangeRateDto dto)
+        {
+            if (entity.FromCurrencyId == entity.ToCurrencyId)
+                throw new InvalidOperationException("From currency and To currency cannot be the same.");
         }
     }
 }

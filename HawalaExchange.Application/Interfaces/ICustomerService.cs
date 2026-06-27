@@ -1,16 +1,15 @@
 ﻿using HawalaExchange.Application.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using HawalaExchange.Domain.Entities;
 
-namespace HawalaExchange.Application.Interfaces
+namespace HawalaExchange.Application.Interfaces.Services
 {
-    public interface ICustomerService
+    public interface ICustomerService : IBaseService<Customer, CustomerDto, CreateCustomerDto, UpdateCustomerDto>
     {
-        Task<List<CustomerDto>> GetAllAsync();
-        Task<CustomerDto?> GetByIdAsync(long id);
-        Task<long> CreateAsync(CreateCustomerRequest request);
-        Task UpdateAsync(long id, UpdateCustomerRequest request);
-        Task ArchiveAsync(long id);
+        Task<CustomerDto?> GetByCustomerCodeAsync(string customerCode);
+        Task<IEnumerable<CustomerDto>> SearchAsync(string searchTerm);
+        Task<IEnumerable<CustomerDto>> GetArchivedAsync();
+        Task<CustomerDto> ArchiveAsync(long id);
+        Task<CustomerDto> UnarchiveAsync(long id);
+
     }
 }

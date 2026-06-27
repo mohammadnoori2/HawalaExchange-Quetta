@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace YourNamespace.Entities
+namespace HawalaExchange.Domain.Entities
 {
     [Table("AuditLogs")]
     public class AuditLog
@@ -15,7 +15,7 @@ namespace YourNamespace.Entities
 
         [Required]
         [MaxLength(100)]
-        public string Action { get; set; }
+        public string Action { get; set; } // Insert, Update, Delete, Cancel, Reverse
 
         [Required]
         [MaxLength(100)]
@@ -24,14 +24,14 @@ namespace YourNamespace.Entities
         [Required]
         public long RecordId { get; set; }
 
-        public string OldValue { get; set; }
+        public string? OldValue { get; set; }
 
-        public string NewValue { get; set; }
+        public string? NewValue { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation Properties
-        [ForeignKey("UserId")]
-        public virtual User User { get; set; }
+        [ForeignKey(nameof(UserId))]
+        public virtual User? User { get; set; }
     }
 }

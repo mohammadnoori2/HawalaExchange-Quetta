@@ -4,31 +4,29 @@ using System.Text;
 
 namespace HawalaExchange.Application.DTOs
 {
-    public class CurrencyDtos
+    public class CurrencyDto
     {
         public long Id { get; set; }
-        public string Code { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string Symbol { get; set; } = string.Empty;
-        public int DecimalPlaces { get; set; } = 2;
+        public string Code { get; set; }
+        public string Name { get; set; }
+        public string? Symbol { get; set; }
+        public int DecimalPlaces { get; set; }
         public bool IsActive { get; set; }
     }
 
-    public class CreateCurrencyRequest
+    public class CreateCurrencyDto
     {
-        public string Code { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string Symbol { get; set; } = string.Empty;
-        public int DecimalPlaces { get; set; } = 2;
-        public bool IsActive { get; set; }
+        public string Code { get; set; }
+        public string Name { get; set; }
+        public string? Symbol { get; set; }
+        public int DecimalPlaces { get; set; }
     }
 
-    public class UpdateCurrencyRequest
+    public class UpdateCurrencyDto
     {
-        public string Code { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string Symbol { get; set; } = string.Empty;
-        public int DecimalPlaces { get; set; } = 2;
+        public string Name { get; set; }
+        public string? Symbol { get; set; }
+        public int DecimalPlaces { get; set; }
         public bool IsActive { get; set; }
     }
 }

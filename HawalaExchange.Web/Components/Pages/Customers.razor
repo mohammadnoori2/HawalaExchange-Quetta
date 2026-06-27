@@ -1,6 +1,6 @@
 ﻿@page "/customers"
 @using HawalaExchange.Application.DTOs
-@using HawalaExchange.Application.Interfaces
+@using HawalaExchange.Application.Interfaces.Services
 @inject ICustomerService CustomerService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
@@ -19,7 +19,7 @@
         </div>
 
         <div class="card-body">
-            <!-- نوار جستجوی لحظه‌ای -->
+            <!-- نوار جستجو -->
             <div class="row mb-4">
                 <div class="col-md-8">
                     <div class="input-group input-group-lg">
@@ -165,92 +165,88 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-hash"></i> کد مشتری @if (!isEditMode) {
-                                <span class="text-danger">*</span>
+                                <i class="bi bi-hash"></i> کد مشتری
+                            </label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" class="form-control bg-light" value="@customerCodeDisplay" disabled readonly />
+                                <small class="text-muted">کد مشتری قابل ویرایش نیست</small>
                             }
-                        </label>
-                        @if (isEditMode)
+                            else
+                            {
+                                <input type="text" class="form-control bg-light" value="به‌طور خودکار تولید می‌شود" disabled readonly />
+                            }
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person"></i> نام کامل <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentCustomer.FullName) ? "is-invalid" : "")"
+                                   @bind="currentCustomer.FullName" placeholder="نام و نام خانوادگی" />
+                            <div class="invalid-feedback">نام کامل الزامی است</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-phone"></i> شماره تلفن
+                            </label>
+                            <input type="text" class="form-control" @bind="currentCustomer.PhoneNumber" placeholder="مثال: 0780 123 456" dir="ltr" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-card-text"></i> شماره تذکره
+                            </label>
+                            <input type="text" class="form-control" @bind="currentCustomer.TazkiraNumber" placeholder="شماره تذکره" />
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-geo-alt"></i> آدرس
+                            </label>
+                            <textarea class="form-control" @bind="currentCustomer.Address" rows="2" placeholder="آدرس کامل"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-chat"></i> توضیحات
+                            </label>
+                            <textarea class="form-control" @bind="currentCustomer.Remarks" rows="2" placeholder="توضیحات اضافی"></textarea>
+                        </div>
+                    </div>
+
+                    @if (isEditMode)
+                    {
+                        <div class="alert alert-info mt-2">
+                            <i class="bi bi-info-circle"></i>
+                            <small>در حال ویرایش مشتری با کد: <strong>@customerCodeDisplay</strong></small>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="() => SaveCustomer()" disabled="@isLoading">
+                        @if (isLoading)
                         {
-                            <input type="text" class="form-control bg-light" value="@currentCustomer.CustomerCode" disabled readonly />
-                            <small class="text-muted">کد مشتری قابل ویرایش نیست</small>
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                         }
                         else
                         {
-                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentCustomer.CustomerCode) ? "is-invalid" : "")"
-                                   @bind="currentCustomer.CustomerCode" placeholder="مثال: CUST-001" />
-                            <div class="invalid-feedback">کد مشتری الزامی است</div>
+                            <i class="bi bi-save"></i>
                         }
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-person"></i> نام کامل <span class="text-danger">*</span>
-                        </label>
-                        <input type="text" class="form-control @(string.IsNullOrEmpty(currentCustomer.FullName) ? "is-invalid" : "")"
-                               @bind="currentCustomer.FullName" placeholder="نام و نام خانوادگی" />
-                        <div class="invalid-feedback">نام کامل الزامی است</div>
-                    </div>
+                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
                 </div>
-
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-phone"></i> شماره تلفن
-                        </label>
-                        <input type="text" class="form-control" @bind="currentCustomer.PhoneNumber" placeholder="مثال: 0780 123 456" dir="ltr" />
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-card-text"></i> شماره تذکره
-                        </label>
-                        <input type="text" class="form-control" @bind="currentCustomer.TazkiraNumber" placeholder="شماره تذکره" />
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-12 mb-3">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-geo-alt"></i> آدرس
-                        </label>
-                        <textarea class="form-control" @bind="currentCustomer.Address" rows="2" placeholder="آدرس کامل"></textarea>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-12 mb-3">
-                        <label class="form-label fw-bold">
-                            <i class="bi bi-chat"></i> توضیحات
-                        </label>
-                        <textarea class="form-control" @bind="currentCustomer.Remarks" rows="2" placeholder="توضیحات اضافی"></textarea>
-                    </div>
-                </div>
-
-                @if (isEditMode)
-                {
-                    <div class="alert alert-info mt-2">
-                        <i class="bi bi-info-circle"></i>
-                        <small>در حال ویرایش مشتری با کد: <strong>@currentCustomer.CustomerCode</strong></small>
-                    </div>
-                }
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
-                    <i class="bi bi-x-circle"></i> انصراف
-                </button>
-                <button type="button" class="btn btn-primary" @onclick="() => SaveCustomer()" disabled="@isLoading">
-                    @if (isLoading)
-                    {
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    }
-                    else
-                    {
-                        <i class="bi bi-save"></i>
-                    }
-                    @(isEditMode ? "به‌روزرسانی" : "ایجاد")
-                </button>
             </div>
         </div>
     </div>
-</div>
 }
 
 <!-- مودال تأیید بایگانی/خروج از بایگانی -->
@@ -284,8 +280,7 @@
 @code {
     private List<CustomerDto> customers = new();
     private List<CustomerDto> filteredCustomers = new();
-    
-    // پراپرتی با setter برای جستجوی لحظه‌ای
+
     private string _searchTerm = string.Empty;
     private string searchTerm
     {
@@ -311,8 +306,11 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
 
-    // از CreateCustomerRequest برای هر دو حالت استفاده می‌شود
-    private CreateCustomerRequest currentCustomer = new();
+    // ✅ Store the customer code for display in edit mode
+    private string? customerCodeDisplay = null;
+
+    // ✅ Use CreateCustomerDto (no CustomerCode property)
+    private CreateCustomerDto currentCustomer = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -324,7 +322,8 @@
         try
         {
             isLoading = true;
-            customers = await CustomerService.GetAllAsync();
+            var result = await CustomerService.GetAllAsync();
+            customers = result.ToList();
             filteredCustomers = customers;
         }
         catch (Exception ex)
@@ -367,7 +366,8 @@
 
     private void OpenCreateModal()
     {
-        currentCustomer = new CreateCustomerRequest();
+        currentCustomer = new CreateCustomerDto();
+        customerCodeDisplay = null;
         isEditMode = false;
         editId = 0;
         validationErrors.Clear();
@@ -386,15 +386,19 @@
             var customer = await CustomerService.GetByIdAsync(id);
             if (customer != null)
             {
-                currentCustomer = new CreateCustomerRequest
+                // ✅ Store the customer code for display
+                customerCodeDisplay = customer.CustomerCode;
+
+                // ✅ Map to CreateCustomerDto (no code)
+                currentCustomer = new CreateCustomerDto
                 {
-                    CustomerCode = customer.CustomerCode,
                     FullName = customer.FullName,
                     PhoneNumber = customer.PhoneNumber,
                     TazkiraNumber = customer.TazkiraNumber,
                     Address = customer.Address,
                     Remarks = customer.Remarks
                 };
+
                 isEditMode = true;
                 editId = id;
                 validationErrors.Clear();
@@ -430,9 +434,7 @@
         validationErrors.Clear();
         successMessage = string.Empty;
 
-        // اعتبارسنجی ساده
-        if (!isEditMode && string.IsNullOrWhiteSpace(currentCustomer.CustomerCode))
-            validationErrors.Add("کد مشتری الزامی است");
+        // ✅ Validate only fields that exist in CreateCustomerDto
         if (string.IsNullOrWhiteSpace(currentCustomer.FullName))
             validationErrors.Add("نام کامل الزامی است");
 
@@ -449,13 +451,14 @@
 
             if (isEditMode)
             {
-                var updateRequest = new UpdateCustomerRequest
+                var updateRequest = new UpdateCustomerDto
                 {
                     FullName = currentCustomer.FullName,
                     PhoneNumber = currentCustomer.PhoneNumber,
                     TazkiraNumber = currentCustomer.TazkiraNumber,
                     Address = currentCustomer.Address,
-                    Remarks = currentCustomer.Remarks
+                    Remarks = currentCustomer.Remarks,
+                    IsArchived = false
                 };
                 await CustomerService.UpdateAsync(editId, updateRequest);
                 successMessage = "مشتری با موفقیت ویرایش شد";
@@ -513,8 +516,7 @@
             }
             else if (confirmActionType == "unarchive")
             {
-                // اگر متد Unarchive در سرویس وجود دارد، از آن استفاده کنید
-                // await CustomerService.UnarchiveAsync(confirmId);
+                await CustomerService.UnarchiveAsync(confirmId);
                 successMessage = "مشتری با موفقیت از بایگانی خارج شد";
             }
 

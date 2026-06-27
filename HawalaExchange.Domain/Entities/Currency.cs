@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace YourNamespace.Entities
+namespace HawalaExchange.Domain.Entities
 {
     [Table("Currencies")]
     public class Currency
@@ -21,22 +20,24 @@ namespace YourNamespace.Entities
         public string Name { get; set; }
 
         [MaxLength(20)]
-        public string Symbol { get; set; }
+        public string? Symbol { get; set; }
 
         public int DecimalPlaces { get; set; } = 2;
 
         public bool IsActive { get; set; } = true;
 
         // Navigation Properties
-        public virtual ICollection<LedgerEntry> LedgerEntries { get; set; }
-        public virtual ICollection<ExchangeRate> FromCurrencyExchangeRates { get; set; }
-        public virtual ICollection<ExchangeRate> ToCurrencyExchangeRates { get; set; }
-        public virtual ICollection<TransactionDetail> FromCurrencyTransactionDetails { get; set; }
-        public virtual ICollection<TransactionDetail> ToCurrencyTransactionDetails { get; set; }
-        public virtual ICollection<TransactionDetail> CommissionCurrencyTransactionDetails { get; set; }
-        public virtual ICollection<TransactionDetail> AgentCommissionCurrencyTransactionDetails { get; set; }
-        public virtual ICollection<Transfer> Transfers { get; set; }
-        public virtual ICollection<Expense> Expenses { get; set; }
-        public virtual ICollection<AccountBadehkarLimit> AccountBadehkarLimits { get; set; }
+        public virtual ICollection<TransactionDetail>? FromTransactions { get; set; }
+        public virtual ICollection<TransactionDetail>? ToTransactions { get; set; }
+        public virtual ICollection<TransactionDetail>? CommissionTransactions { get; set; }
+        public virtual ICollection<TransactionDetail>? AgentCommissionTransactions { get; set; }
+        public virtual ICollection<LedgerEntry>? LedgerEntries { get; set; }
+        public virtual ICollection<Transfer>? Transfers { get; set; }
+        public virtual ICollection<ExchangeRate>? FromExchangeRates { get; set; }
+        public virtual ICollection<ExchangeRate>? ToExchangeRates { get; set; }
+        public virtual ICollection<Expense>? Expenses { get; set; }
+
+        // ✅ Changed: AccountLimits → AccountBadehkarLimits (matches DbContext)
+        public virtual ICollection<AccountBadehkarLimit>? AccountBadehkarLimits { get; set; }
     }
 }

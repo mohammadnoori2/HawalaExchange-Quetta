@@ -1,16 +1,15 @@
 ﻿using HawalaExchange.Application.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using HawalaExchange.Domain.Entities;
 
-namespace HawalaExchange.Application.Interfaces
+namespace HawalaExchange.Application.Interfaces.Services
 {
-    public interface IExchangeRatesService
+    public interface IExchangeRateService : IBaseService<ExchangeRate, ExchangeRateDto, CreateExchangeRateDto, UpdateExchangeRateDto>
     {
-        public Task<List<ExchangeRatesDtos>> GetAllAsync();
-        public Task<ExchangeRatesDtos?> GetByIdAsync(long id);
-        public Task<long> CreateAsync(CreateExchangeRatesRequest request);
-        public Task UpdateAsync(long id, UpdateExchangeRatesRequest request);
-        public Task DeleteAsync(long id);
+        Task<ExchangeRateDto?> GetLatestRateAsync(long fromCurrencyId, long toCurrencyId);
+        Task<decimal> ConvertAsync(long fromCurrencyId, long toCurrencyId, decimal amount);
+        Task<ExchangeRateDto?> GetRateByDateAsync(long fromCurrencyId, long toCurrencyId, DateTime date);
+        Task<IEnumerable<ExchangeRateDto>> GetRateHistoryAsync(long fromCurrencyId, long toCurrencyId, DateTime fromDate, DateTime toDate);
+        Task<ExchangeRateDto?> GetCurrentBuyRateAsync(long fromCurrencyId, long toCurrencyId);
+        Task<ExchangeRateDto?> GetCurrentSellRateAsync(long fromCurrencyId, long toCurrencyId);
     }
 }

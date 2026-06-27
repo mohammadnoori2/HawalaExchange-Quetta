@@ -1,123 +1,61 @@
-﻿using HawalaExchange.Application.DTOs;
-using HawalaExchange.Application.Interfaces;
+﻿using AutoMapper;
+using HawalaExchange.Application.DTOs;
+using HawalaExchange.Application.Interfaces.Services;
+using HawalaExchange.Domain.Entities;
+using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using YourNamespace.Data;
-using YourNamespace.Entities;
 
-namespace HawalaExchange.Infrastructure.Services
+namespace HawalaExchange.Application.Services
 {
-    public class CorrespondentService : ICorrespondentService
+    public class CorrespondentService : BaseService<Correspondent, CorrespondentDto, CreateCorrespondentDto, UpdateCorrespondentDto>, ICorrespondentService
     {
-        private readonly ApplicationDbContext _context;
-        public CorrespondentService(ApplicationDbContext context)
+        public CorrespondentService(ApplicationDbContext context, IMapper mapper)
+            : base(context, mapper) { }
+
+        public async Task<CorrespondentDto?> GetByCodeAsync(string code)
         {
-            _context = context;
+            var entity = await _dbSet.FirstOrDefaultAsync(c => c.Code == code);
+            return entity == null ? null : _mapper.Map<CorrespondentDto>(entity);
         }
 
-        public async Task<List<CorrespondentDtos>> GetAllAsync()
+        public async Task<IEnumerable<CorrespondentDto>> GetByCountryAsync(string country)
         {
-            return await _context.Correspondents
-                .AsNoTracking()
-                .Where(c => !c.IsArchived)
-                .Select(c => new CorrespondentDtos
-                {
-                    Id = c.Id,
-                    Code = c.Code,
-                    Name = c.Name,
-                    Country = c.Country,
-                    City = c.City,
-                    PhoneNumber = c.PhoneNumber,
-                    Address = c.Address,
-                    IsArchived = c.IsArchived,
-                    Remarks = c.Remarks,
-                    CreatedAt = c.CreatedAt
-                })
+            var entities = await _dbSet
+                .Where(c => c.Country == country && !c.IsArchived)
                 .ToListAsync();
+            return _mapper.Map<IEnumerable<CorrespondentDto>>(entities);
         }
 
-        public async Task<CorrespondentDtos?> GetByIdAsync(long id)
+        public async Task<IEnumerable<CorrespondentDto>> GetActiveAsync()
         {
-            return await _context.Correspondents
-                .AsNoTracking()
-                .Where(c => c.Id == id && !c.IsArchived)
-                .Select(c => new CorrespondentDtos
-                {
-                    Id = c.Id,
-                    Code = c.Code,
-                    Name = c.Name,
-                    Country = c.Country,
-                    City = c.City,
-                    PhoneNumber = c.PhoneNumber,
-                    Address = c.Address,
-                    IsArchived = c.IsArchived,
-                    Remarks = c.Remarks,
-                    CreatedAt = c.CreatedAt
-                })
-                .FirstOrDefaultAsync();
+            var entities = await _dbSet.Where(c => !c.IsArchived).ToListAsync();
+            return _mapper.Map<IEnumerable<CorrespondentDto>>(entities);
         }
-        public async Task<long> CreateAsync(CreateCorrespondentRequest request)
-        {
-            var existing = await _context.Correspondents
-                .AnyAsync(c => c.Code == request.Code && !c.IsArchived);
-            if (existing) 
-            {
-                throw new InvalidOperationException($"A correspondent with code '{request.Code}' already exists.");
-            }
-            var correspondent = new Correspondent
-            {
-                Code = request.Code,
-                Name = request.Name,
-                Country = request.Country,
-                City = request.City,
-                PhoneNumber = request.PhoneNumber,
-                Address = request.Address,
-                Remarks = request.Remarks,
-                IsArchived = false,
-                CreatedAt = DateTime.UtcNow
-            };
 
-            _context.Correspondents.Add(correspondent);
+        public async Task<CorrespondentDto> ArchiveAsync(long id)
+        {
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"Correspondent with ID {id} not found.");
+
+            entity.IsArchived = true;
             await _context.SaveChangesAsync();
-
-            return correspondent.Id;
+            return _mapper.Map<CorrespondentDto>(entity);
         }
 
-        public async Task UpdateAsync(long id, UpdateCorrespondentRequest request)
+        public async Task<CorrespondentDto> UnarchiveAsync(long id)
         {
-            var existing = await _context.Correspondents
-                .FindAsync(id);
-            if (existing == null || existing.IsArchived)
-            {
-                throw new InvalidOperationException($"Correspondent with ID '{id}' not found.");
-            }
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"Correspondent with ID {id} not found.");
 
-            existing.Name = request.Name;
-            existing.Country = request.Country;
-            existing.City = request.City;
-            existing.PhoneNumber = request.PhoneNumber;
-            existing.Address = request.Address;
-            existing.Remarks = request.Remarks;
-
+            entity.IsArchived = false;
             await _context.SaveChangesAsync();
+            return _mapper.Map<CorrespondentDto>(entity);
         }
-        public async Task DeleteAsync(long id)
+
+        protected override async Task ValidateCreateAsync(Correspondent entity, CreateCorrespondentDto dto)
         {
-            var existing = await _context.Correspondents
-                .FindAsync(id);
-            if (existing == null || existing.IsArchived)
-            {
-                throw new InvalidOperationException($"Correspondent with ID '{id}' not found.");
-            }
-
-            existing.IsArchived = true;
-            await _context.SaveChangesAsync();
+            if (await _dbSet.AnyAsync(c => c.Code == entity.Code))
+                throw new InvalidOperationException($"Correspondent with code '{entity.Code}' already exists.");
         }
-
-        
-
-        
     }
 }

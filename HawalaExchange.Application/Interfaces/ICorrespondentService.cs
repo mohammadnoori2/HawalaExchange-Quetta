@@ -1,16 +1,14 @@
 ﻿using HawalaExchange.Application.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using HawalaExchange.Domain.Entities;
 
-namespace HawalaExchange.Application.Interfaces
+namespace HawalaExchange.Application.Interfaces.Services
 {
-    public interface ICorrespondentService
+    public interface ICorrespondentService : IBaseService<Correspondent, CorrespondentDto, CreateCorrespondentDto, UpdateCorrespondentDto>
     {
-        Task<List<CorrespondentDtos>> GetAllAsync();
-        Task<CorrespondentDtos?> GetByIdAsync(long id);
-        Task<long> CreateAsync(CreateCorrespondentRequest request);
-        Task UpdateAsync(long id, UpdateCorrespondentRequest request);
-        Task DeleteAsync(long id);
+        Task<CorrespondentDto?> GetByCodeAsync(string code);
+        Task<IEnumerable<CorrespondentDto>> GetByCountryAsync(string country);
+        Task<IEnumerable<CorrespondentDto>> GetActiveAsync();
+        Task<CorrespondentDto> ArchiveAsync(long id);
+        Task<CorrespondentDto> UnarchiveAsync(long id);
     }
 }

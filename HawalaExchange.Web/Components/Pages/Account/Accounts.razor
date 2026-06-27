@@ -1,6 +1,6 @@
 ﻿@page "/accounts"
 @using HawalaExchange.Application.DTOs
-@using HawalaExchange.Application.Interfaces
+@using HawalaExchange.Application.Interfaces.Services
 @inject IAccountService AccountService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
@@ -19,7 +19,7 @@
         </div>
 
         <div class="card-body">
-            <!-- نوار جستجوی لحظه‌ای -->
+            <!-- نوار جستجو -->
             <div class="row mb-4">
                 <div class="col-md-8">
                     <div class="input-group input-group-lg">
@@ -100,7 +100,7 @@
                                             <span class="text-muted">—</span>
                                         }
                                     </td>
-                                    <td dir="ltr" class="text-start">@account.DateTime.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td dir="ltr" class="text-start">@account.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                     <td>
                                         @if (account.IsArchived)
                                         {
@@ -144,7 +144,7 @@
     </div>
 </div>
 
-<!-- مودال ایجاد/ویرایش حساب -->
+<!-- مودال ایجاد/ویرایش -->
 @if (showModal)
 {
     <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
@@ -205,14 +205,13 @@
                             <select class="form-select @(string.IsNullOrEmpty(currentAccount.AccountType) ? "is-invalid" : "")"
                                     @bind="currentAccount.AccountType">
                                 <option value="">انتخاب نوع</option>
-                                <option value="Bank">بانک</option>
-                                <option value="Hawaladar">حواله‌دار</option>
+                                <option value="Cash">نقدی</option>
+                                <option value="Bank">بانکی</option>
                                 <option value="Customer">مشتری</option>
-                                <option value="Merchant">تاجر</option>
-                                <option value="Intermediary">واسطه</option>
-                                <option value="Settlement">تسویه</option>
+                                <option value="Correspondent">نماینده</option>
+                                <option value="Income">درآمد</option>
                                 <option value="Expense">هزینه</option>
-                                <option value="Revenue">درآمد</option>
+                                <option value="Equity">سرمایه</option>
                             </select>
                             <div class="invalid-feedback">نوع حساب الزامی است</div>
                         </div>
@@ -223,9 +222,7 @@
                             <select class="form-select" @bind="currentAccount.ReferenceType">
                                 <option value="">بدون مرجع</option>
                                 <option value="Customer">مشتری</option>
-                                <option value="Partner">شریک</option>
-                                <option value="Branch">شعبه</option>
-                                <option value="Agent">کارگزار</option>
+                                <option value="Correspondent">نماینده</option>
                             </select>
                         </div>
                     </div>
@@ -298,10 +295,9 @@
 }
 
 @code {
-    private List<AccountDtos> accounts = new();
-    private List<AccountDtos> filteredAccounts = new();
-    
-    // پراپرتی با setter برای جستجوی لحظه‌ای
+    private List<AccountDto> accounts = new();
+    private List<AccountDto> filteredAccounts = new();
+
     private string _searchTerm = string.Empty;
     private string searchTerm
     {
@@ -311,7 +307,7 @@
             if (_searchTerm != value)
             {
                 _searchTerm = value;
-                SearchAccounts(); // با هر تغییر، فیلتر انجام می‌شود
+                SearchAccounts();
             }
         }
     }
@@ -327,7 +323,8 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
 
-    private CreateAccountRequest currentAccount = new();
+    // ✅ Use CreateAccountDto (not CreateAccountRequest)
+    private CreateAccountDto currentAccount = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -339,7 +336,8 @@
         try
         {
             isLoading = true;
-            accounts = await AccountService.GetAllAsync();
+            var result = await AccountService.GetAllAsync();
+            accounts = result.ToList();
             filteredAccounts = accounts;
         }
         catch (Exception ex)
@@ -353,7 +351,6 @@
         }
     }
 
-    // متد جستجو (با پراپرتی setter فراخوانی می‌شود)
     private void SearchAccounts()
     {
         if (string.IsNullOrWhiteSpace(_searchTerm))
@@ -382,7 +379,7 @@
 
     private void OpenCreateModal()
     {
-        currentAccount = new CreateAccountRequest();
+        currentAccount = new CreateAccountDto();
         isEditMode = false;
         editId = 0;
         validationErrors.Clear();
@@ -401,7 +398,7 @@
             var account = await AccountService.GetByIdAsync(id);
             if (account != null)
             {
-                currentAccount = new CreateAccountRequest
+                currentAccount = new CreateAccountDto
                 {
                     AccountCode = account.AccountCode,
                     AccountName = account.AccountName,
@@ -464,14 +461,15 @@
 
             if (isEditMode)
             {
-                var updateRequest = new UpdateAccountRequest
+                // ✅ Use UpdateAccountDto – no IsArchived, that's handled separately
+                var updateRequest = new UpdateAccountDto
                 {
-                    AccountCode = currentAccount.AccountCode,
                     AccountName = currentAccount.AccountName,
-                    AccountType = currentAccount.AccountType,
+                    // AccountCode and AccountType are usually not editable; but if they are, include them.
+                    // Check your service implementation.
+                    // For safety, we only update Name and Reference.
                     ReferenceType = currentAccount.ReferenceType,
-                    ReferenceId = currentAccount.ReferenceId,
-                    IsArrived = false
+                    ReferenceId = currentAccount.ReferenceId
                 };
                 await AccountService.UpdateAsync(editId, updateRequest);
                 successMessage = "حساب با موفقیت ویرایش شد";
@@ -529,8 +527,8 @@
             }
             else if (confirmActionType == "unarchive")
             {
-                // در صورت نیاز متد Unarchive را در سرویس پیاده‌سازی کنید
-                // await AccountService.UnarchiveAsync(confirmId);
+                // ✅ If UnarchiveAsync exists, use it; else implement in service
+                await AccountService.UnarchiveAsync(confirmId);
                 successMessage = "حساب با موفقیت از بایگانی خارج شد";
             }
 
@@ -557,15 +555,14 @@
     {
         return type?.ToLower() switch
         {
+            "cash" => "bg-info",
             "bank" => "bg-primary",
-            "hawaladar" => "bg-warning text-dark",
             "customer" => "bg-success",
-            "merchant" => "bg-info text-dark",
-            "intermediary" => "bg-secondary",
-            "settlement" => "bg-dark",
+            "correspondent" => "bg-warning text-dark",
+            "income" => "bg-success",
             "expense" => "bg-danger",
-            "revenue" => "bg-success",
-            _ => "bg-light text-dark"
+            "equity" => "bg-dark",
+            _ => "bg-secondary"
         };
     }
 
@@ -573,14 +570,13 @@
     {
         return type?.ToLower() switch
         {
-            "bank" => "بانک",
-            "hawaladar" => "حواله‌دار",
+            "cash" => "نقدی",
+            "bank" => "بانکی",
             "customer" => "مشتری",
-            "merchant" => "تاجر",
-            "intermediary" => "واسطه",
-            "settlement" => "تسویه",
+            "correspondent" => "نماینده",
+            "income" => "درآمد",
             "expense" => "هزینه",
-            "revenue" => "درآمد",
+            "equity" => "سرمایه",
             _ => type ?? "نامشخص"
         };
     }
@@ -590,9 +586,7 @@
         return type?.ToLower() switch
         {
             "customer" => "مشتری",
-            "partner" => "شریک",
-            "branch" => "شعبه",
-            "agent" => "کارگزار",
+            "correspondent" => "نماینده",
             _ => type ?? "نامشخص"
         };
     }

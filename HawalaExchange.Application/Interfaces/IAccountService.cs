@@ -1,16 +1,17 @@
 ﻿using HawalaExchange.Application.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using HawalaExchange.Domain.Entities;
 
-namespace HawalaExchange.Application.Interfaces
+namespace HawalaExchange.Application.Interfaces.Services
 {
-    public interface IAccountService
+    public interface IAccountService : IBaseService<Account, AccountDto, CreateAccountDto, UpdateAccountDto>
     {
-        Task<List<AccountDtos>> GetAllAsync();
-        Task<AccountDtos?> GetByIdAsync(long id);
-        Task<long> CreateAsync(CreateAccountRequest request);
-        Task UpdateAsync(long id, UpdateAccountRequest request);
-        Task ArchiveAsync(long id);
+        Task<AccountDto?> GetByAccountCodeAsync(string accountCode);
+        Task<IEnumerable<AccountDto>> GetByAccountTypeAsync(string accountType);
+        Task<IEnumerable<AccountDto>> GetByReferenceAsync(string referenceType, long referenceId);
+        Task<IEnumerable<AccountDto>> GetActiveAccountsAsync();
+        Task<AccountDto> ArchiveAsync(long id);
+        Task<AccountDto> UnarchiveAsync(long id);
+        Task<decimal> GetAccountBalanceAsync(long accountId, long currencyId);
+        Task<IEnumerable<BalanceDto>> GetAllAccountBalancesAsync(long accountId);
     }
 }

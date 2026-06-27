@@ -1,111 +1,88 @@
-﻿using HawalaExchange.Application.DTOs;
-using HawalaExchange.Application.Interfaces;
+﻿using AutoMapper;
+using HawalaExchange.Application.DTOs;
+using HawalaExchange.Application.Interfaces.Services;
+using HawalaExchange.Domain.Entities;
+using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using YourNamespace.Data;
-using YourNamespace.Entities;
 
-namespace HawalaExchange.Infrastructure.Services
+namespace HawalaExchange.Application.Services
 {
-    public class AccountService: IAccountService
+    public class AccountService : BaseService<Account, AccountDto, CreateAccountDto, UpdateAccountDto>, IAccountService
     {
-        private readonly ApplicationDbContext _context;
-        public AccountService(ApplicationDbContext context)
+        private readonly ILedgerService _ledgerService;
+
+        public AccountService(ApplicationDbContext context, IMapper mapper, ILedgerService ledgerService)
+            : base(context, mapper)
         {
-            _context = context;
+            _ledgerService = ledgerService;
         }
 
-        public async Task<List<AccountDtos>> GetAllAsync()
+        public async Task<AccountDto?> GetByAccountCodeAsync(string accountCode)
         {
-            return await _context.Accounts
-                .AsNoTracking()
-                .OrderBy(x => x.AccountName)
-                .Select(x => new AccountDtos
-                {
-                    Id = x.Id,
-                    AccountCode = x.AccountCode,
-                    AccountName = x.AccountName,
-                    AccountType = x.AccountType,
-                    ReferenceType = x.ReferenceType,
-                    ReferenceId = x.ReferenceId,
-                    IsArchived = x.IsArchived,
-                    DateTime = x.CreatedAt
-                })
+            var entity = await _dbSet.FirstOrDefaultAsync(a => a.AccountCode == accountCode);
+            return entity == null ? null : _mapper.Map<AccountDto>(entity);
+        }
+
+        public async Task<IEnumerable<AccountDto>> GetByAccountTypeAsync(string accountType)
+        {
+            var entities = await _dbSet
+                .Where(a => a.AccountType == accountType && a.IsActive)
                 .ToListAsync();
+            return _mapper.Map<IEnumerable<AccountDto>>(entities);
         }
 
-        public async Task<AccountDtos?> GetByIdAsync(long id)
+        public async Task<IEnumerable<AccountDto>> GetByReferenceAsync(string referenceType, long referenceId)
         {
-            return await _context.Accounts
-                .AsNoTracking()
-                .Where(x => x.Id == id)
-                .Select(x => new AccountDtos
-                {
-                    Id = x.Id,
-                    AccountCode = x.AccountCode,
-                    AccountName = x.AccountName,
-                    AccountType = x.AccountType,
-                    ReferenceType = x.ReferenceType,
-                    ReferenceId = x.ReferenceId,
-                    IsArchived = x.IsArchived,
-                    DateTime = x.CreatedAt
-                })
-                .FirstOrDefaultAsync();
+            var entities = await _dbSet
+                .Where(a => a.ReferenceType == referenceType && a.ReferenceId == referenceId && a.IsActive)
+                .ToListAsync();
+            return _mapper.Map<IEnumerable<AccountDto>>(entities);
         }
 
-        public async Task<long> CreateAsync(CreateAccountRequest request)
+        public async Task<IEnumerable<AccountDto>> GetActiveAccountsAsync()
         {
-            var exists = await _context.Accounts
-                .AnyAsync(x => x.AccountCode == request.AccountCode);
-            if (exists)
-            {
-                throw new InvalidOperationException("Account code already exists.");
-            }
+            var entities = await _dbSet
+                .Where(a => a.IsActive && !a.IsArchived)
+                .ToListAsync();
+            return _mapper.Map<IEnumerable<AccountDto>>(entities);
+        }
 
-            var account = new Account
-            {
-                AccountCode = request.AccountCode.Trim(),
-                AccountName = request.AccountName.Trim(),
-                AccountType = request.AccountType,
-                ReferenceType = request.ReferenceType,
-                ReferenceId = request.ReferenceId,
-                IsArchived = false,
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.Accounts.Add(account);
+        public async Task<AccountDto> ArchiveAsync(long id)
+        {
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"Account with ID {id} not found.");
+
+            entity.IsArchived = true;
+            entity.IsActive = false;
             await _context.SaveChangesAsync();
-            return account.Id;
+            return _mapper.Map<AccountDto>(entity);
         }
 
-        public async Task UpdateAsync(long id, UpdateAccountRequest request)
+        public async Task<AccountDto> UnarchiveAsync(long id)
         {
-            var account = await _context.Accounts.FindAsync(id);
-            if (account == null)
-            {
-                throw new InvalidOperationException("Account not found.");
-            }
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"Account with ID {id} not found.");
 
-            account.AccountCode = request.AccountCode.Trim();
-            account.AccountName = request.AccountName.Trim();
-            account.AccountType = request.AccountType;
-            account.ReferenceType = request.ReferenceType;
-            account.ReferenceId = request.ReferenceId;
-
+            entity.IsArchived = false;
+            entity.IsActive = true;
             await _context.SaveChangesAsync();
+            return _mapper.Map<AccountDto>(entity);
         }
 
-        public async Task ArchiveAsync(long id)
+        public async Task<decimal> GetAccountBalanceAsync(long accountId, long currencyId)
         {
-            var account = await _context.Accounts.FindAsync(id);
-            if (account == null)
-            {
-                throw new InvalidOperationException("Account not found.");
-            }
+            return await _ledgerService.GetAccountBalanceAsync(accountId, currencyId);
+        }
 
-            account.IsArchived = true;
-            await _context.SaveChangesAsync();
+        public async Task<IEnumerable<BalanceDto>> GetAllAccountBalancesAsync(long accountId)
+        {
+            return await _ledgerService.GetAccountBalancesAsync(accountId);
+        }
+
+        protected override async Task ValidateCreateAsync(Account entity, CreateAccountDto dto)
+        {
+            if (await _dbSet.AnyAsync(a => a.AccountCode == entity.AccountCode))
+                throw new InvalidOperationException($"Account with code '{entity.AccountCode}' already exists.");
         }
     }
 }

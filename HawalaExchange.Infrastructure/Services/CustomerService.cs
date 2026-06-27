@@ -1,119 +1,71 @@
-﻿using HawalaExchange.Application.DTOs;
-using HawalaExchange.Application.Interfaces;
+﻿using AutoMapper;
+using HawalaExchange.Application.DTOs;
+using HawalaExchange.Application.Interfaces.Services;
+using HawalaExchange.Domain.Entities;
+using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
-using YourNamespace.Data;
-using YourNamespace.Entities;
 
-namespace HawalaExchange.Infrastructure.Services
+namespace HawalaExchange.Application.Services
 {
-    public class CustomerService : ICustomerService
+    public class CustomerService : BaseService<Customer, CustomerDto, CreateCustomerDto, UpdateCustomerDto>, ICustomerService
     {
-        private readonly ApplicationDbContext _context;
+        public CustomerService(ApplicationDbContext context, IMapper mapper)
+            : base(context, mapper) { }
 
-        public CustomerService(ApplicationDbContext context)
+        public async Task<CustomerDto?> GetByCustomerCodeAsync(string customerCode)
         {
-            _context = context;
+            var entity = await _dbSet.FirstOrDefaultAsync(c => c.CustomerCode == customerCode);
+            return entity == null ? null : _mapper.Map<CustomerDto>(entity);
         }
 
-        public async Task<List<CustomerDto>> GetAllAsync()
+        public async Task<IEnumerable<CustomerDto>> SearchAsync(string searchTerm)
         {
-            return await _context.Customers
-                .AsNoTracking()
-                .OrderBy(x => x.FullName)
-                .Select(x => new CustomerDto
-                {
-                    Id = x.Id,
-                    CustomerCode = x.CustomerCode,
-                    FullName = x.FullName,
-                    PhoneNumber = x.PhoneNumber,
-                    TazkiraNumber = x.TazkiraNumber,
-                    Address = x.Address,
-                    Remarks = x.Remarks,
-                    IsArchived = x.IsArchived
-                })
+            var term = searchTerm.ToLower();
+            var customers = await _dbSet
+                .Where(c =>
+                    c.FullName.ToLower().Contains(term) ||
+                    (c.PhoneNumber != null && c.PhoneNumber.Contains(term)) ||
+                    (c.TazkiraNumber != null && c.TazkiraNumber.Contains(term)) ||
+                    c.CustomerCode.ToLower().Contains(term))
                 .ToListAsync();
+            return _mapper.Map<IEnumerable<CustomerDto>>(customers);
         }
 
-        public async Task<CustomerDto?> GetByIdAsync(long id)
+        public async Task<IEnumerable<CustomerDto>> GetArchivedAsync()
         {
-            return await _context.Customers
-                .AsNoTracking()
-                .Where(x => x.Id == id)
-                .Select(x => new CustomerDto
-                {
-                    Id = x.Id,
-                    CustomerCode = x.CustomerCode,
-                    FullName = x.FullName,
-                    PhoneNumber = x.PhoneNumber,
-                    TazkiraNumber = x.TazkiraNumber,
-                    Address = x.Address,
-                    Remarks = x.Remarks,
-                    IsArchived = x.IsArchived
-                })
-                .FirstOrDefaultAsync();
+            var entities = await _dbSet.Where(c => c.IsArchived).ToListAsync();
+            return _mapper.Map<IEnumerable<CustomerDto>>(entities);
         }
 
-        public async Task<long> CreateAsync(CreateCustomerRequest request)
+        public async Task<CustomerDto> ArchiveAsync(long id)
         {
-            var exists = await _context.Customers
-                .AnyAsync(x => x.CustomerCode == request.CustomerCode);
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"Customer with ID {id} not found.");
 
-            if (exists)
-            {
-                throw new InvalidOperationException("Customer code already exists.");
-            }
-
-            var customer = new Customer
-            {
-                CustomerCode = request.CustomerCode.Trim(),
-                FullName = request.FullName.Trim(),
-                PhoneNumber = request.PhoneNumber,
-                TazkiraNumber = request.TazkiraNumber,
-                Address = request.Address,
-                Remarks = request.Remarks,
-                IsArchived = false,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.Customers.Add(customer);
+            entity.IsArchived = true;
             await _context.SaveChangesAsync();
-
-            return customer.Id;
+            return _mapper.Map<CustomerDto>(entity);
         }
 
-        public async Task UpdateAsync(long id, UpdateCustomerRequest request)
+        public async Task<CustomerDto> UnarchiveAsync(long id)
         {
-            var customer = await _context.Customers.FindAsync(id);
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"Customer with ID {id} not found.");
 
-            if (customer == null)
-            {
-                throw new InvalidOperationException("Customer not found.");
-            }
-
-            customer.FullName = request.FullName.Trim();
-            customer.PhoneNumber = request.PhoneNumber;
-            customer.TazkiraNumber = request.TazkiraNumber;
-            customer.Address = request.Address;
-            customer.Remarks = request.Remarks;
-
+            entity.IsArchived = false;
             await _context.SaveChangesAsync();
+            return _mapper.Map<CustomerDto>(entity);
         }
 
-        public async Task ArchiveAsync(long id)
+        protected override async Task ValidateCreateAsync(Customer entity, CreateCustomerDto dto)
         {
-            var customer = await _context.Customers.FindAsync(id);
+            entity.CustomerCode = await GenerateCustomerCodeAsync();
+        }
 
-            if (customer == null)
-            {
-                throw new InvalidOperationException("Customer not found.");
-            }
-
-            customer.IsArchived = true;
-
-            await _context.SaveChangesAsync();
+        private async Task<string> GenerateCustomerCodeAsync()
+        {
+            var count = await _dbSet.CountAsync() + 1;
+            return $"CUST-{DateTime.Now:yyyyMMdd}-{count:D4}";
         }
     }
-    }
+}

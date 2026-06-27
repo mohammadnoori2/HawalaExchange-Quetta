@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Transactions;
 
-namespace YourNamespace.Entities
+namespace HawalaExchange.Domain.Entities
 {
     [Table("Branches")]
     public class Branch
@@ -22,17 +20,19 @@ namespace YourNamespace.Entities
         public string Name { get; set; }
 
         [MaxLength(50)]
-        public string PhoneNumber { get; set; }
+        public string? PhoneNumber { get; set; }
 
         [MaxLength(500)]
-        public string Address { get; set; }
+        public string? Address { get; set; }
 
         public bool IsArchived { get; set; } = false;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation Properties
-        public virtual ICollection<User> Users { get; set; }
-        public virtual ICollection<Transaction> Transactions { get; set; }
+        public virtual ICollection<User>? Users { get; set; }
+
+        // ✅ Fixed: Use your own Transaction entity, not System.Transactions.Transaction
+        public virtual ICollection<Transaction>? Transactions { get; set; }
     }
 }

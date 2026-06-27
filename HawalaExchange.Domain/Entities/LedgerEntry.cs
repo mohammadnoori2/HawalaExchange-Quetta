@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace YourNamespace.Entities
+namespace HawalaExchange.Domain.Entities
 {
     [Table("LedgerEntries")]
     public class LedgerEntry
@@ -20,25 +20,23 @@ namespace YourNamespace.Entities
         [Required]
         public long CurrencyId { get; set; }
 
-        [Column(TypeName = "decimal(18,4)")]
-        public decimal TalabKar { get; set; } = 0;
+        public decimal TalabKar { get; set; } = 0; // Debit
 
-        [Column(TypeName = "decimal(18,4)")]
-        public decimal BadehKar { get; set; } = 0;
+        public decimal BadehKar { get; set; } = 0; // Credit
 
         [MaxLength(500)]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation Properties
-        [ForeignKey("TransactionId")]
-        public virtual Transaction Transaction { get; set; }
+        [ForeignKey(nameof(TransactionId))]
+        public virtual Transaction? Transaction { get; set; }
 
-        [ForeignKey("AccountId")]
-        public virtual Account Account { get; set; }
+        [ForeignKey(nameof(AccountId))]
+        public virtual Account? Account { get; set; }
 
-        [ForeignKey("CurrencyId")]
-        public virtual Currency Currency { get; set; }
+        [ForeignKey(nameof(CurrencyId))]
+        public virtual Currency? Currency { get; set; }
     }
 }

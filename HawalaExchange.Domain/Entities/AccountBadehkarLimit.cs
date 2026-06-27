@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace YourNamespace.Entities
+namespace HawalaExchange.Domain.Entities
 {
     [Table("AccountBadehkarLimits")]
     public class AccountBadehkarLimit
@@ -17,8 +17,8 @@ namespace YourNamespace.Entities
         [Required]
         public long CurrencyId { get; set; }
 
-        [Column(TypeName = "decimal(18,4)")]
-        public decimal BadehkarLimit { get; set; }
+        [Required]
+        public decimal BadehkarLimit { get; set; } // Credit limit
 
         public bool IsActive { get; set; } = true;
 
@@ -27,13 +27,13 @@ namespace YourNamespace.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation Properties
-        [ForeignKey("AccountId")]
-        public virtual Account Account { get; set; }
+        [ForeignKey(nameof(AccountId))]
+        public virtual Account? Account { get; set; }
 
-        [ForeignKey("CurrencyId")]
-        public virtual Currency Currency { get; set; }
+        [ForeignKey(nameof(CurrencyId))]
+        public virtual Currency? Currency { get; set; }
 
-        [ForeignKey("CreatedBy")]
-        public virtual User CreatedByUser { get; set; }
+        [ForeignKey(nameof(CreatedBy))]
+        public virtual User? CreatedByUser { get; set; }
     }
 }

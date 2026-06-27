@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Transactions;
 
-namespace YourNamespace.Entities
+namespace HawalaExchange.Domain.Entities
 {
     [Table("Customers")]
     public class Customer
@@ -22,22 +20,22 @@ namespace YourNamespace.Entities
         public string FullName { get; set; }
 
         [MaxLength(50)]
-        public string PhoneNumber { get; set; }
+        public string? PhoneNumber { get; set; }
 
         [MaxLength(100)]
-        public string TazkiraNumber { get; set; }
+        public string? TazkiraNumber { get; set; }
 
         [MaxLength(500)]
-        public string Address { get; set; }
+        public string? Address { get; set; }
 
         public bool IsArchived { get; set; } = false;
 
         [MaxLength(1000)]
-        public string Remarks { get; set; }
+        public string? Remarks { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation Properties
-        public virtual ICollection<Transaction> Transactions { get; set; }
+        public virtual ICollection<Transaction>? Transactions { get; set; }
     }
 }

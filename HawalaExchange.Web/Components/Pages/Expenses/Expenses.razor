@@ -1,0 +1,607 @@
+﻿@page "/expenses"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject IExpenseService ExpenseService
+@inject ITransactionService TransactionService
+@inject ICurrencyService CurrencyService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-cash-stack me-2"></i> مدیریت هزینه‌ها
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
+                    <i class="bi bi-plus-circle"></i> هزینه جدید
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- نوار جستجو -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="جستجو (عنوان، ارز، توضیحات)..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
+                            <i class="bi bi-x-circle"></i> پاک کردن
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" @bind="filterCurrencyId">
+                        <option value="0">همه ارزها</option>
+                        @foreach (var currency in currencies)
+                        {
+                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3 text-start">
+                    <span class="badge bg-info fs-6 p-2">
+                        <i class="bi bi-list-ul"></i> تعداد: @filteredExpenses.Count
+                    </span>
+                </div>
+            </div>
+
+            <!-- جدول هزینه‌ها -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">عنوان</th>
+                            <th scope="col">مبلغ</th>
+                            <th scope="col">ارز</th>
+                            <th scope="col">تاریخ</th>
+                            <th scope="col">تراکنش مرتبط</th>
+                            <th scope="col" style="min-width: 120px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && expenses == null)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredExpenses.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ هزینه‌ای یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var expense in filteredExpenses)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td>@expense.Title</td>
+                                    <td dir="ltr">@expense.Amount.ToString("N2")</td>
+                                    <td>@expense.CurrencyCode</td>
+                                    <td dir="ltr">@expense.ExpenseDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td>
+                                        <a href="/transactions/@expense.TransactionId" target="_blank">
+                                            @expense.TransactionId
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-info" @onclick="() => ViewExpense(expense.Id)" title="مشاهده">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(expense.Id)" title="ویرایش">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" @onclick="() => ShowDeleteConfirm(expense.Id)" title="حذف">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال ایجاد/ویرایش هزینه -->
+@if (showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش هزینه" : "ایجاد هزینه جدید")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @successMessage
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">عنوان <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentExpense.Title) ? "is-invalid" : "")"
+                                   @bind="currentExpense.Title" placeholder="عنوان هزینه" />
+                            <div class="invalid-feedback">عنوان الزامی است</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">مبلغ <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control @(currentExpense.Amount <= 0 ? "is-invalid" : "")"
+                                   @bind="currentExpense.Amount" placeholder="مبلغ هزینه" />
+                            <div class="invalid-feedback">مبلغ باید بزرگتر از صفر باشد</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
+                            <select class="form-select @(currentExpense.CurrencyId == 0 ? "is-invalid" : "")"
+                                    @bind="currentExpense.CurrencyId">
+                                <option value="0">انتخاب ارز</option>
+                                @foreach (var currency in currencies)
+                                {
+                                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                }
+                            </select>
+                            <div class="invalid-feedback">انتخاب ارز الزامی است</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">تاریخ هزینه</label>
+                            <input type="datetime-local" class="form-control" @bind="currentExpense.ExpenseDate" />
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">تراکنش مرتبط <span class="text-danger">*</span></label>
+                            <select class="form-select @(currentExpense.TransactionId == 0 ? "is-invalid" : "")"
+                                    @bind="currentExpense.TransactionId">
+                                <option value="0">انتخاب تراکنش</option>
+                                @foreach (var transaction in transactions)
+                                {
+                                    <option value="@transaction.Id">@transaction.TransactionNo - @transaction.CustomerFullName</option>
+                                }
+                            </select>
+                            <div class="invalid-feedback">انتخاب تراکنش الزامی است</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">توضیحات</label>
+                            <input type="text" class="form-control" @bind="currentExpense.Description" placeholder="توضیحات اضافی" />
+                        </div>
+                    </div>
+
+                    @if (isEditMode)
+                    {
+                        <div class="alert alert-info mt-2">
+                            <i class="bi bi-info-circle"></i>
+                            <small>در حال ویرایش هزینه با شناسه: <strong>@editId</strong></small>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="() => SaveExpense()" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save"></i>
+                        }
+                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال مشاهده جزئیات هزینه -->
+@if (showDetailModal && selectedExpense != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle me-2"></i> جزئیات هزینه
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6"><strong>عنوان:</strong> @selectedExpense.Title</div>
+                        <div class="col-md-6"><strong>مبلغ:</strong> @selectedExpense.Amount.ToString("N2")</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>ارز:</strong> @selectedExpense.CurrencyCode</div>
+                        <div class="col-md-6"><strong>تاریخ:</strong> @selectedExpense.ExpenseDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>تراکنش مرتبط:</strong> @selectedExpense.TransactionId</div>
+                        <div class="col-md-6"><strong>توضیحات:</strong> @(selectedExpense.Description ?? "-")</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-12">
+                            <a href="/transactions/@selectedExpense.TransactionId" target="_blank">مشاهده تراکنش</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDetailModal()">
+                        <i class="bi bi-x-circle"></i> بستن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال تأیید حذف -->
+@if (showDeleteModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> تأیید حذف
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDeleteModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">آیا مطمئن هستید که می‌خواهید این هزینه را حذف کنید؟</p>
+                    <p class="text-muted small">این عملیات غیرقابل بازگشت است و ورودی‌های دفتر کل مربوطه نیز حذف خواهند شد.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDeleteModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmDelete()">
+                        <i class="bi bi-check-circle"></i> تأیید حذف
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ExpenseDto> expenses = new();
+    private List<ExpenseDto> filteredExpenses = new();
+    private List<TransactionDto> transactions = new();
+    private List<CurrencyDto> currencies = new();
+
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchExpenses();
+            }
+        }
+    }
+
+    private long _filterCurrencyId = 0;
+    private long filterCurrencyId
+    {
+        get => _filterCurrencyId;
+        set
+        {
+            if (_filterCurrencyId != value)
+            {
+                _filterCurrencyId = value;
+                SearchExpenses();
+            }
+        }
+    }
+
+    private bool showModal = false;
+    private bool showDetailModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditMode = false;
+    private bool isLoading = false;
+    private long editId = 0;
+    private long deleteId = 0;
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+    private ExpenseDto? selectedExpense = null;
+
+    private CreateExpenseDto currentExpense = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupData();
+        await LoadExpenses();
+    }
+
+    private async Task LoadLookupData()
+    {
+        try
+        {
+            var transactionResult = await TransactionService.GetAllAsync();
+            transactions = transactionResult.ToList();
+
+            var currencyResult = await CurrencyService.GetAllAsync();
+            currencies = currencyResult.ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری داده‌های کمکی: {ex.Message}");
+        }
+    }
+
+    private async Task LoadExpenses()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await ExpenseService.GetAllAsync();
+            expenses = result.ToList();
+            filteredExpenses = expenses;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری هزینه‌ها: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchExpenses()
+    {
+        var query = expenses.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim().ToLower();
+            query = query.Where(e =>
+                e.Title.ToLower().Contains(term) ||
+                e.CurrencyCode.ToLower().Contains(term) ||
+                (e.Description != null && e.Description.ToLower().Contains(term))
+            );
+        }
+
+        if (_filterCurrencyId > 0)
+        {
+            query = query.Where(e => e.CurrencyId == _filterCurrencyId);
+        }
+
+        filteredExpenses = query.ToList();
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        _filterCurrencyId = 0;
+        filteredExpenses = expenses;
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        currentExpense = new CreateExpenseDto
+        {
+            TransactionId = 0,
+            CurrencyId = 0,
+            Amount = 0,
+            Title = "",
+            ExpenseDate = DateTime.Now,
+            Description = ""
+        };
+        isEditMode = false;
+        editId = 0;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var expense = await ExpenseService.GetByIdAsync(id);
+            if (expense != null)
+            {
+                currentExpense = new CreateExpenseDto
+                {
+                    TransactionId = expense.TransactionId,
+                    CurrencyId = expense.CurrencyId,
+                    Amount = expense.Amount,
+                    Title = expense.Title,
+                    ExpenseDate = expense.ExpenseDate,
+                    Description = expense.Description
+                };
+
+                isEditMode = true;
+                editId = id;
+                validationErrors.Clear();
+                successMessage = string.Empty;
+                showModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری هزینه: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveExpense()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(currentExpense.Title))
+            validationErrors.Add("عنوان هزینه الزامی است");
+        if (currentExpense.Amount <= 0)
+            validationErrors.Add("مبلغ باید بزرگتر از صفر باشد");
+        if (currentExpense.CurrencyId == 0)
+            validationErrors.Add("انتخاب ارز الزامی است");
+        if (currentExpense.TransactionId == 0)
+            validationErrors.Add("انتخاب تراکنش الزامی است");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            if (isEditMode)
+            {
+                await ExpenseService.UpdateExpenseAsync(editId, currentExpense);
+                successMessage = "هزینه با موفقیت ویرایش شد";
+            }
+            else
+            {
+                await ExpenseService.CreateExpenseAsync(currentExpense);
+                successMessage = "هزینه با موفقیت ایجاد شد";
+            }
+
+            showModal = false;
+            await LoadExpenses();
+        }
+        catch (InvalidOperationException ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ViewExpense(long id)
+    {
+        try
+        {
+            isLoading = true;
+            selectedExpense = await ExpenseService.GetByIdAsync(id);
+            showDetailModal = true;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری جزئیات: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        selectedExpense = null;
+        StateHasChanged();
+    }
+
+    private void ShowDeleteConfirm(long id)
+    {
+        deleteId = id;
+        showDeleteModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        try
+        {
+            await ExpenseService.DeleteExpenseAsync(deleteId);
+            successMessage = "هزینه با موفقیت حذف شد";
+            showDeleteModal = false;
+            await LoadExpenses();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در حذف: {ex.Message}");
+            showDeleteModal = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+}

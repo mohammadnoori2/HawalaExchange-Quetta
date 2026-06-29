@@ -23,10 +23,9 @@ namespace HawalaExchange.Application.Services
         {
             var entry = _mapper.Map<LedgerEntry>(createDto);
             entry.CreatedAt = DateTime.UtcNow;
-
+            // TransactionId باید به‌طور خودکار از DTO نگاشت شود
             await _context.LedgerEntries.AddAsync(entry);
             await _context.SaveChangesAsync();
-
             return _mapper.Map<LedgerEntryDto>(entry);
         }
 

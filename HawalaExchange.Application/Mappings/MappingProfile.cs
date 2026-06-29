@@ -2,7 +2,6 @@
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Domain.Entities;
 
-
 namespace HawalaSystem.Mappings
 {
     public class MappingProfile : Profile
@@ -65,12 +64,12 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.CorrespondentName, opt => opt.MapFrom(src => src.Correspondent.Name));
             CreateMap<CreateTransactionDetailDto, TransactionDetail>();
 
-            // LedgerEntry mappings
+            // LedgerEntry mappings (با TransactionId)
             CreateMap<LedgerEntry, LedgerEntryDto>()
                 .ForMember(dest => dest.AccountName, opt => opt.MapFrom(src => src.Account.AccountName))
                 .ForMember(dest => dest.AccountCode, opt => opt.MapFrom(src => src.Account.AccountCode))
                 .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code));
-            CreateMap<CreateLedgerEntryDto, LedgerEntry>();
+            CreateMap<CreateLedgerEntryDto, LedgerEntry>(); // TransactionId به‌طور خودکار نگاشت می‌شود
 
             // Transfer mappings
             CreateMap<Transfer, TransferDto>()
@@ -79,10 +78,10 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code));
             CreateMap<CreateTransferDto, Transfer>();
 
-            // Expense mappings
+            // Expense mappings – با فرض اینکه CreateExpenseDto دارای TransactionId است
             CreateMap<Expense, ExpenseDto>()
                 .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code));
-            CreateMap<CreateExpenseDto, Expense>();
+            CreateMap<CreateExpenseDto, Expense>(); // ✅ TransactionId به‌طور خودکار نگاشت می‌شود
 
             // Document mappings
             CreateMap<Document, DocumentDto>().ReverseMap();

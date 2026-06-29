@@ -18,6 +18,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class CreateExpenseDto
     {
+        public long TransactionId { get; set; }
         public DateTime ExpenseDate { get; set; }
         public string Title { get; set; }
         public long CurrencyId { get; set; }

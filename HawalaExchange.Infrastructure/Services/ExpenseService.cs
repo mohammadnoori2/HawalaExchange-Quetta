@@ -20,43 +20,109 @@ namespace HawalaExchange.Application.Services
             _mapper = mapper;
         }
 
+        // ===== متدهای جدید =====
+        public async Task<IEnumerable<ExpenseDto>> GetAllAsync()
+        {
+            var expenses = await _context.Expenses
+                .Include(e => e.Currency)
+                .OrderByDescending(e => e.Id)
+                .ToListAsync();
+
+            return _mapper.Map<IEnumerable<ExpenseDto>>(expenses);
+        }
+
+        public async Task<ExpenseDto?> GetByIdAsync(long id)
+        {
+            var expense = await _context.Expenses
+                .Include(e => e.Currency)
+                .FirstOrDefaultAsync(e => e.Id == id);
+
+            return expense == null ? null : _mapper.Map<ExpenseDto>(expense);
+        }
         public async Task<ExpenseDto> CreateExpenseAsync(CreateExpenseDto createDto)
         {
-            var expense = _mapper.Map<Expense>(createDto);
-            expense.ExpenseDate = expense.ExpenseDate == DateTime.MinValue ? DateTime.UtcNow : expense.ExpenseDate;
+            // اعتبارسنجی اولیه
+            if (createDto.TransactionId == 0)
+                throw new InvalidOperationException("شناسه تراکنش نمی‌تواند صفر باشد. لطفاً یک تراکنش معتبر انتخاب کنید.");
 
-            await _context.Expenses.AddAsync(expense);
-            await _context.SaveChangesAsync();
+            if (createDto.Amount <= 0)
+                throw new InvalidOperationException("مبلغ باید بزرگتر از صفر باشد.");
 
-            var expenseAccount = await _context.Accounts
-                .FirstOrDefaultAsync(a => a.AccountType == "Expense" && a.AccountName == "General Expenses");
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-            if (expenseAccount == null)
+            try
             {
-                expenseAccount = new Account
-                {
-                    AccountCode = "4001",
-                    AccountName = "General Expenses",
-                    AccountType = "Expense",
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow
-                };
-                await _context.Accounts.AddAsync(expenseAccount);
+                // 1. ثبت هزینه
+                var expense = _mapper.Map<Expense>(createDto);
+                expense.ExpenseDate = expense.ExpenseDate == DateTime.MinValue ? DateTime.UtcNow : expense.ExpenseDate;
+
+                await _context.Expenses.AddAsync(expense);
                 await _context.SaveChangesAsync();
+
+                // 2. دریافت یا ایجاد حساب هزینه بر اساس کد یکتا
+                var expenseAccount = await _context.Accounts
+                    .FirstOrDefaultAsync(a => a.AccountCode == "4001" && a.AccountType == "Expense");
+
+                if (expenseAccount == null)
+                {
+                    expenseAccount = new Account
+                    {
+                        AccountCode = "4001",
+                        AccountName = "General Expenses",
+                        AccountType = "Expense",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _context.Accounts.AddAsync(expenseAccount);
+                    await _context.SaveChangesAsync();
+                }
+
+                // 3. ثبت ورودی دفتر کل
+                await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
+                {
+                    TransactionId = createDto.TransactionId,
+                    AccountId = expenseAccount.Id,
+                    CurrencyId = createDto.CurrencyId,
+                    TalabKar = 0,
+                    BadehKar = createDto.Amount,
+                    Description = $"Expense: {createDto.Title}"
+                });
+
+                await transaction.CommitAsync();
+
+                return _mapper.Map<ExpenseDto>(expense);
             }
-
-            await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
+            catch (DbUpdateException dbEx)
             {
-                AccountId = expenseAccount.Id,
-                CurrencyId = createDto.CurrencyId,
-                TalabKar = 0,
-                BadehKar = createDto.Amount,
-                Description = $"Expense: {createDto.Title}"
-            });
+                await transaction.RollbackAsync();
+                var innerMessage = dbEx.InnerException?.Message ?? dbEx.Message;
+                throw new InvalidOperationException($"خطای دیتابیس: {innerMessage}");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                throw new InvalidOperationException($"خطا: {ex.Message}");
+            }
+        }
 
+        public async Task<ExpenseDto> UpdateExpenseAsync(long id, CreateExpenseDto updateDto)
+        {
+            var expense = await _context.Expenses.FindAsync(id);
+            if (expense == null) throw new KeyNotFoundException($"Expense with ID {id} not found.");
+            _mapper.Map(updateDto, expense);
+            await _context.SaveChangesAsync();
             return _mapper.Map<ExpenseDto>(expense);
         }
 
+        public async Task DeleteExpenseAsync(long id)
+        {
+            var expense = await _context.Expenses.FindAsync(id);
+            if (expense == null) throw new KeyNotFoundException($"Expense with ID {id} not found.");
+            _context.Expenses.Remove(expense);
+            await _context.SaveChangesAsync();
+        }
+
+        // ===== متدهای کوئری خاص =====
         public async Task<IEnumerable<ExpenseDto>> GetExpensesByTransactionAsync(long transactionId)
         {
             var expenses = await _context.Expenses
@@ -82,31 +148,6 @@ namespace HawalaExchange.Application.Services
                 .Include(e => e.Currency)
                 .ToListAsync();
             return _mapper.Map<IEnumerable<ExpenseDto>>(expenses);
-        }
-
-        public async Task<ExpenseDto?> GetExpenseByIdAsync(long id)
-        {
-            var expense = await _context.Expenses
-                .Include(e => e.Currency)
-                .FirstOrDefaultAsync(e => e.Id == id);
-            return expense == null ? null : _mapper.Map<ExpenseDto>(expense);
-        }
-
-        public async Task<ExpenseDto> UpdateExpenseAsync(long id, CreateExpenseDto updateDto)
-        {
-            var expense = await _context.Expenses.FindAsync(id);
-            if (expense == null) throw new KeyNotFoundException($"Expense with ID {id} not found.");
-            _mapper.Map(updateDto, expense);
-            await _context.SaveChangesAsync();
-            return _mapper.Map<ExpenseDto>(expense);
-        }
-
-        public async Task DeleteExpenseAsync(long id)
-        {
-            var expense = await _context.Expenses.FindAsync(id);
-            if (expense == null) throw new KeyNotFoundException($"Expense with ID {id} not found.");
-            _context.Expenses.Remove(expense);
-            await _context.SaveChangesAsync();
         }
 
         public async Task<decimal> GetTotalExpensesByCurrencyAsync(long currencyId, DateTime? fromDate = null, DateTime? toDate = null)

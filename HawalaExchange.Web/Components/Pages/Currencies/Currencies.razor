@@ -1,0 +1,508 @@
+﻿@page "/currencies"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject ICurrencyService CurrencyService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-currency-exchange me-2"></i> مدیریت ارزها
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
+                    <i class="bi bi-plus-circle"></i> ارز جدید
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- نوار جستجو -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="جستجوی ارزها (کد، نام، سمبل)..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
+                            <i class="bi bi-x-circle"></i> پاک کردن
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-start">
+                    <span class="badge bg-info fs-6 p-2">
+                        <i class="bi bi-list-ul"></i> تعداد: @filteredCurrencies.Count
+                    </span>
+                </div>
+            </div>
+
+            <!-- جدول ارزها -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">کد</th>
+                            <th scope="col">نام</th>
+                            <th scope="col">سمبل</th>
+                            <th scope="col">تعداد اعشار</th>
+                            <th scope="col">وضعیت</th>
+                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && currencies == null)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredCurrencies.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ ارزی یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var currency in filteredCurrencies)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td><strong>@currency.Code</strong></td>
+                                    <td>@currency.Name</td>
+                                    <td>@currency.Symbol</td>
+                                    <td>@currency.DecimalPlaces</td>
+                                    <td>
+                                        @if (currency.IsActive)
+                                        {
+                                            <span class="badge bg-success px-3 py-2">فعال</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary px-3 py-2">غیرفعال</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(currency.Id)" title="ویرایش">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            @if (currency.IsActive)
+                                            {
+                                                <button class="btn btn-outline-danger" @onclick="() => ShowDeactivateConfirm(currency.Id)" title="غیرفعال‌سازی">
+                                                    <i class="bi bi-slash-circle"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-outline-warning" @onclick="() => ShowActivateConfirm(currency.Id)" title="فعال‌سازی">
+                                                    <i class="bi bi-check-circle"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال ایجاد/ویرایش ارز -->
+@if (showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش ارز" : "ایجاد ارز جدید")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @successMessage
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-hash"></i> کد ارز <span class="text-danger">*</span>
+                            </label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" class="form-control bg-light" value="@currencyCodeDisplay" disabled readonly />
+                                <small class="text-muted">کد ارز قابل ویرایش نیست</small>
+                            }
+                            else
+                            {
+                                <input type="text" class="form-control @(string.IsNullOrEmpty(currentCurrency.Code) ? "is-invalid" : "")"
+                                       @bind="currentCurrency.Code" placeholder="مثال: USD" />
+                                <div class="invalid-feedback">کد ارز الزامی است</div>
+                            }
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-tag"></i> نام ارز <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentCurrency.Name) ? "is-invalid" : "")"
+                                   @bind="currentCurrency.Name" placeholder="مثال: دلار آمریکا" />
+                            <div class="invalid-feedback">نام ارز الزامی است</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-currency-dollar"></i> سمبل (نماد)
+                            </label>
+                            <input type="text" class="form-control" @bind="currentCurrency.Symbol" placeholder="مثال: $" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-123"></i> تعداد اعشار
+                            </label>
+                            <input type="number" class="form-control" @bind="currentCurrency.DecimalPlaces" min="0" max="8" />
+                        </div>
+                    </div>
+
+                    @if (isEditMode)
+                    {
+                        <div class="alert alert-info mt-2">
+                            <i class="bi bi-info-circle"></i>
+                            <small>در حال ویرایش ارز: <strong>@currencyCodeDisplay</strong></small>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="() => SaveCurrency()" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save"></i>
+                        }
+                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال تأیید فعال/غیرفعال‌سازی -->
+@if (showConfirmModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> تأیید عملیات
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">@confirmMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseConfirmModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                        <i class="bi bi-check-circle"></i> تأیید
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<CurrencyDto> currencies = new();
+    private List<CurrencyDto> filteredCurrencies = new();
+
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchCurrencies();
+            }
+        }
+    }
+
+    private bool showModal = false;
+    private bool showConfirmModal = false;
+    private bool isEditMode = false;
+    private bool isLoading = false;
+    private long editId = 0;
+    private long confirmId = 0;
+    private string confirmMessage = string.Empty;
+    private string confirmActionType = string.Empty;
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+    private string? currencyCodeDisplay;
+
+    private CreateCurrencyDto currentCurrency = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrencies();
+    }
+
+    private async Task LoadCurrencies()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await CurrencyService.GetAllAsync();
+            currencies = result.ToList();
+            filteredCurrencies = currencies;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری ارزها: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchCurrencies()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            filteredCurrencies = currencies;
+        }
+        else
+        {
+            var term = _searchTerm.Trim().ToLower();
+            filteredCurrencies = currencies.Where(c =>
+                c.Code.ToLower().Contains(term) ||
+                c.Name.ToLower().Contains(term) ||
+                (c.Symbol != null && c.Symbol.Contains(term, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+        }
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        filteredCurrencies = currencies;
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        currentCurrency = new CreateCurrencyDto();
+        currencyCodeDisplay = null;
+        isEditMode = false;
+        editId = 0;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var currency = await CurrencyService.GetByIdAsync(id);
+            if (currency != null)
+            {
+                currencyCodeDisplay = currency.Code;
+                currentCurrency = new CreateCurrencyDto
+                {
+                    Code = currency.Code,
+                    Name = currency.Name,
+                    Symbol = currency.Symbol,
+                    DecimalPlaces = currency.DecimalPlaces
+                };
+
+                isEditMode = true;
+                editId = id;
+                validationErrors.Clear();
+                successMessage = string.Empty;
+                showModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری ارز: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveCurrency()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        // اعتبارسنجی
+        if (!isEditMode && string.IsNullOrWhiteSpace(currentCurrency.Code))
+            validationErrors.Add("کد ارز الزامی است");
+        if (string.IsNullOrWhiteSpace(currentCurrency.Name))
+            validationErrors.Add("نام ارز الزامی است");
+        if (currentCurrency.DecimalPlaces < 0)
+            validationErrors.Add("تعداد اعشار نمی‌تواند منفی باشد");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            if (isEditMode)
+            {
+                var updateRequest = new UpdateCurrencyDto
+                {
+                    Name = currentCurrency.Name,
+                    Symbol = currentCurrency.Symbol,
+                    DecimalPlaces = currentCurrency.DecimalPlaces,
+                    IsActive = true // وضعیت از دکمه فعال/غیرفعال مدیریت می‌شود
+                };
+                await CurrencyService.UpdateAsync(editId, updateRequest);
+                successMessage = "ارز با موفقیت ویرایش شد";
+            }
+            else
+            {
+                await CurrencyService.CreateAsync(currentCurrency);
+                successMessage = "ارز با موفقیت ایجاد شد";
+            }
+
+            showModal = false;
+            await LoadCurrencies();
+        }
+        catch (InvalidOperationException ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowDeactivateConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "deactivate";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این ارز را غیرفعال کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private void ShowActivateConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "activate";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این ارز را فعال کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        try
+        {
+            if (confirmActionType == "deactivate")
+            {
+                await CurrencyService.DeactivateAsync(confirmId);
+                successMessage = "ارز با موفقیت غیرفعال شد";
+            }
+            else if (confirmActionType == "activate")
+            {
+                await CurrencyService.ActivateAsync(confirmId);
+                successMessage = "ارز با موفقیت فعال شد";
+            }
+
+            showConfirmModal = false;
+            await LoadCurrencies();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در عملیات: {ex.Message}");
+            showConfirmModal = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+}

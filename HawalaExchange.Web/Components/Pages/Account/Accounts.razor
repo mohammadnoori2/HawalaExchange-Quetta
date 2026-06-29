@@ -50,7 +50,7 @@
                             <th scope="col">مرجع</th>
                             <th scope="col">تاریخ ایجاد</th>
                             <th scope="col">وضعیت</th>
-                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                            <th scope="col" style="min-width: 180px;">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -113,6 +113,10 @@
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm" role="group">
+                                            <!-- ✅ دکمه جزئیات -->
+                                            <button class="btn btn-outline-info" @onclick="() => ViewAccount(account.Id)" title="جزئیات">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
                                             @if (!account.IsArchived)
                                             {
                                                 <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(account.Id)" title="ویرایش">
@@ -128,7 +132,7 @@
                                                     <i class="bi bi-arrow-counterclockwise"></i>
                                                 </button>
                                             }
-                                            <button class="btn btn-outline-info" @onclick="() => ViewLedger(account.Id)" title="دفتر کل">
+                                            <button class="btn btn-outline-secondary" @onclick="() => ViewLedger(account.Id)" title="دفتر کل">
                                                 <i class="bi bi-journal"></i>
                                             </button>
                                         </div>
@@ -144,7 +148,7 @@
     </div>
 </div>
 
-<!-- مودال ایجاد/ویرایش -->
+<!-- مودال ایجاد/ویرایش (بدون تغییر) -->
 @if (showModal)
 {
     <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
@@ -294,6 +298,45 @@
     </div>
 }
 
+<!-- ✅ مودال نمایش جزئیات حساب -->
+@if (showDetailModal && selectedAccount != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle me-2"></i> جزئیات حساب
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6"><strong>کد حساب:</strong> @selectedAccount.AccountCode</div>
+                        <div class="col-md-6"><strong>نام حساب:</strong> @selectedAccount.AccountName</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>نوع حساب:</strong> @GetAccountTypeName(selectedAccount.AccountType)</div>
+                        <div class="col-md-6"><strong>وضعیت:</strong> @(selectedAccount.IsArchived ? "بایگانی شده" : "فعال")</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>نوع مرجع:</strong> @(string.IsNullOrEmpty(selectedAccount.ReferenceType) ? "—" : GetReferenceTypeName(selectedAccount.ReferenceType))</div>
+                        <div class="col-md-6"><strong>شناسه مرجع:</strong> @(selectedAccount.ReferenceId?.ToString() ?? "—")</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-12"><strong>تاریخ ایجاد:</strong> @selectedAccount.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDetailModal()">
+                        <i class="bi bi-x-circle"></i> بستن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<AccountDto> accounts = new();
     private List<AccountDto> filteredAccounts = new();
@@ -323,7 +366,10 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
 
-    // ✅ Use CreateAccountDto (not CreateAccountRequest)
+    // ✅ برای مودال جزئیات
+    private bool showDetailModal = false;
+    private AccountDto? selectedAccount = null;
+
     private CreateAccountDto currentAccount = new();
 
     protected override async Task OnInitializedAsync()
@@ -461,13 +507,9 @@
 
             if (isEditMode)
             {
-                // ✅ Use UpdateAccountDto – no IsArchived, that's handled separately
                 var updateRequest = new UpdateAccountDto
                 {
                     AccountName = currentAccount.AccountName,
-                    // AccountCode and AccountType are usually not editable; but if they are, include them.
-                    // Check your service implementation.
-                    // For safety, we only update Name and Reference.
                     ReferenceType = currentAccount.ReferenceType,
                     ReferenceId = currentAccount.ReferenceId
                 };
@@ -527,7 +569,6 @@
             }
             else if (confirmActionType == "unarchive")
             {
-                // ✅ If UnarchiveAsync exists, use it; else implement in service
                 await AccountService.UnarchiveAsync(confirmId);
                 successMessage = "حساب با موفقیت از بایگانی خارج شد";
             }
@@ -544,6 +585,33 @@
         {
             StateHasChanged();
         }
+    }
+
+    // ✅ متد جدید برای نمایش جزئیات حساب
+    private async Task ViewAccount(long id)
+    {
+        try
+        {
+            isLoading = true;
+            selectedAccount = await AccountService.GetByIdAsync(id);
+            showDetailModal = true;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری جزئیات حساب: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        selectedAccount = null;
+        StateHasChanged();
     }
 
     private void ViewLedger(long id)

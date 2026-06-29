@@ -4,6 +4,7 @@ using HawalaExchange.Infrastructure.Data;
 using HawalaExchange.Web.Components;
 using HawalaSystem.Mappings;
 using Microsoft.EntityFrameworkCore;
+using AutoMapper;
 
 public partial class Program
 {
@@ -20,7 +21,10 @@ public partial class Program
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
         // Register AutoMapper
-        builder.Services.AddAutoMapper(typeof(MappingProfile).Assembly);
+        builder.Services.AddAutoMapper(cfg =>
+        {
+            cfg.AddProfile<MappingProfile>();
+        }, typeof(MappingProfile).Assembly);
 
         // Register Services
         builder.Services.AddScoped<IBranchService, BranchService>();

@@ -1,0 +1,934 @@
+﻿@page "/transactions"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject ITransactionService TransactionService
+@inject IBranchService BranchService
+@inject ICustomerService CustomerService
+@inject ICurrencyService CurrencyService
+@inject ICorrespondentService CorrespondentService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-receipt me-2"></i> مدیریت تراکنش‌ها
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
+                    <i class="bi bi-plus-circle"></i> تراکنش جدید
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- فیلترها -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="جستجو (شماره، مشتری، نوع)..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" @bind="filterStatus">
+                        <option value="">همه وضعیت‌ها</option>
+                        <option value="Pending">در انتظار</option>
+                        <option value="Paid">پرداخت شده</option>
+                        <option value="Cancel">لغو شده</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" @bind="filterType">
+                        <option value="">همه انواع</option>
+                        <option value="HawalaSend">حواله ارسال</option>
+                        <option value="HawalaReceive">حواله دریافت</option>
+                        <option value="Exchange">تبدیل ارز</option>
+                        <option value="Transfer">انتقال</option>
+                        <option value="Expense">هزینه</option>
+                        <option value="Adjustment">تعدیل</option>
+                    </select>
+                </div>
+                <div class="col-md-2 text-start">
+                    <span class="badge bg-info fs-6 p-2">
+                        <i class="bi bi-list-ul"></i> تعداد: @filteredTransactions.Count
+                    </span>
+                </div>
+            </div>
+
+            <!-- جدول تراکنش‌ها -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">شماره تراکنش</th>
+                            <th scope="col">نوع</th>
+                            <th scope="col">مشتری</th>
+                            <th scope="col">شعبه</th>
+                            <th scope="col">وضعیت</th>
+                            <th scope="col">ایجاد کننده</th>
+                            <th scope="col">تاریخ</th>
+                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && transactions == null)
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredTransactions.Any())
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ تراکنشی یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var transaction in filteredTransactions)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td><strong>@transaction.TransactionNo</strong></td>
+                                    <td>@GetTransactionTypeName(transaction.TransactionType)</td>
+                                    <td>@(transaction.CustomerFullName ?? "-")</td>
+                                    <td>@transaction.BranchName</td>
+                                    <td>@GetStatusBadge(transaction.Status)</td>
+                                    <td>@transaction.CreatedByName</td>
+                                    <td dir="ltr">@transaction.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <!-- دکمه مشاهده - حالا مودال باز می‌کند -->
+                                            <button class="btn btn-outline-info" @onclick="() => ViewTransaction(transaction.Id)" title="مشاهده">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            @if (transaction.Status == "Pending")
+                                            {
+                                                <button class="btn btn-outline-success" @onclick="() => MarkAsPaid(transaction.Id)" title="پرداخت">
+                                                    <i class="bi bi-check-circle"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger" @onclick="() => ShowCancelModal(transaction.Id)" title="لغو">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            }
+                                            @if (transaction.Status != "Cancel")
+                                            {
+                                                <button class="btn btn-outline-warning" @onclick="() => ShowReverseModal(transaction.Id)" title="برگشت">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- مودال ایجاد/ویرایش تراکنش (بدون تغییر)     -->
+<!-- ========================================== -->
+@if (showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش تراکنش" : "ایجاد تراکنش جدید")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @successMessage
+                        </div>
+                    }
+
+                    <!-- اطلاعات اصلی تراکنش -->
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">نوع تراکنش <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="currentTransaction.TransactionType">
+                                <option value="">انتخاب نوع</option>
+                                <option value="HawalaSend">حواله ارسال</option>
+                                <option value="HawalaReceive">حواله دریافت</option>
+                                <option value="Exchange">تبدیل ارز</option>
+                                <option value="Transfer">انتقال</option>
+                                <option value="Expense">هزینه</option>
+                                <option value="Adjustment">تعدیل</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">شعبه <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="currentTransaction.BranchId">
+                                <option value="0">انتخاب شعبه</option>
+                                @foreach (var branch in branches)
+                                {
+                                    <option value="@branch.Id">@branch.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">مشتری</label>
+                            <select class="form-select" @bind="currentTransaction.CustomerId">
+                                <option value="">بدون مشتری</option>
+                                @foreach (var customer in customers)
+                                {
+                                    <option value="@customer.Id">@customer.FullName (@customer.CustomerCode)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold">توضیحات</label>
+                            <textarea class="form-control" @bind="currentTransaction.Remarks" rows="2" placeholder="توضیحات اضافی"></textarea>
+                        </div>
+                    </div>
+
+                    <hr />
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">جزئیات تراکنش</h5>
+                        <button type="button" class="btn btn-sm btn-success" @onclick="AddDetail">
+                            <i class="bi bi-plus-circle"></i> افزودن جزئیات
+                        </button>
+                    </div>
+
+                    <!-- جزئیات پویا -->
+                    @for (int i = 0; i < currentTransaction.TransactionDetails.Count; i++)
+                    {
+                        var detail = currentTransaction.TransactionDetails[i];
+                        <div class="border rounded p-3 mb-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-0">جزئیات @(i + 1)</h6>
+                                <button type="button" class="btn-close" @onclick='() => RemoveDetail(i)'></button>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">از ارز</label>
+                                    <select class="form-select" @bind="detail.FromCurrencyId">
+                                        <option value="">انتخاب</option>
+                                        @foreach (var currency in currencies)
+                                        {
+                                            <option value="@currency.Id">@currency.Code</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">مبلغ از</label>
+                                    <input type="number" step="0.01" class="form-control" @bind="detail.FromAmount" />
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">به ارز</label>
+                                    <select class="form-select" @bind="detail.ToCurrencyId">
+                                        <option value="">انتخاب</option>
+                                        @foreach (var currency in currencies)
+                                        {
+                                            <option value="@currency.Id">@currency.Code</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">مبلغ به</label>
+                                    <input type="number" step="0.01" class="form-control" @bind="detail.ToAmount" />
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">نرخ تبدیل</label>
+                                    <input type="number" step="0.0001" class="form-control" @bind="detail.ExchangeRate" />
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">مبلغ انتقال</label>
+                                    <input type="number" step="0.01" class="form-control" @bind="detail.TransferAmount" />
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">کارمزد</label>
+                                    <input type="number" step="0.01" class="form-control" @bind="detail.CommissionAmount" />
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">ارز کارمزد</label>
+                                    <select class="form-select" @bind="detail.CommissionCurrencyId">
+                                        <option value="">انتخاب</option>
+                                        @foreach (var currency in currencies)
+                                        {
+                                            <option value="@currency.Id">@currency.Code</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">نماینده</label>
+                                    <select class="form-select" @bind="detail.CorrespondentId">
+                                        <option value="">انتخاب</option>
+                                        @foreach (var correspondent in correspondents)
+                                        {
+                                            <option value="@correspondent.Id">@correspondent.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">نام فرستنده</label>
+                                    <input type="text" class="form-control" @bind="detail.SenderName" placeholder="نام فرستنده" />
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">تلفن فرستنده</label>
+                                    <input type="text" class="form-control" @bind="detail.SenderPhone" placeholder="تلفن فرستنده" />
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <label class="form-label fw-bold small">نام گیرنده</label>
+                                    <input type="text" class="form-control" @bind="detail.ReceiverName" placeholder="نام گیرنده" />
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-2">
+                                    <label class="form-label fw-bold small">تلفن گیرنده</label>
+                                    <input type="text" class="form-control" @bind="detail.ReceiverPhone" placeholder="تلفن گیرنده" />
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <label class="form-label fw-bold small">شماره مرجع</label>
+                                    <input type="text" class="form-control" @bind="detail.ReferenceNumber" placeholder="شماره مرجع" />
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <label class="form-label fw-bold small">یادداشت</label>
+                                    <input type="text" class="form-control" @bind="detail.Notes" placeholder="یادداشت" />
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (!currentTransaction.TransactionDetails.Any())
+                    {
+                        <p class="text-muted">هیچ جزئیاتی اضافه نشده است.</p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="() => SaveTransaction()" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save"></i>
+                        }
+                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ========================================== -->
+<!-- مودال لغو/برگشت تراکنش (بدون تغییر)       -->
+<!-- ========================================== -->
+@if (showActionModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> @(actionType == "cancel" ? "لغو تراکنش" : "برگشت تراکنش")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseActionModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <p>@(actionType == "cancel" ? "لطفاً دلیل لغو را وارد کنید:" : "آیا مطمئن هستید که می‌خواهید این تراکنش را برگشت دهید؟")</p>
+                    @if (actionType == "cancel")
+                    {
+                        <textarea class="form-control" @bind="cancelReason" rows="3" placeholder="دلیل لغو..."></textarea>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseActionModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                        <i class="bi bi-check-circle"></i> تأیید
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ========================================== -->
+<!-- ✅ مودال نمایش جزئیات تراکنش (جدید)       -->
+<!-- ========================================== -->
+@if (showDetailModal && selectedTransaction != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-receipt me-2"></i> جزئیات تراکنش
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- اطلاعات اصلی -->
+                    <div class="row">
+                        <div class="col-md-3"><strong>شماره تراکنش:</strong> @selectedTransaction.TransactionNo</div>
+                        <div class="col-md-3"><strong>نوع:</strong> @GetTransactionTypeName(selectedTransaction.TransactionType)</div>
+                        <div class="col-md-3"><strong>وضعیت:</strong> @GetStatusBadge(selectedTransaction.Status)</div>
+                        <div class="col-md-3"><strong>شعبه:</strong> @selectedTransaction.BranchName</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3"><strong>مشتری:</strong> @(selectedTransaction.CustomerFullName ?? "نامشخص")</div>
+                        <div class="col-md-3"><strong>ایجاد کننده:</strong> @selectedTransaction.CreatedByName</div>
+                        <div class="col-md-3"><strong>تاریخ ایجاد:</strong> @selectedTransaction.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div>
+                        @if (!string.IsNullOrEmpty(selectedTransaction.Remarks))
+                        {
+                            <div class="col-md-3"><strong>توضیحات:</strong> @selectedTransaction.Remarks</div>
+                        }
+                    </div>
+
+                    <hr />
+                    <h6 class="mt-3">جزئیات تراکنش</h6>
+                    @if (selectedTransaction.TransactionDetails != null && selectedTransaction.TransactionDetails.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>از ارز</th>
+                                        <th>مبلغ از</th>
+                                        <th>به ارز</th>
+                                        <th>مبلغ به</th>
+                                        <th>نرخ</th>
+                                        <th>کارمزد</th>
+                                        <th>فرستنده</th>
+                                        <th>گیرنده</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < selectedTransaction.TransactionDetails.Count; i++)
+                                    {
+                                        var d = selectedTransaction.TransactionDetails[i];
+                                        <tr>
+                                            <td>@(i + 1)</td>
+                                            <td>@d.FromCurrencyCode</td>
+                                            <td>@d.FromAmount?.ToString("N2")</td>
+                                            <td>@d.ToCurrencyCode</td>
+                                            <td>@d.ToAmount?.ToString("N2")</td>
+                                            <td>@d.ExchangeRate?.ToString("N4")</td>
+                                            <td>@d.CommissionAmount.ToString("N2")</td>
+                                            <td>@d.SenderName</td>
+                                            <td>@d.ReceiverName</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted">هیچ جزئیاتی برای این تراکنش ثبت نشده است.</p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDetailModal()">
+                        <i class="bi bi-x-circle"></i> بستن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TransactionDto> transactions = new();
+    private List<TransactionDto> filteredTransactions = new();
+    private List<BranchDto> branches = new();
+    private List<CustomerDto> customers = new();
+    private List<CurrencyDto> currencies = new();
+    private List<CorrespondentDto> correspondents = new();
+
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchTransactions();
+            }
+        }
+    }
+
+    private string _filterStatus = "";
+    private string filterStatus
+    {
+        get => _filterStatus;
+        set
+        {
+            if (_filterStatus != value)
+            {
+                _filterStatus = value;
+                SearchTransactions();
+            }
+        }
+    }
+
+    private string _filterType = "";
+    private string filterType
+    {
+        get => _filterType;
+        set
+        {
+            if (_filterType != value)
+            {
+                _filterType = value;
+                SearchTransactions();
+            }
+        }
+    }
+
+    private bool showModal = false;
+    private bool showActionModal = false;
+    private bool isEditMode = false;
+    private bool isLoading = false;
+    private long editId = 0;
+    private long actionId = 0;
+    private string actionType = "";
+    private string cancelReason = "";
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+
+    // ✅ جدید: متغیرهای مربوط به مودال نمایش جزئیات
+    private bool showDetailModal = false;
+    private TransactionDto? selectedTransaction = null;
+
+    private CreateTransactionDto currentTransaction = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupData();
+        await LoadTransactions();
+    }
+
+    private async Task LoadLookupData()
+    {
+        try
+        {
+            var branchResult = await BranchService.GetAllAsync();
+            branches = branchResult.ToList();
+
+            var customerResult = await CustomerService.GetAllAsync();
+            customers = customerResult.ToList();
+
+            var currencyResult = await CurrencyService.GetAllAsync();
+            currencies = currencyResult.ToList();
+
+            var correspondentResult = await CorrespondentService.GetAllAsync();
+            correspondents = correspondentResult.ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری داده‌های کمکی: {ex.Message}");
+        }
+    }
+
+    private async Task LoadTransactions()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await TransactionService.GetAllAsync();
+            transactions = result.ToList();
+            filteredTransactions = transactions;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری تراکنش‌ها: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchTransactions()
+    {
+        var query = transactions.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim().ToLower();
+            query = query.Where(t =>
+                t.TransactionNo.ToLower().Contains(term) ||
+                (t.CustomerFullName != null && t.CustomerFullName.ToLower().Contains(term)) ||
+                t.TransactionType.ToLower().Contains(term)
+            );
+        }
+
+        if (!string.IsNullOrEmpty(_filterStatus))
+        {
+            query = query.Where(t => t.Status == _filterStatus);
+        }
+
+        if (!string.IsNullOrEmpty(_filterType))
+        {
+            query = query.Where(t => t.TransactionType == _filterType);
+        }
+
+        filteredTransactions = query.ToList();
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        currentTransaction = new CreateTransactionDto
+        {
+            TransactionDetails = new List<CreateTransactionDetailDto>()
+        };
+        isEditMode = false;
+        editId = 0;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var transaction = await TransactionService.GetByIdAsync(id);
+            if (transaction != null)
+            {
+                currentTransaction = new CreateTransactionDto
+                {
+                    TransactionType = transaction.TransactionType,
+                    BranchId = transaction.BranchId,
+                    CustomerId = transaction.CustomerId,
+                    CustomerFullName = transaction.CustomerFullName,
+                    Remarks = transaction.Remarks,
+                    TransactionDetails = transaction.TransactionDetails?.Select(d => new CreateTransactionDetailDto
+                    {
+                        FromCurrencyId = d.FromCurrencyId,
+                        FromAmount = d.FromAmount,
+                        ToCurrencyId = d.ToCurrencyId,
+                        ToAmount = d.ToAmount,
+                        ExchangeRate = d.ExchangeRate,
+                        TransferAmount = d.TransferAmount,
+                        CommissionCurrencyId = d.CommissionCurrencyId,
+                        CommissionAmount = d.CommissionAmount,
+                        AgentCommissionCurrencyId = d.AgentCommissionCurrencyId,
+                        AgentCommissionAmount = d.AgentCommissionAmount,
+                        CorrespondentId = d.CorrespondentId,
+                        SenderName = d.SenderName,
+                        SenderPhone = d.SenderPhone,
+                        SenderTazkiraNumber = d.SenderTazkiraNumber,
+                        ReceiverName = d.ReceiverName,
+                        ReceiverPhone = d.ReceiverPhone,
+                        ReceiverTazkiraNumber = d.ReceiverTazkiraNumber,
+                        ReferenceNumber = d.ReferenceNumber,
+                        Notes = d.Notes
+                    }).ToList() ?? new List<CreateTransactionDetailDto>()
+                };
+
+                isEditMode = true;
+                editId = id;
+                validationErrors.Clear();
+                successMessage = string.Empty;
+                showModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری تراکنش: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void AddDetail()
+    {
+        currentTransaction.TransactionDetails.Add(new CreateTransactionDetailDto());
+        StateHasChanged();
+    }
+
+    private void RemoveDetail(int index)
+    {
+        if (currentTransaction.TransactionDetails.Count > 1)
+        {
+            currentTransaction.TransactionDetails.RemoveAt(index);
+            StateHasChanged();
+        }
+        else
+        {
+            validationErrors.Add("حداقل یک جزئیات باید وجود داشته باشد.");
+            StateHasChanged();
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveTransaction()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        if (string.IsNullOrEmpty(currentTransaction.TransactionType))
+            validationErrors.Add("نوع تراکنش الزامی است");
+        if (currentTransaction.BranchId == 0)
+            validationErrors.Add("انتخاب شعبه الزامی است");
+        if (!currentTransaction.TransactionDetails.Any())
+            validationErrors.Add("حداقل یک جزئیات باید اضافه شود");
+
+        foreach (var detail in currentTransaction.TransactionDetails)
+        {
+            if (!detail.FromCurrencyId.HasValue && !detail.ToCurrencyId.HasValue)
+                validationErrors.Add("حداقل یکی از ارزها باید انتخاب شود");
+        }
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            if (isEditMode)
+            {
+                var updateRequest = new UpdateTransactionDto
+                {
+                    Remarks = currentTransaction.Remarks,
+                    TransactionDetails = currentTransaction.TransactionDetails,
+                    Transfers = currentTransaction.Transfers,
+                    Expenses = currentTransaction.Expenses
+                };
+                await TransactionService.UpdateAsync(editId, updateRequest);
+                successMessage = "تراکنش با موفقیت ویرایش شد";
+            }
+            else
+            {
+                TransactionDto result = null;
+                switch (currentTransaction.TransactionType)
+                {
+                    case "HawalaSend":
+                        result = await TransactionService.ProcessHawalaSendAsync(currentTransaction);
+                        break;
+                    case "HawalaReceive":
+                        result = await TransactionService.ProcessHawalaReceiveAsync(currentTransaction);
+                        break;
+                    case "Exchange":
+                        result = await TransactionService.ProcessExchangeAsync(currentTransaction);
+                        break;
+                    default:
+                        result = await TransactionService.CreateAsync(currentTransaction);
+                        break;
+                }
+                successMessage = $"تراکنش با شماره {result?.TransactionNo} با موفقیت ایجاد شد";
+            }
+
+            showModal = false;
+            await LoadTransactions();
+        }
+        catch (InvalidOperationException ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task MarkAsPaid(long id)
+    {
+        try
+        {
+            await TransactionService.MarkAsPaidAsync(id);
+            successMessage = "تراکنش با موفقیت پرداخت شد";
+            await LoadTransactions();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در پرداخت: {ex.Message}");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void ShowCancelModal(long id)
+    {
+        actionId = id;
+        actionType = "cancel";
+        cancelReason = "";
+        showActionModal = true;
+        StateHasChanged();
+    }
+
+    private void ShowReverseModal(long id)
+    {
+        actionId = id;
+        actionType = "reverse";
+        cancelReason = "";
+        showActionModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseActionModal()
+    {
+        showActionModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        try
+        {
+            if (actionType == "cancel")
+            {
+                if (string.IsNullOrWhiteSpace(cancelReason))
+                {
+                    validationErrors.Add("دلیل لغو الزامی است");
+                    StateHasChanged();
+                    return;
+                }
+                await TransactionService.CancelTransactionAsync(actionId, new CancelTransactionDto { CancelReason = cancelReason });
+                successMessage = "تراکنش با موفقیت لغو شد";
+            }
+            else if (actionType == "reverse")
+            {
+                await TransactionService.ReverseTransactionAsync(actionId, new CancelTransactionDto { CancelReason = "برگشت تراکنش" });
+                successMessage = "تراکنش با موفقیت برگشت داده شد";
+            }
+
+            showActionModal = false;
+            await LoadTransactions();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در عملیات: {ex.Message}");
+            showActionModal = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    // ✅ متد جدید: دریافت جزئیات و باز کردن مودال
+    private async Task ViewTransaction(long id)
+    {
+        try
+        {
+            isLoading = true;
+            selectedTransaction = await TransactionService.GetByIdAsync(id);
+            showDetailModal = true;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری جزئیات: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // ✅ متد جدید: بستن مودال جزئیات
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        selectedTransaction = null;
+        StateHasChanged();
+    }
+
+    private string GetTransactionTypeName(string type)
+    {
+        return type switch
+        {
+            "HawalaSend" => "حواله ارسال",
+            "HawalaReceive" => "حواله دریافت",
+            "Exchange" => "تبدیل ارز",
+            "Transfer" => "انتقال",
+            "Expense" => "هزینه",
+            "Adjustment" => "تعدیل",
+            _ => type ?? "نامشخص"
+        };
+    }
+
+    private MarkupString GetStatusBadge(string status)
+    {
+        string badge = status switch
+        {
+            "Pending" => "<span class='badge bg-warning text-dark px-3 py-2'>در انتظار</span>",
+            "Paid" => "<span class='badge bg-success px-3 py-2'>پرداخت شده</span>",
+            "Cancel" => "<span class='badge bg-danger px-3 py-2'>لغو شده</span>",
+            _ => $"<span class='badge bg-secondary px-3 py-2'>{status}</span>"
+        };
+        return new MarkupString(badge);
+    }
+}

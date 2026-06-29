@@ -1,5 +1,5 @@
 ﻿using HawalaExchange.Application.DTOs;
-using System.Transactions;
+using HawalaExchange.Domain.Entities;   // ✅ اضافه شد – برای شناسایی موجودیت Transaction
 
 namespace HawalaExchange.Application.Interfaces.Services
 {

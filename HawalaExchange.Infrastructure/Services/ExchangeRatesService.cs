@@ -12,6 +12,28 @@ namespace HawalaExchange.Application.Services
         public ExchangeRateService(ApplicationDbContext context, IMapper mapper)
             : base(context, mapper) { }
 
+        // ✅ Override CreateAsync to set CreatedBy
+        public override async Task<ExchangeRateDto> CreateAsync(CreateExchangeRateDto createDto)
+        {
+            // Map DTO to entity
+            var entity = _mapper.Map<ExchangeRate>(createDto);
+
+            // ✅ Set the CreatedBy field (temporary hardcoded to user ID 1)
+            // Replace this with the actual logged-in user ID from your auth system
+            entity.CreatedBy = 1;
+
+            // Validate (checks that from/to currencies are different)
+            await ValidateCreateAsync(entity, createDto);
+
+            // Add and save
+            await _dbSet.AddAsync(entity);
+            await _context.SaveChangesAsync();
+
+            return _mapper.Map<ExchangeRateDto>(entity);
+        }
+
+        // --- All other methods remain unchanged ---
+
         public async Task<ExchangeRateDto?> GetLatestRateAsync(long fromCurrencyId, long toCurrencyId)
         {
             var rate = await _dbSet

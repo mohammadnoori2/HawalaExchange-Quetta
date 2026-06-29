@@ -1,0 +1,615 @@
+﻿@page "/users"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject IUserService UserService
+@inject IBranchService BranchService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-people me-2"></i> مدیریت کاربران
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
+                    <i class="bi bi-plus-circle"></i> کاربر جدید
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- نوار جستجو -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="جستجوی کاربران (نام، نام کاربری، نقش، شعبه)..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
+                            <i class="bi bi-x-circle"></i> پاک کردن
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4 text-start">
+                    <span class="badge bg-info fs-6 p-2">
+                        <i class="bi bi-list-ul"></i> تعداد: @filteredUsers.Count
+                    </span>
+                </div>
+            </div>
+
+            <!-- جدول کاربران -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">نام کامل</th>
+                            <th scope="col">نام کاربری</th>
+                            <th scope="col">شعبه</th>
+                            <th scope="col">نقش</th>
+                            <th scope="col">وضعیت</th>
+                            <th scope="col">تاریخ ایجاد</th>
+                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && users == null)
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredUsers.Any())
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ کاربری یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var user in filteredUsers)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td>@user.FullName</td>
+                                    <td>@user.UserName</td>
+                                    <td>@user.BranchName</td>
+                                    <td>
+                                        <span class="badge @GetRoleBadge(user.Role)">
+                                            @GetRoleName(user.Role)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (user.IsActive)
+                                        {
+                                            <span class="badge bg-success px-3 py-2">فعال</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary px-3 py-2">غیرفعال</span>
+                                        }
+                                    </td>
+                                    <td dir="ltr" class="text-start">@user.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(user.Id)" title="ویرایش">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            @if (user.IsActive)
+                                            {
+                                                <button class="btn btn-outline-danger" @onclick="() => ShowDeactivateConfirm(user.Id)" title="غیرفعال‌سازی">
+                                                    <i class="bi bi-slash-circle"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-outline-warning" @onclick="() => ShowActivateConfirm(user.Id)" title="فعال‌سازی">
+                                                    <i class="bi bi-check-circle"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال ایجاد/ویرایش کاربر -->
+@if (showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش کاربر" : "ایجاد کاربر جدید")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @successMessage
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person"></i> نام کامل <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentUser.FullName) ? "is-invalid" : "")"
+                                   @bind="currentUser.FullName" placeholder="نام و نام خانوادگی" />
+                            <div class="invalid-feedback">نام کامل الزامی است</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-person-badge"></i> نام کاربری <span class="text-danger">*</span>
+                            </label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" class="form-control bg-light" value="@userNameDisplay" disabled readonly />
+                                <small class="text-muted">نام کاربری قابل ویرایش نیست</small>
+                            }
+                            else
+                            {
+                                <input type="text" class="form-control @(string.IsNullOrEmpty(currentUser.UserName) ? "is-invalid" : "")"
+                                       @bind="currentUser.UserName" placeholder="نام کاربری" />
+                                <div class="invalid-feedback">نام کاربری الزامی است</div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-building"></i> شعبه <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select @(currentUser.BranchId == 0 ? "is-invalid" : "")"
+                                    @bind="currentUser.BranchId">
+                                <option value="0">انتخاب شعبه</option>
+                                @foreach (var branch in branches)
+                                {
+                                    <option value="@branch.Id">@branch.Name (@branch.Code)</option>
+                                }
+                            </select>
+                            <div class="invalid-feedback">انتخاب شعبه الزامی است</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-tag"></i> نقش <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select @(string.IsNullOrEmpty(currentUser.Role) ? "is-invalid" : "")"
+                                    @bind="currentUser.Role">
+                                <option value="">انتخاب نقش</option>
+                                <option value="Admin">مدیر</option>
+                                <option value="Manager">سرپرست</option>
+                                <option value="Cashier">صندوقدار</option>
+                                <option value="Supervisor">ناظر</option>
+                            </select>
+                            <div class="invalid-feedback">انتخاب نقش الزامی است</div>
+                        </div>
+                    </div>
+
+                    @if (!isEditMode)
+                    {
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-lock"></i> رمز عبور <span class="text-danger">*</span>
+                                </label>
+                                <input type="password" class="form-control @(string.IsNullOrEmpty(currentUser.Password) ? "is-invalid" : "")"
+                                       @bind="currentUser.Password" placeholder="رمز عبور" />
+                                <div class="invalid-feedback">رمز عبور الزامی است</div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info mt-2">
+                            <i class="bi bi-info-circle"></i>
+                            <small>برای تغییر رمز عبور، از گزینه «بازنشانی رمز عبور» در بخش مدیریت کاربران استفاده کنید.</small>
+                        </div>
+                    }
+
+                    @if (isEditMode)
+                    {
+                        <div class="alert alert-info mt-2">
+                            <i class="bi bi-info-circle"></i>
+                            <small>در حال ویرایش کاربر: <strong>@userNameDisplay</strong></small>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="() => SaveUser()" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save"></i>
+                        }
+                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال تأیید فعال/غیرفعال‌سازی -->
+@if (showConfirmModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> تأیید عملیات
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">@confirmMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseConfirmModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                        <i class="bi bi-check-circle"></i> تأیید
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UserDto> users = new();
+    private List<UserDto> filteredUsers = new();
+    private List<BranchDto> branches = new();
+
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchUsers();
+            }
+        }
+    }
+
+    private bool showModal = false;
+    private bool showConfirmModal = false;
+    private bool isEditMode = false;
+    private bool isLoading = false;
+    private long editId = 0;
+    private long confirmId = 0;
+    private string confirmMessage = string.Empty;
+    private string confirmActionType = string.Empty;
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+    private string? userNameDisplay; // برای نمایش نام کاربری در حالت ویرایش
+
+    private CreateUserDto currentUser = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBranches();
+        await LoadUsers();
+    }
+
+    private async Task LoadBranches()
+    {
+        try
+        {
+            var result = await BranchService.GetAllAsync();
+            branches = result.ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری شعبه‌ها: {ex.Message}");
+        }
+    }
+
+    private async Task LoadUsers()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await UserService.GetAllAsync();
+            users = result.ToList();
+            filteredUsers = users;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری کاربران: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchUsers()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            filteredUsers = users;
+        }
+        else
+        {
+            var term = _searchTerm.Trim().ToLower();
+            filteredUsers = users.Where(u =>
+                u.FullName.ToLower().Contains(term) ||
+                u.UserName.ToLower().Contains(term) ||
+                u.Role.ToLower().Contains(term) ||
+                u.BranchName.ToLower().Contains(term)
+            ).ToList();
+        }
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        filteredUsers = users;
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        currentUser = new CreateUserDto();
+        userNameDisplay = null;
+        isEditMode = false;
+        editId = 0;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var user = await UserService.GetByIdAsync(id);
+            if (user != null)
+            {
+                userNameDisplay = user.UserName;
+                currentUser = new CreateUserDto
+                {
+                    FullName = user.FullName,
+                    UserName = user.UserName, // برای نمایش در فیلد disabled
+                    BranchId = user.BranchId,
+                    Role = user.Role,
+                    Password = string.Empty // در حالت ویرایش رمز عبور نمایش داده نمی‌شود
+                };
+
+                isEditMode = true;
+                editId = id;
+                validationErrors.Clear();
+                successMessage = string.Empty;
+                showModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری کاربر: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveUser()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        // اعتبارسنجی
+        if (string.IsNullOrWhiteSpace(currentUser.FullName))
+            validationErrors.Add("نام کامل الزامی است");
+        if (!isEditMode && string.IsNullOrWhiteSpace(currentUser.UserName))
+            validationErrors.Add("نام کاربری الزامی است");
+        if (currentUser.BranchId == 0)
+            validationErrors.Add("انتخاب شعبه الزامی است");
+        if (string.IsNullOrWhiteSpace(currentUser.Role))
+            validationErrors.Add("انتخاب نقش الزامی است");
+        if (!isEditMode && string.IsNullOrWhiteSpace(currentUser.Password))
+            validationErrors.Add("رمز عبور الزامی است");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            if (isEditMode)
+            {
+                var updateRequest = new UpdateUserDto
+                {
+                    FullName = currentUser.FullName,
+                    Role = currentUser.Role,
+                    IsActive = true // در ویرایش معمولی وضعیت را تغییر نمی‌دهیم (فعال/غیرفعال از دکمه جداگانه)
+                };
+                await UserService.UpdateAsync(editId, updateRequest);
+                successMessage = "کاربر با موفقیت ویرایش شد";
+            }
+            else
+            {
+                await UserService.CreateAsync(currentUser);
+                successMessage = "کاربر با موفقیت ایجاد شد";
+            }
+
+            showModal = false;
+            await LoadUsers();
+        }
+        catch (InvalidOperationException ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowDeactivateConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "deactivate";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این کاربر را غیرفعال کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private void ShowActivateConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "activate";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این کاربر را فعال کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        try
+        {
+            if (confirmActionType == "deactivate")
+            {
+                // غیرفعال‌سازی: با UpdateAsync مقدار IsActive را false می‌کنیم
+                var user = await UserService.GetByIdAsync(confirmId);
+                if (user == null) throw new Exception("کاربر یافت نشد");
+
+                var updateDto = new UpdateUserDto
+                {
+                    FullName = user.FullName,
+                    Role = user.Role,
+                    IsActive = false
+                };
+                await UserService.UpdateAsync(confirmId, updateDto);
+                successMessage = "کاربر با موفقیت غیرفعال شد";
+            }
+            else if (confirmActionType == "activate")
+            {
+                var user = await UserService.GetByIdAsync(confirmId);
+                if (user == null) throw new Exception("کاربر یافت نشد");
+
+                var updateDto = new UpdateUserDto
+                {
+                    FullName = user.FullName,
+                    Role = user.Role,
+                    IsActive = true
+                };
+                await UserService.UpdateAsync(confirmId, updateDto);
+                successMessage = "کاربر با موفقیت فعال شد";
+            }
+
+            showConfirmModal = false;
+            await LoadUsers();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در عملیات: {ex.Message}");
+            showConfirmModal = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private string GetRoleBadge(string role)
+    {
+        return role?.ToLower() switch
+        {
+            "admin" => "bg-danger",
+            "manager" => "bg-warning text-dark",
+            "cashier" => "bg-info",
+            "supervisor" => "bg-secondary",
+            _ => "bg-primary"
+        };
+    }
+
+    private string GetRoleName(string role)
+    {
+        return role?.ToLower() switch
+        {
+            "admin" => "مدیر",
+            "manager" => "سرپرست",
+            "cashier" => "صندوقدار",
+            "supervisor" => "ناظر",
+            _ => role ?? "نامشخص"
+        };
+    }
+}

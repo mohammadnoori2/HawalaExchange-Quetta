@@ -72,5 +72,22 @@ namespace HawalaExchange.Application.Services
 
             entity.PasswordHash = HashPassword(dto.Password);
         }
+        public async Task<UserDto> ActivateAsync(long id)
+        {
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"User with ID {id} not found.");
+            entity.IsActive = true;
+            await _context.SaveChangesAsync();
+            return _mapper.Map<UserDto>(entity);
+        }
+
+        public async Task<UserDto> DeactivateAsync(long id)
+        {
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null) throw new KeyNotFoundException($"User with ID {id} not found.");
+            entity.IsActive = false;
+            await _context.SaveChangesAsync();
+            return _mapper.Map<UserDto>(entity);
+        }
     }
 }

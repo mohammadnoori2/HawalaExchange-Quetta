@@ -7,5 +7,8 @@ namespace HawalaExchange.Application.Interfaces.Services
     {
         Task<BranchDto?> GetByCodeAsync(string code);
         Task<IEnumerable<BranchDto>> GetActiveBranchesAsync();
+
+        Task<BranchDto> ArchiveAsync(long id);
+        Task<BranchDto> UnarchiveAsync(long id);
     }
 }

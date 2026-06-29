@@ -29,5 +29,26 @@ namespace HawalaExchange.Application.Services
             if (await _dbSet.AnyAsync(b => b.Code == entity.Code))
                 throw new InvalidOperationException($"Branch with code '{entity.Code}' already exists.");
         }
+        public async Task<BranchDto> ArchiveAsync(long id)
+        {
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null)
+                throw new KeyNotFoundException($"Branch with ID {id} not found.");
+
+            entity.IsArchived = true;
+            await _context.SaveChangesAsync();
+            return _mapper.Map<BranchDto>(entity);
+        }
+
+        public async Task<BranchDto> UnarchiveAsync(long id)
+        {
+            var entity = await _dbSet.FindAsync(id);
+            if (entity == null)
+                throw new KeyNotFoundException($"Branch with ID {id} not found.");
+
+            entity.IsArchived = false;
+            await _context.SaveChangesAsync();
+            return _mapper.Map<BranchDto>(entity);
+        }
     }
 }

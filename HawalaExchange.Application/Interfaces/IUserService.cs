@@ -10,5 +10,8 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<IEnumerable<UserDto>> GetUsersByBranchAsync(long branchId);
         Task ChangePasswordAsync(long userId, string currentPassword, string newPassword);
         Task ResetPasswordAsync(long userId, string newPassword);
+
+        Task<UserDto> ActivateAsync(long id);
+        Task<UserDto> DeactivateAsync(long id);
     }
 }

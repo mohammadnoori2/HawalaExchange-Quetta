@@ -13,6 +13,11 @@ namespace HawalaExchange.Application.Services
         private readonly ILedgerService _ledgerService;
         private readonly IMapper _mapper;
 
+        private static readonly HashSet<string> ValidTransferMethods = new()
+        {
+            "Cash", "Bank", "Hawala"
+        };
+
         public TransferService(ApplicationDbContext context, ILedgerService ledgerService, IMapper mapper)
         {
             _context = context;
@@ -22,37 +27,94 @@ namespace HawalaExchange.Application.Services
 
         public async Task<TransferDto> CreateTransferAsync(CreateTransferDto createDto)
         {
-            var transfer = _mapper.Map<Transfer>(createDto);
+            if (createDto.TransactionId == 0)
+                throw new InvalidOperationException("شناسه تراکنش معتبر نیست.");
 
-            if (transfer.FromAccountId == transfer.ToAccountId)
-                throw new InvalidOperationException("From account and To account cannot be the same.");
-            if (transfer.Amount <= 0)
-                throw new InvalidOperationException("Transfer amount must be greater than zero.");
+            if (createDto.FromAccountId == 0)
+                throw new InvalidOperationException("شناسه حساب مبدأ معتبر نیست.");
 
-            await _context.Transfers.AddAsync(transfer);
-            await _context.SaveChangesAsync();
+            if (createDto.ToAccountId == 0)
+                throw new InvalidOperationException("شناسه حساب مقصد معتبر نیست.");
 
-            // Create ledger entries
-            await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
+            if (createDto.CurrencyId == 0)
+                throw new InvalidOperationException("شناسه ارز معتبر نیست.");
+
+            if (createDto.FromAccountId == createDto.ToAccountId)
+                throw new InvalidOperationException("حساب مبدأ و مقصد نمی‌توانند یکسان باشند.");
+
+            if (createDto.Amount <= 0)
+                throw new InvalidOperationException("مبلغ انتقال باید بزرگتر از صفر باشد.");
+
+            if (string.IsNullOrWhiteSpace(createDto.TransferMethod))
+                throw new InvalidOperationException("روش انتقال الزامی است.");
+
+            if (!ValidTransferMethods.Contains(createDto.TransferMethod))
+                throw new InvalidOperationException($"روش انتقال نامعتبر است. مقادیر مجاز: {string.Join(", ", ValidTransferMethods)}");
+
+            // بررسی وجود رکوردها
+            var transactionExists = await _context.Transactions.AnyAsync(t => t.Id == createDto.TransactionId);
+            if (!transactionExists)
+                throw new InvalidOperationException($"تراکنش با شناسه {createDto.TransactionId} وجود ندارد.");
+
+            var fromAccountExists = await _context.Accounts.AnyAsync(a => a.Id == createDto.FromAccountId);
+            if (!fromAccountExists)
+                throw new InvalidOperationException($"حساب مبدأ با شناسه {createDto.FromAccountId} وجود ندارد.");
+
+            var toAccountExists = await _context.Accounts.AnyAsync(a => a.Id == createDto.ToAccountId);
+            if (!toAccountExists)
+                throw new InvalidOperationException($"حساب مقصد با شناسه {createDto.ToAccountId} وجود ندارد.");
+
+            var currencyExists = await _context.Currencies.AnyAsync(c => c.Id == createDto.CurrencyId);
+            if (!currencyExists)
+                throw new InvalidOperationException($"ارز با شناسه {createDto.CurrencyId} وجود ندارد.");
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
             {
-                AccountId = transfer.FromAccountId,
-                CurrencyId = transfer.CurrencyId,
-                TalabKar = transfer.Amount,
-                BadehKar = 0,
-                Description = $"Transfer to Account {transfer.ToAccountId}"
-            });
-            await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
-            {
-                AccountId = transfer.ToAccountId,
-                CurrencyId = transfer.CurrencyId,
-                TalabKar = 0,
-                BadehKar = transfer.Amount,
-                Description = $"Transfer from Account {transfer.FromAccountId}"
-            });
+                var transfer = _mapper.Map<Transfer>(createDto);
+                await _context.Transfers.AddAsync(transfer);
+                await _context.SaveChangesAsync();
 
-            return _mapper.Map<TransferDto>(transfer);
+                // ✅ ثبت ورودی‌های دفتر کل با TransactionId صحیح
+                await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
+                {
+                    TransactionId = createDto.TransactionId,
+                    AccountId = transfer.FromAccountId,
+                    CurrencyId = transfer.CurrencyId,
+                    TalabKar = transfer.Amount,
+                    BadehKar = 0,
+                    Description = $"انتقال به حساب {transfer.ToAccountId}"
+                });
+
+                await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
+                {
+                    TransactionId = createDto.TransactionId,
+                    AccountId = transfer.ToAccountId,
+                    CurrencyId = transfer.CurrencyId,
+                    TalabKar = 0,
+                    BadehKar = transfer.Amount,
+                    Description = $"انتقال از حساب {transfer.FromAccountId}"
+                });
+
+                await transaction.CommitAsync();
+
+                return _mapper.Map<TransferDto>(transfer);
+            }
+            catch (DbUpdateException dbEx)
+            {
+                await transaction.RollbackAsync();
+                var innerMessage = dbEx.InnerException?.Message ?? dbEx.Message;
+                throw new InvalidOperationException($"خطا در ذخیره‌سازی: {innerMessage}");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                throw new InvalidOperationException($"خطا در ذخیره‌سازی: {ex.Message}");
+            }
         }
 
+        // سایر متدها بدون تغییر ...
         public async Task<IEnumerable<TransferDto>> GetTransfersByTransactionAsync(long transactionId)
         {
             var transfers = await _context.Transfers
@@ -60,7 +122,9 @@ namespace HawalaExchange.Application.Services
                 .Include(t => t.FromAccount)
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)
+                .OrderByDescending(t => t.Id)
                 .ToListAsync();
+
             return _mapper.Map<IEnumerable<TransferDto>>(transfers);
         }
 
@@ -71,7 +135,9 @@ namespace HawalaExchange.Application.Services
                 .Include(t => t.FromAccount)
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)
+                .OrderByDescending(t => t.Id)
                 .ToListAsync();
+
             return _mapper.Map<IEnumerable<TransferDto>>(transfers);
         }
 
@@ -82,7 +148,9 @@ namespace HawalaExchange.Application.Services
                 .Include(t => t.FromAccount)
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)
+                .OrderByDescending(t => t.Id)
                 .ToListAsync();
+
             return _mapper.Map<IEnumerable<TransferDto>>(transfers);
         }
 
@@ -93,18 +161,35 @@ namespace HawalaExchange.Application.Services
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)
                 .FirstOrDefaultAsync(t => t.Id == id);
+
             return transfer == null ? null : _mapper.Map<TransferDto>(transfer);
+        }
+
+        public async Task<IEnumerable<TransferDto>> GetAllAsync()
+        {
+            var transfers = await _context.Transfers
+                .Include(t => t.FromAccount)
+                .Include(t => t.ToAccount)
+                .Include(t => t.Currency)
+                .OrderByDescending(t => t.Id)
+                .ToListAsync();
+
+            return _mapper.Map<IEnumerable<TransferDto>>(transfers);
         }
 
         public async Task<IEnumerable<TransferDto>> GetTransfersByDateRangeAsync(DateTime fromDate, DateTime toDate)
         {
             var transfers = await _context.Transfers
                 .Include(t => t.Transaction)
-                .Where(t => t.Transaction != null && t.Transaction.CreatedAt >= fromDate && t.Transaction.CreatedAt <= toDate)
+                .Where(t => t.Transaction != null
+                            && t.Transaction.CreatedAt >= fromDate
+                            && t.Transaction.CreatedAt <= toDate)
                 .Include(t => t.FromAccount)
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)
+                .OrderByDescending(t => t.Id)
                 .ToListAsync();
+
             return _mapper.Map<IEnumerable<TransferDto>>(transfers);
         }
     }

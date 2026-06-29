@@ -10,5 +10,6 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<IEnumerable<TransferDto>> GetTransfersByMethodAsync(string transferMethod);
         Task<TransferDto?> GetTransferByIdAsync(long id);
         Task<IEnumerable<TransferDto>> GetTransfersByDateRangeAsync(DateTime fromDate, DateTime toDate);
+        Task<IEnumerable<TransferDto>> GetAllAsync();
     }
 }

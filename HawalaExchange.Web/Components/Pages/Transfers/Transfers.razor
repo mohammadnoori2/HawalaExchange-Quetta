@@ -1,0 +1,528 @@
+﻿@page "/transfers"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject ITransferService TransferService
+@inject ITransactionService TransactionService
+@inject IAccountService AccountService
+@inject ICurrencyService CurrencyService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-arrow-left-right me-2"></i> مدیریت انتقال‌ها
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
+                    <i class="bi bi-plus-circle"></i> انتقال جدید
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- نوار جستجو -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="جستجو (حساب مبدأ، مقصد، ارز، روش، شماره مرجع)..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
+                            <i class="bi bi-x-circle"></i> پاک کردن
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" @bind="filterMethod">
+                        <option value="">همه روش‌ها</option>
+                        <option value="Cash">نقدی</option>
+                        <option value="Bank">بانکی</option>
+                        <option value="Hawala">حواله</option>
+                    </select>
+                </div>
+                <div class="col-md-2 text-start">
+                    <span class="badge bg-info fs-6 p-2">
+                        <i class="bi bi-list-ul"></i> تعداد: @filteredTransfers.Count
+                    </span>
+                </div>
+            </div>
+
+            <!-- جدول انتقال‌ها -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">از حساب</th>
+                            <th scope="col">به حساب</th>
+                            <th scope="col">ارز</th>
+                            <th scope="col">مبلغ</th>
+                            <th scope="col">روش انتقال</th>
+                            <th scope="col">شماره مرجع</th>
+                            <th scope="col" style="min-width: 120px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && transfers == null)
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredTransfers.Any())
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ انتقالی یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var transfer in filteredTransfers)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td>@transfer.FromAccountName</td>
+                                    <td>@transfer.ToAccountName</td>
+                                    <td>@transfer.CurrencyCode</td>
+                                    <td dir="ltr">@transfer.Amount.ToString("N2")</td>
+                                    <td>@GetTransferMethodName(transfer.TransferMethod)</td>
+                                    <td>@(transfer.ReferenceNumber ?? "-")</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-info" @onclick="() => ViewTransfer(transfer.Id)" title="مشاهده">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <!-- دکمه حذف حذف شد -->
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال ایجاد انتقال جدید -->
+@if (showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-plus-circle me-2"></i> ایجاد انتقال جدید
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @successMessage
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">تراکنش مرتبط <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="currentTransfer.TransactionId">
+                                <option value="0">انتخاب تراکنش</option>
+                                @foreach (var transaction in transactions)
+                                {
+                                    <option value="@transaction.Id">@transaction.TransactionNo - @transaction.CustomerFullName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">روش انتقال <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="currentTransfer.TransferMethod">
+                                <option value="">انتخاب روش</option>
+                                <option value="Cash">نقدی</option>
+                                <option value="Bank">بانکی</option>
+                                <option value="Hawala">حواله</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">حساب مبدأ <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="currentTransfer.FromAccountId">
+                                <option value="0">انتخاب حساب مبدأ</option>
+                                @foreach (var account in accounts)
+                                {
+                                    <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">حساب مقصد <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="currentTransfer.ToAccountId">
+                                <option value="0">انتخاب حساب مقصد</option>
+                                @foreach (var account in accounts)
+                                {
+                                    <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="currentTransfer.CurrencyId">
+                                <option value="0">انتخاب ارز</option>
+                                @foreach (var currency in currencies)
+                                {
+                                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">مبلغ <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control @(currentTransfer.Amount <= 0 ? "is-invalid" : "")"
+                                   @bind="currentTransfer.Amount" placeholder="مبلغ انتقال" />
+                            <div class="invalid-feedback">مبلغ باید بزرگتر از صفر باشد</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">شماره مرجع</label>
+                            <input type="text" class="form-control" @bind="currentTransfer.ReferenceNumber" placeholder="شماره مرجع (اختیاری)" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">توضیحات</label>
+                            <input type="text" class="form-control" @bind="currentTransfer.Remarks" placeholder="توضیحات اضافی" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="() => SaveTransfer()" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save"></i>
+                        }
+                        ایجاد
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال مشاهده جزئیات انتقال -->
+@if (showDetailModal && selectedTransfer != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle me-2"></i> جزئیات انتقال
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6"><strong>شناسه:</strong> @selectedTransfer.Id</div>
+                        <div class="col-md-6"><strong>روش انتقال:</strong> @GetTransferMethodName(selectedTransfer.TransferMethod)</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>حساب مبدأ:</strong> @selectedTransfer.FromAccountName</div>
+                        <div class="col-md-6"><strong>حساب مقصد:</strong> @selectedTransfer.ToAccountName</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>ارز:</strong> @selectedTransfer.CurrencyCode</div>
+                        <div class="col-md-6"><strong>مبلغ:</strong> @selectedTransfer.Amount.ToString("N2")</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>شماره مرجع:</strong> @(selectedTransfer.ReferenceNumber ?? "-")</div>
+                        <div class="col-md-6"><strong>توضیحات:</strong> @(selectedTransfer.Remarks ?? "-")</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-12">
+                            <strong>تراکنش مرتبط:</strong>
+                            <a href="/transactions/@selectedTransfer.TransactionId" target="_blank">مشاهده تراکنش</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDetailModal()">
+                        <i class="bi bi-x-circle"></i> بستن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TransferDto> transfers = new();
+    private List<TransferDto> filteredTransfers = new();
+    private List<TransactionDto> transactions = new();
+    private List<AccountDto> accounts = new();
+    private List<CurrencyDto> currencies = new();
+
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchTransfers();
+            }
+        }
+    }
+
+    private string _filterMethod = "";
+    private string filterMethod
+    {
+        get => _filterMethod;
+        set
+        {
+            if (_filterMethod != value)
+            {
+                _filterMethod = value;
+                SearchTransfers();
+            }
+        }
+    }
+
+    private bool showModal = false;
+    private bool showDetailModal = false;
+    private bool isLoading = false;
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+    private TransferDto? selectedTransfer = null;
+
+    private CreateTransferDto currentTransfer = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupData();
+        await LoadTransfers();
+    }
+
+    private async Task LoadLookupData()
+    {
+        try
+        {
+            var transactionResult = await TransactionService.GetAllAsync();
+            transactions = transactionResult.ToList();
+
+            var accountResult = await AccountService.GetAllAsync();
+            accounts = accountResult.ToList();
+
+            var currencyResult = await CurrencyService.GetAllAsync();
+            currencies = currencyResult.ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری داده‌های کمکی: {ex.Message}");
+        }
+    }
+
+    private async Task LoadTransfers()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await TransferService.GetAllAsync();
+            transfers = result.ToList();
+            filteredTransfers = transfers;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری انتقال‌ها: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchTransfers()
+    {
+        var query = transfers.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim().ToLower();
+            query = query.Where(t =>
+                (t.FromAccountName != null && t.FromAccountName.ToLower().Contains(term)) ||
+                (t.ToAccountName != null && t.ToAccountName.ToLower().Contains(term)) ||
+                (t.CurrencyCode != null && t.CurrencyCode.ToLower().Contains(term)) ||
+                (t.ReferenceNumber != null && t.ReferenceNumber.ToLower().Contains(term)) ||
+                t.TransferMethod.ToLower().Contains(term)
+            );
+        }
+
+        if (!string.IsNullOrEmpty(_filterMethod))
+        {
+            query = query.Where(t => t.TransferMethod == _filterMethod);
+        }
+
+        filteredTransfers = query.ToList();
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        filteredTransfers = transfers;
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        currentTransfer = new CreateTransferDto
+        {
+            TransactionId = 0,
+            FromAccountId = 0,
+            ToAccountId = 0,
+            CurrencyId = 0,
+            Amount = 0,
+            TransferMethod = "",
+            ReferenceNumber = "",
+            Remarks = ""
+        };
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveTransfer()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        if (currentTransfer.TransactionId == 0)
+            validationErrors.Add("انتخاب تراکنش الزامی است");
+        if (currentTransfer.FromAccountId == 0)
+            validationErrors.Add("انتخاب حساب مبدأ الزامی است");
+        if (currentTransfer.ToAccountId == 0)
+            validationErrors.Add("انتخاب حساب مقصد الزامی است");
+        if (currentTransfer.FromAccountId == currentTransfer.ToAccountId)
+            validationErrors.Add("حساب مبدأ و مقصد نمی‌توانند یکسان باشند");
+        if (currentTransfer.CurrencyId == 0)
+            validationErrors.Add("انتخاب ارز الزامی است");
+        if (currentTransfer.Amount <= 0)
+            validationErrors.Add("مبلغ باید بزرگتر از صفر باشد");
+        if (string.IsNullOrWhiteSpace(currentTransfer.TransferMethod))
+            validationErrors.Add("انتخاب روش انتقال الزامی است");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var result = await TransferService.CreateTransferAsync(currentTransfer);
+            successMessage = $"انتقال با شناسه {result.Id} با موفقیت ایجاد شد";
+
+            showModal = false;
+            await LoadTransfers();
+        }
+        catch (InvalidOperationException ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ViewTransfer(long id)
+    {
+        try
+        {
+            isLoading = true;
+            selectedTransfer = await TransferService.GetTransferByIdAsync(id);
+            showDetailModal = true;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری جزئیات: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        selectedTransfer = null;
+        StateHasChanged();
+    }
+
+    private string GetTransferMethodName(string method)
+    {
+        return method switch
+        {
+            "Cash" => "نقدی",
+            "Bank" => "بانکی",
+            "Hawala" => "حواله",
+            _ => method ?? "نامشخص"
+        };
+    }
+}

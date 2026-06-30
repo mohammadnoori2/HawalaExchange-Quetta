@@ -1,0 +1,519 @@
+﻿@page "/documents"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject IDocumentService DocumentService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-file-earmark me-2"></i> مدیریت اسناد
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="() => OpenUploadModal()">
+                    <i class="bi bi-cloud-arrow-up"></i> آپلود سند جدید
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- نوار جستجو -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="جستجو (نام فایل، نوع موجودیت)..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
+                            <i class="bi bi-x-circle"></i> پاک کردن
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" @bind="filterEntityType">
+                        <option value="">همه نوع‌ها</option>
+                        <option value="Transaction">تراکنش</option>
+                        <option value="Customer">مشتری</option>
+                        <option value="Correspondent">نماینده</option>
+                        <option value="Account">حساب</option>
+                    </select>
+                </div>
+                <div class="col-md-2 text-start">
+                    <span class="badge bg-info fs-6 p-2">
+                        <i class="bi bi-list-ul"></i> تعداد: @filteredDocuments.Count
+                    </span>
+                </div>
+            </div>
+
+            <!-- جدول اسناد -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">نام فایل</th>
+                            <th scope="col">نوع موجودیت</th>
+                            <th scope="col">شناسه موجودیت</th>
+                            <th scope="col">نوع محتوا</th>
+                            <th scope="col">تاریخ آپلود</th>
+                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && documents == null)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredDocuments.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ سندی یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var doc in filteredDocuments)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td>@doc.FileName</td>
+                                    <td>@doc.EntityType</td>
+                                    <td>@doc.EntityId</td>
+                                    <td>@doc.ContentType</td>
+                                    <td dir="ltr">@doc.UploadedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-info" @onclick="() => ViewDocument(doc.Id)" title="مشاهده">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-outline-success" @onclick="() => DownloadDocument(doc.Id)" title="دانلود">
+                                                <i class="bi bi-download"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" @onclick="() => ShowDeleteConfirm(doc.Id)" title="حذف">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال آپلود سند -->
+@if (showUploadModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-cloud-arrow-up me-2"></i> آپلود سند جدید
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseUploadModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @successMessage
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">نوع موجودیت <span class="text-danger">*</span></label>
+                            <select class="form-select @(string.IsNullOrEmpty(uploadDto.EntityType) ? "is-invalid" : "")"
+                                    @bind="uploadDto.EntityType">
+                                <option value="">انتخاب نوع</option>
+                                <option value="Transaction">تراکنش</option>
+                                <option value="Customer">مشتری</option>
+                                <option value="Correspondent">نماینده</option>
+                                <option value="Account">حساب</option>
+                            </select>
+                            <div class="invalid-feedback">نوع موجودیت الزامی است</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">شناسه موجودیت <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control @(uploadDto.EntityId == 0 ? "is-invalid" : "")"
+                                   @bind="uploadDto.EntityId" placeholder="شناسه موجودیت" />
+                            <div class="invalid-feedback">شناسه موجودیت الزامی است</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">انتخاب فایل <span class="text-danger">*</span></label>
+                            <InputFile class="form-control" OnChange="HandleFileSelected" />
+                            @if (!string.IsNullOrEmpty(selectedFileName))
+                            {
+                                <div class="mt-1 text-success">
+                                    <i class="bi bi-check-circle"></i> @selectedFileName
+                                </div>
+                            }
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">نوع محتوا (اختیاری)</label>
+                            <input type="text" class="form-control" @bind="uploadDto.ContentType" placeholder="مثال: application/pdf" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseUploadModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="() => UploadDocument()" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-cloud-arrow-up"></i>
+                        }
+                        آپلود
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال تأیید حذف -->
+@if (showDeleteModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> تأیید حذف
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDeleteModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">آیا مطمئن هستید که می‌خواهید این سند را حذف کنید؟</p>
+                    <p class="text-muted small">این عملیات غیرقابل بازگشت است و فایل از سرور حذف خواهد شد.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDeleteModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmDelete()">
+                        <i class="bi bi-check-circle"></i> تأیید حذف
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<DocumentDto> documents = new();
+    private List<DocumentDto> filteredDocuments = new();
+
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchDocuments();
+            }
+        }
+    }
+
+    private string _filterEntityType = "";
+    private string filterEntityType
+    {
+        get => _filterEntityType;
+        set
+        {
+            if (_filterEntityType != value)
+            {
+                _filterEntityType = value;
+                SearchDocuments();
+            }
+        }
+    }
+
+    private bool showUploadModal = false;
+    private bool showDeleteModal = false;
+    private bool isLoading = false;
+    private long deleteId = 0;
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+
+    // اطلاعات آپلود
+    private UploadDocumentDto uploadDto = new();
+    private string selectedFileName = "";
+    private byte[]? fileContent;
+    private string? selectedContentType;
+
+    [Inject]
+    private IJSRuntime JSRuntime { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDocuments();
+    }
+
+    private async Task LoadDocuments()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await DocumentService.GetAllAsync();
+            documents = result.ToList();
+            filteredDocuments = documents;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری اسناد: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchDocuments()
+    {
+        var query = documents.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim().ToLower();
+            query = query.Where(d =>
+                d.FileName.ToLower().Contains(term) ||
+                d.EntityType.ToLower().Contains(term)
+            );
+        }
+
+        if (!string.IsNullOrEmpty(_filterEntityType))
+        {
+            query = query.Where(d => d.EntityType == _filterEntityType);
+        }
+
+        filteredDocuments = query.ToList();
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        _filterEntityType = "";
+        filteredDocuments = documents;
+        StateHasChanged();
+    }
+
+    private void OpenUploadModal()
+    {
+        uploadDto = new UploadDocumentDto
+        {
+            EntityType = "",
+            EntityId = 0,
+            FileName = "",
+            ContentType = ""
+        };
+        selectedFileName = "";
+        fileContent = null;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showUploadModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseUploadModal()
+    {
+        showUploadModal = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            selectedFileName = file.Name;
+            selectedContentType = file.ContentType;
+
+            using var memoryStream = new MemoryStream();
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(memoryStream);
+            fileContent = memoryStream.ToArray();
+        }
+    }
+
+    private async Task UploadDocument()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        // اعتبارسنجی
+        if (string.IsNullOrWhiteSpace(uploadDto.EntityType))
+            validationErrors.Add("نوع موجودیت الزامی است");
+        if (uploadDto.EntityId == 0)
+            validationErrors.Add("شناسه موجودیت الزامی است");
+        if (fileContent == null || fileContent.Length == 0)
+            validationErrors.Add("انتخاب فایل الزامی است");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            uploadDto.FileName = selectedFileName;
+            uploadDto.ContentType = selectedContentType ?? "";
+            uploadDto.FileContent = fileContent;
+
+            await DocumentService.UploadDocumentAsync(uploadDto);
+            successMessage = "سند با موفقیت آپلود شد";
+
+            showUploadModal = false;
+            await LoadDocuments();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در آپلود: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // ✅ مشاهده فایل مستقیم در تب جدید
+    private async Task ViewDocument(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var doc = await DocumentService.GetDocumentByIdAsync(id);
+            if (doc == null)
+            {
+                validationErrors.Add("سند یافت نشد.");
+                return;
+            }
+
+            var fileBytes = await DocumentService.DownloadDocumentAsync(id);
+            var base64 = Convert.ToBase64String(fileBytes);
+            var contentType = doc.ContentType ?? "application/octet-stream";
+
+            await JSRuntime.InvokeVoidAsync("viewFile", base64, contentType);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در باز کردن فایل: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadDocument(long id)
+    {
+        try
+        {
+            isLoading = true;
+            var fileBytes = await DocumentService.DownloadDocumentAsync(id);
+            var doc = await DocumentService.GetDocumentByIdAsync(id);
+            if (doc == null)
+            {
+                validationErrors.Add("سند یافت نشد");
+                return;
+            }
+
+            var base64 = Convert.ToBase64String(fileBytes);
+            var contentType = doc.ContentType ?? "application/octet-stream";
+            await JSRuntime.InvokeVoidAsync("downloadFile", base64, doc.FileName, contentType);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در دانلود: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowDeleteConfirm(long id)
+    {
+        deleteId = id;
+        showDeleteModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        try
+        {
+            await DocumentService.DeleteDocumentAsync(deleteId);
+            successMessage = "سند با موفقیت حذف شد";
+            showDeleteModal = false;
+            await LoadDocuments();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در حذف: {ex.Message}");
+            showDeleteModal = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+}

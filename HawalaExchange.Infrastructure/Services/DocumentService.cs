@@ -21,6 +21,16 @@ namespace HawalaExchange.Application.Services
             _mapper = mapper;
         }
 
+        // ===== متدهای جدید =====
+        public async Task<IEnumerable<DocumentDto>> GetAllAsync()
+        {
+            var docs = await _context.Documents
+                .OrderByDescending(d => d.Id)
+                .ToListAsync();
+
+            return _mapper.Map<IEnumerable<DocumentDto>>(docs);
+        }
+
         public async Task<DocumentDto> UploadDocumentAsync(UploadDocumentDto uploadDto)
         {
             if (uploadDto.FileContent == null || uploadDto.FileContent.Length == 0)

@@ -1,7 +1,470 @@
 ﻿@page "/"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.JSInterop
+@inject ITransactionService TransactionService
+@inject ICustomerService CustomerService
+@inject IBranchService BranchService
+@inject ICorrespondentService CorrespondentService
+@inject ICurrencyService CurrencyService
+@inject IExpenseService ExpenseService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
 
-<PageTitle>Home</PageTitle>
+<div class="container-fluid mt-4" dir="rtl">
+    <!-- عنوان صفحه -->
+    <div class="page-header mb-4">
+        <h2 class="page-title">داشبورد</h2>
+        <p class="page-subtitle text-muted">خلاصه وضعیت سیستم صرافی و حواله</p>
+    </div>
 
-<h1>Hello, world!</h1>
+    <!-- کارت‌های آماری (KPI) -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="kpi-card shadow-sm h-100">
+                <div class="d-flex align-items-center">
+                    <div class="kpi-icon bg-primary bg-opacity-10 text-primary">
+                        <i class="bi bi-receipt"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">کل تراکنش‌ها</h6>
+                        <h3 class="mb-0">@totalTransactions</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="kpi-card shadow-sm h-100">
+                <div class="d-flex align-items-center">
+                    <div class="kpi-icon bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-people"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">مشتریان</h6>
+                        <h3 class="mb-0">@totalCustomers</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="kpi-card shadow-sm h-100">
+                <div class="d-flex align-items-center">
+                    <div class="kpi-icon bg-warning bg-opacity-10 text-warning">
+                        <i class="bi bi-building"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">شعبه‌ها</h6>
+                        <h3 class="mb-0">@totalBranches</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="kpi-card shadow-sm h-100">
+                <div class="d-flex align-items-center">
+                    <div class="kpi-icon bg-info bg-opacity-10 text-info">
+                        <i class="bi bi-globe-americas"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">نمایندگان</h6>
+                        <h3 class="mb-0">@totalCorrespondents</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="kpi-card shadow-sm h-100">
+                <div class="d-flex align-items-center">
+                    <div class="kpi-icon bg-danger bg-opacity-10 text-danger">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">در انتظار</h6>
+                        <h3 class="mb-0">@pendingTransactions</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="kpi-card shadow-sm h-100">
+                <div class="d-flex align-items-center">
+                    <div class="kpi-icon bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">پرداخت شده</h6>
+                        <h3 class="mb-0">@paidTransactions</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="kpi-card shadow-sm h-100">
+                <div class="d-flex align-items-center">
+                    <div class="kpi-icon bg-secondary bg-opacity-10 text-secondary">
+                        <i class="bi bi-currency-exchange"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">ارزها</h6>
+                        <h3 class="mb-0">@totalCurrencies</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="kpi-card shadow-sm h-100">
+                <div class="d-flex align-items-center">
+                    <div class="kpi-icon bg-purple bg-opacity-10 text-purple">
+                        <i class="bi bi-cash-stack"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h6 class="text-muted mb-1">مجموع کارمزد</h6>
+                        <h3 class="mb-0">@totalCommission</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-Welcome to your new app.
+    <!-- نمودارها -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl-8 col-lg-7">
+            <div class="lms-card h-100">
+                <h5 class="mb-3"><i class="bi bi-graph-up-arrow me-2"></i>روند تراکنش‌های روزانه</h5>
+                <div style="height: 300px;">
+                    <canvas id="transactionChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-lg-5">
+            <div class="lms-card h-100">
+                <h5 class="mb-3"><i class="bi bi-pie-chart me-2"></i>وضعیت تراکنش‌ها</h5>
+                <div style="height: 280px;">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-xl-6">
+            <div class="lms-card h-100">
+                <h5 class="mb-3"><i class="bi bi-currency-dollar me-2"></i>تراکنش‌ها بر اساس ارز</h5>
+                <div style="height: 250px;">
+                    <canvas id="currencyChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="lms-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-clock me-2"></i>تراکنش‌های اخیر</h5>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => NavigateToTransactions()">
+                        مشاهده همه <i class="bi bi-arrow-left"></i>
+                    </button>
+                </div>
+                @if (recentTransactions.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead>
+                                <tr>
+                                    <th>شماره</th>
+                                    <th>نوع</th>
+                                    <th>مشتری</th>
+                                    <th>وضعیت</th>
+                                    <th>تاریخ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in recentTransactions)
+                                {
+                                    <tr>
+                                        <td><small>@t.TransactionNo</small></td>
+                                        <td><small>@GetTransactionTypeName(t.TransactionType)</small></td>
+                                        <td><small>@(t.CustomerFullName ?? "-")</small></td>
+                                        <td>@GetStatusBadge(t.Status)</td>
+                                        <td dir="ltr"><small>@t.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</small></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted text-center py-4">هیچ تراکنشی یافت نشد</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .kpi-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: 1px solid rgba(0,0,0,0.04);
+    }
+
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+        }
+
+    .kpi-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.6rem;
+        flex-shrink: 0;
+    }
+
+    .bg-purple {
+        background-color: #6f42c1 !important;
+    }
+
+    .text-purple {
+        color: #6f42c1 !important;
+    }
+
+    .bg-purple.bg-opacity-10 {
+        background-color: rgba(111, 66, 193, 0.10) !important;
+    }
+
+    .lms-card {
+        background: white;
+        border-radius: 18px;
+        padding: 1.5rem;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.05);
+        border: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 8px;
+    }
+
+    .table td, .table th {
+        vertical-align: middle;
+        padding: 0.6rem 0.5rem;
+        font-size: 0.85rem;
+    }
+</style>
+
+@code {
+    // ===== آمار =====
+    private int totalTransactions = 0;
+    private int totalCustomers = 0;
+    private int totalBranches = 0;
+    private int totalCorrespondents = 0;
+    private int totalCurrencies = 0;
+    private int pendingTransactions = 0;
+    private int paidTransactions = 0;
+    private string totalCommission = "0";
+    private List<TransactionDto> recentTransactions = new();
+
+    // ===== داده‌های نمودارها =====
+    private List<string> chartLabels = new();
+    private List<int> chartData = new();
+    private List<string> statusLabels = new();
+    private List<int> statusData = new();
+    private List<string> currencyLabels = new();
+    private List<int> currencyData = new();
+    private List<string> currencyColors = new();
+
+    private bool isLoading = true;
+
+    [Inject]
+    private IJSRuntime JSRuntime { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await RenderCharts();
+        }
+    }
+
+    private async Task LoadDashboardData()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            // دریافت داده‌ها از سرویس‌ها
+            var transactions = (await TransactionService.GetAllAsync()).ToList();
+            var customers = (await CustomerService.GetAllAsync()).ToList();
+            var branches = (await BranchService.GetAllAsync()).ToList();
+            var correspondents = (await CorrespondentService.GetAllAsync()).ToList();
+            var currencies = (await CurrencyService.GetAllAsync()).ToList();
+
+            // آمار
+            totalTransactions = transactions.Count;
+            totalCustomers = customers.Count;
+            totalBranches = branches.Count;
+            totalCorrespondents = correspondents.Count;
+            totalCurrencies = currencies.Count;
+            pendingTransactions = transactions.Count(t => t.Status == "Pending");
+            paidTransactions = transactions.Count(t => t.Status == "Paid");
+
+            // مجموع کارمزد
+            var totalComm = transactions
+                .Where(t => t.Status != "Cancel")
+                .SelectMany(t => t.TransactionDetails ?? new List<TransactionDetailDto>())
+                .Sum(d => d.CommissionAmount);
+            totalCommission = totalComm.ToString("N0");
+
+            // تراکنش‌های اخیر (۱۰ تای آخر)
+            recentTransactions = transactions
+                .OrderByDescending(t => t.CreatedAt)
+                .Take(10)
+                .ToList();
+
+            // ===== آماده‌سازی داده‌های نمودارها =====
+
+            // ۱. نمودار خطی – تراکنش‌های روزانه (۷ روز گذشته)
+            var dailyData = new Dictionary<DateTime, int>();
+            for (int i = 6; i >= 0; i--)
+            {
+                var date = DateTime.Today.AddDays(-i);
+                dailyData[date] = 0;
+            }
+
+            foreach (var t in transactions)
+            {
+                var date = t.CreatedAt.Date;
+                if (dailyData.ContainsKey(date))
+                    dailyData[date]++;
+            }
+
+            var persianCalendar = new System.Globalization.PersianCalendar();
+            chartLabels = dailyData.Keys.Select(d =>
+                $"{persianCalendar.GetMonth(d)}/{persianCalendar.GetDayOfMonth(d)}"
+            ).ToList();
+            chartData = dailyData.Values.ToList();
+
+            // ۲. نمودار دایره‌ای – وضعیت تراکنش‌ها
+            var statusGroups = transactions
+                .GroupBy(t => t.Status)
+                .Select(g => new { Status = g.Key, Count = g.Count() })
+                .ToList();
+
+            statusLabels = statusGroups.Select(g => GetStatusName(g.Status)).ToList();
+            statusData = statusGroups.Select(g => g.Count).ToList();
+
+            // ۳. نمودار میله‌ای – تراکنش‌ها بر اساس ارز
+            var currencyGroups = transactions
+                .Where(t => t.TransactionDetails != null)
+                .SelectMany(t => t.TransactionDetails!)
+                .Where(d => d.FromCurrencyCode != null)
+                .GroupBy(d => d.FromCurrencyCode)
+                .Select(g => new { Currency = g.Key, Count = g.Count() })
+                .OrderByDescending(g => g.Count)
+                .Take(6)
+                .ToList();
+
+            currencyLabels = currencyGroups.Select(g => g.Currency).ToList();
+            currencyData = currencyGroups.Select(g => g.Count).ToList();
+
+            // رنگ‌های متنوع برای نمودار میله‌ای
+            var colorPalette = new[]
+            {
+                "rgba(0, 97, 242, 0.8)",
+                "rgba(40, 167, 69, 0.8)",
+                "rgba(255, 193, 7, 0.8)",
+                "rgba(220, 53, 69, 0.8)",
+                "rgba(23, 162, 184, 0.8)",
+                "rgba(108, 117, 125, 0.8)"
+            };
+            currencyColors = currencyLabels.Select((_, i) => colorPalette[i % colorPalette.Length]).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RenderCharts()
+    {
+        try
+        {
+            // ۱. نمودار خطی
+            if (chartLabels.Any())
+            {
+                await JSRuntime.InvokeVoidAsync("renderTransactionChart", "transactionChart", chartLabels.ToArray(), chartData.ToArray(), "تعداد تراکنش‌ها");
+            }
+
+            // ۲. نمودار دایره‌ای
+            if (statusLabels.Any())
+            {
+                await JSRuntime.InvokeVoidAsync("renderStatusChart", "statusChart", statusLabels.ToArray(), statusData.ToArray());
+            }
+
+            // ۳. نمودار میله‌ای
+            if (currencyLabels.Any())
+            {
+                await JSRuntime.InvokeVoidAsync("renderCurrencyChart", "currencyChart", currencyLabels.ToArray(), currencyData.ToArray(), currencyColors.ToArray());
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error rendering charts: {ex.Message}");
+        }
+    }
+
+    // ===== متدهای کمکی =====
+
+    private void NavigateToTransactions()
+    {
+        NavigationManager.NavigateTo("/transactions");
+    }
+
+    private string GetStatusName(string status) => status switch
+    {
+        "Pending" => "در انتظار",
+        "Paid" => "پرداخت شده",
+        "Cancel" => "لغو شده",
+        _ => status ?? "نامشخص"
+    };
+
+    private string GetTransactionTypeName(string type) => type switch
+    {
+        "HawalaSend" => "حواله ارسال",
+        "HawalaReceive" => "حواله دریافت",
+        "Exchange" => "تبدیل ارز",
+        "Transfer" => "انتقال",
+        "Expense" => "هزینه",
+        "Adjustment" => "تعدیل",
+        _ => type ?? "نامشخص"
+    };
+
+    private MarkupString GetStatusBadge(string status)
+    {
+        var badge = status switch
+        {
+            "Pending" => "<span class='badge bg-warning text-dark'>در انتظار</span>",
+            "Paid" => "<span class='badge bg-success'>پرداخت شده</span>",
+            "Cancel" => "<span class='badge bg-danger'>لغو شده</span>",
+            _ => $"<span class='badge bg-secondary'>{status}</span>"
+        };
+        return new MarkupString(badge);
+    }
+}

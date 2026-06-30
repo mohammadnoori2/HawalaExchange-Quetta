@@ -1,0 +1,310 @@
+﻿@page "/auditlogs"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject IAuditLogService AuditLogService
+@inject IUserService UserService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-clock-history me-2"></i> لاگ‌های سیستم
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="LoadLogs">
+                    <i class="bi bi-arrow-clockwise"></i> بروزرسانی
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- فیلترها -->
+            <div class="row g-3 mb-4 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label">از تاریخ</label>
+                    <input type="datetime-local" class="form-control" @bind="fromDate" @bind:event="oninput" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">تا تاریخ</label>
+                    <input type="datetime-local" class="form-control" @bind="toDate" @bind:event="oninput" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">کاربر</label>
+                    <select class="form-select" @bind="filterUserId">
+                        <option value="">همه کاربران</option>
+                        @foreach (var user in users)
+                        {
+                            <option value="@user.Id">@user.FullName (@user.UserName)</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">عملیات</label>
+                    <select class="form-select" @bind="filterAction">
+                        <option value="">همه</option>
+                        <option value="CREATE">ایجاد</option>
+                        <option value="UPDATE">ویرایش</option>
+                        <option value="DELETE">حذف</option>
+                        <option value="CANCEL">لغو</option>
+                        <option value="REVERSE">برگشت</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">جدول</label>
+                    <input type="text" class="form-control" placeholder="نام جدول" @bind="filterTable" @bind:event="oninput" />
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button class="btn btn-primary w-100" @onclick="ApplyFilters">فیلتر</button>
+                    <button class="btn btn-outline-secondary w-100" @onclick="ResetFilters">بازنشانی</button>
+                </div>
+            </div>
+
+            <!-- جدول لاگ‌ها -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">کاربر</th>
+                            <th scope="col">عملیات</th>
+                            <th scope="col">جدول</th>
+                            <th scope="col">شناسه رکورد</th>
+                            <th scope="col">مقدار قبلی</th>
+                            <th scope="col">مقدار جدید</th>
+                            <th scope="col">تاریخ</th>
+                            <th scope="col" style="min-width: 80px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && logs == null)
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredLogs.Any())
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ لاگی یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var log in filteredLogs)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td>@(log.UserName ?? "سیستم")</td>
+                                    <td><span class="badge @GetActionBadge(log.Action)">@GetActionName(log.Action)</span></td>
+                                    <td>@log.TableName</td>
+                                    <td>@log.RecordId</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(log.OldValue))
+                                        {
+                                            <span class="text-truncate d-inline-block" style="max-width: 120px;" title="@log.OldValue">@log.OldValue</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(log.NewValue))
+                                        {
+                                            <span class="text-truncate d-inline-block" style="max-width: 120px;" title="@log.NewValue">@log.NewValue</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td dir="ltr">@log.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-info" @onclick="() => ViewLog(log.Id)" title="مشاهده جزئیات">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال مشاهده جزئیات لاگ -->
+@if (showDetailModal && selectedLog != null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle me-2"></i> جزئیات لاگ
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6"><strong>شناسه:</strong> @selectedLog.Id</div>
+                        <div class="col-md-6"><strong>کاربر:</strong> @(selectedLog.UserName ?? "سیستم")</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>عملیات:</strong> @GetActionName(selectedLog.Action)</div>
+                        <div class="col-md-6"><strong>جدول:</strong> @selectedLog.TableName</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>شناسه رکورد:</strong> @selectedLog.RecordId</div>
+                        <div class="col-md-6"><strong>تاریخ:</strong> @selectedLog.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</div>
+                    </div>
+                    <hr />
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>مقدار قبلی</h6>
+                            <pre class="bg-light p-2 border rounded" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;">@(selectedLog.OldValue ?? "—")</pre>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>مقدار جدید</h6>
+                            <pre class="bg-light p-2 border rounded" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;">@(selectedLog.NewValue ?? "—")</pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDetailModal()">
+                        <i class="bi bi-x-circle"></i> بستن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AuditLogDto> logs = new();
+    private List<AuditLogDto> filteredLogs = new();
+    private List<UserDto> users = new();
+
+    // فیلترها
+    private DateTime? fromDate;
+    private DateTime? toDate;
+    private long? filterUserId;
+    private string filterAction = "";
+    private string filterTable = "";
+
+    private bool isLoading = false;
+    private bool showDetailModal = false;
+    private AuditLogDto? selectedLog = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+        await LoadLogs();
+    }
+
+    private async Task LoadUsers()
+    {
+        try
+        {
+            users = (await UserService.GetAllAsync()).ToList();
+        }
+        catch { }
+    }
+
+    private async Task LoadLogs()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await AuditLogService.GetAllLogsAsync();
+            logs = result.ToList();
+            filteredLogs = logs;
+        }
+        catch (Exception ex)
+        {
+            // مدیریت خطا
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        var query = logs.AsEnumerable();
+
+        if (fromDate.HasValue)
+            query = query.Where(l => l.CreatedAt >= fromDate.Value);
+        if (toDate.HasValue)
+            query = query.Where(l => l.CreatedAt <= toDate.Value);
+        if (filterUserId.HasValue && filterUserId.Value > 0)
+            query = query.Where(l => l.UserId == filterUserId.Value);
+        if (!string.IsNullOrEmpty(filterAction))
+            query = query.Where(l => l.Action == filterAction);
+        if (!string.IsNullOrEmpty(filterTable))
+            query = query.Where(l => l.TableName.Contains(filterTable, StringComparison.OrdinalIgnoreCase));
+
+        filteredLogs = query.ToList();
+        StateHasChanged();
+    }
+
+    private void ResetFilters()
+    {
+        fromDate = null;
+        toDate = null;
+        filterUserId = null;
+        filterAction = "";
+        filterTable = "";
+        filteredLogs = logs;
+        StateHasChanged();
+    }
+
+    private async Task ViewLog(long id)
+    {
+        selectedLog = logs.FirstOrDefault(l => l.Id == id);
+        if (selectedLog != null)
+            showDetailModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        selectedLog = null;
+        StateHasChanged();
+    }
+
+    private string GetActionName(string action) => action?.ToUpper() switch
+    {
+        "CREATE" => "ایجاد",
+        "UPDATE" => "ویرایش",
+        "DELETE" => "حذف",
+        "CANCEL" => "لغو",
+        "REVERSE" => "برگشت",
+        _ => action ?? "نامشخص"
+    };
+
+    private string GetActionBadge(string action) => action?.ToUpper() switch
+    {
+        "CREATE" => "bg-success",
+        "UPDATE" => "bg-primary",
+        "DELETE" => "bg-danger",
+        "CANCEL" => "bg-warning text-dark",
+        "REVERSE" => "bg-secondary",
+        _ => "bg-light text-dark"
+    };
+}

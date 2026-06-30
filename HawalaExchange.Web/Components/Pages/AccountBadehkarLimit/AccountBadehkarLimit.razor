@@ -1,0 +1,629 @@
+﻿@page "/account-limits"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject IAccountBadehkarLimitService AccountLimitService
+@inject IAccountService AccountService
+@inject ICurrencyService CurrencyService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-credit-card-2-front me-2"></i> مدیریت محدودیت حساب‌ها
+                </h4>
+                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
+                    <i class="bi bi-plus-circle"></i> محدودیت جدید
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- نوار جستجو -->
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="جستجو (نام حساب، کد ارز)..."
+                               @bind="searchTerm" @bind:event="oninput" />
+                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
+                            <i class="bi bi-x-circle"></i> پاک کردن
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" @bind="filterStatus">
+                        <option value="">همه</option>
+                        <option value="true">فعال</option>
+                        <option value="false">غیرفعال</option>
+                    </select>
+                </div>
+                <div class="col-md-2 text-start">
+                    <span class="badge bg-info fs-6 p-2">
+                        <i class="bi bi-list-ul"></i> تعداد: @filteredLimits.Count
+                    </span>
+                </div>
+            </div>
+
+            <!-- جدول محدودیت‌ها -->
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">حساب</th>
+                            <th scope="col">ارز</th>
+                            <th scope="col">محدودیت بدهکاری</th>
+                            <th scope="col">وضعیت</th>
+                            <th scope="col">ایجاد کننده</th>
+                            <th scope="col">تاریخ ایجاد</th>
+                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading && limits == null)
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredLimits.Any())
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block"></i>
+                                    <span class="fs-5">هیچ محدودیتی یافت نشد</span>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var limit in filteredLimits)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td>@limit.AccountName</td>
+                                    <td>@limit.CurrencyCode</td>
+                                    <td dir="ltr">@limit.BadehkarLimit.ToString("N2")</td>
+                                    <td>
+                                        @if (limit.IsActive)
+                                        {
+                                            <span class="badge bg-success px-3 py-2">فعال</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary px-3 py-2">غیرفعال</span>
+                                        }
+                                    </td>
+                                    <td>@(limit.CreatedByName ?? "-")</td>
+                                    <td dir="ltr">@limit.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(limit.Id)" title="ویرایش">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            @if (limit.IsActive)
+                                            {
+                                                <button class="btn btn-outline-danger" @onclick="() => ShowDeactivateConfirm(limit.Id)" title="غیرفعال‌سازی">
+                                                    <i class="bi bi-slash-circle"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-outline-warning" @onclick="() => ShowActivateConfirm(limit.Id)" title="فعال‌سازی">
+                                                    <i class="bi bi-check-circle"></i>
+                                                </button>
+                                            }
+                                            <button class="btn btn-outline-danger" @onclick="() => ShowDeleteConfirm(limit.Id)" title="حذف">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال ایجاد/ویرایش محدودیت -->
+@if (showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش محدودیت" : "ایجاد محدودیت جدید")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @successMessage
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">حساب <span class="text-danger">*</span></label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" class="form-control bg-light" value="@(accounts.FirstOrDefault(a => a.Id == currentLimit.AccountId)?.AccountName ?? "نامشخص")" disabled readonly />
+                                <small class="text-muted">حساب قابل تغییر نیست</small>
+                            }
+                            else
+                            {
+                                <select class="form-select @(currentLimit.AccountId == 0 ? "is-invalid" : "")"
+                                        @bind="currentLimit.AccountId">
+                                    <option value="0">انتخاب حساب</option>
+                                    @foreach (var account in accounts)
+                                    {
+                                        <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
+                                    }
+                                </select>
+                                <div class="invalid-feedback">انتخاب حساب الزامی است</div>
+                            }
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentLimit.CurrencyId)?.Code ?? "نامشخص")" disabled readonly />
+                                <small class="text-muted">ارز قابل تغییر نیست</small>
+                            }
+                            else
+                            {
+                                <select class="form-select @(currentLimit.CurrencyId == 0 ? "is-invalid" : "")"
+                                        @bind="currentLimit.CurrencyId">
+                                    <option value="0">انتخاب ارز</option>
+                                    @foreach (var currency in currencies)
+                                    {
+                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                    }
+                                </select>
+                                <div class="invalid-feedback">انتخاب ارز الزامی است</div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold">محدودیت بدهکاری <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control @(currentLimit.BadehkarLimit <= 0 ? "is-invalid" : "")"
+                                   @bind="currentLimit.BadehkarLimit" placeholder="مقدار محدودیت را وارد کنید" />
+                            <div class="invalid-feedback">محدودیت باید بزرگتر از صفر باشد</div>
+                        </div>
+                    </div>
+
+                    @if (isEditMode)
+                    {
+                        <div class="alert alert-info mt-2">
+                            <i class="bi bi-info-circle"></i>
+                            <small>در حال ویرایش محدودیت برای حساب: <strong>@(accounts.FirstOrDefault(a => a.Id == currentLimit.AccountId)?.AccountName ?? "نامشخص")</strong> و ارز: <strong>@(currencies.FirstOrDefault(c => c.Id == currentLimit.CurrencyId)?.Code ?? "نامشخص")</strong></small>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="() => SaveLimit()" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save"></i>
+                        }
+                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال تأیید فعال/غیرفعال‌سازی -->
+@if (showConfirmModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> تأیید عملیات
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">@confirmMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseConfirmModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                        <i class="bi bi-check-circle"></i> تأیید
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال تأیید حذف -->
+@if (showDeleteModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle"></i> تأیید حذف
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDeleteModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">آیا مطمئن هستید که می‌خواهید این محدودیت را حذف کنید؟</p>
+                    <p class="text-muted small">این عملیات غیرقابل بازگشت است.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDeleteModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmDelete()">
+                        <i class="bi bi-check-circle"></i> تأیید حذف
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AccountBadehkarLimitDto> limits = new();
+    private List<AccountBadehkarLimitDto> filteredLimits = new();
+    private List<AccountDto> accounts = new();
+    private List<CurrencyDto> currencies = new();
+
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchLimits();
+            }
+        }
+    }
+
+    private string _filterStatus = "";
+    private string filterStatus
+    {
+        get => _filterStatus;
+        set
+        {
+            if (_filterStatus != value)
+            {
+                _filterStatus = value;
+                SearchLimits();
+            }
+        }
+    }
+
+    private bool showModal = false;
+    private bool showConfirmModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditMode = false;
+    private bool isLoading = false;
+    private long editId = 0;
+    private long confirmId = 0;
+    private long deleteId = 0;
+    private string confirmMessage = string.Empty;
+    private string confirmActionType = string.Empty;
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+
+    private CreateAccountBadehkarLimitDto currentLimit = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupData();
+        await LoadLimits();
+    }
+
+    private async Task LoadLookupData()
+    {
+        try
+        {
+            accounts = (await AccountService.GetAllAsync()).ToList();
+            currencies = (await CurrencyService.GetAllAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری داده‌های کمکی: {ex.Message}");
+        }
+    }
+
+    private async Task LoadLimits()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await AccountLimitService.GetAllAsync();
+            limits = result.ToList();
+            filteredLimits = limits;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری محدودیت‌ها: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchLimits()
+    {
+        var query = limits.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim().ToLower();
+            query = query.Where(l =>
+                (l.AccountName != null && l.AccountName.ToLower().Contains(term)) ||
+                (l.CurrencyCode != null && l.CurrencyCode.ToLower().Contains(term))
+            );
+        }
+
+        if (!string.IsNullOrEmpty(_filterStatus))
+        {
+            var isActive = bool.Parse(_filterStatus);
+            query = query.Where(l => l.IsActive == isActive);
+        }
+
+        filteredLimits = query.ToList();
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        _filterStatus = "";
+        filteredLimits = limits;
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        currentLimit = new CreateAccountBadehkarLimitDto
+        {
+            AccountId = 0,
+            CurrencyId = 0,
+            BadehkarLimit = 0
+        };
+        isEditMode = false;
+        editId = 0;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var limit = await AccountLimitService.GetByIdAsync(id);
+            if (limit != null)
+            {
+                currentLimit = new CreateAccountBadehkarLimitDto
+                {
+                    AccountId = limit.AccountId,
+                    CurrencyId = limit.CurrencyId,
+                    BadehkarLimit = limit.BadehkarLimit
+                };
+                isEditMode = true;
+                editId = id;
+                validationErrors.Clear();
+                successMessage = string.Empty;
+                showModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری محدودیت: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveLimit()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        if (currentLimit.AccountId == 0)
+            validationErrors.Add("انتخاب حساب الزامی است");
+        if (currentLimit.CurrencyId == 0)
+            validationErrors.Add("انتخاب ارز الزامی است");
+        if (currentLimit.BadehkarLimit <= 0)
+            validationErrors.Add("محدودیت باید بزرگتر از صفر باشد");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            if (isEditMode)
+            {
+                var updateRequest = new UpdateAccountBadehkarLimitDto
+                {
+                    BadehkarLimit = currentLimit.BadehkarLimit,
+                    IsActive = true // وضعیت از دکمه فعال/غیرفعال مدیریت می‌شود
+                };
+                await AccountLimitService.UpdateAsync(editId, updateRequest);
+                successMessage = "محدودیت با موفقیت ویرایش شد";
+            }
+            else
+            {
+                await AccountLimitService.CreateAsync(currentLimit);
+                successMessage = "محدودیت با موفقیت ایجاد شد";
+            }
+
+            showModal = false;
+            await LoadLimits();
+        }
+        catch (InvalidOperationException ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowDeactivateConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "deactivate";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این محدودیت را غیرفعال کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private void ShowActivateConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "activate";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این محدودیت را فعال کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        try
+        {
+            if (confirmActionType == "deactivate")
+            {
+                await AccountLimitService.DeactivateAsync(confirmId);
+                successMessage = "محدودیت با موفقیت غیرفعال شد";
+            }
+            else if (confirmActionType == "activate")
+            {
+                await AccountLimitService.ActivateAsync(confirmId);
+                successMessage = "محدودیت با موفقیت فعال شد";
+            }
+
+            showConfirmModal = false;
+            await LoadLimits();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در عملیات: {ex.Message}");
+            showConfirmModal = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void ShowDeleteConfirm(long id)
+    {
+        deleteId = id;
+        showDeleteModal = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        try
+        {
+            await AccountLimitService.DeleteAsync(deleteId);
+            successMessage = "محدودیت با موفقیت حذف شد";
+            showDeleteModal = false;
+            await LoadLimits();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در حذف: {ex.Message}");
+            showDeleteModal = false;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+}

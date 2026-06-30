@@ -1,0 +1,833 @@
+﻿@page "/reports"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject IReportService ReportService
+@inject IBranchService BranchService
+@inject ICustomerService CustomerService
+@inject ICorrespondentService CorrespondentService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4" dir="rtl">
+    <div class="card shadow-lg border-0">
+        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="mb-0">
+                    <i class="bi bi-file-earmark-text me-2"></i> مدیریت گزارش‌ها
+                </h4>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- ===== تب‌ها با روش صحیح نقل‌قول ===== -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "daily" ? "active" : "")" @onclick='() => SetTab("daily")'>
+                        <i class="bi bi-calendar-day"></i> روزانه
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "transactions" ? "active" : "")" @onclick='() => SetTab("transactions")'>
+                        <i class="bi bi-list-ul"></i> تراکنش‌ها
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "commission" ? "active" : "")" @onclick='() => SetTab("commission")'>
+                        <i class="bi bi-coin"></i> کارمزد
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "trialbalance" ? "active" : "")" @onclick='() => SetTab("trialbalance")'>
+                        <i class="bi bi-balance"></i> تراز آزمایشی
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "customer" ? "active" : "")" @onclick='() => SetTab("customer")'>
+                        <i class="bi bi-person"></i> مشتری
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "correspondent" ? "active" : "")" @onclick='() => SetTab("correspondent")'>
+                        <i class="bi bi-globe"></i> نماینده
+                    </button>
+                </li>
+            </ul>
+
+            <!-- ============================================= -->
+            <!-- تب ۱: گزارش روزانه                           -->
+            <!-- ============================================= -->
+            @if (activeTab == "daily")
+            {
+                <div>
+                    <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">تاریخ</label>
+                            <input type="date" class="form-control" @bind="dailyDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">شعبه</label>
+                            <select class="form-select" @bind="dailyBranchId">
+                                <option value="0">همه شعبه‌ها</option>
+                                @foreach (var b in branches)
+                                {
+                                    <option value="@b.Id">@b.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button class="btn btn-primary" @onclick="LoadDailyReport">
+                                <i class="bi bi-search"></i> نمایش
+                            </button>
+                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetDailyReport">
+                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (isLoadingDaily)
+                    {
+                        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+                    }
+                    else if (dailyReport != null)
+                    {
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3"><strong>شعبه:</strong> @dailyReport.BranchName</div>
+                            <div class="col-md-3"><strong>تاریخ:</strong> @dailyReport.Date.ToLocalTime().ToString("yyyy/MM/dd")</div>
+                            <div class="col-md-3"><strong>تعداد تراکنش:</strong> @dailyReport.TotalTransactions</div>
+                            <div class="col-md-3"><strong>سود خالص:</strong> @dailyReport.NetIncome.ToString("N2")</div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>مبلغ ارسال</th>
+                                        <th>مبلغ دریافت</th>
+                                        <th>کارمزد کل</th>
+                                        <th>هزینه‌ها</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>@dailyReport.TotalSendAmount.ToString("N2")</td>
+                                        <td>@dailyReport.TotalReceiveAmount.ToString("N2")</td>
+                                        <td>@dailyReport.TotalCommission.ToString("N2")</td>
+                                        <td>@dailyReport.TotalExpenses.ToString("N2")</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center py-4">جهت نمایش گزارش، تاریخ و شعبه را انتخاب کنید.</p>
+                    }
+                </div>
+            }
+
+            <!-- ============================================= -->
+            <!-- تب ۲: گزارش تراکنش‌ها                         -->
+            <!-- ============================================= -->
+            @if (activeTab == "transactions")
+            {
+                <div>
+                    <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-md-2">
+                            <label class="form-label">از تاریخ</label>
+                            <input type="date" class="form-control" @bind="txnFromDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">تا تاریخ</label>
+                            <input type="date" class="form-control" @bind="txnToDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">شعبه</label>
+                            <select class="form-select" @bind="txnBranchId">
+                                <option value="0">همه</option>
+                                @foreach (var b in branches)
+                                {
+                                    <option value="@b.Id">@b.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">وضعیت</label>
+                            <select class="form-select" @bind="txnStatus">
+                                <option value="">همه</option>
+                                <option value="Pending">در انتظار</option>
+                                <option value="Paid">پرداخت شده</option>
+                                <option value="Cancel">لغو شده</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-primary" @onclick="LoadTransactionReport">
+                                <i class="bi bi-search"></i> نمایش
+                            </button>
+                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetTransactionReport">
+                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (isLoadingTransactions)
+                    {
+                        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+                    }
+                    else if (transactionReports.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>شماره</th>
+                                        <th>نوع</th>
+                                        <th>مشتری</th>
+                                        <th>فرستنده</th>
+                                        <th>گیرنده</th>
+                                        <th>از ارز</th>
+                                        <th>مبلغ از</th>
+                                        <th>به ارز</th>
+                                        <th>مبلغ به</th>
+                                        <th>کارمزد</th>
+                                        <th>وضعیت</th>
+                                        <th>تاریخ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in transactionReports)
+                                    {
+                                        <tr>
+                                            <td>@r.TransactionNo</td>
+                                            <td>@GetTransactionTypeName(r.TransactionType)</td>
+                                            <td>@r.CustomerName</td>
+                                            <td>@r.SenderName</td>
+                                            <td>@r.ReceiverName</td>
+                                            <td>@r.FromCurrency</td>
+                                            <td>@r.FromAmount.ToString("N2")</td>
+                                            <td>@r.ToCurrency</td>
+                                            <td>@r.ToAmount.ToString("N2")</td>
+                                            <td>@r.Commission.ToString("N2")</td>
+                                            <td>@GetStatusBadge(r.Status)</td>
+                                            <td dir="ltr">@r.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center py-4">هیچ تراکنشی یافت نشد.</p>
+                    }
+                </div>
+            }
+
+            <!-- ============================================= -->
+            <!-- تب ۳: گزارش کارمزد                           -->
+            <!-- ============================================= -->
+            @if (activeTab == "commission")
+            {
+                <div>
+                    <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-md-2">
+                            <label class="form-label">از تاریخ</label>
+                            <input type="date" class="form-control" @bind="commFromDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">تا تاریخ</label>
+                            <input type="date" class="form-control" @bind="commToDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">شعبه</label>
+                            <select class="form-select" @bind="commBranchId">
+                                <option value="0">همه</option>
+                                @foreach (var b in branches)
+                                {
+                                    <option value="@b.Id">@b.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-primary" @onclick="LoadCommissionReport">
+                                <i class="bi bi-search"></i> نمایش
+                            </button>
+                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetCommissionReport">
+                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (isLoadingCommission)
+                    {
+                        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+                    }
+                    else if (commissionReports.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>تاریخ</th>
+                                        <th>شعبه</th>
+                                        <th>کارمزد کل</th>
+                                        <th>کارمزد نماینده</th>
+                                        <th>کارمزد خالص</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in commissionReports)
+                                    {
+                                        <tr>
+                                            <td>@r.Date.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                                            <td>@r.BranchName</td>
+                                            <td>@r.TotalCommission.ToString("N2")</td>
+                                            <td>@r.TotalAgentCommission.ToString("N2")</td>
+                                            <td>@r.NetCommission.ToString("N2")</td>
+                                        </tr>
+                                    }
+                                    <tr class="table-primary fw-bold">
+                                        <td colspan="2">مجموع</td>
+                                        <td>@commissionReports.Sum(x => x.TotalCommission).ToString("N2")</td>
+                                        <td>@commissionReports.Sum(x => x.TotalAgentCommission).ToString("N2")</td>
+                                        <td>@commissionReports.Sum(x => x.NetCommission).ToString("N2")</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center py-4">هیچ داده‌ای یافت نشد.</p>
+                    }
+                </div>
+            }
+
+            <!-- ============================================= -->
+            <!-- تب ۴: تراز آزمایشی                           -->
+            <!-- ============================================= -->
+            @if (activeTab == "trialbalance")
+            {
+                <div>
+                    <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">تاریخ (تا)</label>
+                            <input type="date" class="form-control" @bind="tbAsOfDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">شعبه</label>
+                            <select class="form-select" @bind="tbBranchId">
+                                <option value="0">همه</option>
+                                @foreach (var b in branches)
+                                {
+                                    <option value="@b.Id">@b.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button class="btn btn-primary" @onclick="LoadTrialBalance">
+                                <i class="bi bi-search"></i> نمایش
+                            </button>
+                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetTrialBalance">
+                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (isLoadingTB)
+                    {
+                        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+                    }
+                    else if (trialBalance.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>کد حساب</th>
+                                        <th>نام حساب</th>
+                                        <th>بدهکار</th>
+                                        <th>بستانکار</th>
+                                        <th>مانده</th>
+                                        <th>نوع مانده</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in trialBalance)
+                                    {
+                                        <tr>
+                                            <td>@r.AccountCode</td>
+                                            <td>@r.AccountName</td>
+                                            <td>@r.TotalDebit.ToString("N2")</td>
+                                            <td>@r.TotalCredit.ToString("N2")</td>
+                                            <td>@r.Balance.ToString("N2")</td>
+                                            <td>@(r.BalanceType == "Debit" ? "بدهکار" : "بستانکار")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center py-4">هیچ داده‌ای یافت نشد.</p>
+                    }
+                </div>
+            }
+
+            <!-- ============================================= -->
+            <!-- تب ۵: گزارش مشتری                           -->
+            <!-- ============================================= -->
+            @if (activeTab == "customer")
+            {
+                <div>
+                    <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">مشتری</label>
+                            <select class="form-select" @bind="custCustomerId">
+                                <option value="0">انتخاب مشتری</option>
+                                @foreach (var c in customers)
+                                {
+                                    <option value="@c.Id">@c.FullName (@c.CustomerCode)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">از تاریخ</label>
+                            <input type="date" class="form-control" @bind="custFromDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">تا تاریخ</label>
+                            <input type="date" class="form-control" @bind="custToDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-primary" @onclick="LoadCustomerReport">
+                                <i class="bi bi-search"></i> نمایش
+                            </button>
+                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetCustomerReport">
+                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (isLoadingCustomer)
+                    {
+                        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+                    }
+                    else if (customerReports.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>شماره</th>
+                                        <th>نوع</th>
+                                        <th>فرستنده</th>
+                                        <th>گیرنده</th>
+                                        <th>مبلغ</th>
+                                        <th>کارمزد</th>
+                                        <th>وضعیت</th>
+                                        <th>تاریخ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in customerReports)
+                                    {
+                                        <tr>
+                                            <td>@r.TransactionNo</td>
+                                            <td>@GetTransactionTypeName(r.TransactionType)</td>
+                                            <td>@r.SenderName</td>
+                                            <td>@r.ReceiverName</td>
+                                            <td>@r.FromAmount.ToString("N2")</td>
+                                            <td>@r.Commission.ToString("N2")</td>
+                                            <td>@GetStatusBadge(r.Status)</td>
+                                            <td dir="ltr">@r.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center py-4">هیچ تراکنشی برای این مشتری یافت نشد.</p>
+                    }
+                </div>
+            }
+
+            <!-- ============================================= -->
+            <!-- تب ۶: گزارش نماینده                         -->
+            <!-- ============================================= -->
+            @if (activeTab == "correspondent")
+            {
+                <div>
+                    <div class="row g-3 mb-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">نماینده</label>
+                            <select class="form-select" @bind="corrCorrespondentId">
+                                <option value="0">انتخاب نماینده</option>
+                                @foreach (var c in correspondents)
+                                {
+                                    <option value="@c.Id">@c.Name (@c.Code)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">از تاریخ</label>
+                            <input type="date" class="form-control" @bind="corrFromDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">تا تاریخ</label>
+                            <input type="date" class="form-control" @bind="corrToDate" @bind:event="oninput" />
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-primary" @onclick="LoadCorrespondentReport">
+                                <i class="bi bi-search"></i> نمایش
+                            </button>
+                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetCorrespondentReport">
+                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (isLoadingCorrespondent)
+                    {
+                        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+                    }
+                    else if (correspondentReports.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>شماره</th>
+                                        <th>نوع</th>
+                                        <th>فرستنده</th>
+                                        <th>گیرنده</th>
+                                        <th>مبلغ</th>
+                                        <th>کارمزد</th>
+                                        <th>وضعیت</th>
+                                        <th>تاریخ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in correspondentReports)
+                                    {
+                                        <tr>
+                                            <td>@r.TransactionNo</td>
+                                            <td>@GetTransactionTypeName(r.TransactionType)</td>
+                                            <td>@r.SenderName</td>
+                                            <td>@r.ReceiverName</td>
+                                            <td>@r.FromAmount.ToString("N2")</td>
+                                            <td>@r.Commission.ToString("N2")</td>
+                                            <td>@GetStatusBadge(r.Status)</td>
+                                            <td dir="ltr">@r.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center py-4">هیچ تراکنشی برای این نماینده یافت نشد.</p>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    // ===== داده‌های کمکی =====
+    private List<BranchDto> branches = new();
+    private List<CustomerDto> customers = new();
+    private List<CorrespondentDto> correspondents = new();
+
+    // ===== تب فعال =====
+    private string activeTab = "daily";
+
+    // ===== فیلدهای گزارش روزانه =====
+    private DateTime dailyDate = DateTime.Today;
+    private long dailyBranchId = 0;
+    private bool isLoadingDaily = false;
+    private DailyReportDto? dailyReport = null;
+
+    // ===== فیلدهای گزارش تراکنش‌ها =====
+    private DateTime txnFromDate = DateTime.Today.AddDays(-30);
+    private DateTime txnToDate = DateTime.Today;
+    private long txnBranchId = 0;
+    private string txnStatus = "";
+    private bool isLoadingTransactions = false;
+    private List<TransactionReportDto> transactionReports = new();
+
+    // ===== فیلدهای گزارش کارمزد =====
+    private DateTime commFromDate = DateTime.Today.AddDays(-30);
+    private DateTime commToDate = DateTime.Today;
+    private long commBranchId = 0;
+    private bool isLoadingCommission = false;
+    private List<CommissionReportDto> commissionReports = new();
+
+    // ===== فیلدهای تراز آزمایشی =====
+    private DateTime tbAsOfDate = DateTime.Today;
+    private long tbBranchId = 0;
+    private bool isLoadingTB = false;
+    private List<TrialBalanceDto> trialBalance = new();
+
+    // ===== فیلدهای گزارش مشتری =====
+    private long custCustomerId = 0;
+    private DateTime custFromDate = DateTime.Today.AddDays(-30);
+    private DateTime custToDate = DateTime.Today;
+    private bool isLoadingCustomer = false;
+    private List<TransactionReportDto> customerReports = new();
+
+    // ===== فیلدهای گزارش نماینده =====
+    private long corrCorrespondentId = 0;
+    private DateTime corrFromDate = DateTime.Today.AddDays(-30);
+    private DateTime corrToDate = DateTime.Today;
+    private bool isLoadingCorrespondent = false;
+    private List<TransactionReportDto> correspondentReports = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupData();
+        await LoadDailyReport();
+    }
+
+    private async Task LoadLookupData()
+    {
+        try
+        {
+            branches = (await BranchService.GetAllAsync()).ToList();
+            customers = (await CustomerService.GetAllAsync()).ToList();
+            correspondents = (await CorrespondentService.GetAllAsync()).ToList();
+        }
+        catch { }
+    }
+
+    private void SetTab(string tab)
+    {
+        activeTab = tab;
+        StateHasChanged();
+        switch (tab)
+        {
+            case "daily": _ = LoadDailyReport(); break;
+            case "transactions": _ = LoadTransactionReport(); break;
+            case "commission": _ = LoadCommissionReport(); break;
+            case "trialbalance": _ = LoadTrialBalance(); break;
+            case "customer": break;
+            case "correspondent": break;
+        }
+    }
+
+    // ===== گزارش روزانه =====
+    private async Task LoadDailyReport()
+    {
+        if (dailyBranchId == 0)
+        {
+            dailyBranchId = branches.FirstOrDefault()?.Id ?? 0;
+        }
+        if (dailyBranchId == 0) return;
+
+        isLoadingDaily = true;
+        StateHasChanged();
+        try
+        {
+            dailyReport = await ReportService.GetDailyReportAsync(dailyDate, dailyBranchId);
+        }
+        catch
+        {
+            dailyReport = null;
+        }
+        finally
+        {
+            isLoadingDaily = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ResetDailyReport()
+    {
+        dailyDate = DateTime.Today;
+        dailyBranchId = 0;
+        dailyReport = null;
+        StateHasChanged();
+    }
+
+    // ===== گزارش تراکنش‌ها =====
+    private async Task LoadTransactionReport()
+    {
+        isLoadingTransactions = true;
+        StateHasChanged();
+        try
+        {
+            long? branchId = txnBranchId == 0 ? (long?)null : txnBranchId;
+            string? status = string.IsNullOrEmpty(txnStatus) ? null : txnStatus;
+            var result = await ReportService.GetTransactionReportAsync(txnFromDate, txnToDate, branchId, status);
+            transactionReports = result.ToList();
+        }
+        catch
+        {
+            transactionReports = new();
+        }
+        finally
+        {
+            isLoadingTransactions = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ResetTransactionReport()
+    {
+        txnFromDate = DateTime.Today.AddDays(-30);
+        txnToDate = DateTime.Today;
+        txnBranchId = 0;
+        txnStatus = "";
+        transactionReports = new();
+        StateHasChanged();
+    }
+
+    // ===== گزارش کارمزد =====
+    private async Task LoadCommissionReport()
+    {
+        isLoadingCommission = true;
+        StateHasChanged();
+        try
+        {
+            long? branchId = commBranchId == 0 ? (long?)null : commBranchId;
+            var result = await ReportService.GetCommissionReportAsync(commFromDate, commToDate, branchId);
+            commissionReports = result.ToList();
+        }
+        catch
+        {
+            commissionReports = new();
+        }
+        finally
+        {
+            isLoadingCommission = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ResetCommissionReport()
+    {
+        commFromDate = DateTime.Today.AddDays(-30);
+        commToDate = DateTime.Today;
+        commBranchId = 0;
+        commissionReports = new();
+        StateHasChanged();
+    }
+
+    // ===== تراز آزمایشی =====
+    private async Task LoadTrialBalance()
+    {
+        isLoadingTB = true;
+        StateHasChanged();
+        try
+        {
+            long? branchId = tbBranchId == 0 ? (long?)null : tbBranchId;
+            var result = await ReportService.GetTrialBalanceAsync(tbAsOfDate, branchId);
+            trialBalance = result.ToList();
+        }
+        catch
+        {
+            trialBalance = new();
+        }
+        finally
+        {
+            isLoadingTB = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ResetTrialBalance()
+    {
+        tbAsOfDate = DateTime.Today;
+        tbBranchId = 0;
+        trialBalance = new();
+        StateHasChanged();
+    }
+
+    // ===== گزارش مشتری =====
+    private async Task LoadCustomerReport()
+    {
+        if (custCustomerId == 0) return;
+        isLoadingCustomer = true;
+        StateHasChanged();
+        try
+        {
+            var result = await ReportService.GetCustomerTransactionReportAsync(custCustomerId, custFromDate, custToDate);
+            customerReports = result.ToList();
+        }
+        catch
+        {
+            customerReports = new();
+        }
+        finally
+        {
+            isLoadingCustomer = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ResetCustomerReport()
+    {
+        custCustomerId = 0;
+        custFromDate = DateTime.Today.AddDays(-30);
+        custToDate = DateTime.Today;
+        customerReports = new();
+        StateHasChanged();
+    }
+
+    // ===== گزارش نماینده =====
+    private async Task LoadCorrespondentReport()
+    {
+        if (corrCorrespondentId == 0) return;
+        isLoadingCorrespondent = true;
+        StateHasChanged();
+        try
+        {
+            var result = await ReportService.GetCorrespondentTransactionReportAsync(corrCorrespondentId, corrFromDate, corrToDate);
+            correspondentReports = result.ToList();
+        }
+        catch
+        {
+            correspondentReports = new();
+        }
+        finally
+        {
+            isLoadingCorrespondent = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ResetCorrespondentReport()
+    {
+        corrCorrespondentId = 0;
+        corrFromDate = DateTime.Today.AddDays(-30);
+        corrToDate = DateTime.Today;
+        correspondentReports = new();
+        StateHasChanged();
+    }
+
+    // ===== متدهای کمکی =====
+    private string GetTransactionTypeName(string type) => type switch
+    {
+        "HawalaSend" => "حواله ارسال",
+        "HawalaReceive" => "حواله دریافت",
+        "Exchange" => "تبدیل ارز",
+        "Transfer" => "انتقال",
+        "Expense" => "هزینه",
+        "Adjustment" => "تعدیل",
+        _ => type ?? "نامشخص"
+    };
+
+    private MarkupString GetStatusBadge(string status)
+    {
+        var badge = status switch
+        {
+            "Pending" => "<span class='badge bg-warning text-dark'>در انتظار</span>",
+            "Paid" => "<span class='badge bg-success'>پرداخت شده</span>",
+            "Cancel" => "<span class='badge bg-danger'>لغو شده</span>",
+            _ => $"<span class='badge bg-secondary'>{status}</span>"
+        };
+        return new MarkupString(badge);
+    }
+}

@@ -24,7 +24,12 @@ namespace HawalaExchange.Application.DTOs
         public string? TazkiraNumber { get; set; }
         public string? Address { get; set; }
         public string? Remarks { get; set; }
+
+        public bool HasInitialBalance { get; set; } = false;
+        public List<InitialBalanceDto>? InitialBalances { get; set; }
     }
+
+
 
     public class UpdateCustomerDto
     {

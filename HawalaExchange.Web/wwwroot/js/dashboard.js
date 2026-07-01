@@ -1,44 +1,43 @@
 ﻿// ==========================================
-// توابع نمودارها برای Dashboard
-// ==========================================
-
 // متغیرهای سراسری برای نگهداری نمونه‌های نمودار
-let transactionChartInstance = null;
-let statusChartInstance = null;
-let currencyChartInstance = null;
+// ==========================================
+let dailyChartInstance = null;
+let periodicChartInstance = null;
+let liquidityChartInstance = null;
+let miniChartInstance = null;   // ✅ اضافه شد
 
 // ==========================================
-// رسم نمودار خطی (تراکنش‌های روزانه)
+// رسم نمودار خطی (تراکنش‌های روزانه) - تم روشن
 // ==========================================
-window.renderTransactionChart = function (canvasId, labels, data, label) {
+window.renderDailyChart = function (canvasId, labels, data) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
-    // اگر نمودار قبلی وجود دارد، آن را نابود کن
-    if (transactionChartInstance) {
-        transactionChartInstance.destroy();
-        transactionChartInstance = null;
+    if (dailyChartInstance) {
+        dailyChartInstance.destroy();
+        dailyChartInstance = null;
     }
 
-    const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 400);
-    gradient.addColorStop(0, 'rgba(0, 97, 242, 0.3)');
-    gradient.addColorStop(1, 'rgba(0, 97, 242, 0.0)');
+    const gradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 200);
+    gradient.addColorStop(0, 'rgba(26, 92, 138, 0.20)');
+    gradient.addColorStop(1, 'rgba(26, 92, 138, 0.0)');
 
-    transactionChartInstance = new Chart(ctx, {
+    dailyChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [{
-                label: label || 'تعداد تراکنش‌ها',
+                label: 'تعداد تراکنش',
                 data: data,
-                borderColor: '#0061f2',
+                borderColor: '#1a5c8a',
                 backgroundColor: gradient,
                 fill: true,
                 tension: 0.4,
-                pointBackgroundColor: '#0061f2',
-                pointBorderColor: '#fff',
+                pointBackgroundColor: '#1a5c8a',
+                pointBorderColor: '#ffffff',
                 pointBorderWidth: 2,
-                pointRadius: 4
+                pointRadius: 4,
+                pointHoverRadius: 6
             }]
         },
         options: {
@@ -46,22 +45,19 @@ window.renderTransactionChart = function (canvasId, labels, data, label) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        font: {
-                            family: 'IRANSans, sans-serif',
-                            size: 12
-                        }
-                    }
+                    display: false
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(0,0,0,0.8)',
+                    backgroundColor: 'rgba(255,255,255,0.95)',
+                    titleColor: '#1a3d5c',
+                    bodyColor: '#1e293b',
+                    borderColor: '#cbd5e1',
+                    borderWidth: 1,
                     titleFont: {
-                        family: 'IRANSans, sans-serif'
+                        family: 'IRANSans, Tahoma, sans-serif'
                     },
                     bodyFont: {
-                        family: 'IRANSans, sans-serif'
+                        family: 'IRANSans, Tahoma, sans-serif'
                     }
                 }
             },
@@ -69,10 +65,16 @@ window.renderTransactionChart = function (canvasId, labels, data, label) {
                 y: {
                     beginAtZero: true,
                     grid: {
-                        color: 'rgba(0,0,0,0.05)'
+                        color: 'rgba(0,0,0,0.05)',
+                        drawBorder: false
                     },
                     ticks: {
-                        stepSize: 1
+                        color: '#4a5a6e',
+                        font: {
+                            family: 'IRANSans, Tahoma, sans-serif',
+                            size: 10
+                        },
+                        stepSize: 5
                     }
                 },
                 x: {
@@ -80,8 +82,10 @@ window.renderTransactionChart = function (canvasId, labels, data, label) {
                         display: false
                     },
                     ticks: {
+                        color: '#4a5a6e',
                         font: {
-                            family: 'IRANSans, sans-serif'
+                            family: 'IRANSans, Tahoma, sans-serif',
+                            size: 10
                         }
                     }
                 }
@@ -95,30 +99,34 @@ window.renderTransactionChart = function (canvasId, labels, data, label) {
 };
 
 // ==========================================
-// رسم نمودار دایره‌ای (وضعیت تراکنش‌ها)
+// رسم نمودار میله‌ای (گراف دوره‌ای مفاد) - تم روشن
 // ==========================================
-window.renderStatusChart = function (canvasId, labels, data, colors) {
+window.renderPeriodicChart = function (canvasId, labels, data) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
-    if (statusChartInstance) {
-        statusChartInstance.destroy();
-        statusChartInstance = null;
+    if (periodicChartInstance) {
+        periodicChartInstance.destroy();
+        periodicChartInstance = null;
     }
 
-    const defaultColors = ['#ffc107', '#28a745', '#dc3545', '#17a2b8', '#6c757d'];
-    const chartColors = colors || defaultColors;
+    const colors = [
+        '#1a5c8a',
+        '#3a7ca8',
+        '#5a9cc6',
+        '#7abce4'
+    ];
 
-    statusChartInstance = new Chart(ctx, {
-        type: 'doughnut',
+    periodicChartInstance = new Chart(ctx, {
+        type: 'bar',
         data: {
             labels: labels,
             datasets: [{
                 data: data,
-                backgroundColor: chartColors.slice(0, data.length),
-                borderColor: '#ffffff',
-                borderWidth: 2,
-                hoverOffset: 10
+                backgroundColor: colors.slice(0, data.length),
+                borderColor: colors.slice(0, data.length),
+                borderWidth: 1.5,
+                borderRadius: 4
             }]
         },
         options: {
@@ -126,72 +134,146 @@ window.renderStatusChart = function (canvasId, labels, data, colors) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    position: 'bottom',
-                    labels: {
-                        font: {
-                            family: 'IRANSans, sans-serif',
-                            size: 12
-                        },
-                        padding: 20,
-                        usePointStyle: true,
-                        pointStyle: 'circle'
-                    }
+                    display: false
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(0,0,0,0.8)',
+                    backgroundColor: 'rgba(255,255,255,0.95)',
+                    titleColor: '#1a3d5c',
+                    bodyColor: '#1e293b',
+                    borderColor: '#cbd5e1',
+                    borderWidth: 1,
                     titleFont: {
-                        family: 'IRANSans, sans-serif'
+                        family: 'IRANSans, Tahoma, sans-serif'
                     },
                     bodyFont: {
-                        family: 'IRANSans, sans-serif'
-                    },
-                    callbacks: {
-                        label: function (context) {
-                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = ((context.parsed / total) * 100).toFixed(1);
-                            return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
-                        }
+                        family: 'IRANSans, Tahoma, sans-serif'
                     }
                 }
             },
-            cutout: '65%'
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0,0,0,0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: '#4a5a6e',
+                        font: {
+                            family: 'IRANSans, Tahoma, sans-serif',
+                            size: 10
+                        },
+                        stepSize: 20
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    },
+                    ticks: {
+                        color: '#4a5a6e',
+                        font: {
+                            family: 'IRANSans, Tahoma, sans-serif',
+                            size: 10
+                        }
+                    }
+                }
+            }
         }
     });
 };
 
 // ==========================================
-// رسم نمودار میله‌ای (ارزهای پرکاربرد)
+// رسم نمودار دایره‌ای کوچک (نقدینگی) - تم روشن
 // ==========================================
-window.renderCurrencyChart = function (canvasId, labels, data, colors) {
+window.renderLiquidityChart = function (canvasId, labels, data) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return;
 
-    if (currencyChartInstance) {
-        currencyChartInstance.destroy();
-        currencyChartInstance = null;
+    if (liquidityChartInstance) {
+        liquidityChartInstance.destroy();
+        liquidityChartInstance = null;
     }
 
-    const defaultColors = [
-        'rgba(0, 97, 242, 0.8)',
-        'rgba(40, 167, 69, 0.8)',
-        'rgba(255, 193, 7, 0.8)',
-        'rgba(220, 53, 69, 0.8)',
-        'rgba(23, 162, 184, 0.8)',
-        'rgba(108, 117, 125, 0.8)'
+    const colors = [
+        '#1a5c8a',
+        '#4a8db7',
+        '#8ac7d9'
     ];
-    const chartColors = colors || defaultColors;
 
-    currencyChartInstance = new Chart(ctx, {
+    liquidityChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, data.length),
+                borderColor: '#ffffff',
+                borderWidth: 2,
+                hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(255,255,255,0.95)',
+                    titleColor: '#1a3d5c',
+                    bodyColor: '#1e293b',
+                    borderColor: '#cbd5e1',
+                    borderWidth: 1,
+                    titleFont: {
+                        family: 'IRANSans, Tahoma, sans-serif'
+                    },
+                    bodyFont: {
+                        family: 'IRANSans, Tahoma, sans-serif'
+                    },
+                    callbacks: {
+                        label: function (context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(0) : 0;
+                            return context.label + ': ' + percentage + '%';
+                        }
+                    }
+                }
+            },
+            cutout: '70%'
+        }
+    });
+};
+
+// ==========================================
+// رسم نمودار میله‌ای کوچک (معاملات) - تم روشن
+// ==========================================
+window.renderMiniChart = function (canvasId, labels, data) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx) return;
+
+    if (miniChartInstance) {
+        miniChartInstance.destroy();
+        miniChartInstance = null;
+    }
+
+    const colors = [
+        '#1a5c8a',
+        '#4a8db7',
+        '#8ac7d9'
+    ];
+
+    miniChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [{
-                label: 'تعداد تراکنش‌ها',
                 data: data,
-                backgroundColor: chartColors.slice(0, data.length),
-                borderColor: chartColors.slice(0, data.length).map(c => c.replace('0.8', '1')),
-                borderWidth: 1,
-                borderRadius: 6,
+                backgroundColor: colors.slice(0, data.length),
+                borderColor: colors.slice(0, data.length).map(c => c),
+                borderWidth: 1.5,
+                borderRadius: 4,
                 barPercentage: 0.6
             }]
         },
@@ -203,12 +285,16 @@ window.renderCurrencyChart = function (canvasId, labels, data, colors) {
                     display: false
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(0,0,0,0.8)',
+                    backgroundColor: 'rgba(255,255,255,0.95)',
+                    titleColor: '#1a3d5c',
+                    bodyColor: '#1e293b',
+                    borderColor: '#cbd5e1',
+                    borderWidth: 1,
                     titleFont: {
-                        family: 'IRANSans, sans-serif'
+                        family: 'IRANSans, Tahoma, sans-serif'
                     },
                     bodyFont: {
-                        family: 'IRANSans, sans-serif'
+                        family: 'IRANSans, Tahoma, sans-serif'
                     }
                 }
             },
@@ -216,7 +302,16 @@ window.renderCurrencyChart = function (canvasId, labels, data, colors) {
                 y: {
                     beginAtZero: true,
                     grid: {
-                        color: 'rgba(0,0,0,0.05)'
+                        color: 'rgba(0,0,0,0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        color: '#4a5a6e',
+                        font: {
+                            family: 'IRANSans, Tahoma, sans-serif',
+                            size: 10
+                        },
+                        stepSize: 10
                     }
                 },
                 x: {
@@ -224,8 +319,10 @@ window.renderCurrencyChart = function (canvasId, labels, data, colors) {
                         display: false
                     },
                     ticks: {
+                        color: '#4a5a6e',
                         font: {
-                            family: 'IRANSans, sans-serif'
+                            family: 'IRANSans, Tahoma, sans-serif',
+                            size: 10
                         }
                     }
                 }

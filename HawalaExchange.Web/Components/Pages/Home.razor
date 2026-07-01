@@ -792,6 +792,7 @@
     private List<TransactionDto> allTransactions = new();
     private List<CurrencyDto> allCurrencies = new();
     private bool isDataLoaded = false;
+    private bool chartsRendered = false;
 
     [Inject]
     private IJSRuntime JSRuntime { get; set; } = default!;
@@ -804,11 +805,15 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && isDataLoaded)
+        // اگر داده‌ها بارگذاری شده‌اند ولی نمودارها رسم نشده‌اند، رسم کن
+        if (isDataLoaded && !chartsRendered)
         {
             await RenderCharts();
+            chartsRendered = true;
         }
     }
+
+    // ===== متدهای بارگذاری =====
 
     private async Task LoadInitialData()
     {
@@ -846,53 +851,54 @@
                 .Where(t => IsTransactionInCurrency(t, selectedCurrency))
                 .ToList();
 
-            // ===== 1. نرخ‌های ارز =====
+            // ===== بارگذاری تمام داده‌ها =====
             await LoadCurrencyRates();
-
-            // ===== 2. آمار =====
-            hawalaCount = filteredTransactions.Count(t => t.TransactionType == "HawalaSend" || t.TransactionType == "HawalaReceive");
-            exchangeCount = filteredTransactions.Count(t => t.TransactionType == "Exchange");
-            provisionCount = filteredTransactions.Count(t => t.TransactionType == "Provision");
-
-            totalTransactionCount = filteredTransactions.Count;
-            transactionDiffCount = filteredTransactions.Count(t => t.Status == "Pending");
-            cashTransactionCount = filteredTransactions.Count(t => t.Status == "Paid");
-            accountDiffCount = filteredTransactions.Count(t => t.Status == "Cancel");
-            accountTransactionCount = filteredTransactions.Count(t => t.Status == "Processing");
-
-            // ===== 3. مفاد تخمینی =====
-            var totalCommission = filteredTransactions
-                .Where(t => t.Status != "Cancel")
-                .SelectMany(t => t.TransactionDetails ?? new List<TransactionDetailDto>())
-                .Sum(d => d.CommissionAmount);
-            estimatedProvision = $"{selectedCurrency} {totalCommission:N0}";
-
-            // ===== 4. لیست بیشترین باقی‌داران =====
+            await LoadStatistics(filteredTransactions);
             await LoadTopRemainders(selectedCurrency);
-
-            // ===== 5. داده‌های نمودار روزانه =====
             await LoadDailyChartData(filteredTransactions);
-
-            // ===== 6. داده‌های نمودار دوره‌ای مفاد =====
             await LoadPeriodicChartData(filteredTransactions);
-
-            // ===== 7. داده‌های نمودار نقدینگی =====
             await LoadLiquidityData();
-
-            // ===== 8. داده‌های نمودار کوچک معاملات =====
             await LoadMiniChartData(filteredTransactions);
-
-            // ===== 9. بروزرسانی نقدینگی =====
             UpdateLiquidityItems();
 
             isDataLoaded = true;
             StateHasChanged();
+
+            // ✅ رسم نمودارها بعد از بارگذاری داده‌ها و رندر شدن صفحه
+            await InvokeAsync(async () =>
+            {
+                await Task.Delay(100); // صبر برای رندر شدن کامل DOM
+                await RenderCharts();
+                chartsRendered = true;
+            });
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading dashboard data: {ex.Message}");
         }
     }
+
+    private async Task LoadStatistics(List<TransactionDto> filteredTransactions)
+    {
+        hawalaCount = filteredTransactions.Count(t => t.TransactionType == "HawalaSend" || t.TransactionType == "HawalaReceive");
+        exchangeCount = filteredTransactions.Count(t => t.TransactionType == "Exchange");
+        provisionCount = filteredTransactions.Count(t => t.TransactionType == "Provision");
+
+        totalTransactionCount = filteredTransactions.Count;
+        transactionDiffCount = filteredTransactions.Count(t => t.Status == "Pending");
+        cashTransactionCount = filteredTransactions.Count(t => t.Status == "Paid");
+        accountDiffCount = filteredTransactions.Count(t => t.Status == "Cancel");
+        accountTransactionCount = filteredTransactions.Count(t => t.Status == "Processing");
+
+        // مفاد تخمینی
+        var totalCommission = filteredTransactions
+            .Where(t => t.Status != "Cancel")
+            .SelectMany(t => t.TransactionDetails ?? new List<TransactionDetailDto>())
+            .Sum(d => d.CommissionAmount);
+        estimatedProvision = $"{selectedCurrency} {totalCommission:N0}";
+    }
+
+    // ===== سایر متدها (بدون تغییر) =====
 
     private bool IsTransactionInCurrency(TransactionDto transaction, string currencyCode)
     {
@@ -909,8 +915,6 @@
         try
         {
             var rates = new List<ExchangeRateDto>();
-
-            // دریافت نرخ‌های لحظه‌ای از سرویس برای تمام ارزهای موجود
             var selectedCurrencyId = allCurrencies.First(c => c.Code == selectedCurrency).Id;
 
             foreach (var currency in allCurrencies)
@@ -926,12 +930,11 @@
                         FromCurrency = selectedCurrency,
                         ToCurrency = currency.Code,
                         Rate = rate.SellRate,
-                        ChangePercent = 0 // درصد تغییرات
+                        ChangePercent = 0
                     });
                 }
             }
 
-            // اگر نرخی دریافت نشد، از داده‌های نمونه استفاده کن
             if (!rates.Any())
             {
                 var sampleRates = GetSampleRates(selectedCurrency);
@@ -948,7 +951,6 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading currency rates: {ex.Message}");
-            // داده‌های پیش‌فرض
             currencyRates = GetSampleRates(selectedCurrency)
                 .Select(r => new CurrencyRateDto
                 {
@@ -1174,13 +1176,12 @@
         // ساده‌سازی شده
     }
 
+    // ===== متدهای رسم نمودار =====
+
     private async Task RenderCharts()
     {
         try
         {
-            // منتظر بمان تا DOM کامل شود
-            await Task.Delay(100);
-
             if (dailyLabels.Any() && dailyData.Any())
             {
                 await JSRuntime.InvokeVoidAsync("renderDailyChart", "dailyChart",
@@ -1212,11 +1213,12 @@
     }
 
     // ===== متدهای رویدادها =====
+
     private async Task OnCurrencyChanged(ChangeEventArgs e)
     {
         selectedCurrency = e.Value?.ToString() ?? "AFN";
+        chartsRendered = false;
         await LoadDashboardData();
-        await RenderCharts();
     }
 
     private async Task ApplyDateFilter()

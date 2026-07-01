@@ -25,6 +25,9 @@ namespace HawalaExchange.Application.DTOs
         public string AccountType { get; set; }
         public string? ReferenceType { get; set; }
         public long? ReferenceId { get; set; }
+
+        public bool HasInitialBalance { get; set; } = false;
+        public List<InitialBalanceDto>? InitialBalances { get; set; }
     }
 
     public class UpdateAccountDto
@@ -47,5 +50,14 @@ namespace HawalaExchange.Application.DTOs
         public decimal? BadehkarLimit { get; set; }
         public decimal AvailableBalance { get; set; }
         public bool IsOverLimit { get; set; }
+    }
+
+    public class InitialBalanceDto
+    {
+        public long CurrencyId { get; set; }
+        public decimal Amount { get; set; }
+        public string Direction { get; set; } = "Debit"; // "Debit" یا "Credit"
+        public long OppositeAccountId { get; set; }
+        public string? Description { get; set; }
     }
 }

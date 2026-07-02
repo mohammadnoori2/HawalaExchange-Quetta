@@ -17,6 +17,9 @@ namespace HawalaExchange.Application.DTOs
         public decimal BadehKar { get; set; } // Credit
         public string? Description { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        public string TransactionNo { get; set; } = string.Empty;
+        public string TransactionType { get; set; } = string.Empty;
     }
 
     public class CreateLedgerEntryDto

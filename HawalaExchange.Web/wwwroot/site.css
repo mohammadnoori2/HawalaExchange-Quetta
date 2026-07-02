@@ -541,44 +541,249 @@ body {
     }
 
 /* =========================================
-   RESPONSIVE
+   RESPONSIVE - TABLET & MOBILE
 ========================================= */
 
-@media (max-width: 992px) {
+/* ==========================================
+   راه‌حل قوی برای رفع رنگ پیش‌فرض Blazor در iPad Mini و تمام تبلت‌ها
+========================================= */
+
+/* تمام تبلت‌ها از جمله iPad Mini */
+@media only screen and (min-width: 768px) and (max-width: 1024px) {
+    /* بازنشانی کامل تمام استایل‌های پیش‌فرض Blazor */
+    .nav-sidebar,
+    .nav-sidebar *,
+    .navbar-brand-custom,
+    .navbar-brand-custom *,
+    .nav-scrollable,
+    .nav-scrollable *,
+    .nav-link-custom,
+    .nav-link-custom * {
+        all: revert !important;
+        /* این خط را برای ریست کامل کامنت می‌کنیم و به جای آن استایل‌های دستی می‌دهیم */
+    }
+
+    /* استایل‌های دستی برای override کردن Blazor */
+    .nav-sidebar {
+        width: 280px !important;
+        min-height: 100vh !important;
+        background: var(--lms-card-bg) !important;
+        box-shadow: 4px 0 20px rgba(0, 40, 80, 0.06) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        border-left: 1px solid rgba(0, 123, 255, 0.10) !important;
+        position: relative !important;
+        top: auto !important;
+        height: auto !important;
+        overflow-y: visible !important;
+        align-self: auto !important;
+    }
+
+    .navbar-brand-custom {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 1.25rem 1.5rem 1rem 1.5rem !important;
+        border-bottom: 1px solid rgba(0, 123, 255, 0.08) !important;
+        background: var(--lms-card-bg) !important;
+        flex-shrink: 0 !important;
+    }
+
+    .logo-icon {
+        width: 48px !important;
+        height: 48px !important;
+        background: linear-gradient(145deg, #e6f0ff, #d4e6ff) !important;
+        border-radius: 16px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: #0a6bff !important;
+        font-size: 28px !important;
+        box-shadow: 0 6px 14px rgba(0, 80, 200, 0.10) !important;
+        flex-shrink: 0 !important;
+    }
+
+    .logo-text {
+        font-weight: 600 !important;
+        font-size: 1.3rem !important;
+        letter-spacing: -0.5px !important;
+        color: #0b2b5c !important;
+        background: linear-gradient(145deg, #0b2b5c, #1a4b8a) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
+        line-height: 1.2 !important;
+    }
+
+    .logo-sub {
+        font-size: 0.7rem !important;
+        font-weight: 400 !important;
+        color: #3f6b9c !important;
+        background: #eaf3ff !important;
+        padding: 0.15rem 0.6rem !important;
+        border-radius: 40px !important;
+        display: inline-block !important;
+        -webkit-text-fill-color: #1f5080 !important;
+        margin-top: 2px !important;
+        letter-spacing: 0.3px !important;
+    }
+
+    .brand-wrapper {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .nav-scrollable {
+        flex: 1 1 auto !important;
+        overflow-y: auto !important;
+        padding: 0.75rem 0.25rem 2rem 0.25rem !important;
+        background: var(--lms-card-bg) !important;
+        scrollbar-width: thin !important;
+        scrollbar-color: #b8d4ff #f2f8ff !important;
+    }
+
+    .nav-link-custom {
+        display: flex !important;
+        align-items: center !important;
+        gap: 14px !important;
+        padding: 0.7rem 1.2rem !important;
+        margin: 0.2rem 0.6rem !important;
+        border-radius: 14px !important;
+        color: #1e3d66 !important;
+        font-weight: 450 !important;
+        font-size: 0.95rem !important;
+        transition: all 0.2s ease !important;
+        text-decoration: none !important;
+        background: transparent !important;
+        border: none !important;
+        white-space: nowrap !important;
+        position: relative !important;
+        cursor: pointer !important;
+        background-color: transparent !important;
+    }
+
+        .nav-link-custom i,
+        .nav-link-custom span[class^="bi-"] {
+            font-size: 1.3rem !important;
+            width: 1.8rem !important;
+            text-align: center !important;
+            color: #5a7fa8 !important;
+            transition: 0.2s !important;
+            flex-shrink: 0 !important;
+        }
+
+        .nav-link-custom:hover {
+            background: #e7f2ff !important;
+            color: #0645b0 !important;
+            transform: translateX(-4px) !important;
+            box-shadow: 0 3px 8px rgba(0, 80, 200, 0.06) !important;
+        }
+
+            .nav-link-custom:hover i,
+            .nav-link-custom:hover span[class^="bi-"] {
+                color: #0a6bff !important;
+            }
+
+        .nav-link-custom.active {
+            background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
+            color: #003d99 !important;
+            font-weight: 600 !important;
+            box-shadow: 0 4px 12px rgba(10, 107, 255, 0.15), inset 0 0 0 2px rgba(10, 107, 255, 0.2) !important;
+            transform: translateX(-2px) !important;
+        }
+
+            .nav-link-custom.active i,
+            .nav-link-custom.active span[class^="bi-"] {
+                color: #0066ff !important;
+                filter: drop-shadow(0 2px 4px rgba(0, 102, 255, 0.2)) !important;
+            }
+
+            .nav-link-custom.active::before {
+                content: '' !important;
+                position: absolute !important;
+                right: 0 !important;
+                top: 15% !important;
+                height: 70% !important;
+                width: 4px !important;
+                background: linear-gradient(180deg, #0a6bff, #4a8fff) !important;
+                border-radius: 0 4px 4px 0 !important;
+                box-shadow: 0 0 12px rgba(10, 107, 255, 0.3) !important;
+            }
+
+    .nav-divider {
+        height: 1px !important;
+        background: linear-gradient(to left, #c2dbff, transparent) !important;
+        margin: 0.6rem 1.2rem !important;
+        opacity: 0.5 !important;
+    }
+
+    /* مخفی کردن دکمه همبرگر در تبلت */
+    .navbar-toggler-custom {
+        display: none !important;
+    }
+
+    #nav-toggle {
+        display: none !important;
+    }
+
+    /* استایل‌های دکمه‌ها و المان‌های دیگر */
+    .tab-btn {
+        padding: 0.2rem 0.8rem !important;
+        border-radius: 20px !important;
+        border: 1px solid var(--lms-border) !important;
+        background: transparent !important;
+        font-size: 0.75rem !important;
+        color: #4a5a6e !important;
+        cursor: pointer !important;
+        transition: all 0.15s !important;
+    }
+
+        .tab-btn.active {
+            background: var(--lms-mid-blue) !important;
+            color: white !important;
+            border-color: var(--lms-mid-blue) !important;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: #eef3f9 !important;
+        }
+
+    /* تنظیمات گرید برای تبلت */
     .charts-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
     }
 
     .provision-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
     }
 
     .bottom-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr !important;
     }
 
     .stats-row {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 1fr !important;
     }
 
     .transaction-stats {
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr !important;
     }
 
     .currency-rates-grid {
-        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)) !important;
     }
 
     .dashboard-wrapper {
-        padding: 0.75rem;
+        padding: 0.75rem !important;
     }
 
     .liquidity-items {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr !important;
     }
 }
 
-@media (max-width: 576px) {
+/* موبایل */
+@media (max-width: 767px) {
     .stats-row {
         grid-template-columns: 1fr;
     }
@@ -610,6 +815,112 @@ body {
 
     .transaction-stats {
         grid-template-columns: 1fr 1fr;
+    }
+
+    .charts-row {
+        grid-template-columns: 1fr;
+    }
+
+    .provision-row {
+        grid-template-columns: 1fr;
+    }
+
+    .bottom-row {
+        grid-template-columns: 1fr;
+    }
+
+    .liquidity-items {
+        grid-template-columns: 1fr;
+    }
+
+    /* ===== رفع مشکل بک‌گراند دکمه همبرگر در موبایل ===== */
+    .navbar-toggler-custom {
+        display: block !important;
+        background: transparent !important;
+        border: none !important;
+        color: #0a6bff !important;
+        font-size: 1.8rem !important;
+        padding: 0.25rem 0.75rem !important;
+        border-radius: 12px !important;
+        cursor: pointer !important;
+        transition: 0.15s !important;
+        box-shadow: none !important;
+        outline: none !important;
+        margin-right: auto !important;
+        background-color: transparent !important;
+        background-image: none !important;
+    }
+
+        .navbar-toggler-custom:hover {
+            background: #e3efff !important;
+        }
+
+        .navbar-toggler-custom:focus,
+        .navbar-toggler-custom:active {
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+
+    /* ===== استایل نوار کناری در موبایل ===== */
+    .nav-sidebar {
+        width: 100% !important;
+        min-height: auto !important;
+        position: relative !important;
+        border-left: none !important;
+        border-bottom: 1px solid rgba(0, 123, 255, 0.08) !important;
+        box-shadow: 0 4px 16px rgba(0, 40, 80, 0.04) !important;
+        height: auto !important;
+        overflow-y: visible !important;
+        background: var(--lms-card-bg) !important;
+    }
+
+    .navbar-brand-custom {
+        padding: 0.8rem 1rem !important;
+        flex-wrap: wrap !important;
+        background: var(--lms-card-bg) !important;
+    }
+
+    .nav-scrollable {
+        max-height: 0 !important;
+        overflow-y: hidden !important;
+        padding: 0 0.25rem !important;
+        transition: max-height 0.25s ease, padding 0.2s !important;
+        background: var(--lms-card-bg) !important;
+    }
+
+    #nav-toggle:checked ~ .nav-scrollable {
+        max-height: 80vh !important;
+        padding: 0.75rem 0.25rem 2rem 0.25rem !important;
+        overflow-y: auto !important;
+        border-top: 1px solid rgba(0, 100, 255, 0.05) !important;
+    }
+
+    .nav-link-custom {
+        padding: 0.6rem 1rem !important;
+        font-size: 0.95rem !important;
+        margin: 0.1rem 0.2rem !important;
+        color: #1e3d66 !important;
+        background: transparent !important;
+    }
+
+        .nav-link-custom.active {
+            background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
+            color: #003d99 !important;
+        }
+
+            .nav-link-custom.active::before {
+                display: none !important;
+            }
+
+    .logo-icon {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 22px !important;
+    }
+
+    .logo-text {
+        font-size: 1.1rem !important;
     }
 }
 
@@ -644,11 +955,10 @@ body {
     display: flex;
     flex-direction: column;
     border-left: 1px solid rgba(0, 123, 255, 0.10);
-    /* حذف position: sticky برای حل مشکل اسکرول */
 }
 
 /* استایل دسکتاپ - نوار کناری ثابت می‌ماند */
-@media (min-width: 769px) {
+@media (min-width: 1025px) {
     .nav-sidebar {
         position: sticky;
         top: 0;
@@ -673,20 +983,6 @@ body {
         }
 }
 
-/* استایل موبایل - نوار کناری عادی اسکرول می‌شود */
-@media (max-width: 768px) {
-    .nav-sidebar {
-        width: 100%;
-        min-height: auto;
-        position: relative;
-        border-left: none;
-        border-bottom: 1px solid rgba(0, 123, 255, 0.08);
-        box-shadow: 0 4px 16px rgba(0, 40, 80, 0.04);
-        height: auto;
-        overflow-y: visible;
-    }
-}
-
 .navbar-brand-custom {
     display: flex;
     align-items: center;
@@ -694,7 +990,7 @@ body {
     padding: 1.25rem 1.5rem 1rem 1.5rem;
     border-bottom: 1px solid rgba(0, 123, 255, 0.08);
     background: var(--lms-card-bg);
-    flex-shrink: 0; /* جلوگیری از کوچک شدن هدر */
+    flex-shrink: 0;
 }
 
 .logo-icon {
@@ -741,6 +1037,7 @@ body {
     flex-direction: column;
 }
 
+/* دکمه همبرگر - بدون بک‌گراند */
 .navbar-toggler-custom {
     display: none;
     border: none;
@@ -753,10 +1050,21 @@ body {
     cursor: pointer;
     transition: 0.15s;
     flex-shrink: 0;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    outline: none !important;
 }
 
     .navbar-toggler-custom:hover {
-        background: #e3efff;
+        background: #e3efff !important;
+    }
+
+    .navbar-toggler-custom:focus,
+    .navbar-toggler-custom:active {
+        outline: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
     }
 
 .nav-scrollable {
@@ -765,6 +1073,7 @@ body {
     padding: 0.75rem 0.25rem 2rem 0.25rem;
     scrollbar-width: thin;
     scrollbar-color: #b8d4ff #f2f8ff;
+    background: var(--lms-card-bg);
 }
 
     .nav-scrollable::-webkit-scrollbar {
@@ -797,6 +1106,7 @@ body {
     white-space: nowrap;
     position: relative;
     cursor: pointer;
+    background-color: transparent !important;
 }
 
     .nav-link-custom i,
@@ -810,8 +1120,8 @@ body {
     }
 
     .nav-link-custom:hover {
-        background: #e7f2ff;
-        color: #0645b0;
+        background: #e7f2ff !important;
+        color: #0645b0 !important;
         transform: translateX(-4px);
         box-shadow: 0 3px 8px rgba(0, 80, 200, 0.06);
     }
@@ -858,60 +1168,6 @@ body {
     display: none;
 }
 
-/* ===== واکنش‌گرایی موبایل ===== */
-@media (max-width: 768px) {
-    .navbar-brand-custom {
-        padding: 0.8rem 1rem;
-        flex-wrap: wrap;
-    }
-
-    .navbar-toggler-custom {
-        display: block;
-    }
-
-    .nav-scrollable {
-        max-height: 0;
-        overflow-y: hidden;
-        padding: 0 0.25rem;
-        transition: max-height 0.25s ease, padding 0.2s;
-        background: white;
-    }
-
-    #nav-toggle:checked ~ .nav-scrollable {
-        max-height: 80vh;
-        padding: 0.75rem 0.25rem 2rem 0.25rem;
-        overflow-y: auto;
-        border-top: 1px solid rgba(0, 100, 255, 0.05);
-    }
-
-    .nav-link-custom {
-        padding: 0.6rem 1rem;
-        font-size: 0.95rem;
-        margin: 0.1rem 0.2rem;
-    }
-
-    .logo-icon {
-        width: 40px;
-        height: 40px;
-        font-size: 22px;
-    }
-
-    .logo-text {
-        font-size: 1.1rem;
-    }
-
-    .nav-link-custom.active::before {
-        display: none;
-    }
-}
-
-/* دکمه تاگل در حالت دسکتاپ مخفی می‌شود */
-@media (min-width: 769px) {
-    .navbar-toggler-custom {
-        display: none !important;
-    }
-}
-
 /* ==========================================
    اضافه شده برای اطمینان از عدم اسکرول نوار کناری با صفحه
 ========================================= */
@@ -929,8 +1185,8 @@ body {
     padding: 0;
 }
 
-/* در موبایل که نوار کناری به صورت هدر نمایش داده می‌شود */
-@media (max-width: 768px) {
+/* در موبایل و تبلت که نوار کناری به صورت هدر نمایش داده می‌شود */
+@media (max-width: 1024px) {
     .dashboard-layout {
         flex-direction: column;
     }

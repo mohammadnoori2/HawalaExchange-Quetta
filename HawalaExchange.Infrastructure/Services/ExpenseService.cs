@@ -70,7 +70,7 @@ namespace HawalaExchange.Application.Services
                         AccountCode = "4001",
                         AccountName = "General Expenses",
                         AccountType = "Expense",
-                        IsActive = true,
+                        IsArchived = false,
                         CreatedAt = DateTime.UtcNow
                     };
                     await _context.Accounts.AddAsync(expenseAccount);

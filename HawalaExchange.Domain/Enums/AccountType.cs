@@ -6,12 +6,12 @@ namespace HawalaExchange.Domain.Enums
 {
     public enum AccountType
     {
-        Cash,
-        Bank,
-        Customer,
-        Correspondent,
-        Income,
-        Expense,
-        Equity
+        نقدی,
+        بانکی,
+        مشتری,
+        نماینده,
+        درامد,
+        هزینه,
+        سهام
     }
 }

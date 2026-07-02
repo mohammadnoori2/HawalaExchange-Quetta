@@ -27,7 +27,6 @@ namespace HawalaExchange.Domain.Entities
 
         public long? ReferenceId { get; set; } // Foreign key to Customer.Id or Correspondent.Id
 
-        public bool IsActive { get; set; } = true;
 
         public bool IsArchived { get; set; } = false;
 

@@ -13,5 +13,6 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<AccountDto> UnarchiveAsync(long id);
         Task<decimal> GetAccountBalanceAsync(long accountId, long currencyId);
         Task<IEnumerable<BalanceDto>> GetAllAccountBalancesAsync(long accountId);
+        Task<string> GetNextAccountCodeAsync(string accountType);
     }
 }

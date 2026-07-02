@@ -1,0 +1,941 @@
+﻿/* =========================================
+    GLOBAL-HawalaExchange THEME  
+========================================= */
+
+
+:root {
+    --lms-primary: #0B1A2E;
+    --lms-secondary: #132843;
+    --lms-gold: #F5D742;
+    --lms-success: #198754;
+    --lms-danger: #dc3545;
+    --lms-warning: #ffc107;
+    --lms-info: #0dcaf0;
+    --lms-bg: #f4f7fb;
+    --lms-card-bg: #ffffff;
+    --lms-text: #1d2939;
+    --lms-muted: #667085;
+    --lms-light-blue: #e6f0fa;
+    --lms-dark-blue: #0b3b5c;
+    --lms-mid-blue: #1a5c8a;
+    --lms-border: #dce3ed;
+    --lms-box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+}
+
+
+/* =========================================
+   BODY & HTML
+========================================= */
+
+html,
+body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--lms-bg);
+    color: var(--lms-text);
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+/* =========================================
+   DASHBOARD WRAPPER
+========================================= */
+
+.dashboard-wrapper {
+    padding: 1.25rem 1.5rem;
+    background: var(--lms-bg);
+    min-height: 100vh;
+    font-family: 'Segoe UI', 'Vazir', Tahoma, sans-serif;
+    color: #1e293b;
+    direction: rtl;
+    font-size: 0.9rem;
+}
+
+/* =========================================
+   DASHBOARD HEADER
+========================================= */
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    background: var(--lms-card-bg);
+    padding: 0.75rem 1.25rem;
+    border-radius: 12px;
+    box-shadow: var(--lms-box-shadow);
+    border-bottom: 2px solid var(--lms-border);
+    margin-bottom: 1.5rem;
+}
+
+.header-left .time-label {
+    font-size: 0.8rem;
+    color: #4a5a6e;
+    margin-left: 0.4rem;
+}
+
+.header-left .time-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--lms-dark-blue);
+}
+
+.header-center .currency-selector select {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 0.3rem 1.2rem 0.3rem 0.8rem;
+    font-size: 0.9rem;
+    background: white;
+    color: var(--lms-dark-blue);
+    font-weight: 500;
+    outline: none;
+    min-width: 150px;
+}
+
+.badge-live {
+    background: var(--lms-light-blue);
+    color: var(--lms-mid-blue);
+    padding: 0.25rem 1.2rem;
+    border-radius: 30px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid #b8d0e5;
+}
+
+/* =========================================
+   CURRENCY RATES GRID
+========================================= */
+
+.currency-rates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+    background: var(--lms-card-bg);
+    padding: 0.8rem 1rem;
+    border-radius: 12px;
+    box-shadow: var(--lms-box-shadow);
+}
+
+.rate-card {
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 0.5rem 0.6rem;
+    text-align: center;
+    border: 1px solid #e9edf3;
+    transition: background 0.15s;
+}
+
+    .rate-card:hover {
+        background: #eef3f9;
+    }
+
+.rate-pair {
+    font-size: 0.7rem;
+    color: #5a6f84;
+    letter-spacing: 0.2px;
+}
+
+.rate-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--lms-dark-blue);
+    direction: ltr;
+    display: inline-block;
+}
+
+.rate-change {
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+    .rate-change.positive {
+        color: #1e8a5e;
+    }
+
+    .rate-change.negative {
+        color: #b33c3c;
+    }
+
+/* =========================================
+   STATS ROW
+========================================= */
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.stat-box {
+    background: var(--lms-card-bg);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    box-shadow: var(--lms-box-shadow);
+    border: 1px solid #e9edf3;
+}
+
+.stat-icon {
+    font-size: 1.4rem;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: #4a5a6e;
+}
+
+.stat-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--lms-dark-blue);
+    margin-right: auto;
+}
+
+/* =========================================
+   CHARTS ROW
+========================================= */
+
+.charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.chart-box {
+    background: var(--lms-card-bg);
+    border-radius: 12px;
+    padding: 1rem 1rem 0.5rem 1rem;
+    border: 1px solid #e9edf3;
+    box-shadow: var(--lms-box-shadow);
+}
+
+.chart-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.chart-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1a3d5c;
+}
+
+    .chart-title i {
+        margin-left: 0.5rem;
+        color: #2a7faa;
+    }
+
+.chart-body {
+    height: 170px;
+    position: relative;
+}
+
+    .chart-body canvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+/* =========================================
+   PROVISION ROW
+========================================= */
+
+.provision-row {
+    display: grid;
+    grid-template-columns: 1fr 2.5fr;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.provision-card {
+    background: var(--lms-card-bg);
+    border-radius: 12px;
+    padding: 1.2rem 1.5rem;
+    border: 1px solid #e9edf3;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-shadow: var(--lms-box-shadow);
+}
+
+.provision-label {
+    font-size: 0.75rem;
+    color: #5a6f84;
+}
+
+.provision-amount {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--lms-dark-blue);
+}
+
+.provision-sub {
+    font-size: 0.7rem;
+    color: #8a9eb0;
+}
+
+.top-remain-card {
+    background: var(--lms-card-bg);
+    border-radius: 12px;
+    padding: 0.8rem 1.2rem;
+    border: 1px solid #e9edf3;
+    box-shadow: var(--lms-box-shadow);
+}
+
+.top-remain-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid #e9edf3;
+    margin-bottom: 0.5rem;
+}
+
+.top-remain-title {
+    font-weight: 600;
+    color: #1a3d5c;
+    font-size: 0.9rem;
+}
+
+.top-remain-sub {
+    font-size: 0.7rem;
+    color: #5a6f84;
+    font-weight: 600;
+}
+
+.remain-header-row {
+    display: grid;
+    grid-template-columns: 2fr 0.7fr 1fr;
+    font-size: 0.7rem;
+    color: #5a6f84;
+    padding: 0.2rem 0.2rem;
+    border-bottom: 1px dashed var(--lms-border);
+    margin-bottom: 0.2rem;
+    font-weight: 600;
+}
+
+.remain-item {
+    display: grid;
+    grid-template-columns: 2fr 0.7fr 1fr;
+    align-items: center;
+    padding: 0.2rem 0.2rem;
+    font-size: 0.8rem;
+    border-bottom: 1px solid #f0f4f9;
+}
+
+    .remain-item:last-child {
+        border-bottom: none;
+    }
+
+.remain-name {
+    color: #1a3d5c;
+}
+
+.remain-initial {
+    background: #e9edf3;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #1a3d5c;
+}
+
+.remain-amount {
+    font-weight: 600;
+    color: var(--lms-dark-blue);
+    text-align: left;
+    direction: ltr;
+}
+
+/* =========================================
+   BOTTOM ROW
+========================================= */
+
+.bottom-row {
+    display: grid;
+    grid-template-columns: 1.6fr 1.4fr;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.transactions-card {
+    background: var(--lms-card-bg);
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+    border: 1px solid #e9edf3;
+    box-shadow: var(--lms-box-shadow);
+}
+
+.date-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.7rem;
+}
+
+.date-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+}
+
+    .date-input-group input {
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 0.2rem 0.4rem;
+        font-size: 0.75rem;
+    }
+
+.btn-filter {
+    background: var(--lms-mid-blue);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.2rem 0.8rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+    .btn-filter:hover {
+        background: var(--lms-dark-blue);
+    }
+
+.section-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1a3d5c;
+    margin-bottom: 0.7rem;
+    border-bottom: 2px solid #e9edf3;
+    padding-bottom: 0.4rem;
+}
+
+.transaction-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    gap: 0.3rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.transaction-stat {
+    text-align: center;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 0.4rem 0.2rem;
+}
+
+    .transaction-stat .stat-label {
+        display: block;
+        font-size: 0.6rem;
+        color: #5a6f84;
+    }
+
+    .transaction-stat .stat-value {
+        display: block;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--lms-dark-blue);
+    }
+
+        .transaction-stat .stat-value.highlight {
+            color: #c97d2b;
+            font-size: 1.2rem;
+        }
+
+.mini-chart-container {
+    height: 70px;
+    position: relative;
+}
+
+    .mini-chart-container canvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+/* =========================================
+   LIQUIDITY CARD
+========================================= */
+
+.liquidity-card {
+    background: var(--lms-card-bg);
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+    border: 1px solid #e9edf3;
+    box-shadow: var(--lms-box-shadow);
+}
+
+.liquidity-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+
+.tab-btn {
+    padding: 0.2rem 0.8rem;
+    border-radius: 20px;
+    border: 1px solid var(--lms-border);
+    background: transparent;
+    font-size: 0.75rem;
+    color: #4a5a6e;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+    .tab-btn.active {
+        background: var(--lms-mid-blue);
+        color: white;
+        border-color: var(--lms-mid-blue);
+    }
+
+    .tab-btn:hover:not(.active) {
+        background: #eef3f9;
+    }
+
+.liquidity-items {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.2rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.liquidity-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    padding: 0.1rem 0;
+    border-bottom: 1px dashed #e9edf3;
+}
+
+.liquidity-currency {
+    color: #4a5a6e;
+}
+
+.liquidity-percent {
+    font-weight: 600;
+    color: var(--lms-dark-blue);
+}
+
+.liquidity-chart-container {
+    height: 70px;
+    position: relative;
+}
+
+    .liquidity-chart-container canvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 992px) {
+    .charts-row {
+        grid-template-columns: 1fr;
+    }
+
+    .provision-row {
+        grid-template-columns: 1fr;
+    }
+
+    .bottom-row {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-row {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .transaction-stats {
+        grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .currency-rates-grid {
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    }
+
+    .dashboard-wrapper {
+        padding: 0.75rem;
+    }
+
+    .liquidity-items {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 576px) {
+    .stats-row {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .header-center {
+        order: 2;
+    }
+
+    .currency-rates-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.3rem;
+    }
+
+    .remain-item,
+    .remain-header-row {
+        grid-template-columns: 1.5fr 0.5fr 1fr;
+        font-size: 0.7rem;
+    }
+
+    .date-filter {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .transaction-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* =========================================
+   SCROLLBAR
+========================================= */
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(11, 26, 46, 0.25);
+    border-radius: 10px;
+}
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(11, 26, 46, 0.45);
+    }
+
+
+
+/* ==========================================
+   NAVMENU – استایل‌های منوی ناوبری (آپدیت شده)
+========================================= */
+
+.nav-sidebar {
+    width: 280px;
+    background: var(--lms-card-bg);
+    box-shadow: 4px 0 20px rgba(0, 40, 80, 0.06);
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid rgba(0, 123, 255, 0.10);
+    /* حذف position: sticky برای حل مشکل اسکرول */
+}
+
+/* استایل دسکتاپ - نوار کناری ثابت می‌ماند */
+@media (min-width: 769px) {
+    .nav-sidebar {
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+        height: 100vh;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: #b8d4ff #f2f8ff;
+    }
+
+        .nav-sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .nav-sidebar::-webkit-scrollbar-track {
+            background: #f2f8ff;
+        }
+
+        .nav-sidebar::-webkit-scrollbar-thumb {
+            background: #b8d4ff;
+            border-radius: 20px;
+        }
+}
+
+/* استایل موبایل - نوار کناری عادی اسکرول می‌شود */
+@media (max-width: 768px) {
+    .nav-sidebar {
+        width: 100%;
+        min-height: auto;
+        position: relative;
+        border-left: none;
+        border-bottom: 1px solid rgba(0, 123, 255, 0.08);
+        box-shadow: 0 4px 16px rgba(0, 40, 80, 0.04);
+        height: auto;
+        overflow-y: visible;
+    }
+}
+
+.navbar-brand-custom {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 1.25rem 1.5rem 1rem 1.5rem;
+    border-bottom: 1px solid rgba(0, 123, 255, 0.08);
+    background: var(--lms-card-bg);
+    flex-shrink: 0; /* جلوگیری از کوچک شدن هدر */
+}
+
+.logo-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(145deg, #e6f0ff, #d4e6ff);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0a6bff;
+    font-size: 28px;
+    box-shadow: 0 6px 14px rgba(0, 80, 200, 0.10);
+    flex-shrink: 0;
+}
+
+.logo-text {
+    font-weight: 600;
+    font-size: 1.3rem;
+    letter-spacing: -0.5px;
+    color: #0b2b5c;
+    background: linear-gradient(145deg, #0b2b5c, #1a4b8a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+}
+
+.logo-sub {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: #3f6b9c;
+    background: #eaf3ff;
+    padding: 0.15rem 0.6rem;
+    border-radius: 40px;
+    display: inline-block;
+    -webkit-text-fill-color: #1f5080;
+    margin-top: 2px;
+    letter-spacing: 0.3px;
+}
+
+.brand-wrapper {
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar-toggler-custom {
+    display: none;
+    border: none;
+    background: transparent;
+    font-size: 1.8rem;
+    color: #0a6bff;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    margin-right: auto;
+    cursor: pointer;
+    transition: 0.15s;
+    flex-shrink: 0;
+}
+
+    .navbar-toggler-custom:hover {
+        background: #e3efff;
+    }
+
+.nav-scrollable {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 0.75rem 0.25rem 2rem 0.25rem;
+    scrollbar-width: thin;
+    scrollbar-color: #b8d4ff #f2f8ff;
+}
+
+    .nav-scrollable::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .nav-scrollable::-webkit-scrollbar-track {
+        background: #f2f8ff;
+    }
+
+    .nav-scrollable::-webkit-scrollbar-thumb {
+        background: #b8d4ff;
+        border-radius: 20px;
+    }
+
+.nav-link-custom {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0.7rem 1.2rem;
+    margin: 0.2rem 0.6rem;
+    border-radius: 14px;
+    color: #1e3d66;
+    font-weight: 450;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    background: transparent;
+    border: none;
+    white-space: nowrap;
+    position: relative;
+    cursor: pointer;
+}
+
+    .nav-link-custom i,
+    .nav-link-custom span[class^="bi-"] {
+        font-size: 1.3rem;
+        width: 1.8rem;
+        text-align: center;
+        color: #5a7fa8;
+        transition: 0.2s;
+        flex-shrink: 0;
+    }
+
+    .nav-link-custom:hover {
+        background: #e7f2ff;
+        color: #0645b0;
+        transform: translateX(-4px);
+        box-shadow: 0 3px 8px rgba(0, 80, 200, 0.06);
+    }
+
+        .nav-link-custom:hover i,
+        .nav-link-custom:hover span[class^="bi-"] {
+            color: #0a6bff;
+        }
+
+    .nav-link-custom.active {
+        background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
+        color: #003d99 !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 12px rgba(10, 107, 255, 0.15), inset 0 0 0 2px rgba(10, 107, 255, 0.2) !important;
+        transform: translateX(-2px);
+    }
+
+        .nav-link-custom.active i,
+        .nav-link-custom.active span[class^="bi-"] {
+            color: #0066ff !important;
+            filter: drop-shadow(0 2px 4px rgba(0, 102, 255, 0.2));
+        }
+
+        .nav-link-custom.active::before {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 15%;
+            height: 70%;
+            width: 4px;
+            background: linear-gradient(180deg, #0a6bff, #4a8fff);
+            border-radius: 0 4px 4px 0;
+            box-shadow: 0 0 12px rgba(10, 107, 255, 0.3);
+        }
+
+.nav-divider {
+    height: 1px;
+    background: linear-gradient(to left, #c2dbff, transparent);
+    margin: 0.6rem 1.2rem;
+    opacity: 0.5;
+}
+
+#nav-toggle {
+    display: none;
+}
+
+/* ===== واکنش‌گرایی موبایل ===== */
+@media (max-width: 768px) {
+    .navbar-brand-custom {
+        padding: 0.8rem 1rem;
+        flex-wrap: wrap;
+    }
+
+    .navbar-toggler-custom {
+        display: block;
+    }
+
+    .nav-scrollable {
+        max-height: 0;
+        overflow-y: hidden;
+        padding: 0 0.25rem;
+        transition: max-height 0.25s ease, padding 0.2s;
+        background: white;
+    }
+
+    #nav-toggle:checked ~ .nav-scrollable {
+        max-height: 80vh;
+        padding: 0.75rem 0.25rem 2rem 0.25rem;
+        overflow-y: auto;
+        border-top: 1px solid rgba(0, 100, 255, 0.05);
+    }
+
+    .nav-link-custom {
+        padding: 0.6rem 1rem;
+        font-size: 0.95rem;
+        margin: 0.1rem 0.2rem;
+    }
+
+    .logo-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 22px;
+    }
+
+    .logo-text {
+        font-size: 1.1rem;
+    }
+
+    .nav-link-custom.active::before {
+        display: none;
+    }
+}
+
+/* دکمه تاگل در حالت دسکتاپ مخفی می‌شود */
+@media (min-width: 769px) {
+    .navbar-toggler-custom {
+        display: none !important;
+    }
+}
+
+/* ==========================================
+   اضافه شده برای اطمینان از عدم اسکرول نوار کناری با صفحه
+========================================= */
+
+/* اطمینان از اینکه محتوای اصلی در کنار نوار کناری قرار می‌گیرد */
+.dashboard-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* محتوای اصلی */
+.main-content {
+    flex: 1;
+    overflow-x: hidden;
+    padding: 0;
+}
+
+/* در موبایل که نوار کناری به صورت هدر نمایش داده می‌شود */
+@media (max-width: 768px) {
+    .dashboard-layout {
+        flex-direction: column;
+    }
+
+    .main-content {
+        width: 100%;
+    }
+}

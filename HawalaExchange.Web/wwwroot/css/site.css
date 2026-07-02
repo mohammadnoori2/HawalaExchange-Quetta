@@ -1,6 +1,14 @@
 ﻿/* =========================================
-    GLOBAL-HawalaExchange THEME  
-    نسخه یکپارچه با استایل‌های مدرن
+   FONT & BODY
+========================================= */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    --font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+}
+
+/* =========================================
+   استایل‌های صفحات - site.css
 ========================================= */
 
 /* =========================================
@@ -716,6 +724,7 @@ body {
     background: var(--lms-card-bg);
     position: relative;
     display: block !important;
+    -ms-overflow-style: -ms-autohiding-scrollbar !important;
 }
 
     .table-scroll-wrapper table {
@@ -724,6 +733,8 @@ body {
         font-size: 0.85rem;
         background: var(--lms-card-bg);
         min-width: 700px;
+        margin: 0 !important;
+        display: table !important;
     }
 
         .table-scroll-wrapper table th,
@@ -745,69 +756,14 @@ body {
             background: #f8fafc;
         }
 
-/* ===== فعال‌سازی اسکرول برای تمام دستگاه‌های زیر 1200px ===== */
-@media screen and (max-width: 1200px) {
-    .table-scroll-wrapper {
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-        display: block !important;
-        width: 100% !important;
-    }
-
-        .table-scroll-wrapper table {
-            min-width: 700px !important;
-            width: 100% !important;
-        }
-
-        .table-scroll-wrapper::-webkit-scrollbar {
-            height: 8px;
-            width: 8px;
-        }
-
-        .table-scroll-wrapper::-webkit-scrollbar-track {
-            background: #f2f8ff;
-            border-radius: 10px;
-        }
-
-        .table-scroll-wrapper::-webkit-scrollbar-thumb {
-            background: #b8d4ff;
-            border-radius: 10px;
-        }
-
-            .table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
-                background: #8ab4e8;
-            }
-
-    .table-scroll-wrapper {
-        scrollbar-width: thin;
-        scrollbar-color: #b8d4ff #f2f8ff;
-    }
-}
-
-@media screen and (max-width: 767px) {
-    .table-scroll-wrapper table {
-        min-width: 600px !important;
-        font-size: 0.75rem !important;
-    }
-
-        .table-scroll-wrapper table th,
-        .table-scroll-wrapper table td {
-            padding: 0.4rem 0.6rem !important;
-        }
-
-    .table-scroll-wrapper::-webkit-scrollbar {
-        height: 6px !important;
-    }
-}
-
 /* =========================================
-   MODERN TABLE - جدول مدرن
+   MODERN TABLE - جلوگیری از تداخل با اسکرول
 ========================================= */
 .table-modern {
     font-size: 0.9rem;
     border-collapse: separate;
     border-spacing: 0;
-    width: 100%;
+    width: 100% !important;
 }
 
     .table-modern thead th {
@@ -861,31 +817,9 @@ body {
     overflow: hidden;
 }
 
-    .table-card .table-card-header {
-        padding: 1rem 1.5rem;
-        border-bottom: 1px solid var(--border-color);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        background: #fafbfc;
-    }
-
     .table-card .table-card-body {
         padding: 0;
         overflow: hidden;
-    }
-
-    .table-card .table-card-footer {
-        padding: 0.8rem 1.5rem;
-        border-top: 1px solid var(--border-color);
-        background: #fafbfc;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.5rem;
     }
 
 /* =========================================
@@ -1173,10 +1107,14 @@ body {
     align-items: center;
     background: white;
     border-radius: 50px;
-    padding: 0.2rem;
+    padding: 0.15rem 0.15rem 0.15rem 1rem;
     box-shadow: var(--shadow-sm);
     transition: var(--transition);
     border: 2px solid transparent;
+    gap: 0.5rem;
+    flex: 1;
+    max-width: 400px;
+    min-width: 200px;
 }
 
     .search-modern:focus-within {
@@ -1185,31 +1123,42 @@ body {
     }
 
     .search-modern .search-icon {
-        padding: 0.5rem 0.8rem;
+        padding: 0.4rem 0.2rem;
         color: var(--text-muted);
+        flex-shrink: 0;
     }
 
     .search-modern .search-input {
         border: none;
-        padding: 0.5rem 0;
+        padding: 0.4rem 0.2rem;
         flex: 1;
         background: transparent;
         outline: none;
+        font-size: 0.9rem;
+        min-width: 80px;
     }
 
     .search-modern .search-btn {
         border: none;
         background: var(--primary-gradient);
         color: white;
-        padding: 0.5rem 1.2rem;
+        padding: 0.4rem 1rem;
         border-radius: 50px;
         cursor: pointer;
-        transition: var(--transition);
-        margin: 0.15rem;
+        transition: all 0.3s ease;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        white-space: nowrap;
     }
 
+        .search-modern .search-btn i {
+            font-size: 0.9rem;
+        }
+
         .search-modern .search-btn:hover {
-            transform: scale(1.05);
+            transform: scale(1.03);
         }
 
 /* =========================================
@@ -1887,474 +1836,316 @@ body {
 }
 
 /* =========================================
-   RESPONSIVE - TABLET
+   استایل‌های هدر کارت جدول - بخش دکمه تعداد نمایش
 ========================================= */
-@media only screen and (min-width: 768px) and (max-width: 1024px) {
-    .nav-sidebar {
-        width: 280px !important;
-        min-height: 100vh !important;
-        background: var(--lms-card-bg) !important;
-        box-shadow: 4px 0 20px rgba(0, 40, 80, 0.06) !important;
-        display: flex !important;
-        flex-direction: column !important;
-        border-left: 1px solid rgba(0, 123, 255, 0.10) !important;
-        position: relative !important;
-        top: auto !important;
-        height: auto !important;
-        overflow-y: visible !important;
-        align-self: auto !important;
-    }
-
-    .navbar-brand-custom {
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
-        padding: 1.25rem 1.5rem 1rem 1.5rem !important;
-        border-bottom: 1px solid rgba(0, 123, 255, 0.08) !important;
-        background: var(--lms-card-bg) !important;
-        flex-shrink: 0 !important;
-    }
-
-    .logo-icon {
-        width: 48px !important;
-        height: 48px !important;
-        background: linear-gradient(145deg, #e6f0ff, #d4e6ff) !important;
-        border-radius: 16px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        color: #0a6bff !important;
-        font-size: 28px !important;
-        box-shadow: 0 6px 14px rgba(0, 80, 200, 0.10) !important;
-        flex-shrink: 0 !important;
-    }
-
-    .logo-text {
-        font-weight: 600 !important;
-        font-size: 1.3rem !important;
-        letter-spacing: -0.5px !important;
-        color: #0b2b5c !important;
-        background: linear-gradient(145deg, #0b2b5c, #1a4b8a) !important;
-        -webkit-background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-        background-clip: text !important;
-        line-height: 1.2 !important;
-    }
-
-    .logo-sub {
-        font-size: 0.7rem !important;
-        font-weight: 400 !important;
-        color: #3f6b9c !important;
-        background: #eaf3ff !important;
-        padding: 0.15rem 0.6rem !important;
-        border-radius: 40px !important;
-        display: inline-block !important;
-        -webkit-text-fill-color: #1f5080 !important;
-        margin-top: 2px !important;
-        letter-spacing: 0.3px !important;
-    }
-
-    .brand-wrapper {
-        display: flex !important;
-        flex-direction: column !important;
-    }
-
-    .nav-scrollable {
-        flex: 1 1 auto !important;
-        overflow-y: auto !important;
-        padding: 0.75rem 0.25rem 2rem 0.25rem !important;
-        background: var(--lms-card-bg) !important;
-        scrollbar-width: thin !important;
-        scrollbar-color: #b8d4ff #f2f8ff !important;
-    }
-
-    .nav-link-custom {
-        display: flex !important;
-        align-items: center !important;
-        gap: 14px !important;
-        padding: 0.7rem 1.2rem !important;
-        margin: 0.2rem 0.6rem !important;
-        border-radius: 14px !important;
-        color: #1e3d66 !important;
-        font-weight: 450 !important;
-        font-size: 0.95rem !important;
-        transition: all 0.2s ease !important;
-        text-decoration: none !important;
-        background: transparent !important;
-        border: none !important;
-        white-space: nowrap !important;
-        position: relative !important;
-        cursor: pointer !important;
-        background-color: transparent !important;
-    }
-
-        .nav-link-custom i,
-        .nav-link-custom span[class^="bi-"] {
-            font-size: 1.3rem !important;
-            width: 1.8rem !important;
-            text-align: center !important;
-            color: #5a7fa8 !important;
-            transition: 0.2s !important;
-            flex-shrink: 0 !important;
-        }
-
-        .nav-link-custom:hover {
-            background: #e7f2ff !important;
-            color: #0645b0 !important;
-            transform: translateX(-4px) !important;
-            box-shadow: 0 3px 8px rgba(0, 80, 200, 0.06) !important;
-        }
-
-            .nav-link-custom:hover i,
-            .nav-link-custom:hover span[class^="bi-"] {
-                color: #0a6bff !important;
-            }
-
-        .nav-link-custom.active {
-            background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
-            color: #003d99 !important;
-            font-weight: 600 !important;
-            box-shadow: 0 4px 12px rgba(10, 107, 255, 0.15), inset 0 0 0 2px rgba(10, 107, 255, 0.2) !important;
-            transform: translateX(-2px) !important;
-        }
-
-            .nav-link-custom.active i,
-            .nav-link-custom.active span[class^="bi-"] {
-                color: #0066ff !important;
-                filter: drop-shadow(0 2px 4px rgba(0, 102, 255, 0.2)) !important;
-            }
-
-            .nav-link-custom.active::before {
-                content: '' !important;
-                position: absolute !important;
-                right: 0 !important;
-                top: 15% !important;
-                height: 70% !important;
-                width: 4px !important;
-                background: linear-gradient(180deg, #0a6bff, #4a8fff) !important;
-                border-radius: 0 4px 4px 0 !important;
-                box-shadow: 0 0 12px rgba(10, 107, 255, 0.3) !important;
-            }
-
-    .nav-divider {
-        height: 1px !important;
-        background: linear-gradient(to left, #c2dbff, transparent) !important;
-        margin: 0.6rem 1.2rem !important;
-        opacity: 0.5 !important;
-    }
-
-    .navbar-toggler-custom {
-        display: none !important;
-    }
-
-    #nav-toggle {
-        display: none !important;
-    }
-
-    .charts-row {
-        grid-template-columns: 1fr !important;
-    }
-
-    .provision-row {
-        grid-template-columns: 1fr !important;
-    }
-
-    .bottom-row {
-        grid-template-columns: 1fr !important;
-    }
-
-    .stats-row {
-        grid-template-columns: 1fr 1fr !important;
-    }
-
-    .transaction-stats {
-        grid-template-columns: 1fr 1fr 1fr !important;
-    }
-
-    .currency-rates-grid {
-        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)) !important;
-    }
-
-    .dashboard-wrapper,
-    .page-wrapper {
-        padding: 0.75rem !important;
-    }
-
-    .liquidity-items {
-        grid-template-columns: 1fr 1fr !important;
-    }
-
-    .dashboard-layout {
-        flex-direction: column !important;
-    }
-
-    .main-content {
-        width: 100% !important;
-    }
-    /* اسکرول افقی برای تبلت */
-    .table-scroll-wrapper {
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-    }
-
-        .table-scroll-wrapper table {
-            min-width: 700px !important;
-        }
+.table-card-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color, #dce3ed);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    background: #fafbfc;
 }
 
-/* =========================================
-   RESPONSIVE - MOBILE
-========================================= */
-@media only screen and (max-width: 767px) {
-    .stats-row {
-        grid-template-columns: 1fr !important;
+.table-card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.table-card-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-card-footer {
+    padding: 0.8rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+    background: #fafbfc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border-radius: 0 0 var(--radius-lg, 16px) var(--radius-lg, 16px);
+}
+
+.table-card-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.table-card-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* استایل انتخاب تعداد نمایش */
+.page-size-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+    .page-size-selector .text-muted {
+        font-size: 0.8rem;
+        color: var(--text-muted, #667085);
     }
 
-    .dashboard-header {
-        flex-direction: column !important;
-        align-items: stretch !important;
+.select-page-size {
+    width: auto;
+    min-width: 70px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #dce3ed);
+    padding: 0.3rem 1.8rem 0.3rem 0.8rem;
+    appearance: auto;
+    font-size: 0.875rem;
+    color: var(--text-color, #1d2939);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+    .select-page-size:hover {
+        border-color: var(--primary-color, #0061f2);
     }
 
-    .header-center {
-        order: 2 !important;
+    .select-page-size:focus {
+        border-color: var(--primary-color, #0061f2);
+        box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.1);
+        outline: none;
     }
 
-    .currency-rates-grid {
-        grid-template-columns: repeat(3, 1fr) !important;
-        gap: 0.3rem !important;
+    .select-page-size option {
+        padding: 0.3rem 0.5rem;
     }
 
-    .remain-item,
-    .remain-header-row {
-        grid-template-columns: 1.5fr 0.5fr 1fr !important;
-        font-size: 0.7rem !important;
+/* استایل ستون‌های قابل مرتب‌سازی */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+    .sortable-header:hover {
+        color: var(--primary-color, #0061f2);
     }
 
-    .date-filter {
-        flex-direction: column !important;
-        align-items: stretch !important;
+    .sortable-header i {
+        font-size: 0.7rem;
+        margin-right: 0.25rem;
+        transition: all 0.2s ease;
     }
 
-    .transaction-stats {
-        grid-template-columns: 1fr 1fr !important;
+    .sortable-header.active {
+        color: var(--primary-color, #0061f2);
     }
 
-    .charts-row {
-        grid-template-columns: 1fr !important;
+/* استایل صفحه‌بندی مدرن */
+.pagination-modern {
+    display: flex;
+    gap: 0.25rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+    .pagination-modern .page-item {
+        display: inline-block;
     }
 
-    .provision-row {
-        grid-template-columns: 1fr !important;
+    .pagination-modern .page-link {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 32px;
+        padding: 0 0.5rem;
+        border-radius: 8px;
+        border: 1px solid var(--border-color, #dce3ed);
+        background: #fff;
+        color: var(--text-color, #1d2939);
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
     }
 
-    .bottom-row {
-        grid-template-columns: 1fr !important;
-    }
-
-    .liquidity-items {
-        grid-template-columns: 1fr !important;
-    }
-
-    .page-header {
-        flex-direction: column !important;
-        align-items: stretch !important;
-        gap: 0.5rem !important;
-    }
-
-    .page-actions {
-        justify-content: flex-start !important;
-    }
-
-    .stat-card .stat-number {
-        font-size: 1.2rem !important;
-    }
-
-    .stat-card .stat-icon {
-        width: 40px !important;
-        height: 40px !important;
-        font-size: 1.2rem !important;
-    }
-
-    .stat-card {
-        padding: 1rem !important;
-    }
-
-    .modern-card .card-body {
-        padding: 1rem !important;
-    }
-
-    .action-group {
-        gap: 0.2rem !important;
-    }
-
-    .action-btn {
-        width: 28px !important;
-        height: 28px !important;
-    }
-
-        .action-btn i {
-            font-size: 0.8rem !important;
+        .pagination-modern .page-link:hover {
+            background: var(--primary-light, #e6f0ff);
+            border-color: var(--primary-color, #0061f2);
+            color: var(--primary-color, #0061f2);
         }
 
-    .btn-modern {
-        padding: 0.3rem 0.8rem !important;
-        font-size: 0.85rem !important;
+    .pagination-modern .page-item.active .page-link {
+        background: var(--primary-gradient, linear-gradient(135deg, #0061f2, #0050c8));
+        border-color: var(--primary-color, #0061f2);
+        color: #fff;
     }
 
-    .table-modern {
-        font-size: 0.8rem !important;
+    .pagination-modern .page-item.disabled .page-link {
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
     }
 
-        .table-modern thead th,
-        .table-modern tbody td {
-            padding: 0.5rem 0.6rem !important;
+    .pagination-modern .page-item .page-link i {
+        font-size: 0.8rem;
+    }
+
+/* استایل ردیف‌های بایگانی شده */
+.table-row-archived {
+    opacity: 0.7;
+    background-color: #f8f9fa !important;
+}
+
+    .table-row-archived:hover {
+        opacity: 1;
+        background-color: #f1f3f5 !important;
+    }
+
+/* استایل خالی بودن جدول */
+.empty-state {
+    text-align: center;
+    padding: 2rem 0;
+}
+
+    .empty-state i {
+        font-size: 3rem;
+        color: var(--text-muted, #667085);
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state .fs-5 {
+        font-size: 1.2rem;
+        color: var(--text-muted, #667085);
+    }
+
+    .empty-state .text-muted {
+        color: var(--text-muted, #667085);
+        font-size: 0.9rem;
+    }
+
+/* استایل بارگذاری */
+.loading-state {
+    text-align: center;
+    padding: 2rem 0;
+}
+
+    .loading-state .spinner-border {
+        width: 3rem;
+        height: 3rem;
+    }
+
+/* استایل فرم در مودال */
+.modern-card .form-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-color, #1d2939);
+    margin-bottom: 0.3rem;
+}
+
+    .modern-card .form-label .text-danger {
+        color: var(--danger-color, #dc3545);
+    }
+
+.modern-card .form-control {
+    border: 2px solid var(--border-color, #dce3ed);
+    border-radius: var(--radius-sm, 8px);
+    padding: 0.6rem 0.8rem;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    width: 100%;
+}
+
+    .modern-card .form-control:focus {
+        border-color: var(--primary-color, #0061f2);
+        box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.1);
+        outline: none;
+    }
+
+    .modern-card .form-control.is-invalid {
+        border-color: var(--danger-color, #dc3545);
+    }
+
+    .modern-card .form-control:disabled,
+    .modern-card .form-control[readonly] {
+        background-color: #f8f9fa;
+        opacity: 0.8;
+    }
+
+    .modern-card .form-control.bg-light {
+        background-color: #f8f9fa !important;
+    }
+
+.modern-card .invalid-feedback {
+    color: var(--danger-color, #dc3545);
+    font-size: 0.8rem;
+    margin-top: 0.2rem;
+}
+
+.modern-card textarea.form-control {
+    resize: vertical;
+}
+
+/* استایل دکمه‌های مودال */
+.modal-footer .btn-modern {
+    padding: 0.5rem 1.5rem;
+    border-radius: var(--radius-sm, 8px);
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+/* استایل پیام‌های مودال */
+.modal-body .alert {
+    border-radius: var(--radius-sm, 8px);
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+}
+
+    .modal-body .alert .alert-heading {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .modal-body .alert ul {
+        padding-right: 1.5rem;
+        margin-top: 0.3rem;
+    }
+
+        .modal-body .alert ul li {
+            margin-bottom: 0.2rem;
         }
 
-    .search-modern {
-        flex-wrap: wrap !important;
-        border-radius: var(--radius-sm) !important;
-        padding: 0.3rem !important;
-    }
+/* استایل هدر مودال خطر */
+.modal-header-danger {
+    background: linear-gradient(135deg, #dc3545, #b02a37);
+}
 
-        .search-modern .search-input {
-            width: 100% !important;
-            padding: 0.5rem !important;
-            border-bottom: 1px solid var(--border-color) !important;
-        }
+/* کلاس‌های کمکی برای کارت‌های آماری */
+.stat-card-success {
+    border-right-color: var(--success-color, #28a745) !important;
+}
 
-        .search-modern .search-btn {
-            width: 100% !important;
-            border-radius: var(--radius-sm) !important;
-        }
+.stat-card-danger {
+    border-right-color: var(--danger-color, #dc3545) !important;
+}
 
-    .table-card .table-card-header {
-        flex-direction: column !important;
-        align-items: stretch !important;
-    }
+.stat-card-info {
+    border-right-color: var(--info-color, #0dcaf0) !important;
+}
 
-    .table-card .table-card-footer {
-        flex-direction: column !important;
-        align-items: stretch !important;
-        text-align: center !important;
-    }
-
-    .navbar-toggler-custom {
-        display: block !important;
-        background: transparent !important;
-        border: none !important;
-        color: #0a6bff !important;
-        font-size: 1.8rem !important;
-        padding: 0.25rem 0.75rem !important;
-        border-radius: 12px !important;
-        cursor: pointer !important;
-        transition: 0.15s !important;
-        box-shadow: none !important;
-        outline: none !important;
-        margin-right: auto !important;
-        background-color: transparent !important;
-        background-image: none !important;
-    }
-
-        .navbar-toggler-custom:hover {
-            background: #e3efff !important;
-        }
-
-        .navbar-toggler-custom:focus,
-        .navbar-toggler-custom:active {
-            outline: none !important;
-            box-shadow: none !important;
-            background: transparent !important;
-        }
-
-    .nav-sidebar {
-        width: 100% !important;
-        min-height: auto !important;
-        position: relative !important;
-        border-left: none !important;
-        border-bottom: 1px solid rgba(0, 123, 255, 0.08) !important;
-        box-shadow: 0 4px 16px rgba(0, 40, 80, 0.04) !important;
-        height: auto !important;
-        overflow-y: visible !important;
-        background: var(--lms-card-bg) !important;
-    }
-
-    .navbar-brand-custom {
-        padding: 0.8rem 1rem !important;
-        flex-wrap: wrap !important;
-        background: var(--lms-card-bg) !important;
-    }
-
-    .nav-scrollable {
-        max-height: 0 !important;
-        overflow-y: hidden !important;
-        padding: 0 0.25rem !important;
-        transition: max-height 0.25s ease, padding 0.2s !important;
-        background: var(--lms-card-bg) !important;
-    }
-
-    #nav-toggle:checked ~ .nav-scrollable {
-        max-height: 80vh !important;
-        padding: 0.75rem 0.25rem 2rem 0.25rem !important;
-        overflow-y: auto !important;
-        border-top: 1px solid rgba(0, 100, 255, 0.05) !important;
-    }
-
-    .nav-link-custom {
-        padding: 0.6rem 1rem !important;
-        font-size: 0.95rem !important;
-        margin: 0.1rem 0.2rem !important;
-        color: #1e3d66 !important;
-        background: transparent !important;
-    }
-
-        .nav-link-custom.active {
-            background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
-            color: #003d99 !important;
-        }
-
-            .nav-link-custom.active::before {
-                display: none !important;
-            }
-
-    .logo-icon {
-        width: 40px !important;
-        height: 40px !important;
-        font-size: 22px !important;
-    }
-
-    .logo-text {
-        font-size: 1.1rem !important;
-    }
-
-    .dashboard-wrapper,
-    .page-wrapper {
-        padding: 0.75rem !important;
-    }
-
-    .dashboard-layout {
-        flex-direction: column !important;
-    }
-
-    .main-content {
-        width: 100% !important;
-    }
-
-    .table-scroll-wrapper {
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-    }
-
-        .table-scroll-wrapper table {
-            min-width: 600px !important;
-            font-size: 0.75rem !important;
-        }
-
-            .table-scroll-wrapper table th,
-            .table-scroll-wrapper table td {
-                padding: 0.4rem 0.6rem !important;
-            }
-
-        .table-scroll-wrapper::-webkit-scrollbar {
-            height: 6px !important;
-        }
+.stat-card-warning {
+    border-right-color: var(--warning-color, #ff9f43) !important;
 }

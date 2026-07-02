@@ -5,110 +5,229 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<div class="container-fluid mt-4" dir="rtl">
-    <div class="card shadow-lg border-0">
-        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <h4 class="mb-0">
-                    <i class="bi bi-building me-2"></i> مدیریت شعبه‌ها
-                </h4>
-                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
-                    <i class="bi bi-plus-circle"></i> شعبه جدید
-                </button>
+<div class="page-wrapper">
+    <!-- هدر صفحه -->
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-building"></i>
+                مدیریت شعبه‌ها
+                <span class="page-subtitle">لیست و جستجوی شعبه‌ها</span>
+            </h5>
+        </div>
+        <div class="page-actions">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+                <i class="bi bi-plus-circle"></i> شعبه جدید
+            </button>
+        </div>
+    </div>
+
+    <!-- کارت آماری -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon primary">
+                        <i class="bi bi-building"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@branches.Count</div>
+                        <div class="stat-label">تعداد شعبه‌ها</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-success">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon success">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@branches.Count(b => !b.IsArchived)</div>
+                        <div class="stat-label">فعال</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-danger">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon danger">
+                        <i class="bi bi-archive"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@branches.Count(b => b.IsArchived)</div>
+                        <div class="stat-label">بایگانی شده</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-info">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon info">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@branches.Count(b => b.CreatedAt.Date == DateTime.Today)</div>
+                        <div class="stat-label">ایجاد امروز</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- کارت جدول -->
+    <div class="table-card">
+        <!-- ===== هدر کارت جدول - فقط یک بار ===== -->
+        <div class="table-card-header">
+            <!-- بخش چپ: جستجو و تعداد نمایش -->
+            <div class="table-card-header-left">
+                <!-- جستجو -->
+                <div class="search-modern">
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" class="search-input" placeholder="جستجوی شعبه‌ها (کد، نام، تلفن، آدرس)..."
+                           @bind="searchTerm" @bind:event="oninput" />
+                    <button class="search-btn" @onclick="() => ClearSearch()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- انتخاب تعداد نمایش - فقط یک عدد select -->
+                <div class="page-size-selector">
+                    <span class="text-muted small">تعداد نمایش:</span>
+                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">همه</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- بخش راست: تعداد کل -->
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i> @filteredBranches.Count
+                </span>
             </div>
         </div>
 
-        <div class="card-body">
-            <!-- نوار جستجو -->
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <div class="input-group input-group-lg">
-                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="جستجوی شعبه‌ها (کد، نام، تلفن، آدرس)..."
-                               @bind="searchTerm" @bind:event="oninput" />
-                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
-                            <i class="bi bi-x-circle"></i> پاک کردن
-                        </button>
-                    </div>
-                </div>
-                <div class="col-md-4 text-start">
-                    <span class="badge bg-info fs-6 p-2">
-                        <i class="bi bi-list-ul"></i> تعداد: @filteredBranches.Count
-                    </span>
-                </div>
-            </div>
-
-            <!-- جدول شعبه‌ها -->
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle">
-                    <thead class="table-dark">
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
                         <tr>
-                            <th scope="col">#</th>
-                            <th scope="col">کد شعبه</th>
-                            <th scope="col">نام شعبه</th>
-                            <th scope="col">شماره تلفن</th>
-                            <th scope="col">آدرس</th>
-                            <th scope="col">تاریخ ایجاد</th>
-                            <th scope="col">وضعیت</th>
-                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                            <th style="width: 50px;">#</th>
+                            <th class="sortable-header @(sortColumn == "Code" ? "active" : "")" @onclick="@(() => SortBy("Code"))">
+                                کد شعبه
+                                @if (sortColumn == "Code")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "Name" ? "active" : "")" @onclick="@(() => SortBy("Name"))">
+                                نام شعبه
+                                @if (sortColumn == "Name")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th>شماره تلفن</th>
+                            <th>آدرس</th>
+                            <th class="sortable-header @(sortColumn == "CreatedAt" ? "active" : "")" @onclick="@(() => SortBy("CreatedAt"))">
+                                تاریخ ایجاد
+                                @if (sortColumn == "CreatedAt")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th>وضعیت</th>
+                            <th class="text-center">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (isLoading && branches == null)
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-4">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="loading-state">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">در حال بارگذاری...</span>
+                                        </div>
+                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                     </div>
                                 </td>
                             </tr>
                         }
-                        else if (!filteredBranches.Any())
+                        else if (!pagedBranches.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">
-                                    <i class="bi bi-inbox fs-1 d-block"></i>
-                                    <span class="fs-5">هیچ شعبه‌ای یافت نشد</span>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <span class="fs-5 text-muted">هیچ شعبه‌ای یافت نشد</span>
+                                        <p class="text-muted small">برای افزودن شعبه جدید، دکمه "شعبه جدید" را کلیک کنید</p>
+                                    </div>
                                 </td>
                             </tr>
                         }
                         else
                         {
-                            int rowIndex = 1;
-                            @foreach (var branch in filteredBranches)
+                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredBranches.Count : pageSize) + 1;
+                            @foreach (var branch in pagedBranches)
                             {
-                                <tr class="@(branch.IsArchived ? "table-secondary" : "")">
-                                    <td>@rowIndex</td>
-                                    <td><strong>@branch.Code</strong></td>
-                                    <td>@branch.Name</td>
-                                    <td dir="ltr">@branch.PhoneNumber</td>
-                                    <td>@branch.Address</td>
+                                <tr class="@(branch.IsArchived ? "table-row-archived" : "")">
+                                    <td><span class="fw-bold text-muted">@rowIndex</span></td>
+                                    <td>
+                                        <span class="customer-code">@branch.Code</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="avatar avatar-primary">
+                                                @branch.Name?.Substring(0, Math.Min(2, branch.Name?.Length ?? 0)).ToUpper()
+                                            </div>
+                                            <span class="fw-semibold">@branch.Name</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="phone-number">@branch.PhoneNumber</span>
+                                    </td>
+                                    <td>
+                                        <span class="overflow-ellipsis">@branch.Address</span>
+                                    </td>
                                     <td dir="ltr" class="text-start">@branch.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                     <td>
                                         @if (branch.IsArchived)
                                         {
-                                            <span class="badge bg-secondary px-3 py-2">بایگانی شده</span>
+                                            <span class="badge-modern badge-archived">
+                                                <i class="bi bi-archive"></i> بایگانی
+                                            </span>
                                         }
                                         else
                                         {
-                                            <span class="badge bg-success px-3 py-2">فعال</span>
+                                            <span class="badge-modern badge-active">
+                                                <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> فعال
+                                            </span>
                                         }
                                     </td>
                                     <td>
-                                        <div class="btn-group btn-group-sm" role="group">
+                                        <div class="action-group justify-content-center">
                                             @if (!branch.IsArchived)
                                             {
-                                                <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(branch.Id)" title="ویرایش">
+                                                <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(branch.Id)" title="ویرایش">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
-                                                <button class="btn btn-outline-danger" @onclick="() => ShowArchiveConfirm(branch.Id)" title="بایگانی">
+                                                <button class="action-btn action-btn-archive" @onclick="() => ShowArchiveConfirm(branch.Id)" title="بایگانی">
                                                     <i class="bi bi-archive"></i>
                                                 </button>
                                             }
                                             else
                                             {
-                                                <button class="btn btn-outline-warning" @onclick="() => ShowUnarchiveConfirm(branch.Id)" title="خروج از بایگانی">
+                                                <button class="action-btn action-btn-unarchive" @onclick="() => ShowUnarchiveConfirm(branch.Id)" title="خروج از بایگانی">
                                                     <i class="bi bi-arrow-counterclockwise"></i>
                                                 </button>
                                             }
@@ -122,17 +241,59 @@
                 </table>
             </div>
         </div>
+
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedBranches.Count</strong> از <strong>@filteredBranches.Count</strong> شعبه
+                </span>
+
+                <!-- صفحه‌بندی -->
+                @if (totalPages > 1)
+                {
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination-modern">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+
+            <div class="table-card-footer-right">
+                <span class="badge-modern badge-success">
+                    <i class="bi bi-check-circle-fill"></i> فعال: @branches.Count(b => !b.IsArchived)
+                </span>
+                <span class="badge-modern badge-archived">
+                    <i class="bi bi-archive-fill"></i> بایگانی: @branches.Count(b => b.IsArchived)
+                </span>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- مودال ایجاد/ویرایش شعبه -->
+<!-- مودال‌ها (بدون تغییر) -->
 @if (showModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
                         @(isEditMode ? "ویرایش شعبه" : "ایجاد شعبه جدید")
                     </h5>
@@ -142,7 +303,7 @@
                     @if (validationErrors.Any())
                     {
                         <div class="alert alert-danger">
-                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
                             <ul class="mb-0">
                                 @foreach (var error in validationErrors)
                                 {
@@ -155,65 +316,74 @@
                     @if (!string.IsNullOrEmpty(successMessage))
                     {
                         <div class="alert alert-success">
-                            <i class="bi bi-check-circle"></i> @successMessage
+                            <i class="bi bi-check-circle me-2"></i> @successMessage
                         </div>
                     }
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-hash"></i> کد شعبه <span class="text-danger">*</span>
-                            </label>
-                            @if (isEditMode)
-                            {
-                                <input type="text" class="form-control bg-light" value="@currentBranch.Code" disabled readonly />
-                                <small class="text-muted">کد شعبه قابل ویرایش نیست</small>
-                            }
-                            else
-                            {
-                                <input type="text" class="form-control @(string.IsNullOrEmpty(currentBranch.Code) ? "is-invalid" : "")"
-                                       @bind="currentBranch.Code" placeholder="مثال: BR-001" />
-                                <div class="invalid-feedback">کد شعبه الزامی است</div>
-                            }
+                    <div class="modern-card mb-4">
+                        <div class="card-header">
+                            <h6 class="text-primary">
+                                <i class="bi bi-building me-2"></i> اطلاعات شعبه
+                            </h6>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-person"></i> نام شعبه <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentBranch.Name) ? "is-invalid" : "")"
-                                   @bind="currentBranch.Name" placeholder="نام شعبه را وارد کنید" />
-                            <div class="invalid-feedback">نام شعبه الزامی است</div>
-                        </div>
-                    </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-hash text-muted me-1"></i> کد شعبه <span class="text-danger">*</span>
+                                    </label>
+                                    @if (isEditMode)
+                                    {
+                                        <input type="text" class="form-control bg-light" value="@branchCodeDisplay" disabled readonly />
+                                        <small class="text-muted">کد شعبه قابل ویرایش نیست</small>
+                                    }
+                                    else
+                                    {
+                                        <input type="text" class="form-control @(string.IsNullOrEmpty(currentBranch.Code) ? "is-invalid" : "")"
+                                               @bind="currentBranch.Code" placeholder="مثال: BR-001" />
+                                        <div class="invalid-feedback">کد شعبه الزامی است</div>
+                                    }
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-building text-muted me-1"></i> نام شعبه <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control @(string.IsNullOrEmpty(currentBranch.Name) ? "is-invalid" : "")"
+                                           @bind="currentBranch.Name" placeholder="نام شعبه را وارد کنید" />
+                                    <div class="invalid-feedback">نام شعبه الزامی است</div>
+                                </div>
+                            </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-phone"></i> شماره تلفن
-                            </label>
-                            <input type="text" class="form-control" @bind="currentBranch.PhoneNumber" placeholder="مثال: 0780 123 456" dir="ltr" />
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-geo-alt"></i> آدرس
-                            </label>
-                            <input type="text" class="form-control" @bind="currentBranch.Address" placeholder="آدرس کامل" />
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-phone text-muted me-1"></i> شماره تلفن
+                                    </label>
+                                    <input type="text" class="form-control" @bind="currentBranch.PhoneNumber" placeholder="مثال: ۰۷۸۰ ۱۲۳ ۴۵۶" dir="ltr" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-geo-alt text-muted me-1"></i> آدرس
+                                    </label>
+                                    <input type="text" class="form-control" @bind="currentBranch.Address" placeholder="آدرس کامل" />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     @if (isEditMode)
                     {
-                        <div class="alert alert-info mt-2">
+                        <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i>
-                            <small>در حال ویرایش شعبه با کد: <strong>@currentBranch.Code</strong></small>
+                            <small>در حال ویرایش شعبه با کد: <strong>@branchCodeDisplay</strong></small>
                         </div>
                     }
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-primary" @onclick="() => SaveBranch()" disabled="@isLoading">
+                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveBranch()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -230,26 +400,26 @@
     </div>
 }
 
-<!-- مودال تأیید بایگانی/خروج از بایگانی -->
 @if (showConfirmModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">
-                        <i class="bi bi-exclamation-triangle"></i> تأیید عملیات
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-exclamation-triangle me-2"></i> تأیید عملیات
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body text-center py-4">
+                    <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
                     <p class="fs-5">@confirmMessage</p>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseConfirmModal()">
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseConfirmModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmAction()">
                         <i class="bi bi-check-circle"></i> تأیید
                     </button>
                 </div>
@@ -276,6 +446,45 @@
         }
     }
 
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string sortColumn = "CreatedAt";
+    private bool sortAscending = false;
+
+    private List<BranchDto> pagedBranches
+    {
+        get
+        {
+            var sorted = filteredBranches;
+            switch (sortColumn)
+            {
+                case "Code":
+                    sorted = sortAscending ? filteredBranches.OrderBy(b => b.Code).ToList() : filteredBranches.OrderByDescending(b => b.Code).ToList();
+                    break;
+                case "Name":
+                    sorted = sortAscending ? filteredBranches.OrderBy(b => b.Name).ToList() : filteredBranches.OrderByDescending(b => b.Name).ToList();
+                    break;
+                case "CreatedAt":
+                    sorted = sortAscending ? filteredBranches.OrderBy(b => b.CreatedAt).ToList() : filteredBranches.OrderByDescending(b => b.CreatedAt).ToList();
+                    break;
+                default:
+                    sorted = filteredBranches.OrderByDescending(b => b.CreatedAt).ToList();
+                    break;
+            }
+
+            if (pageSize == 0)
+            {
+                currentPage = 1;
+                return sorted;
+            }
+
+            var skip = (currentPage - 1) * pageSize;
+            return sorted.Skip(skip).Take(pageSize).ToList();
+        }
+    }
+
+    private int totalPages => pageSize == 0 ? 1 : (int)Math.Ceiling((double)filteredBranches.Count / pageSize);
+
     private bool showModal = false;
     private bool showConfirmModal = false;
     private bool isEditMode = false;
@@ -287,9 +496,8 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
 
-    // استفاده از CreateBranchDto برای هر دو حالت (برای ویرایش، کد را جداگانه نگه می‌داریم)
     private CreateBranchDto currentBranch = new();
-    private string? branchCodeDisplay; // برای نمایش کد در حالت ویرایش
+    private string? branchCodeDisplay;
 
     protected override async Task OnInitializedAsync()
     {
@@ -304,6 +512,7 @@
             var result = await BranchService.GetAllAsync();
             branches = result.ToList();
             filteredBranches = branches;
+            currentPage = 1;
         }
         catch (Exception ex)
         {
@@ -332,6 +541,7 @@
                 (b.Address != null && b.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
             ).ToList();
         }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -339,6 +549,31 @@
     {
         _searchTerm = string.Empty;
         filteredBranches = branches;
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            StateHasChanged();
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -364,12 +599,11 @@
             var branch = await BranchService.GetByIdAsync(id);
             if (branch != null)
             {
-                // ذخیره کد برای نمایش
                 branchCodeDisplay = branch.Code;
 
                 currentBranch = new CreateBranchDto
                 {
-                    Code = branch.Code, // کد برای نمایش در حالت ویرایش (غیرقابل ویرایش)
+                    Code = branch.Code,
                     Name = branch.Name,
                     PhoneNumber = branch.PhoneNumber,
                     Address = branch.Address
@@ -410,7 +644,6 @@
         validationErrors.Clear();
         successMessage = string.Empty;
 
-        // اعتبارسنجی
         if (!isEditMode && string.IsNullOrWhiteSpace(currentBranch.Code))
             validationErrors.Add("کد شعبه الزامی است");
         if (string.IsNullOrWhiteSpace(currentBranch.Name))
@@ -431,11 +664,11 @@
             {
                 var updateRequest = new UpdateBranchDto
                 {
-                    Code = currentBranch.Code, // کد را ارسال می‌کنیم، ولی سرویس نباید آن را تغییر دهد
+                    Code = currentBranch.Code,
                     Name = currentBranch.Name,
                     PhoneNumber = currentBranch.PhoneNumber,
                     Address = currentBranch.Address,
-                    IsArchived = false // بایگانی از طریق دکمه جداگانه مدیریت می‌شود
+                    IsArchived = false
                 };
                 await BranchService.UpdateAsync(editId, updateRequest);
                 successMessage = "شعبه با موفقیت ویرایش شد";
@@ -488,14 +721,11 @@
         {
             if (confirmActionType == "archive")
             {
-                await BranchService.ArchiveAsync(confirmId); // فرض می‌کنیم در BaseService وجود دارد
+                await BranchService.ArchiveAsync(confirmId);
                 successMessage = "شعبه با موفقیت بایگانی شد";
             }
             else if (confirmActionType == "unarchive")
             {
-                // متد UnarchiveAsync باید در سرویس تعریف شود – فرض می‌کنیم وجود دارد
-                // در غیر این صورت، یک متد Update با تنظیم IsArchived = false
-                // می‌توانید آن را در IBranchService اضافه کنید
                 await BranchService.UnarchiveAsync(confirmId);
                 successMessage = "شعبه با موفقیت از بایگانی خارج شد";
             }

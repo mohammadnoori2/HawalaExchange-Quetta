@@ -8,101 +8,226 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<div class="container-fluid mt-4" dir="rtl">
-    <div class="card shadow-lg border-0">
-        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <h4 class="mb-0">
-                    <i class="bi bi-arrow-left-right me-2"></i> مدیریت انتقال‌ها
-                </h4>
-                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
-                    <i class="bi bi-plus-circle"></i> انتقال جدید
-                </button>
-            </div>
+<div class="page-wrapper">
+    <!-- هدر صفحه -->
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-arrow-left-right"></i>
+                مدیریت انتقال‌ها
+                <span class="page-subtitle">لیست و جستجوی انتقال‌ها</span>
+            </h5>
         </div>
+        <div class="page-actions">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+                <i class="bi bi-plus-circle"></i> انتقال جدید
+            </button>
+        </div>
+    </div>
 
-        <div class="card-body">
-            <!-- نوار جستجو -->
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <div class="input-group input-group-lg">
-                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="جستجو (حساب مبدأ، مقصد، ارز، روش، شماره مرجع)..."
-                               @bind="searchTerm" @bind:event="oninput" />
-                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
-                            <i class="bi bi-x-circle"></i> پاک کردن
-                        </button>
+    <!-- کارت آماری -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon primary">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@transfers.Count</div>
+                        <div class="stat-label">تعداد انتقال‌ها</div>
                     </div>
                 </div>
-                <div class="col-md-2">
-                    <select class="form-select" @bind="filterMethod">
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-success">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon success">
+                        <i class="bi bi-cash"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@transfers.Count(t => t.TransferMethod == "Cash")</div>
+                        <div class="stat-label">نقدی</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-info">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon info">
+                        <i class="bi bi-bank"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@transfers.Count(t => t.TransferMethod == "Bank")</div>
+                        <div class="stat-label">بانکی</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-warning">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon warning">
+                        <i class="bi bi-globe"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@transfers.Count(t => t.TransferMethod == "Hawala")</div>
+                        <div class="stat-label">حواله</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- کارت جدول -->
+    <div class="table-card">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <!-- جستجو -->
+                <div class="search-modern">
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" class="search-input" placeholder="جستجو (حساب مبدأ، مقصد، ارز، روش، شماره مرجع)..."
+                           @bind="searchTerm" @bind:event="oninput" />
+                    <button class="search-btn" @onclick="() => ClearSearch()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- فیلتر روش انتقال -->
+                <div class="filter-selector">
+                    <select class="form-select form-select-sm" 
+                            @bind="filterMethod" @bind:event="oninput">
                         <option value="">همه روش‌ها</option>
                         <option value="Cash">نقدی</option>
                         <option value="Bank">بانکی</option>
                         <option value="Hawala">حواله</option>
                     </select>
                 </div>
-                <div class="col-md-2 text-start">
-                    <span class="badge bg-info fs-6 p-2">
-                        <i class="bi bi-list-ul"></i> تعداد: @filteredTransfers.Count
-                    </span>
+
+                <!-- انتخاب تعداد نمایش -->
+                <div class="page-size-selector">
+                    <span class="text-muted small">تعداد نمایش:</span>
+                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">همه</option>
+                    </select>
                 </div>
             </div>
 
-            <!-- جدول انتقال‌ها -->
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle">
-                    <thead class="table-dark">
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i> @filteredTransfers.Count
+                </span>
+            </div>
+        </div>
+
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
                         <tr>
-                            <th scope="col">#</th>
-                            <th scope="col">از حساب</th>
-                            <th scope="col">به حساب</th>
-                            <th scope="col">ارز</th>
-                            <th scope="col">مبلغ</th>
-                            <th scope="col">روش انتقال</th>
-                            <th scope="col">شماره مرجع</th>
-                            <th scope="col" style="min-width: 120px;">عملیات</th>
+                            <th style="width: 50px;">#</th>
+                            <th class="sortable-header @(sortColumn == "FromAccountName" ? "active" : "")" @onclick="@(() => SortBy("FromAccountName"))">
+                                از حساب
+                                @if (sortColumn == "FromAccountName")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "ToAccountName" ? "active" : "")" @onclick="@(() => SortBy("ToAccountName"))">
+                                به حساب
+                                @if (sortColumn == "ToAccountName")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "CurrencyCode" ? "active" : "")" @onclick="@(() => SortBy("CurrencyCode"))">
+                                ارز
+                                @if (sortColumn == "CurrencyCode")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "Amount" ? "active" : "")" @onclick="@(() => SortBy("Amount"))">
+                                مبلغ
+                                @if (sortColumn == "Amount")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "TransferMethod" ? "active" : "")" @onclick="@(() => SortBy("TransferMethod"))">
+                                روش انتقال
+                                @if (sortColumn == "TransferMethod")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th>شماره مرجع</th>
+                            <th class="text-center">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (isLoading && transfers == null)
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-4">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="loading-state">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">در حال بارگذاری...</span>
+                                        </div>
+                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                     </div>
                                 </td>
                             </tr>
                         }
-                        else if (!filteredTransfers.Any())
+                        else if (!pagedTransfers.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">
-                                    <i class="bi bi-inbox fs-1 d-block"></i>
-                                    <span class="fs-5">هیچ انتقالی یافت نشد</span>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <span class="fs-5 text-muted">هیچ انتقالی یافت نشد</span>
+                                        <p class="text-muted small">برای افزودن انتقال جدید، دکمه "انتقال جدید" را کلیک کنید</p>
+                                    </div>
                                 </td>
                             </tr>
                         }
                         else
                         {
-                            int rowIndex = 1;
-                            @foreach (var transfer in filteredTransfers)
+                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredTransfers.Count : pageSize) + 1;
+                            @foreach (var transfer in pagedTransfers)
                             {
                                 <tr>
-                                    <td>@rowIndex</td>
-                                    <td>@transfer.FromAccountName</td>
-                                    <td>@transfer.ToAccountName</td>
-                                    <td>@transfer.CurrencyCode</td>
-                                    <td dir="ltr">@transfer.Amount.ToString("N2")</td>
-                                    <td>@GetTransferMethodName(transfer.TransferMethod)</td>
-                                    <td>@(transfer.ReferenceNumber ?? "-")</td>
+                                    <td><span class="fw-bold text-muted">@rowIndex</span></td>
                                     <td>
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <button class="btn btn-outline-info" @onclick="() => ViewTransfer(transfer.Id)" title="مشاهده">
+                                        <span class="customer-code">@transfer.FromAccountName</span>
+                                    </td>
+                                    <td>
+                                        <span class="customer-code">@transfer.ToAccountName</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge-modern badge-info">@transfer.CurrencyCode</span>
+                                    </td>
+                                    <td dir="ltr" class="fw-bold text-primary">@transfer.Amount.ToString("N2")</td>
+                                    <td>
+                                        <span class="badge-modern @GetTransferMethodBadge(transfer.TransferMethod)">
+                                            @GetTransferMethodName(transfer.TransferMethod)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="overflow-ellipsis" style="max-width: 120px;">@(transfer.ReferenceNumber ?? "-")</span>
+                                    </td>
+                                    <td>
+                                        <div class="action-group justify-content-center">
+                                            <button class="action-btn action-btn-view" @onclick="() => ViewTransfer(transfer.Id)" title="مشاهده">
                                                 <i class="bi bi-eye"></i>
                                             </button>
-                                            <!-- دکمه حذف حذف شد -->
                                         </div>
                                     </td>
                                 </tr>
@@ -113,26 +238,72 @@
                 </table>
             </div>
         </div>
+
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedTransfers.Count</strong> از <strong>@filteredTransfers.Count</strong> انتقال
+                </span>
+
+                <!-- صفحه‌بندی -->
+                @if (totalPages > 1)
+                {
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination-modern">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+
+            <div class="table-card-footer-right">
+                <span class="badge-modern badge-success">
+                    <i class="bi bi-cash"></i> نقدی: @transfers.Count(t => t.TransferMethod == "Cash")
+                </span>
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-bank"></i> بانکی: @transfers.Count(t => t.TransferMethod == "Bank")
+                </span>
+                <span class="badge-modern badge-warning">
+                    <i class="bi bi-globe"></i> حواله: @transfers.Count(t => t.TransferMethod == "Hawala")
+                </span>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- مودال ایجاد انتقال جدید -->
 @if (showModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
                         <i class="bi bi-plus-circle me-2"></i> ایجاد انتقال جدید
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- پیام‌های خطا -->
                     @if (validationErrors.Any())
                     {
-                        <div class="alert alert-danger">
-                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
                             <ul class="mb-0">
                                 @foreach (var error in validationErrors)
                                 {
@@ -144,91 +315,121 @@
 
                     @if (!string.IsNullOrEmpty(successMessage))
                     {
-                        <div class="alert alert-success">
-                            <i class="bi bi-check-circle"></i> @successMessage
+                        <div class="alert alert-success alert-dismissible fade show">
+                            <i class="bi bi-check-circle me-2"></i> @successMessage
                         </div>
                     }
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">تراکنش مرتبط <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="currentTransfer.TransactionId">
-                                <option value="0">انتخاب تراکنش</option>
-                                @foreach (var transaction in transactions)
-                                {
-                                    <option value="@transaction.Id">@transaction.TransactionNo - @transaction.CustomerFullName</option>
-                                }
-                            </select>
+                    <!-- اطلاعات انتقال -->
+                    <div class="modern-card mb-4">
+                        <div class="card-header">
+                            <h6 class="text-primary">
+                                <i class="bi bi-arrow-left-right me-2"></i> اطلاعات انتقال
+                            </h6>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">روش انتقال <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="currentTransfer.TransferMethod">
-                                <option value="">انتخاب روش</option>
-                                <option value="Cash">نقدی</option>
-                                <option value="Bank">بانکی</option>
-                                <option value="Hawala">حواله</option>
-                            </select>
-                        </div>
-                    </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-receipt text-muted me-1"></i> تراکنش مرتبط <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select"
+                                            @bind="currentTransfer.TransactionId">
+                                        <option value="0">انتخاب تراکنش</option>
+                                        @foreach (var transaction in transactions)
+                                        {
+                                            <option value="@transaction.Id">@transaction.TransactionNo - @transaction.CustomerFullName</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-arrow-right text-muted me-1"></i> روش انتقال <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select"
+                                            @bind="currentTransfer.TransferMethod">
+                                        <option value="">انتخاب روش</option>
+                                        <option value="Cash">نقدی</option>
+                                        <option value="Bank">بانکی</option>
+                                        <option value="Hawala">حواله</option>
+                                    </select>
+                                </div>
+                            </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">حساب مبدأ <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="currentTransfer.FromAccountId">
-                                <option value="0">انتخاب حساب مبدأ</option>
-                                @foreach (var account in accounts)
-                                {
-                                    <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">حساب مقصد <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="currentTransfer.ToAccountId">
-                                <option value="0">انتخاب حساب مقصد</option>
-                                @foreach (var account in accounts)
-                                {
-                                    <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
-                                }
-                            </select>
-                        </div>
-                    </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-arrow-right-circle text-muted me-1"></i> حساب مبدأ <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select"
+                                            @bind="currentTransfer.FromAccountId">
+                                        <option value="0">انتخاب حساب مبدأ</option>
+                                        @foreach (var account in accounts)
+                                        {
+                                            <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-arrow-left-circle text-muted me-1"></i> حساب مقصد <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select"
+                                            @bind="currentTransfer.ToAccountId">
+                                        <option value="0">انتخاب حساب مقصد</option>
+                                        @foreach (var account in accounts)
+                                        {
+                                            <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="currentTransfer.CurrencyId">
-                                <option value="0">انتخاب ارز</option>
-                                @foreach (var currency in currencies)
-                                {
-                                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">مبلغ <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" class="form-control @(currentTransfer.Amount <= 0 ? "is-invalid" : "")"
-                                   @bind="currentTransfer.Amount" placeholder="مبلغ انتقال" />
-                            <div class="invalid-feedback">مبلغ باید بزرگتر از صفر باشد</div>
-                        </div>
-                    </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-coin text-muted me-1"></i> ارز <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select"
+                                            @bind="currentTransfer.CurrencyId">
+                                        <option value="0">انتخاب ارز</option>
+                                        @foreach (var currency in currencies)
+                                        {
+                                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="number" step="0.01" class="form-control"
+                                           @bind="currentTransfer.Amount" placeholder="مبلغ انتقال" />
+                                </div>
+                            </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">شماره مرجع</label>
-                            <input type="text" class="form-control" @bind="currentTransfer.ReferenceNumber" placeholder="شماره مرجع (اختیاری)" />
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">توضیحات</label>
-                            <input type="text" class="form-control" @bind="currentTransfer.Remarks" placeholder="توضیحات اضافی" />
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-hash text-muted me-1"></i> شماره مرجع
+                                    </label>
+                                    <input type="text" class="form-control" @bind="currentTransfer.ReferenceNumber" placeholder="شماره مرجع (اختیاری)" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-chat text-muted me-1"></i> توضیحات
+                                    </label>
+                                    <input type="text" class="form-control" @bind="currentTransfer.Remarks" placeholder="توضیحات اضافی" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-primary" @onclick="() => SaveTransfer()" disabled="@isLoading">
+                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveTransfer()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -248,41 +449,91 @@
 <!-- مودال مشاهده جزئیات انتقال -->
 @if (showDetailModal && selectedTransfer != null)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title">
+                <div class="modal-header" style="background: linear-gradient(135deg, #0dcaf0, #0a9ec4);">
+                    <h5 class="modal-title text-white">
                         <i class="bi bi-info-circle me-2"></i> جزئیات انتقال
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6"><strong>شناسه:</strong> @selectedTransfer.Id</div>
-                        <div class="col-md-6"><strong>روش انتقال:</strong> @GetTransferMethodName(selectedTransfer.TransferMethod)</div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">شناسه انتقال</span>
+                                <span class="info-value">@selectedTransfer.Id</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">روش انتقال</span>
+                                <span class="info-value">
+                                    <span class="badge-modern @GetTransferMethodBadge(selectedTransfer.TransferMethod)">
+                                        @GetTransferMethodName(selectedTransfer.TransferMethod)
+                                    </span>
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="row mt-2">
-                        <div class="col-md-6"><strong>حساب مبدأ:</strong> @selectedTransfer.FromAccountName</div>
-                        <div class="col-md-6"><strong>حساب مقصد:</strong> @selectedTransfer.ToAccountName</div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">حساب مبدأ</span>
+                                <span class="info-value">@selectedTransfer.FromAccountName</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">حساب مقصد</span>
+                                <span class="info-value">@selectedTransfer.ToAccountName</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="row mt-2">
-                        <div class="col-md-6"><strong>ارز:</strong> @selectedTransfer.CurrencyCode</div>
-                        <div class="col-md-6"><strong>مبلغ:</strong> @selectedTransfer.Amount.ToString("N2")</div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">ارز</span>
+                                <span class="info-value">@selectedTransfer.CurrencyCode</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">مبلغ</span>
+                                <span class="info-value text-primary fw-bold">@selectedTransfer.Amount.ToString("N2")</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="row mt-2">
-                        <div class="col-md-6"><strong>شماره مرجع:</strong> @(selectedTransfer.ReferenceNumber ?? "-")</div>
-                        <div class="col-md-6"><strong>توضیحات:</strong> @(selectedTransfer.Remarks ?? "-")</div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">شماره مرجع</span>
+                                <span class="info-value">@(selectedTransfer.ReferenceNumber ?? "-")</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">توضیحات</span>
+                                <span class="info-value">@(selectedTransfer.Remarks ?? "-")</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="row mt-2">
+                    <div class="row g-3 mt-1">
                         <div class="col-md-12">
-                            <strong>تراکنش مرتبط:</strong>
-                            <a href="/transactions/@selectedTransfer.TransactionId" target="_blank">مشاهده تراکنش</a>
+                            <div class="info-card">
+                                <span class="info-label">تراکنش مرتبط</span>
+                                <span class="info-value">
+                                    <a href="/transactions/@selectedTransfer.TransactionId" target="_blank" class="text-primary">
+                                        <i class="bi bi-box-arrow-up-right"></i> مشاهده تراکنش
+                                    </a>
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDetailModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseDetailModal()">
                         <i class="bi bi-x-circle"></i> بستن
                     </button>
                 </div>
@@ -326,6 +577,54 @@
         }
     }
 
+    // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string sortColumn = "TransferMethod";
+    private bool sortAscending = true;
+
+    private List<TransferDto> pagedTransfers
+    {
+        get
+        {
+            // مرتب‌سازی
+            var sorted = filteredTransfers;
+            switch (sortColumn)
+            {
+                case "FromAccountName":
+                    sorted = sortAscending ? filteredTransfers.OrderBy(t => t.FromAccountName).ToList() : filteredTransfers.OrderByDescending(t => t.FromAccountName).ToList();
+                    break;
+                case "ToAccountName":
+                    sorted = sortAscending ? filteredTransfers.OrderBy(t => t.ToAccountName).ToList() : filteredTransfers.OrderByDescending(t => t.ToAccountName).ToList();
+                    break;
+                case "CurrencyCode":
+                    sorted = sortAscending ? filteredTransfers.OrderBy(t => t.CurrencyCode).ToList() : filteredTransfers.OrderByDescending(t => t.CurrencyCode).ToList();
+                    break;
+                case "Amount":
+                    sorted = sortAscending ? filteredTransfers.OrderBy(t => t.Amount).ToList() : filteredTransfers.OrderByDescending(t => t.Amount).ToList();
+                    break;
+                case "TransferMethod":
+                    sorted = sortAscending ? filteredTransfers.OrderBy(t => t.TransferMethod).ToList() : filteredTransfers.OrderByDescending(t => t.TransferMethod).ToList();
+                    break;
+                default:
+                    sorted = filteredTransfers.OrderByDescending(t => t.TransferMethod).ToList();
+                    break;
+            }
+
+            // صفحه‌بندی
+            if (pageSize == 0)
+            {
+                currentPage = 1;
+                return sorted;
+            }
+
+            var skip = (currentPage - 1) * pageSize;
+            return sorted.Skip(skip).Take(pageSize).ToList();
+        }
+    }
+
+    private int totalPages => pageSize == 0 ? 1 : (int)Math.Ceiling((double)filteredTransfers.Count / pageSize);
+
     private bool showModal = false;
     private bool showDetailModal = false;
     private bool isLoading = false;
@@ -368,6 +667,7 @@
             var result = await TransferService.GetAllAsync();
             transfers = result.ToList();
             filteredTransfers = transfers;
+            currentPage = 1;
         }
         catch (Exception ex)
         {
@@ -402,13 +702,40 @@
         }
 
         filteredTransfers = query.ToList();
+        currentPage = 1;
         StateHasChanged();
     }
 
     private void ClearSearch()
     {
         _searchTerm = string.Empty;
+        filterMethod = "";
         filteredTransfers = transfers;
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            StateHasChanged();
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -523,6 +850,17 @@
             "Bank" => "بانکی",
             "Hawala" => "حواله",
             _ => method ?? "نامشخص"
+        };
+    }
+
+    private string GetTransferMethodBadge(string method)
+    {
+        return method switch
+        {
+            "Cash" => "badge-success",
+            "Bank" => "badge-info",
+            "Hawala" => "badge-warning",
+            _ => "badge-secondary"
         };
     }
 }

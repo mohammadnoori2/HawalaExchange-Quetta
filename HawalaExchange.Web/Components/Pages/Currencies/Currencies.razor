@@ -5,108 +5,203 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<div class="container-fluid mt-4" dir="rtl">
-    <div class="card shadow-lg border-0">
-        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <h4 class="mb-0">
-                    <i class="bi bi-currency-exchange me-2"></i> مدیریت ارزها
-                </h4>
-                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
-                    <i class="bi bi-plus-circle"></i> ارز جدید
-                </button>
+<div class="page-wrapper">
+    <!-- هدر صفحه -->
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-currency-exchange"></i>
+                مدیریت ارزها
+                <span class="page-subtitle">لیست و جستجوی ارزها</span>
+            </h5>
+        </div>
+        <div class="page-actions">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+                <i class="bi bi-plus-circle"></i> ارز جدید
+            </button>
+        </div>
+    </div>
+
+    <!-- کارت آماری -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon primary">
+                        <i class="bi bi-currency-exchange"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@currencies.Count</div>
+                        <div class="stat-label">تعداد ارزها</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-success">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon success">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@currencies.Count(c => c.IsActive)</div>
+                        <div class="stat-label">فعال</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-danger">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon danger">
+                        <i class="bi bi-slash-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@currencies.Count(c => !c.IsActive)</div>
+                        <div class="stat-label">غیرفعال</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- کارت جدول -->
+    <div class="table-card">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <!-- جستجو -->
+                <div class="search-modern">
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" class="search-input" placeholder="جستجوی ارزها (کد، نام، سمبل)..."
+                           @bind="searchTerm" @bind:event="oninput" />
+                    <button class="search-btn" @onclick="() => ClearSearch()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- انتخاب تعداد نمایش -->
+                <div class="page-size-selector">
+                    <span class="text-muted small">تعداد نمایش:</span>
+                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">همه</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i> @filteredCurrencies.Count
+                </span>
             </div>
         </div>
 
-        <div class="card-body">
-            <!-- نوار جستجو -->
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <div class="input-group input-group-lg">
-                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="جستجوی ارزها (کد، نام، سمبل)..."
-                               @bind="searchTerm" @bind:event="oninput" />
-                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
-                            <i class="bi bi-x-circle"></i> پاک کردن
-                        </button>
-                    </div>
-                </div>
-                <div class="col-md-4 text-start">
-                    <span class="badge bg-info fs-6 p-2">
-                        <i class="bi bi-list-ul"></i> تعداد: @filteredCurrencies.Count
-                    </span>
-                </div>
-            </div>
-
-            <!-- جدول ارزها -->
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle">
-                    <thead class="table-dark">
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
                         <tr>
-                            <th scope="col">#</th>
-                            <th scope="col">کد</th>
-                            <th scope="col">نام</th>
-                            <th scope="col">سمبل</th>
-                            <th scope="col">تعداد اعشار</th>
-                            <th scope="col">وضعیت</th>
-                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                            <th style="width: 50px;">#</th>
+                            <th class="sortable-header @(sortColumn == "Code" ? "active" : "")" @onclick="@(() => SortBy("Code"))">
+                                کد
+                                @if (sortColumn == "Code")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "Name" ? "active" : "")" @onclick="@(() => SortBy("Name"))">
+                                نام
+                                @if (sortColumn == "Name")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th>سمبل</th>
+                            <th>تعداد اعشار</th>
+                            <th>وضعیت</th>
+                            <th class="text-center">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (isLoading && currencies == null)
                         {
                             <tr>
-                                <td colspan="7" class="text-center py-4">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                <td colspan="7" class="text-center py-5">
+                                    <div class="loading-state">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">در حال بارگذاری...</span>
+                                        </div>
+                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                     </div>
                                 </td>
                             </tr>
                         }
-                        else if (!filteredCurrencies.Any())
+                        else if (!pagedCurrencies.Any())
                         {
                             <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">
-                                    <i class="bi bi-inbox fs-1 d-block"></i>
-                                    <span class="fs-5">هیچ ارزی یافت نشد</span>
+                                <td colspan="7" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <span class="fs-5 text-muted">هیچ ارزی یافت نشد</span>
+                                        <p class="text-muted small">برای افزودن ارز جدید، دکمه "ارز جدید" را کلیک کنید</p>
+                                    </div>
                                 </td>
                             </tr>
                         }
                         else
                         {
-                            int rowIndex = 1;
-                            @foreach (var currency in filteredCurrencies)
+                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredCurrencies.Count : pageSize) + 1;
+                            @foreach (var currency in pagedCurrencies)
                             {
                                 <tr>
-                                    <td>@rowIndex</td>
-                                    <td><strong>@currency.Code</strong></td>
-                                    <td>@currency.Name</td>
-                                    <td>@currency.Symbol</td>
+                                    <td><span class="fw-bold text-muted">@rowIndex</span></td>
+                                    <td>
+                                        <span class="customer-code">@currency.Code</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="avatar avatar-primary">
+                                                @currency.Name?.Substring(0, Math.Min(2, currency.Name?.Length ?? 0)).ToUpper()
+                                            </div>
+                                            <span class="fw-semibold">@currency.Name</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge-modern badge-info">@currency.Symbol</span>
+                                    </td>
                                     <td>@currency.DecimalPlaces</td>
                                     <td>
                                         @if (currency.IsActive)
                                         {
-                                            <span class="badge bg-success px-3 py-2">فعال</span>
+                                            <span class="badge-modern badge-active">
+                                                <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> فعال
+                                            </span>
                                         }
                                         else
                                         {
-                                            <span class="badge bg-secondary px-3 py-2">غیرفعال</span>
+                                            <span class="badge-modern badge-archived">
+                                                <i class="bi bi-slash-circle"></i> غیرفعال
+                                            </span>
                                         }
                                     </td>
                                     <td>
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(currency.Id)" title="ویرایش">
+                                        <div class="action-group justify-content-center">
+                                            <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(currency.Id)" title="ویرایش">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             @if (currency.IsActive)
                                             {
-                                                <button class="btn btn-outline-danger" @onclick="() => ShowDeactivateConfirm(currency.Id)" title="غیرفعال‌سازی">
+                                                <button class="action-btn action-btn-delete" @onclick="() => ShowDeactivateConfirm(currency.Id)" title="غیرفعال‌سازی">
                                                     <i class="bi bi-slash-circle"></i>
                                                 </button>
                                             }
                                             else
                                             {
-                                                <button class="btn btn-outline-warning" @onclick="() => ShowActivateConfirm(currency.Id)" title="فعال‌سازی">
+                                                <button class="action-btn action-btn-unarchive" @onclick="() => ShowActivateConfirm(currency.Id)" title="فعال‌سازی">
                                                     <i class="bi bi-check-circle"></i>
                                                 </button>
                                             }
@@ -120,27 +215,70 @@
                 </table>
             </div>
         </div>
+
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedCurrencies.Count</strong> از <strong>@filteredCurrencies.Count</strong> ارز
+                </span>
+
+                <!-- صفحه‌بندی -->
+                @if (totalPages > 1)
+                {
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination-modern">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+
+            <div class="table-card-footer-right">
+                <span class="badge-modern badge-success">
+                    <i class="bi bi-check-circle-fill"></i> فعال: @currencies.Count(c => c.IsActive)
+                </span>
+                <span class="badge-modern badge-archived">
+                    <i class="bi bi-slash-circle-fill"></i> غیرفعال: @currencies.Count(c => !c.IsActive)
+                </span>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- مودال ایجاد/ویرایش ارز -->
 @if (showModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
                         @(isEditMode ? "ویرایش ارز" : "ایجاد ارز جدید")
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- پیام‌های خطا -->
                     @if (validationErrors.Any())
                     {
-                        <div class="alert alert-danger">
-                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
                             <ul class="mb-0">
                                 @foreach (var error in validationErrors)
                                 {
@@ -152,66 +290,74 @@
 
                     @if (!string.IsNullOrEmpty(successMessage))
                     {
-                        <div class="alert alert-success">
-                            <i class="bi bi-check-circle"></i> @successMessage
+                        <div class="alert alert-success alert-dismissible fade show">
+                            <i class="bi bi-check-circle me-2"></i> @successMessage
                         </div>
                     }
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-hash"></i> کد ارز <span class="text-danger">*</span>
-                            </label>
-                            @if (isEditMode)
-                            {
-                                <input type="text" class="form-control bg-light" value="@currencyCodeDisplay" disabled readonly />
-                                <small class="text-muted">کد ارز قابل ویرایش نیست</small>
-                            }
-                            else
-                            {
-                                <input type="text" class="form-control @(string.IsNullOrEmpty(currentCurrency.Code) ? "is-invalid" : "")"
-                                       @bind="currentCurrency.Code" placeholder="مثال: USD" />
-                                <div class="invalid-feedback">کد ارز الزامی است</div>
-                            }
+                    <!-- اطلاعات ارز -->
+                    <div class="modern-card mb-4">
+                        <div class="card-header">
+                            <h6 class="text-primary">
+                                <i class="bi bi-currency-exchange me-2"></i> اطلاعات ارز
+                            </h6>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-tag"></i> نام ارز <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" class="form-control @(string.IsNullOrEmpty(currentCurrency.Name) ? "is-invalid" : "")"
-                                   @bind="currentCurrency.Name" placeholder="مثال: دلار آمریکا" />
-                            <div class="invalid-feedback">نام ارز الزامی است</div>
-                        </div>
-                    </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-hash text-muted me-1"></i> کد ارز <span class="text-danger">*</span>
+                                    </label>
+                                    @if (isEditMode)
+                                    {
+                                        <input type="text" class="form-control bg-light" value="@currencyCodeDisplay" disabled readonly />
+                                        <small class="text-muted">کد ارز قابل ویرایش نیست</small>
+                                    }
+                                    else
+                                    {
+                                        <input type="text" class="form-control"
+                                               @bind="currentCurrency.Code" placeholder="مثال: USD" />
+                                    }
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-tag text-muted me-1"></i> نام ارز <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control"
+                                           @bind="currentCurrency.Name" placeholder="مثال: دلار آمریکا" />
+                                </div>
+                            </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-currency-dollar"></i> سمبل (نماد)
-                            </label>
-                            <input type="text" class="form-control" @bind="currentCurrency.Symbol" placeholder="مثال: $" />
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-123"></i> تعداد اعشار
-                            </label>
-                            <input type="number" class="form-control" @bind="currentCurrency.DecimalPlaces" min="0" max="8" />
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-currency-dollar text-muted me-1"></i> سمبل (نماد)
+                                    </label>
+                                    <input type="text" class="form-control" @bind="currentCurrency.Symbol" placeholder="مثال: $" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-123 text-muted me-1"></i> تعداد اعشار
+                                    </label>
+                                    <input type="number" class="form-control" @bind="currentCurrency.DecimalPlaces" min="0" max="8" />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     @if (isEditMode)
                     {
-                        <div class="alert alert-info mt-2">
+                        <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i>
                             <small>در حال ویرایش ارز: <strong>@currencyCodeDisplay</strong></small>
                         </div>
                     }
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-primary" @onclick="() => SaveCurrency()" disabled="@isLoading">
+                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveCurrency()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -231,23 +377,24 @@
 <!-- مودال تأیید فعال/غیرفعال‌سازی -->
 @if (showConfirmModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">
-                        <i class="bi bi-exclamation-triangle"></i> تأیید عملیات
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-exclamation-triangle me-2"></i> تأیید عملیات
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body text-center py-4">
+                    <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
                     <p class="fs-5">@confirmMessage</p>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseConfirmModal()">
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseConfirmModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmAction()">
                         <i class="bi bi-check-circle"></i> تأیید
                     </button>
                 </div>
@@ -273,6 +420,45 @@
             }
         }
     }
+
+    // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string sortColumn = "Code";
+    private bool sortAscending = true;
+
+    private List<CurrencyDto> pagedCurrencies
+    {
+        get
+        {
+            // مرتب‌سازی
+            var sorted = filteredCurrencies;
+            switch (sortColumn)
+            {
+                case "Code":
+                    sorted = sortAscending ? filteredCurrencies.OrderBy(c => c.Code).ToList() : filteredCurrencies.OrderByDescending(c => c.Code).ToList();
+                    break;
+                case "Name":
+                    sorted = sortAscending ? filteredCurrencies.OrderBy(c => c.Name).ToList() : filteredCurrencies.OrderByDescending(c => c.Name).ToList();
+                    break;
+                default:
+                    sorted = filteredCurrencies.OrderByDescending(c => c.Code).ToList();
+                    break;
+            }
+
+            // صفحه‌بندی
+            if (pageSize == 0)
+            {
+                currentPage = 1;
+                return sorted;
+            }
+
+            var skip = (currentPage - 1) * pageSize;
+            return sorted.Skip(skip).Take(pageSize).ToList();
+        }
+    }
+
+    private int totalPages => pageSize == 0 ? 1 : (int)Math.Ceiling((double)filteredCurrencies.Count / pageSize);
 
     private bool showModal = false;
     private bool showConfirmModal = false;
@@ -301,6 +487,7 @@
             var result = await CurrencyService.GetAllAsync();
             currencies = result.ToList();
             filteredCurrencies = currencies;
+            currentPage = 1;
         }
         catch (Exception ex)
         {
@@ -328,6 +515,7 @@
                 (c.Symbol != null && c.Symbol.Contains(term, StringComparison.OrdinalIgnoreCase))
             ).ToList();
         }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -335,6 +523,31 @@
     {
         _searchTerm = string.Empty;
         filteredCurrencies = currencies;
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            StateHasChanged();
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -404,7 +617,6 @@
         validationErrors.Clear();
         successMessage = string.Empty;
 
-        // اعتبارسنجی
         if (!isEditMode && string.IsNullOrWhiteSpace(currentCurrency.Code))
             validationErrors.Add("کد ارز الزامی است");
         if (string.IsNullOrWhiteSpace(currentCurrency.Name))
@@ -430,7 +642,7 @@
                     Name = currentCurrency.Name,
                     Symbol = currentCurrency.Symbol,
                     DecimalPlaces = currentCurrency.DecimalPlaces,
-                    IsActive = true // وضعیت از دکمه فعال/غیرفعال مدیریت می‌شود
+                    IsActive = true
                 };
                 await CurrencyService.UpdateAsync(editId, updateRequest);
                 successMessage = "ارز با موفقیت ویرایش شد";

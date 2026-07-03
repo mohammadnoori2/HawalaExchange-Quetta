@@ -6,93 +6,195 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<div class="container-fluid mt-4" dir="rtl">
-    <div class="card shadow-lg border-0">
-        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <h4 class="mb-0">
-                    <i class="bi bi-arrow-left-right me-2"></i> مدیریت نرخ‌های ارز
-                </h4>
-                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
-                    <i class="bi bi-plus-circle"></i> نرخ جدید
-                </button>
+<div class="page-wrapper">
+    <!-- هدر صفحه -->
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-arrow-left-right"></i>
+                مدیریت نرخ‌های ارز
+                <span class="page-subtitle">لیست و جستجوی نرخ‌های ارز</span>
+            </h5>
+        </div>
+        <div class="page-actions">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+                <i class="bi bi-plus-circle"></i> نرخ جدید
+            </button>
+        </div>
+    </div>
+
+    <!-- کارت آماری -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4 col-6">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon primary">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@rates.Count</div>
+                        <div class="stat-label">تعداد نرخ‌ها</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-6">
+            <div class="stat-card stat-card-info">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon info">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@rates.Count(r => r.EffectiveDate.Date == DateTime.Today)</div>
+                        <div class="stat-label">نرخ‌های امروز</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-6">
+            <div class="stat-card stat-card-success">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon success">
+                        <i class="bi bi-calendar-check"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@rates.Count(r => r.EffectiveDate > DateTime.Now.AddDays(-7))</div>
+                        <div class="stat-label">هفته گذشته</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- کارت جدول -->
+    <div class="table-card">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <!-- جستجو -->
+                <div class="search-modern">
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" class="search-input" placeholder="جستجوی نرخ‌ها (کد ارز مبدأ یا مقصد)..."
+                           @bind="searchTerm" @bind:event="oninput" />
+                    <button class="search-btn" @onclick="() => ClearSearch()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- انتخاب تعداد نمایش -->
+                <div class="page-size-selector">
+                    <span class="text-muted small">تعداد نمایش:</span>
+                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">همه</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i> @filteredRates.Count
+                </span>
             </div>
         </div>
 
-        <div class="card-body">
-            <!-- نوار جستجو -->
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <div class="input-group input-group-lg">
-                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="جستجوی نرخ‌ها (کد ارز مبدأ یا مقصد)..."
-                               @bind="searchTerm" @bind:event="oninput" />
-                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
-                            <i class="bi bi-x-circle"></i> پاک کردن
-                        </button>
-                    </div>
-                </div>
-                <div class="col-md-4 text-start">
-                    <span class="badge bg-info fs-6 p-2">
-                        <i class="bi bi-list-ul"></i> تعداد: @filteredRates.Count
-                    </span>
-                </div>
-            </div>
-
-            <!-- جدول نرخ‌ها -->
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle">
-                    <thead class="table-dark">
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
                         <tr>
-                            <th scope="col">#</th>
-                            <th scope="col">از ارز</th>
-                            <th scope="col">به ارز</th>
-                            <th scope="col">نرخ خرید</th>
-                            <th scope="col">نرخ فروش</th>
-                            <th scope="col">تاریخ مؤثر</th>
-                            <th scope="col">ایجاد کننده</th>
-                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                            <th style="width: 50px;">#</th>
+                            <th class="sortable-header @(sortColumn == "FromCurrencyCode" ? "active" : "")" @onclick="@(() => SortBy("FromCurrencyCode"))">
+                                از ارز
+                                @if (sortColumn == "FromCurrencyCode")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "ToCurrencyCode" ? "active" : "")" @onclick="@(() => SortBy("ToCurrencyCode"))">
+                                به ارز
+                                @if (sortColumn == "ToCurrencyCode")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "BuyRate" ? "active" : "")" @onclick="@(() => SortBy("BuyRate"))">
+                                نرخ خرید
+                                @if (sortColumn == "BuyRate")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "SellRate" ? "active" : "")" @onclick="@(() => SortBy("SellRate"))">
+                                نرخ فروش
+                                @if (sortColumn == "SellRate")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "EffectiveDate" ? "active" : "")" @onclick="@(() => SortBy("EffectiveDate"))">
+                                تاریخ مؤثر
+                                @if (sortColumn == "EffectiveDate")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th>ایجاد کننده</th>
+                            <th class="text-center">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (isLoading && rates == null)
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-4">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="loading-state">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">در حال بارگذاری...</span>
+                                        </div>
+                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                     </div>
                                 </td>
                             </tr>
                         }
-                        else if (!filteredRates.Any())
+                        else if (!pagedRates.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">
-                                    <i class="bi bi-inbox fs-1 d-block"></i>
-                                    <span class="fs-5">هیچ نرخ ارزی یافت نشد</span>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <span class="fs-5 text-muted">هیچ نرخ ارزی یافت نشد</span>
+                                        <p class="text-muted small">برای افزودن نرخ جدید، دکمه "نرخ جدید" را کلیک کنید</p>
+                                    </div>
                                 </td>
                             </tr>
                         }
                         else
                         {
-                            int rowIndex = 1;
-                            @foreach (var rate in filteredRates)
+                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredRates.Count : pageSize) + 1;
+                            @foreach (var rate in pagedRates)
                             {
                                 <tr>
-                                    <td>@rowIndex</td>
-                                    <td><strong>@rate.FromCurrencyCode</strong></td>
-                                    <td><strong>@rate.ToCurrencyCode</strong></td>
-                                    <td dir="ltr">@rate.BuyRate.ToString("N2")</td>
-                                    <td dir="ltr">@rate.SellRate.ToString("N2")</td>
+                                    <td><span class="fw-bold text-muted">@rowIndex</span></td>
+                                    <td>
+                                        <span class="customer-code">@rate.FromCurrencyCode</span>
+                                    </td>
+                                    <td>
+                                        <span class="customer-code">@rate.ToCurrencyCode</span>
+                                    </td>
+                                    <td dir="ltr" class="fw-bold text-primary">@rate.BuyRate.ToString("N2")</td>
+                                    <td dir="ltr" class="fw-bold text-success">@rate.SellRate.ToString("N2")</td>
                                     <td dir="ltr">@rate.EffectiveDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                     <td>@rate.CreatedByName</td>
                                     <td>
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(rate.Id)" title="ویرایش">
+                                        <div class="action-group justify-content-center">
+                                            <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(rate.Id)" title="ویرایش">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            <button class="btn btn-outline-danger" @onclick="() => ShowDeleteConfirm(rate.Id)" title="حذف">
+                                            <button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(rate.Id)" title="حذف">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -105,27 +207,70 @@
                 </table>
             </div>
         </div>
+
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedRates.Count</strong> از <strong>@filteredRates.Count</strong> نرخ
+                </span>
+
+                <!-- صفحه‌بندی -->
+                @if (totalPages > 1)
+                {
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination-modern">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+
+            <div class="table-card-footer-right">
+                <span class="badge-modern badge-success">
+                    <i class="bi bi-calendar-check"></i> امروز: @rates.Count(r => r.EffectiveDate.Date == DateTime.Today)
+                </span>
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-clock-history"></i> هفته گذشته: @rates.Count(r => r.EffectiveDate > DateTime.Now.AddDays(-7))
+                </span>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- مودال ایجاد/ویرایش نرخ ارز -->
 @if (showModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
                         @(isEditMode ? "ویرایش نرخ ارز" : "ایجاد نرخ ارز جدید")
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- پیام‌های خطا -->
                     @if (validationErrors.Any())
                     {
-                        <div class="alert alert-danger">
-                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
                             <ul class="mb-0">
                                 @foreach (var error in validationErrors)
                                 {
@@ -137,98 +282,103 @@
 
                     @if (!string.IsNullOrEmpty(successMessage))
                     {
-                        <div class="alert alert-success">
-                            <i class="bi bi-check-circle"></i> @successMessage
+                        <div class="alert alert-success alert-dismissible fade show">
+                            <i class="bi bi-check-circle me-2"></i> @successMessage
                         </div>
                     }
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-arrow-right"></i> از ارز <span class="text-danger">*</span>
-                            </label>
-                            @if (isEditMode)
-                            {
-                                <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentRate.FromCurrencyId)?.Code ?? "نامشخص")" disabled readonly />
-                                <small class="text-muted">ارز مبدأ قابل تغییر نیست</small>
-                            }
-                            else
-                            {
-                                <select class="form-select @(currentRate.FromCurrencyId == 0 ? "is-invalid" : "")"
-                                        @bind="currentRate.FromCurrencyId">
-                                    <option value="0">انتخاب ارز مبدأ</option>
-                                    @foreach (var currency in currencies)
-                                    {
-                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                                    }
-                                </select>
-                                <div class="invalid-feedback">انتخاب ارز مبدأ الزامی است</div>
-                            }
+                    <!-- اطلاعات نرخ ارز -->
+                    <div class="modern-card mb-4">
+                        <div class="card-header">
+                            <h6 class="text-primary">
+                                <i class="bi bi-currency-exchange me-2"></i> اطلاعات نرخ ارز
+                            </h6>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-arrow-left"></i> به ارز <span class="text-danger">*</span>
-                            </label>
-                            @if (isEditMode)
-                            {
-                                <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentRate.ToCurrencyId)?.Code ?? "نامشخص")" disabled readonly />
-                                <small class="text-muted">ارز مقصد قابل تغییر نیست</small>
-                            }
-                            else
-                            {
-                                <select class="form-select @(currentRate.ToCurrencyId == 0 ? "is-invalid" : "")"
-                                        @bind="currentRate.ToCurrencyId">
-                                    <option value="0">انتخاب ارز مقصد</option>
-                                    @foreach (var currency in currencies)
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-arrow-right text-muted me-1"></i> از ارز <span class="text-danger">*</span>
+                                    </label>
+                                    @if (isEditMode)
                                     {
-                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                        <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentRate.FromCurrencyId)?.Code ?? "نامشخص")" disabled readonly />
+                                        <small class="text-muted">ارز مبدأ قابل تغییر نیست</small>
                                     }
-                                </select>
-                                <div class="invalid-feedback">انتخاب ارز مقصد الزامی است</div>
-                            }
-                        </div>
-                    </div>
+                                    else
+                                    {
+                                        <select class="form-select"
+                                                @bind="currentRate.FromCurrencyId">
+                                            <option value="0">انتخاب ارز مبدأ</option>
+                                            @foreach (var currency in currencies)
+                                            {
+                                                <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                            }
+                                        </select>
+                                    }
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-arrow-left text-muted me-1"></i> به ارز <span class="text-danger">*</span>
+                                    </label>
+                                    @if (isEditMode)
+                                    {
+                                        <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentRate.ToCurrencyId)?.Code ?? "نامشخص")" disabled readonly />
+                                        <small class="text-muted">ارز مقصد قابل تغییر نیست</small>
+                                    }
+                                    else
+                                    {
+                                        <select class="form-select"
+                                                @bind="currentRate.ToCurrencyId">
+                                            <option value="0">انتخاب ارز مقصد</option>
+                                            @foreach (var currency in currencies)
+                                            {
+                                                <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                            }
+                                        </select>
+                                    }
+                                </div>
+                            </div>
 
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-coin"></i> نرخ خرید <span class="text-danger">*</span>
-                            </label>
-                            <input type="number" step="0.0001" class="form-control @(currentRate.BuyRate <= 0 ? "is-invalid" : "")"
-                                   @bind="currentRate.BuyRate" placeholder="مثال: 75.5" />
-                            <div class="invalid-feedback">نرخ خرید باید بزرگتر از صفر باشد</div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-coin"></i> نرخ فروش <span class="text-danger">*</span>
-                            </label>
-                            <input type="number" step="0.0001" class="form-control @(currentRate.SellRate <= 0 ? "is-invalid" : "")"
-                                   @bind="currentRate.SellRate" placeholder="مثال: 76.0" />
-                            <div class="invalid-feedback">نرخ فروش باید بزرگتر از صفر باشد</div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label fw-bold">
-                                <i class="bi bi-calendar-date"></i> تاریخ مؤثر <span class="text-danger">*</span>
-                            </label>
-                            <input type="datetime-local" class="form-control @(currentRate.EffectiveDate == default ? "is-invalid" : "")"
-                                   @bind="currentRate.EffectiveDate" />
-                            <div class="invalid-feedback">تاریخ مؤثر الزامی است</div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-coin text-muted me-1"></i> نرخ خرید <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="number" step="0.0001" class="form-control"
+                                           @bind="currentRate.BuyRate" placeholder="مثال: 75.5" />
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-coin text-muted me-1"></i> نرخ فروش <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="number" step="0.0001" class="form-control"
+                                           @bind="currentRate.SellRate" placeholder="مثال: 76.0" />
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-calendar-date text-muted me-1"></i> تاریخ مؤثر <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="datetime-local" class="form-control"
+                                           @bind="currentRate.EffectiveDate" />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     @if (isEditMode)
                     {
-                        <div class="alert alert-info mt-2">
+                        <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i>
                             <small>در حال ویرایش نرخ ارز از <strong>@(currencies.FirstOrDefault(c => c.Id == currentRate.FromCurrencyId)?.Code ?? "نامشخص")</strong> به <strong>@(currencies.FirstOrDefault(c => c.Id == currentRate.ToCurrencyId)?.Code ?? "نامشخص")</strong></small>
                         </div>
                     }
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-primary" @onclick="() => SaveRate()" disabled="@isLoading">
+                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveRate()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -248,23 +398,24 @@
 <!-- مودال تأیید حذف -->
 @if (showConfirmModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">
-                        <i class="bi bi-exclamation-triangle"></i> تأیید حذف
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-exclamation-triangle me-2"></i> تأیید حذف
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body text-center py-4">
+                    <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
                     <p class="fs-5">@confirmMessage</p>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseConfirmModal()">
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseConfirmModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmAction()">
                         <i class="bi bi-check-circle"></i> تأیید حذف
                     </button>
                 </div>
@@ -291,6 +442,54 @@
             }
         }
     }
+
+    // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string sortColumn = "EffectiveDate";
+    private bool sortAscending = false;
+
+    private List<ExchangeRateDto> pagedRates
+    {
+        get
+        {
+            // مرتب‌سازی
+            var sorted = filteredRates;
+            switch (sortColumn)
+            {
+                case "FromCurrencyCode":
+                    sorted = sortAscending ? filteredRates.OrderBy(r => r.FromCurrencyCode).ToList() : filteredRates.OrderByDescending(r => r.FromCurrencyCode).ToList();
+                    break;
+                case "ToCurrencyCode":
+                    sorted = sortAscending ? filteredRates.OrderBy(r => r.ToCurrencyCode).ToList() : filteredRates.OrderByDescending(r => r.ToCurrencyCode).ToList();
+                    break;
+                case "BuyRate":
+                    sorted = sortAscending ? filteredRates.OrderBy(r => r.BuyRate).ToList() : filteredRates.OrderByDescending(r => r.BuyRate).ToList();
+                    break;
+                case "SellRate":
+                    sorted = sortAscending ? filteredRates.OrderBy(r => r.SellRate).ToList() : filteredRates.OrderByDescending(r => r.SellRate).ToList();
+                    break;
+                case "EffectiveDate":
+                    sorted = sortAscending ? filteredRates.OrderBy(r => r.EffectiveDate).ToList() : filteredRates.OrderByDescending(r => r.EffectiveDate).ToList();
+                    break;
+                default:
+                    sorted = filteredRates.OrderByDescending(r => r.EffectiveDate).ToList();
+                    break;
+            }
+
+            // صفحه‌بندی
+            if (pageSize == 0)
+            {
+                currentPage = 1;
+                return sorted;
+            }
+
+            var skip = (currentPage - 1) * pageSize;
+            return sorted.Skip(skip).Take(pageSize).ToList();
+        }
+    }
+
+    private int totalPages => pageSize == 0 ? 1 : (int)Math.Ceiling((double)filteredRates.Count / pageSize);
 
     private bool showModal = false;
     private bool showConfirmModal = false;
@@ -331,6 +530,7 @@
             var result = await ExchangeRateService.GetAllAsync();
             rates = result.ToList();
             filteredRates = rates;
+            currentPage = 1;
         }
         catch (Exception ex)
         {
@@ -357,6 +557,7 @@
                 r.ToCurrencyCode.ToLower().Contains(term)
             ).ToList();
         }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -364,6 +565,31 @@
     {
         _searchTerm = string.Empty;
         filteredRates = rates;
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            StateHasChanged();
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -439,7 +665,6 @@
         validationErrors.Clear();
         successMessage = string.Empty;
 
-        // اعتبارسنجی
         if (currentRate.FromCurrencyId == 0)
             validationErrors.Add("انتخاب ارز مبدأ الزامی است");
         if (currentRate.ToCurrencyId == 0)
@@ -477,7 +702,6 @@
             }
             else
             {
-                // در حالت ایجاد، CreatedBy از سرویس (که کاربر فعلی است) مقداردهی می‌شود.
                 await ExchangeRateService.CreateAsync(currentRate);
                 successMessage = "نرخ ارز با موفقیت ایجاد شد";
             }

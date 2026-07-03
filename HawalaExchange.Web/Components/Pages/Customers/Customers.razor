@@ -41,7 +41,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card" style="border-right-color: var(--success-color);">
+            <div class="stat-card stat-card-success">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon success">
                         <i class="bi bi-check-circle"></i>
@@ -54,7 +54,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card" style="border-right-color: var(--danger-color);">
+            <div class="stat-card stat-card-danger">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon danger">
                         <i class="bi bi-archive"></i>
@@ -67,7 +67,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card" style="border-right-color: var(--info-color);">
+            <div class="stat-card stat-card-info">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon info">
                         <i class="bi bi-clock-history"></i>
@@ -84,15 +84,32 @@
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
-            <div class="search-modern" style="flex: 1; max-width: 500px;">
-                <span class="search-icon"><i class="bi bi-search"></i></span>
-                <input type="text" class="search-input" placeholder="جستجوی مشتریان (کد، نام، تلفن، تذکره)..."
-                       @bind="searchTerm" @bind:event="oninput" />
-                <button class="search-btn" @onclick="() => ClearSearch()">
-                    <i class="bi bi-x-lg"></i>
-                </button>
+            <div class="table-card-header-left">
+                <!-- جستجو -->
+                <div class="search-modern">
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" class="search-input" placeholder="جستجوی مشتریان (کد، نام، تلفن، تذکره)..."
+                           @bind="searchTerm" @bind:event="oninput" />
+                    <button class="search-btn" @onclick="() => ClearSearch()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- انتخاب تعداد نمایش -->
+                <div class="page-size-selector">
+                    <span class="text-muted small">تعداد نمایش:</span>
+                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">همه</option>
+                    </select>
+                </div>
             </div>
-            <div>
+
+            <div class="table-card-header-right">
                 <span class="badge-modern badge-info">
                     <i class="bi bi-list-ul"></i> @filteredCustomers.Count
                 </span>
@@ -105,13 +122,25 @@
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
-                            <th style="min-width: 120px;">کد مشتری</th>
-                            <th style="min-width: 150px;">نام کامل</th>
-                            <th style="min-width: 130px;">شماره تلفن</th>
-                            <th style="min-width: 120px;">شماره تذکره</th>
-                            <th style="min-width: 150px;">آدرس</th>
-                            <th style="min-width: 100px;">وضعیت</th>
-                            <th style="min-width: 220px;" class="text-center">عملیات</th>
+                            <th class="sortable-header @(sortColumn == "CustomerCode" ? "active" : "")" @onclick="@(() => SortBy("CustomerCode"))">
+                                کد مشتری
+                                @if (sortColumn == "CustomerCode")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "FullName" ? "active" : "")" @onclick="@(() => SortBy("FullName"))">
+                                نام کامل
+                                @if (sortColumn == "FullName")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th>شماره تلفن</th>
+                            <th>شماره تذکره</th>
+                            <th>آدرس</th>
+                            <th>وضعیت</th>
+                            <th class="text-center">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -119,19 +148,21 @@
                         {
                             <tr>
                                 <td colspan="8" class="text-center py-5">
-                                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    <div class="loading-state">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">در حال بارگذاری...</span>
+                                        </div>
+                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                     </div>
-                                    <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                 </td>
                             </tr>
                         }
-                        else if (!filteredCustomers.Any())
+                        else if (!pagedCustomers.Any())
                         {
                             <tr>
                                 <td colspan="8" class="text-center py-5">
                                     <div class="empty-state">
-                                        <i class="bi bi-inbox fs-1 d-block text-muted mb-3"></i>
+                                        <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ مشتری‌ای یافت نشد</span>
                                         <p class="text-muted small">برای افزودن مشتری جدید، دکمه "مشتری جدید" را کلیک کنید</p>
                                     </div>
@@ -140,8 +171,8 @@
                         }
                         else
                         {
-                            int rowIndex = 1;
-                            @foreach (var customer in filteredCustomers)
+                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredCustomers.Count : pageSize) + 1;
+                            @foreach (var customer in pagedCustomers)
                             {
                                 <tr class="@(customer.IsArchived ? "table-row-archived" : "")">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
@@ -161,7 +192,7 @@
                                     </td>
                                     <td>@customer.TazkiraNumber</td>
                                     <td>
-                                        <span class="overflow-ellipsis" style="max-width: 130px;">@customer.Address</span>
+                                        <span class="overflow-ellipsis">@customer.Address</span>
                                     </td>
                                     <td>
                                         @if (customer.IsArchived)
@@ -212,10 +243,38 @@
         </div>
 
         <div class="table-card-footer">
-            <span class="text-muted small">
-                نمایش <strong>@filteredCustomers.Count</strong> از <strong>@customers.Count</strong> مشتری
-            </span>
-            <div class="d-flex gap-2">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedCustomers.Count</strong> از <strong>@filteredCustomers.Count</strong> مشتری
+                </span>
+
+                <!-- صفحه‌بندی -->
+                @if (totalPages > 1)
+                {
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination-modern">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+
+            <div class="table-card-footer-right">
                 <span class="badge-modern badge-success">
                     <i class="bi bi-check-circle-fill"></i> فعال: @customers.Count(c => !c.IsArchived)
                 </span>
@@ -289,9 +348,8 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-person text-muted me-1"></i> نام کامل <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" class="form-control @(string.IsNullOrEmpty(currentCustomer.FullName) ? "is-invalid" : "")"
+                                    <input type="text" class="form-control"
                                            @bind="currentCustomer.FullName" placeholder="نام و نام خانوادگی" />
-                                    <div class="invalid-feedback">نام کامل الزامی است</div>
                                 </div>
                             </div>
 
@@ -492,7 +550,7 @@
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header" style="background: linear-gradient(135deg, #dc3545, #b02a37);">
+                <div class="modal-header modal-header-danger">
                     <h5 class="modal-title text-white">
                         <i class="bi bi-exclamation-triangle me-2"></i> تأیید عملیات
                     </h5>
@@ -714,6 +772,45 @@
         }
     }
 
+    // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string sortColumn = "FullName";
+    private bool sortAscending = true;
+
+    private List<CustomerDto> pagedCustomers
+    {
+        get
+        {
+            // مرتب‌سازی
+            var sorted = filteredCustomers;
+            switch (sortColumn)
+            {
+                case "CustomerCode":
+                    sorted = sortAscending ? filteredCustomers.OrderBy(c => c.CustomerCode).ToList() : filteredCustomers.OrderByDescending(c => c.CustomerCode).ToList();
+                    break;
+                case "FullName":
+                    sorted = sortAscending ? filteredCustomers.OrderBy(c => c.FullName).ToList() : filteredCustomers.OrderByDescending(c => c.FullName).ToList();
+                    break;
+                default:
+                    sorted = filteredCustomers.OrderByDescending(c => c.CreatedAt).ToList();
+                    break;
+            }
+
+            // صفحه‌بندی
+            if (pageSize == 0)
+            {
+                currentPage = 1;
+                return sorted;
+            }
+
+            var skip = (currentPage - 1) * pageSize;
+            return sorted.Skip(skip).Take(pageSize).ToList();
+        }
+    }
+
+    private int totalPages => pageSize == 0 ? 1 : (int)Math.Ceiling((double)filteredCustomers.Count / pageSize);
+
     private bool showModal = false;
     private bool showConfirmModal = false;
     private bool showAccountModal = false;
@@ -755,6 +852,7 @@
             var result = await CustomerService.GetAllAsync();
             customers = result.ToList();
             filteredCustomers = customers;
+            currentPage = 1;
         }
         catch (Exception ex)
         {
@@ -810,6 +908,7 @@
                 (c.Address != null && c.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
             ).ToList();
         }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -817,6 +916,31 @@
     {
         _searchTerm = string.Empty;
         filteredCustomers = customers;
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            StateHasChanged();
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -826,13 +950,12 @@
         customerCodeDisplay = null;
         isEditMode = false;
         editId = 0;
-        validationErrors.Clear();
         successMessage = string.Empty;
         showModal = true;
         hasInitialBalance = false;
         initialBalances.Clear();
         newInitialBalance = new InitialBalanceDto();
-        StateHasChanged();
+        validationErrors.Clear();
     }
 
     private async Task OpenEditModal(long id)

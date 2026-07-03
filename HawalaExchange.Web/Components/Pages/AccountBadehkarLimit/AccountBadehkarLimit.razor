@@ -7,121 +7,237 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<div class="container-fluid mt-4" dir="rtl">
-    <div class="card shadow-lg border-0">
-        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <h4 class="mb-0">
-                    <i class="bi bi-credit-card-2-front me-2"></i> مدیریت محدودیت حساب‌ها
-                </h4>
-                <button class="btn btn-light btn-lg" @onclick="() => OpenCreateModal()">
-                    <i class="bi bi-plus-circle"></i> محدودیت جدید
-                </button>
-            </div>
+<div class="page-wrapper">
+    <!-- هدر صفحه -->
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-credit-card-2-front"></i>
+                مدیریت محدودیت حساب‌ها
+                <span class="page-subtitle">تنظیم و مدیریت محدودیت‌های بدهکاری حساب‌ها</span>
+            </h5>
         </div>
+        <div class="page-actions">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+                <i class="bi bi-plus-circle"></i> محدودیت جدید
+            </button>
+        </div>
+    </div>
 
-        <div class="card-body">
-            <!-- نوار جستجو -->
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <div class="input-group input-group-lg">
-                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="جستجو (نام حساب، کد ارز)..."
-                               @bind="searchTerm" @bind:event="oninput" />
-                        <button class="btn btn-outline-secondary" @onclick="() => ClearSearch()" type="button">
-                            <i class="bi bi-x-circle"></i> پاک کردن
-                        </button>
+    <!-- کارت آماری -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon primary">
+                        <i class="bi bi-credit-card-2-front"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@limits.Count</div>
+                        <div class="stat-label">تعداد محدودیت‌ها</div>
                     </div>
                 </div>
-                <div class="col-md-2">
-                    <select class="form-select" @bind="filterStatus">
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-success">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon success">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@limits.Count(l => l.IsActive)</div>
+                        <div class="stat-label">فعال</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-danger">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon danger">
+                        <i class="bi bi-slash-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@limits.Count(l => !l.IsActive)</div>
+                        <div class="stat-label">غیرفعال</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-info">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon info">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@limits.Count(l => l.CreatedAt.Date == DateTime.Today)</div>
+                        <div class="stat-label">ایجاد امروز</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- کارت جدول -->
+    <div class="table-card">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <!-- جستجو -->
+                <div class="search-modern">
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" class="search-input" placeholder="جستجو (نام حساب، کد ارز)..."
+                           @bind="searchTerm" @bind:event="oninput" />
+                    <button class="search-btn" @onclick="() => ClearSearch()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- فیلتر وضعیت -->
+                <div class="filter-selector">
+                    <select class="form-select form-select-sm"
+                            @bind="filterStatus" @bind:event="oninput">
                         <option value="">همه</option>
                         <option value="true">فعال</option>
                         <option value="false">غیرفعال</option>
                     </select>
                 </div>
-                <div class="col-md-2 text-start">
-                    <span class="badge bg-info fs-6 p-2">
-                        <i class="bi bi-list-ul"></i> تعداد: @filteredLimits.Count
-                    </span>
+
+                <!-- انتخاب تعداد نمایش -->
+                <div class="page-size-selector">
+                    <span class="text-muted small">تعداد نمایش:</span>
+                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">همه</option>
+                    </select>
                 </div>
             </div>
 
-            <!-- جدول محدودیت‌ها -->
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle">
-                    <thead class="table-dark">
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i> @filteredLimits.Count
+                </span>
+            </div>
+        </div>
+
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
                         <tr>
-                            <th scope="col">#</th>
-                            <th scope="col">حساب</th>
-                            <th scope="col">ارز</th>
-                            <th scope="col">محدودیت بدهکاری</th>
-                            <th scope="col">وضعیت</th>
-                            <th scope="col">ایجاد کننده</th>
-                            <th scope="col">تاریخ ایجاد</th>
-                            <th scope="col" style="min-width: 150px;">عملیات</th>
+                            <th style="width: 50px;">#</th>
+                            <th class="sortable-header @(sortColumn == "AccountName" ? "active" : "")" @onclick="@(() => SortBy("AccountName"))">
+                                حساب
+                                @if (sortColumn == "AccountName")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "CurrencyCode" ? "active" : "")" @onclick="@(() => SortBy("CurrencyCode"))">
+                                ارز
+                                @if (sortColumn == "CurrencyCode")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "BadehkarLimit" ? "active" : "")" @onclick="@(() => SortBy("BadehkarLimit"))">
+                                محدودیت بدهکاری
+                                @if (sortColumn == "BadehkarLimit")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th>وضعیت</th>
+                            <th>ایجاد کننده</th>
+                            <th class="sortable-header @(sortColumn == "CreatedAt" ? "active" : "")" @onclick="@(() => SortBy("CreatedAt"))">
+                                تاریخ ایجاد
+                                @if (sortColumn == "CreatedAt")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="text-center">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (isLoading && limits == null)
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-4">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="loading-state">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">در حال بارگذاری...</span>
+                                        </div>
+                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                     </div>
                                 </td>
                             </tr>
                         }
-                        else if (!filteredLimits.Any())
+                        else if (!pagedLimits.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">
-                                    <i class="bi bi-inbox fs-1 d-block"></i>
-                                    <span class="fs-5">هیچ محدودیتی یافت نشد</span>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <span class="fs-5 text-muted">هیچ محدودیتی یافت نشد</span>
+                                        <p class="text-muted small">برای افزودن محدودیت جدید، دکمه "محدودیت جدید" را کلیک کنید</p>
+                                    </div>
                                 </td>
                             </tr>
                         }
                         else
                         {
-                            int rowIndex = 1;
-                            @foreach (var limit in filteredLimits)
+                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredLimits.Count : pageSize) + 1;
+                            @foreach (var limit in pagedLimits)
                             {
                                 <tr>
-                                    <td>@rowIndex</td>
-                                    <td>@limit.AccountName</td>
-                                    <td>@limit.CurrencyCode</td>
-                                    <td dir="ltr">@limit.BadehkarLimit.ToString("N2")</td>
+                                    <td><span class="fw-bold text-muted">@rowIndex</span></td>
+                                    <td>
+                                        <span class="fw-semibold">@limit.AccountName</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge-modern badge-info">@limit.CurrencyCode</span>
+                                    </td>
+                                    <td dir="ltr" class="fw-bold text-primary">@limit.BadehkarLimit.ToString("N2")</td>
                                     <td>
                                         @if (limit.IsActive)
                                         {
-                                            <span class="badge bg-success px-3 py-2">فعال</span>
+                                            <span class="badge-modern badge-active">
+                                                <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> فعال
+                                            </span>
                                         }
                                         else
                                         {
-                                            <span class="badge bg-secondary px-3 py-2">غیرفعال</span>
+                                            <span class="badge-modern badge-archived">
+                                                <i class="bi bi-slash-circle"></i> غیرفعال
+                                            </span>
                                         }
                                     </td>
                                     <td>@(limit.CreatedByName ?? "-")</td>
                                     <td dir="ltr">@limit.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                     <td>
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <button class="btn btn-outline-primary" @onclick="() => OpenEditModal(limit.Id)" title="ویرایش">
+                                        <div class="action-group justify-content-center">
+                                            <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(limit.Id)" title="ویرایش">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             @if (limit.IsActive)
                                             {
-                                                <button class="btn btn-outline-danger" @onclick="() => ShowDeactivateConfirm(limit.Id)" title="غیرفعال‌سازی">
+                                                <button class="action-btn action-btn-delete" @onclick="() => ShowDeactivateConfirm(limit.Id)" title="غیرفعال‌سازی">
                                                     <i class="bi bi-slash-circle"></i>
                                                 </button>
                                             }
                                             else
                                             {
-                                                <button class="btn btn-outline-warning" @onclick="() => ShowActivateConfirm(limit.Id)" title="فعال‌سازی">
+                                                <button class="action-btn action-btn-unarchive" @onclick="() => ShowActivateConfirm(limit.Id)" title="فعال‌سازی">
                                                     <i class="bi bi-check-circle"></i>
                                                 </button>
                                             }
-                                            <button class="btn btn-outline-danger" @onclick="() => ShowDeleteConfirm(limit.Id)" title="حذف">
+                                            <button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(limit.Id)" title="حذف">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -134,17 +250,59 @@
                 </table>
             </div>
         </div>
+
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedLimits.Count</strong> از <strong>@filteredLimits.Count</strong> محدودیت
+                </span>
+
+                <!-- صفحه‌بندی -->
+                @if (totalPages > 1)
+                {
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination-modern">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+
+            <div class="table-card-footer-right">
+                <span class="badge-modern badge-success">
+                    <i class="bi bi-check-circle-fill"></i> فعال: @limits.Count(l => l.IsActive)
+                </span>
+                <span class="badge-modern badge-archived">
+                    <i class="bi bi-slash-circle-fill"></i> غیرفعال: @limits.Count(l => !l.IsActive)
+                </span>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- مودال ایجاد/ویرایش محدودیت -->
 @if (showModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
                         @(isEditMode ? "ویرایش محدودیت" : "ایجاد محدودیت جدید")
                     </h5>
@@ -153,8 +311,8 @@
                 <div class="modal-body">
                     @if (validationErrors.Any())
                     {
-                        <div class="alert alert-danger">
-                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
                             <ul class="mb-0">
                                 @foreach (var error in validationErrors)
                                 {
@@ -166,76 +324,88 @@
 
                     @if (!string.IsNullOrEmpty(successMessage))
                     {
-                        <div class="alert alert-success">
-                            <i class="bi bi-check-circle"></i> @successMessage
+                        <div class="alert alert-success alert-dismissible fade show">
+                            <i class="bi bi-check-circle me-2"></i> @successMessage
                         </div>
                     }
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">حساب <span class="text-danger">*</span></label>
-                            @if (isEditMode)
-                            {
-                                <input type="text" class="form-control bg-light" value="@(accounts.FirstOrDefault(a => a.Id == currentLimit.AccountId)?.AccountName ?? "نامشخص")" disabled readonly />
-                                <small class="text-muted">حساب قابل تغییر نیست</small>
-                            }
-                            else
-                            {
-                                <select class="form-select @(currentLimit.AccountId == 0 ? "is-invalid" : "")"
-                                        @bind="currentLimit.AccountId">
-                                    <option value="0">انتخاب حساب</option>
-                                    @foreach (var account in accounts)
-                                    {
-                                        <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
-                                    }
-                                </select>
-                                <div class="invalid-feedback">انتخاب حساب الزامی است</div>
-                            }
+                    <div class="modern-card mb-4">
+                        <div class="card-header">
+                            <h6 class="text-primary">
+                                <i class="bi bi-credit-card-2-front me-2"></i> اطلاعات محدودیت
+                            </h6>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
-                            @if (isEditMode)
-                            {
-                                <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentLimit.CurrencyId)?.Code ?? "نامشخص")" disabled readonly />
-                                <small class="text-muted">ارز قابل تغییر نیست</small>
-                            }
-                            else
-                            {
-                                <select class="form-select @(currentLimit.CurrencyId == 0 ? "is-invalid" : "")"
-                                        @bind="currentLimit.CurrencyId">
-                                    <option value="0">انتخاب ارز</option>
-                                    @foreach (var currency in currencies)
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-person-badge text-muted me-1"></i> حساب <span class="text-danger">*</span>
+                                    </label>
+                                    @if (isEditMode)
                                     {
-                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                        <input type="text" class="form-control bg-light" value="@(accounts.FirstOrDefault(a => a.Id == currentLimit.AccountId)?.AccountName ?? "نامشخص")" disabled readonly />
+                                        <small class="text-muted">حساب قابل تغییر نیست</small>
                                     }
-                                </select>
-                                <div class="invalid-feedback">انتخاب ارز الزامی است</div>
-                            }
-                        </div>
-                    </div>
+                                    else
+                                    {
+                                        <select class="form-select"
+                                                @bind="currentLimit.AccountId">
+                                            <option value="0">انتخاب حساب</option>
+                                            @foreach (var account in accounts)
+                                            {
+                                                <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
+                                            }
+                                        </select>
+                                    }
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-coin text-muted me-1"></i> ارز <span class="text-danger">*</span>
+                                    </label>
+                                    @if (isEditMode)
+                                    {
+                                        <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentLimit.CurrencyId)?.Code ?? "نامشخص")" disabled readonly />
+                                        <small class="text-muted">ارز قابل تغییر نیست</small>
+                                    }
+                                    else
+                                    {
+                                        <select class="form-select"
+                                                @bind="currentLimit.CurrencyId">
+                                            <option value="0">انتخاب ارز</option>
+                                            @foreach (var currency in currencies)
+                                            {
+                                                <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                            }
+                                        </select>
+                                    }
+                                </div>
+                            </div>
 
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label class="form-label fw-bold">محدودیت بدهکاری <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" class="form-control @(currentLimit.BadehkarLimit <= 0 ? "is-invalid" : "")"
-                                   @bind="currentLimit.BadehkarLimit" placeholder="مقدار محدودیت را وارد کنید" />
-                            <div class="invalid-feedback">محدودیت باید بزرگتر از صفر باشد</div>
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-credit-card text-muted me-1"></i> محدودیت بدهکاری <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="number" step="0.01" class="form-control"
+                                           @bind="currentLimit.BadehkarLimit" placeholder="مقدار محدودیت را وارد کنید" />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     @if (isEditMode)
                     {
-                        <div class="alert alert-info mt-2">
+                        <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i>
                             <small>در حال ویرایش محدودیت برای حساب: <strong>@(accounts.FirstOrDefault(a => a.Id == currentLimit.AccountId)?.AccountName ?? "نامشخص")</strong> و ارز: <strong>@(currencies.FirstOrDefault(c => c.Id == currentLimit.CurrencyId)?.Code ?? "نامشخص")</strong></small>
                         </div>
                     }
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-primary" @onclick="() => SaveLimit()" disabled="@isLoading">
+                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveLimit()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -255,23 +425,24 @@
 <!-- مودال تأیید فعال/غیرفعال‌سازی -->
 @if (showConfirmModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">
-                        <i class="bi bi-exclamation-triangle"></i> تأیید عملیات
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-exclamation-triangle me-2"></i> تأیید عملیات
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body text-center py-4">
+                    <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
                     <p class="fs-5">@confirmMessage</p>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseConfirmModal()">
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseConfirmModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmAction()">
+                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmAction()">
                         <i class="bi bi-check-circle"></i> تأیید
                     </button>
                 </div>
@@ -283,24 +454,25 @@
 <!-- مودال تأیید حذف -->
 @if (showDeleteModal)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">
-                        <i class="bi bi-exclamation-triangle"></i> تأیید حذف
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-exclamation-triangle me-2"></i> تأیید حذف
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDeleteModal()"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body text-center py-4">
+                    <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
                     <p class="fs-5">آیا مطمئن هستید که می‌خواهید این محدودیت را حذف کنید؟</p>
                     <p class="text-muted small">این عملیات غیرقابل بازگشت است.</p>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDeleteModal()">
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseDeleteModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn btn-danger" @onclick="() => ConfirmDelete()">
+                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmDelete()">
                         <i class="bi bi-check-circle"></i> تأیید حذف
                     </button>
                 </div>
@@ -342,6 +514,49 @@
             }
         }
     }
+
+    // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string sortColumn = "CreatedAt";
+    private bool sortAscending = false;
+
+    private List<AccountBadehkarLimitDto> pagedLimits
+    {
+        get
+        {
+            var sorted = filteredLimits;
+            switch (sortColumn)
+            {
+                case "AccountName":
+                    sorted = sortAscending ? filteredLimits.OrderBy(l => l.AccountName).ToList() : filteredLimits.OrderByDescending(l => l.AccountName).ToList();
+                    break;
+                case "CurrencyCode":
+                    sorted = sortAscending ? filteredLimits.OrderBy(l => l.CurrencyCode).ToList() : filteredLimits.OrderByDescending(l => l.CurrencyCode).ToList();
+                    break;
+                case "BadehkarLimit":
+                    sorted = sortAscending ? filteredLimits.OrderBy(l => l.BadehkarLimit).ToList() : filteredLimits.OrderByDescending(l => l.BadehkarLimit).ToList();
+                    break;
+                case "CreatedAt":
+                    sorted = sortAscending ? filteredLimits.OrderBy(l => l.CreatedAt).ToList() : filteredLimits.OrderByDescending(l => l.CreatedAt).ToList();
+                    break;
+                default:
+                    sorted = filteredLimits.OrderByDescending(l => l.CreatedAt).ToList();
+                    break;
+            }
+
+            if (pageSize == 0)
+            {
+                currentPage = 1;
+                return sorted;
+            }
+
+            var skip = (currentPage - 1) * pageSize;
+            return sorted.Skip(skip).Take(pageSize).ToList();
+        }
+    }
+
+    private int totalPages => pageSize == 0 ? 1 : (int)Math.Ceiling((double)filteredLimits.Count / pageSize);
 
     private bool showModal = false;
     private bool showConfirmModal = false;
@@ -385,6 +600,7 @@
             var result = await AccountLimitService.GetAllAsync();
             limits = result.ToList();
             filteredLimits = limits;
+            currentPage = 1;
         }
         catch (Exception ex)
         {
@@ -417,6 +633,7 @@
         }
 
         filteredLimits = query.ToList();
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -425,6 +642,31 @@
         _searchTerm = string.Empty;
         _filterStatus = "";
         filteredLimits = limits;
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            StateHasChanged();
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+        currentPage = 1;
         StateHasChanged();
     }
 
@@ -524,7 +766,7 @@
                 var updateRequest = new UpdateAccountBadehkarLimitDto
                 {
                     BadehkarLimit = currentLimit.BadehkarLimit,
-                    IsActive = true // وضعیت از دکمه فعال/غیرفعال مدیریت می‌شود
+                    IsActive = true
                 };
                 await AccountLimitService.UpdateAsync(editId, updateRequest);
                 successMessage = "محدودیت با موفقیت ویرایش شد";

@@ -1,0 +1,558 @@
+﻿/* =========================================
+   RESPONSIVE - MOBILE
+========================================= */
+@media only screen and (max-width: 767px) {
+    .stats-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    .dashboard-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    .header-center {
+        order: 2 !important;
+    }
+
+    .currency-rates-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 0.3rem !important;
+    }
+
+    .remain-item,
+    .remain-header-row {
+        grid-template-columns: 1.5fr 0.5fr 1fr !important;
+        font-size: 0.7rem !important;
+    }
+
+    .date-filter {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    .transaction-stats {
+        grid-template-columns: 1fr 1fr !important;
+    }
+
+    .charts-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    .provision-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    .bottom-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    .liquidity-items {
+        grid-template-columns: 1fr !important;
+    }
+
+    .page-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.5rem !important;
+    }
+
+    .page-actions {
+        justify-content: flex-start !important;
+    }
+
+    .stat-card .stat-number {
+        font-size: 1.2rem !important;
+    }
+
+    .stat-card .stat-icon {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 1.2rem !important;
+    }
+
+    .stat-card {
+        padding: 1rem !important;
+    }
+
+    .modern-card .card-body {
+        padding: 1rem !important;
+    }
+
+    .action-group {
+        gap: 0.2rem !important;
+    }
+
+    .action-btn {
+        width: 28px !important;
+        height: 28px !important;
+    }
+
+        .action-btn i {
+            font-size: 0.8rem !important;
+        }
+
+    .btn-modern {
+        padding: 0.3rem 0.8rem !important;
+        font-size: 0.85rem !important;
+    }
+
+    .table-modern {
+        font-size: 0.8rem !important;
+    }
+
+        .table-modern thead th,
+        .table-modern tbody td {
+            padding: 0.5rem 0.6rem !important;
+        }
+
+    /* ===== اصلاح جستجو در موبایل - حالت افقی ===== */
+    .table-card-header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        padding: 0.75rem 1rem !important;
+        gap: 0.5rem !important;
+    }
+
+    .table-card-header-left {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.5rem !important;
+        width: 100% !important;
+    }
+
+    .table-card-header-right {
+        justify-content: flex-start !important;
+        padding-top: 0.25rem !important;
+        border-top: 1px solid var(--border-color) !important;
+    }
+
+    /* جستجو - حالت افقی با دکمه کنار ورودی */
+    .search-modern {
+        display: flex !important;
+        align-items: center !important;
+        flex-wrap: nowrap !important;
+        background: white !important;
+        border-radius: 50px !important;
+        padding: 0.15rem 0.15rem 0.15rem 0.8rem !important;
+        box-shadow: var(--shadow-sm) !important;
+        border: 2px solid var(--border-color) !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: 42px !important;
+        gap: 0.2rem !important;
+    }
+
+        .search-modern:focus-within {
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.1) !important;
+        }
+
+        .search-modern .search-icon {
+            padding: 0.3rem 0.3rem !important;
+            color: var(--text-muted) !important;
+            font-size: 0.9rem !important;
+            flex-shrink: 0 !important;
+        }
+
+        .search-modern .search-input {
+            border: none !important;
+            padding: 0.3rem 0.2rem !important;
+            flex: 1 !important;
+            background: transparent !important;
+            outline: none !important;
+            font-size: 0.85rem !important;
+            min-width: 60px !important;
+            width: auto !important;
+            border-bottom: none !important;
+        }
+
+        .search-modern .search-btn {
+            border: none !important;
+            background: var(--primary-gradient) !important;
+            color: white !important;
+            padding: 0.3rem 0.8rem !important;
+            border-radius: 50px !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            flex-shrink: 0 !important;
+            font-size: 0.8rem !important;
+            white-space: nowrap !important;
+            min-height: 32px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.2rem !important;
+            width: auto !important;
+        }
+
+            .search-modern .search-btn i {
+                font-size: 0.8rem !important;
+            }
+
+            .search-modern .search-btn:hover {
+                transform: scale(1.02) !important;
+            }
+
+    /* انتخاب تعداد نمایش */
+    .page-size-selector {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+        justify-content: flex-start !important;
+        flex-wrap: nowrap !important;
+    }
+
+        .page-size-selector .text-muted {
+            font-size: 0.75rem !important;
+            color: var(--text-muted) !important;
+            white-space: nowrap !important;
+        }
+
+    .select-page-size {
+        width: auto !important;
+        min-width: 65px !important;
+        max-width: 80px !important;
+        border-radius: 6px !important;
+        border: 1px solid var(--border-color) !important;
+        padding: 0.2rem 1.5rem 0.2rem 0.5rem !important;
+        appearance: auto !important;
+        background-color: #fff !important;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
+        background-repeat: no-repeat !important;
+        background-position: left 0.4rem center !important;
+        background-size: 12px 9px !important;
+        font-size: 0.8rem !important;
+        color: var(--text-color) !important;
+        cursor: pointer !important;
+        transition: all 0.2s ease !important;
+        flex-shrink: 0 !important;
+    }
+
+        .select-page-size:focus {
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.1) !important;
+            outline: none !important;
+        }
+
+    /* فوتر کارت جدول */
+    .table-card-footer {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        text-align: center !important;
+        gap: 0.5rem !important;
+        padding: 0.75rem 1rem !important;
+    }
+
+    .table-card-footer-left {
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 0.5rem !important;
+    }
+
+    .table-card-footer-right {
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+        gap: 0.3rem !important;
+    }
+
+    /* صفحه‌بندی */
+    .pagination-modern .page-link {
+        min-width: 28px !important;
+        height: 28px !important;
+        font-size: 0.75rem !important;
+        padding: 0 0.35rem !important;
+    }
+
+    /* بج‌ها */
+    .badge-modern {
+        font-size: 0.65rem !important;
+        padding: 0.2rem 0.6rem !important;
+    }
+
+        .badge-modern i {
+            font-size: 0.6rem !important;
+        }
+
+    /* دکمه‌های عملیات */
+    .action-group {
+        gap: 0.15rem !important;
+    }
+
+    .action-btn {
+        width: 26px !important;
+        height: 26px !important;
+    }
+
+        .action-btn i {
+            font-size: 0.75rem !important;
+        }
+
+    /* جدول */
+    .table-modern {
+        font-size: 0.75rem !important;
+    }
+
+        .table-modern thead th,
+        .table-modern tbody td {
+            padding: 0.4rem 0.5rem !important;
+        }
+
+        .table-modern thead th {
+            font-size: 0.65rem !important;
+        }
+
+    .customer-code {
+        font-size: 0.7rem !important;
+        padding: 0.1rem 0.4rem !important;
+    }
+
+    .phone-number {
+        font-size: 0.7rem !important;
+        padding: 0.1rem 0.3rem !important;
+    }
+
+    .avatar {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 0.6rem !important;
+    }
+
+    .navbar-toggler-custom {
+        display: block !important;
+        background: transparent !important;
+        border: none !important;
+        color: #0a6bff !important;
+        font-size: 1.8rem !important;
+        padding: 0.25rem 0.75rem !important;
+        border-radius: 12px !important;
+        cursor: pointer !important;
+        transition: 0.15s !important;
+        box-shadow: none !important;
+        outline: none !important;
+        margin-right: auto !important;
+        background-color: transparent !important;
+        background-image: none !important;
+    }
+
+        .navbar-toggler-custom:hover {
+            background: #e3efff !important;
+        }
+
+        .navbar-toggler-custom:focus,
+        .navbar-toggler-custom:active {
+            outline: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+
+    .nav-sidebar {
+        width: 100% !important;
+        min-height: auto !important;
+        position: relative !important;
+        border-left: none !important;
+        border-bottom: 1px solid rgba(0, 123, 255, 0.08) !important;
+        box-shadow: 0 4px 16px rgba(0, 40, 80, 0.04) !important;
+        height: auto !important;
+        overflow-y: visible !important;
+        background: var(--lms-card-bg) !important;
+    }
+
+    .navbar-brand-custom {
+        padding: 0.8rem 1rem !important;
+        flex-wrap: wrap !important;
+        background: var(--lms-card-bg) !important;
+    }
+
+    .nav-scrollable {
+        max-height: 0 !important;
+        overflow-y: hidden !important;
+        padding: 0 0.25rem !important;
+        transition: max-height 0.25s ease, padding 0.2s !important;
+        background: var(--lms-card-bg) !important;
+    }
+
+    #nav-toggle:checked ~ .nav-scrollable {
+        max-height: 80vh !important;
+        padding: 0.75rem 0.25rem 2rem 0.25rem !important;
+        overflow-y: auto !important;
+        border-top: 1px solid rgba(0, 100, 255, 0.05) !important;
+    }
+
+    .nav-link-custom {
+        padding: 0.6rem 1rem !important;
+        font-size: 0.95rem !important;
+        margin: 0.1rem 0.2rem !important;
+        color: #1e3d66 !important;
+        background: transparent !important;
+    }
+
+        .nav-link-custom.active {
+            background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
+            color: #003d99 !important;
+        }
+
+            .nav-link-custom.active::before {
+                display: none !important;
+            }
+
+    .logo-icon {
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 22px !important;
+    }
+
+    .logo-text {
+        font-size: 1.1rem !important;
+    }
+
+    .dashboard-wrapper,
+    .page-wrapper {
+        padding: 0.75rem !important;
+    }
+
+    .dashboard-layout {
+        flex-direction: column !important;
+    }
+
+    .main-content {
+        width: 100% !important;
+    }
+
+    .table-scroll-wrapper {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+        .table-scroll-wrapper table {
+            min-width: 600px !important;
+            font-size: 0.75rem !important;
+        }
+
+            .table-scroll-wrapper table th,
+            .table-scroll-wrapper table td {
+                padding: 0.4rem 0.6rem !important;
+            }
+
+        .table-scroll-wrapper::-webkit-scrollbar {
+            height: 6px !important;
+        }
+
+    /* موبایل - اسکرول افقی جدول */
+    .table-scroll-wrapper {
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        -webkit-overflow-scrolling: touch !important;
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+        .table-scroll-wrapper table {
+            min-width: 650px !important;
+            width: auto !important;
+            font-size: 0.75rem !important;
+            display: table !important;
+        }
+
+            .table-scroll-wrapper table th,
+            .table-scroll-wrapper table td {
+                white-space: nowrap !important;
+                padding: 0.4rem 0.6rem !important;
+            }
+
+        .table-scroll-wrapper::-webkit-scrollbar {
+            height: 6px !important;
+            width: 6px !important;
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar-track {
+            background: #f2f8ff !important;
+            border-radius: 10px !important;
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar-thumb {
+            background: #b8d4ff !important;
+            border-radius: 10px !important;
+        }
+
+            .table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+                background: #8ab4e8 !important;
+            }
+
+    .table-scroll-wrapper {
+        scrollbar-width: thin !important;
+        scrollbar-color: #b8d4ff #f2f8ff !important;
+    }
+
+    /* موبایل - جدول مدرن */
+    .table-modern {
+        width: auto !important;
+        min-width: 650px !important;
+        font-size: 0.75rem !important;
+    }
+}
+
+/* =========================================
+   RESPONSIVE - موبایل کوچک (زیر 480px)
+========================================= */
+@media (max-width: 480px) {
+    .search-modern {
+        border-radius: 8px !important;
+        padding: 0.1rem !important;
+        flex-wrap: nowrap !important;
+        min-height: 36px !important;
+    }
+
+        .search-modern .search-icon {
+            padding: 0.2rem 0.2rem !important;
+            font-size: 0.8rem !important;
+        }
+
+        .search-modern .search-input {
+            font-size: 0.75rem !important;
+            padding: 0.2rem 0.1rem !important;
+            min-width: 50px !important;
+        }
+
+        .search-modern .search-btn {
+            padding: 0.2rem 0.5rem !important;
+            font-size: 0.7rem !important;
+            min-height: 26px !important;
+            border-radius: 6px !important;
+        }
+
+            .search-modern .search-btn i {
+                font-size: 0.7rem !important;
+            }
+
+    .page-size-selector {
+        gap: 0.3rem !important;
+    }
+
+        .page-size-selector .text-muted {
+            font-size: 0.7rem !important;
+        }
+
+    .select-page-size {
+        min-width: 55px !important;
+        max-width: 70px !important;
+        font-size: 0.7rem !important;
+        padding: 0.15rem 1.2rem 0.15rem 0.4rem !important;
+        background-size: 10px 8px !important;
+        background-position: left 0.3rem center !important;
+    }
+
+    .table-card-header {
+        padding: 0.5rem 0.75rem !important;
+        gap: 0.4rem !important;
+    }
+
+    .table-card-header-left {
+        gap: 0.4rem !important;
+    }
+
+    .table-card-footer {
+        padding: 0.5rem 0.75rem !important;
+    }
+}

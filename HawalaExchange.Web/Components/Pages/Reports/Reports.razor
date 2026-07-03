@@ -8,18 +8,23 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<div class="container-fluid mt-4" dir="rtl">
-    <div class="card shadow-lg border-0">
-        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <h4 class="mb-0">
-                    <i class="bi bi-file-earmark-text me-2"></i> مدیریت گزارش‌ها
-                </h4>
-            </div>
+<div class="page-wrapper">
+    <!-- هدر صفحه -->
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-file-earmark-text"></i>
+                مدیریت گزارش‌ها
+                <span class="page-subtitle">مشاهده و تحلیل گزارش‌های سیستم</span>
+            </h5>
         </div>
-        <div class="card-body">
-            <!-- ===== تب‌ها با روش صحیح نقل‌قول ===== -->
-            <ul class="nav nav-tabs mb-3" role="tablist">
+    </div>
+
+    <!-- کارت اصلی -->
+    <div class="table-card">
+        <div class="card-header" style="background: #fafbfc; border-bottom: 1px solid var(--border-color); padding: 0.5rem 1rem;">
+            <!-- ===== تب‌ها ===== -->
+            <ul class="nav nav-tabs border-0" role="tablist">
                 <li class="nav-item">
                     <button class="nav-link @(activeTab == "daily" ? "active" : "")" @onclick='() => SetTab("daily")'>
                         <i class="bi bi-calendar-day"></i> روزانه
@@ -51,7 +56,9 @@
                     </button>
                 </li>
             </ul>
+        </div>
 
+        <div class="card-body p-3">
             <!-- ============================================= -->
             <!-- تب ۱: گزارش روزانه                           -->
             <!-- ============================================= -->
@@ -60,11 +67,11 @@
                 <div>
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
-                            <label class="form-label">تاریخ</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-date text-muted me-1"></i> تاریخ</label>
                             <input type="date" class="form-control" @bind="dailyDate" @bind:event="oninput" />
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">شعبه</label>
+                            <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
                             <select class="form-select" @bind="dailyBranchId">
                                 <option value="0">همه شعبه‌ها</option>
                                 @foreach (var b in branches)
@@ -73,11 +80,11 @@
                                 }
                             </select>
                         </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button class="btn btn-primary" @onclick="LoadDailyReport">
+                        <div class="col-md-6 d-flex align-items-end gap-2">
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadDailyReport">
                                 <i class="bi bi-search"></i> نمایش
                             </button>
-                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetDailyReport">
+                            <button class="btn-modern btn-light-modern" @onclick="ResetDailyReport">
                                 <i class="bi bi-arrow-clockwise"></i> بازنشانی
                             </button>
                         </div>
@@ -90,13 +97,34 @@
                     else if (dailyReport != null)
                     {
                         <div class="row g-3 mb-3">
-                            <div class="col-md-3"><strong>شعبه:</strong> @dailyReport.BranchName</div>
-                            <div class="col-md-3"><strong>تاریخ:</strong> @dailyReport.Date.ToLocalTime().ToString("yyyy/MM/dd")</div>
-                            <div class="col-md-3"><strong>تعداد تراکنش:</strong> @dailyReport.TotalTransactions</div>
-                            <div class="col-md-3"><strong>سود خالص:</strong> @dailyReport.NetIncome.ToString("N2")</div>
+                            <div class="col-md-3">
+                                <div class="info-card">
+                                    <span class="info-label">شعبه</span>
+                                    <span class="info-value">@dailyReport.BranchName</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="info-card">
+                                    <span class="info-label">تاریخ</span>
+                                    <span class="info-value">@dailyReport.Date.ToLocalTime().ToString("yyyy/MM/dd")</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="info-card">
+                                    <span class="info-label">تعداد تراکنش</span>
+                                    <span class="info-value">@dailyReport.TotalTransactions</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="info-card" style="border-right: 4px solid var(--success-color);">
+                                    <span class="info-label">سود خالص</span>
+                                    <span class="info-value text-success">@dailyReport.NetIncome.ToString("N2")</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-striped">
+
+                        <div class="table-scroll-wrapper">
+                            <table class="table-modern table-striped-modern">
                                 <thead>
                                     <tr>
                                         <th>مبلغ ارسال</th>
@@ -107,10 +135,10 @@
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>@dailyReport.TotalSendAmount.ToString("N2")</td>
-                                        <td>@dailyReport.TotalReceiveAmount.ToString("N2")</td>
-                                        <td>@dailyReport.TotalCommission.ToString("N2")</td>
-                                        <td>@dailyReport.TotalExpenses.ToString("N2")</td>
+                                        <td class="fw-bold text-primary">@dailyReport.TotalSendAmount.ToString("N2")</td>
+                                        <td class="fw-bold text-success">@dailyReport.TotalReceiveAmount.ToString("N2")</td>
+                                        <td class="fw-bold text-warning">@dailyReport.TotalCommission.ToString("N2")</td>
+                                        <td class="fw-bold text-danger">@dailyReport.TotalExpenses.ToString("N2")</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -118,7 +146,10 @@
                     }
                     else
                     {
-                        <p class="text-muted text-center py-4">جهت نمایش گزارش، تاریخ و شعبه را انتخاب کنید.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-calendar2-week"></i>
+                            <span class="fs-5 text-muted">جهت نمایش گزارش، تاریخ و شعبه را انتخاب کنید.</span>
+                        </div>
                     }
                 </div>
             }
@@ -131,15 +162,15 @@
                 <div>
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-2">
-                            <label class="form-label">از تاریخ</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
                             <input type="date" class="form-control" @bind="txnFromDate" @bind:event="oninput" />
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">تا تاریخ</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
                             <input type="date" class="form-control" @bind="txnToDate" @bind:event="oninput" />
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">شعبه</label>
+                            <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
                             <select class="form-select" @bind="txnBranchId">
                                 <option value="0">همه</option>
                                 @foreach (var b in branches)
@@ -149,7 +180,7 @@
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">وضعیت</label>
+                            <label class="form-label fw-bold"><i class="bi bi-circle text-muted me-1"></i> وضعیت</label>
                             <select class="form-select" @bind="txnStatus">
                                 <option value="">همه</option>
                                 <option value="Pending">در انتظار</option>
@@ -157,11 +188,11 @@
                                 <option value="Cancel">لغو شده</option>
                             </select>
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button class="btn btn-primary" @onclick="LoadTransactionReport">
+                        <div class="col-md-4 d-flex align-items-end gap-2">
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadTransactionReport">
                                 <i class="bi bi-search"></i> نمایش
                             </button>
-                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetTransactionReport">
+                            <button class="btn-modern btn-light-modern" @onclick="ResetTransactionReport">
                                 <i class="bi bi-arrow-clockwise"></i> بازنشانی
                             </button>
                         </div>
@@ -173,11 +204,11 @@
                     }
                     else if (transactionReports.Any())
                     {
-                        <div class="table-responsive">
-                            <table class="table table-hover table-striped table-sm">
-                                <thead class="table-dark">
+                        <div class="table-scroll-wrapper">
+                            <table class="table-modern table-striped-modern">
+                                <thead>
                                     <tr>
-                                        <th>شماره</th>
+                                        <th style="min-width: 100px;">شماره</th>
                                         <th>نوع</th>
                                         <th>مشتری</th>
                                         <th>فرستنده</th>
@@ -188,23 +219,23 @@
                                         <th>مبلغ به</th>
                                         <th>کارمزد</th>
                                         <th>وضعیت</th>
-                                        <th>تاریخ</th>
+                                        <th style="min-width: 120px;">تاریخ</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach (var r in transactionReports)
                                     {
                                         <tr>
-                                            <td>@r.TransactionNo</td>
+                                            <td><span class="customer-code">@r.TransactionNo</span></td>
                                             <td>@GetTransactionTypeName(r.TransactionType)</td>
                                             <td>@r.CustomerName</td>
                                             <td>@r.SenderName</td>
                                             <td>@r.ReceiverName</td>
                                             <td>@r.FromCurrency</td>
-                                            <td>@r.FromAmount.ToString("N2")</td>
+                                            <td dir="ltr">@r.FromAmount.ToString("N2")</td>
                                             <td>@r.ToCurrency</td>
-                                            <td>@r.ToAmount.ToString("N2")</td>
-                                            <td>@r.Commission.ToString("N2")</td>
+                                            <td dir="ltr">@r.ToAmount.ToString("N2")</td>
+                                            <td dir="ltr">@r.Commission.ToString("N2")</td>
                                             <td>@GetStatusBadge(r.Status)</td>
                                             <td dir="ltr">@r.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                         </tr>
@@ -215,7 +246,10 @@
                     }
                     else
                     {
-                        <p class="text-muted text-center py-4">هیچ تراکنشی یافت نشد.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <span class="fs-5 text-muted">هیچ تراکنشی یافت نشد.</span>
+                        </div>
                     }
                 </div>
             }
@@ -228,15 +262,15 @@
                 <div>
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-2">
-                            <label class="form-label">از تاریخ</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
                             <input type="date" class="form-control" @bind="commFromDate" @bind:event="oninput" />
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">تا تاریخ</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
                             <input type="date" class="form-control" @bind="commToDate" @bind:event="oninput" />
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">شعبه</label>
+                            <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
                             <select class="form-select" @bind="commBranchId">
                                 <option value="0">همه</option>
                                 @foreach (var b in branches)
@@ -245,11 +279,11 @@
                                 }
                             </select>
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button class="btn btn-primary" @onclick="LoadCommissionReport">
+                        <div class="col-md-6 d-flex align-items-end gap-2">
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadCommissionReport">
                                 <i class="bi bi-search"></i> نمایش
                             </button>
-                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetCommissionReport">
+                            <button class="btn-modern btn-light-modern" @onclick="ResetCommissionReport">
                                 <i class="bi bi-arrow-clockwise"></i> بازنشانی
                             </button>
                         </div>
@@ -261,8 +295,8 @@
                     }
                     else if (commissionReports.Any())
                     {
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-striped">
+                        <div class="table-scroll-wrapper">
+                            <table class="table-modern table-striped-modern">
                                 <thead>
                                     <tr>
                                         <th>تاریخ</th>
@@ -278,16 +312,16 @@
                                         <tr>
                                             <td>@r.Date.ToLocalTime().ToString("yyyy/MM/dd")</td>
                                             <td>@r.BranchName</td>
-                                            <td>@r.TotalCommission.ToString("N2")</td>
-                                            <td>@r.TotalAgentCommission.ToString("N2")</td>
-                                            <td>@r.NetCommission.ToString("N2")</td>
+                                            <td dir="ltr">@r.TotalCommission.ToString("N2")</td>
+                                            <td dir="ltr">@r.TotalAgentCommission.ToString("N2")</td>
+                                            <td dir="ltr" class="fw-bold text-success">@r.NetCommission.ToString("N2")</td>
                                         </tr>
                                     }
-                                    <tr class="table-primary fw-bold">
+                                    <tr class="table-active fw-bold">
                                         <td colspan="2">مجموع</td>
                                         <td>@commissionReports.Sum(x => x.TotalCommission).ToString("N2")</td>
                                         <td>@commissionReports.Sum(x => x.TotalAgentCommission).ToString("N2")</td>
-                                        <td>@commissionReports.Sum(x => x.NetCommission).ToString("N2")</td>
+                                        <td class="text-success">@commissionReports.Sum(x => x.NetCommission).ToString("N2")</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -295,7 +329,10 @@
                     }
                     else
                     {
-                        <p class="text-muted text-center py-4">هیچ داده‌ای یافت نشد.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-coin"></i>
+                            <span class="fs-5 text-muted">هیچ داده‌ای یافت نشد.</span>
+                        </div>
                     }
                 </div>
             }
@@ -308,11 +345,11 @@
                 <div>
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
-                            <label class="form-label">تاریخ (تا)</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-date text-muted me-1"></i> تاریخ (تا)</label>
                             <input type="date" class="form-control" @bind="tbAsOfDate" @bind:event="oninput" />
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">شعبه</label>
+                            <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
                             <select class="form-select" @bind="tbBranchId">
                                 <option value="0">همه</option>
                                 @foreach (var b in branches)
@@ -321,11 +358,11 @@
                                 }
                             </select>
                         </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button class="btn btn-primary" @onclick="LoadTrialBalance">
+                        <div class="col-md-6 d-flex align-items-end gap-2">
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadTrialBalance">
                                 <i class="bi bi-search"></i> نمایش
                             </button>
-                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetTrialBalance">
+                            <button class="btn-modern btn-light-modern" @onclick="ResetTrialBalance">
                                 <i class="bi bi-arrow-clockwise"></i> بازنشانی
                             </button>
                         </div>
@@ -337,9 +374,9 @@
                     }
                     else if (trialBalance.Any())
                     {
-                        <div class="table-responsive">
-                            <table class="table table-hover table-striped table-sm">
-                                <thead class="table-dark">
+                        <div class="table-scroll-wrapper">
+                            <table class="table-modern table-striped-modern">
+                                <thead>
                                     <tr>
                                         <th>کد حساب</th>
                                         <th>نام حساب</th>
@@ -353,12 +390,16 @@
                                     @foreach (var r in trialBalance)
                                     {
                                         <tr>
-                                            <td>@r.AccountCode</td>
+                                            <td><span class="customer-code">@r.AccountCode</span></td>
                                             <td>@r.AccountName</td>
-                                            <td>@r.TotalDebit.ToString("N2")</td>
-                                            <td>@r.TotalCredit.ToString("N2")</td>
-                                            <td>@r.Balance.ToString("N2")</td>
-                                            <td>@(r.BalanceType == "Debit" ? "بدهکار" : "بستانکار")</td>
+                                            <td class="text-danger">@r.TotalDebit.ToString("N2")</td>
+                                            <td class="text-success">@r.TotalCredit.ToString("N2")</td>
+                                            <td class="fw-bold">@r.Balance.ToString("N2")</td>
+                                            <td>
+                                                <span class="badge-modern @(r.BalanceType == "Debit" ? "badge-danger" : "badge-success")">
+                                                    @(r.BalanceType == "Debit" ? "بدهکار" : "بستانکار")
+                                                </span>
+                                            </td>
                                         </tr>
                                     }
                                 </tbody>
@@ -367,7 +408,10 @@
                     }
                     else
                     {
-                        <p class="text-muted text-center py-4">هیچ داده‌ای یافت نشد.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-balance"></i>
+                            <span class="fs-5 text-muted">هیچ داده‌ای یافت نشد.</span>
+                        </div>
                     }
                 </div>
             }
@@ -380,7 +424,7 @@
                 <div>
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
-                            <label class="form-label">مشتری</label>
+                            <label class="form-label fw-bold"><i class="bi bi-person text-muted me-1"></i> مشتری</label>
                             <select class="form-select" @bind="custCustomerId">
                                 <option value="0">انتخاب مشتری</option>
                                 @foreach (var c in customers)
@@ -390,18 +434,18 @@
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">از تاریخ</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
                             <input type="date" class="form-control" @bind="custFromDate" @bind:event="oninput" />
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">تا تاریخ</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
                             <input type="date" class="form-control" @bind="custToDate" @bind:event="oninput" />
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button class="btn btn-primary" @onclick="LoadCustomerReport">
+                        <div class="col-md-5 d-flex align-items-end gap-2">
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadCustomerReport">
                                 <i class="bi bi-search"></i> نمایش
                             </button>
-                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetCustomerReport">
+                            <button class="btn-modern btn-light-modern" @onclick="ResetCustomerReport">
                                 <i class="bi bi-arrow-clockwise"></i> بازنشانی
                             </button>
                         </div>
@@ -413,9 +457,9 @@
                     }
                     else if (customerReports.Any())
                     {
-                        <div class="table-responsive">
-                            <table class="table table-hover table-striped table-sm">
-                                <thead class="table-dark">
+                        <div class="table-scroll-wrapper">
+                            <table class="table-modern table-striped-modern">
+                                <thead>
                                     <tr>
                                         <th>شماره</th>
                                         <th>نوع</th>
@@ -431,12 +475,12 @@
                                     @foreach (var r in customerReports)
                                     {
                                         <tr>
-                                            <td>@r.TransactionNo</td>
+                                            <td><span class="customer-code">@r.TransactionNo</span></td>
                                             <td>@GetTransactionTypeName(r.TransactionType)</td>
                                             <td>@r.SenderName</td>
                                             <td>@r.ReceiverName</td>
-                                            <td>@r.FromAmount.ToString("N2")</td>
-                                            <td>@r.Commission.ToString("N2")</td>
+                                            <td dir="ltr">@r.FromAmount.ToString("N2")</td>
+                                            <td dir="ltr">@r.Commission.ToString("N2")</td>
                                             <td>@GetStatusBadge(r.Status)</td>
                                             <td dir="ltr">@r.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                         </tr>
@@ -447,7 +491,10 @@
                     }
                     else
                     {
-                        <p class="text-muted text-center py-4">هیچ تراکنشی برای این مشتری یافت نشد.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-person"></i>
+                            <span class="fs-5 text-muted">هیچ تراکنشی برای این مشتری یافت نشد.</span>
+                        </div>
                     }
                 </div>
             }
@@ -460,7 +507,7 @@
                 <div>
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
-                            <label class="form-label">نماینده</label>
+                            <label class="form-label fw-bold"><i class="bi bi-globe text-muted me-1"></i> نماینده</label>
                             <select class="form-select" @bind="corrCorrespondentId">
                                 <option value="0">انتخاب نماینده</option>
                                 @foreach (var c in correspondents)
@@ -470,18 +517,18 @@
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">از تاریخ</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
                             <input type="date" class="form-control" @bind="corrFromDate" @bind:event="oninput" />
                         </div>
                         <div class="col-md-2">
-                            <label class="form-label">تا تاریخ</label>
+                            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
                             <input type="date" class="form-control" @bind="corrToDate" @bind:event="oninput" />
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button class="btn btn-primary" @onclick="LoadCorrespondentReport">
+                        <div class="col-md-5 d-flex align-items-end gap-2">
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadCorrespondentReport">
                                 <i class="bi bi-search"></i> نمایش
                             </button>
-                            <button class="btn btn-outline-secondary ms-2" @onclick="ResetCorrespondentReport">
+                            <button class="btn-modern btn-light-modern" @onclick="ResetCorrespondentReport">
                                 <i class="bi bi-arrow-clockwise"></i> بازنشانی
                             </button>
                         </div>
@@ -493,9 +540,9 @@
                     }
                     else if (correspondentReports.Any())
                     {
-                        <div class="table-responsive">
-                            <table class="table table-hover table-striped table-sm">
-                                <thead class="table-dark">
+                        <div class="table-scroll-wrapper">
+                            <table class="table-modern table-striped-modern">
+                                <thead>
                                     <tr>
                                         <th>شماره</th>
                                         <th>نوع</th>
@@ -511,12 +558,12 @@
                                     @foreach (var r in correspondentReports)
                                     {
                                         <tr>
-                                            <td>@r.TransactionNo</td>
+                                            <td><span class="customer-code">@r.TransactionNo</span></td>
                                             <td>@GetTransactionTypeName(r.TransactionType)</td>
                                             <td>@r.SenderName</td>
                                             <td>@r.ReceiverName</td>
-                                            <td>@r.FromAmount.ToString("N2")</td>
-                                            <td>@r.Commission.ToString("N2")</td>
+                                            <td dir="ltr">@r.FromAmount.ToString("N2")</td>
+                                            <td dir="ltr">@r.Commission.ToString("N2")</td>
                                             <td>@GetStatusBadge(r.Status)</td>
                                             <td dir="ltr">@r.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                         </tr>
@@ -527,7 +574,10 @@
                     }
                     else
                     {
-                        <p class="text-muted text-center py-4">هیچ تراکنشی برای این نماینده یافت نشد.</p>
+                        <div class="empty-state">
+                            <i class="bi bi-globe"></i>
+                            <span class="fs-5 text-muted">هیچ تراکنشی برای این نماینده یافت نشد.</span>
+                        </div>
                     }
                 </div>
             }
@@ -823,10 +873,10 @@
     {
         var badge = status switch
         {
-            "Pending" => "<span class='badge bg-warning text-dark'>در انتظار</span>",
-            "Paid" => "<span class='badge bg-success'>پرداخت شده</span>",
-            "Cancel" => "<span class='badge bg-danger'>لغو شده</span>",
-            _ => $"<span class='badge bg-secondary'>{status}</span>"
+            "Pending" => "<span class='badge-modern badge-warning'>در انتظار</span>",
+            "Paid" => "<span class='badge-modern badge-success'>پرداخت شده</span>",
+            "Cancel" => "<span class='badge-modern badge-danger'>لغو شده</span>",
+            _ => $"<span class='badge-modern badge-secondary'>{status}</span>"
         };
         return new MarkupString(badge);
     }

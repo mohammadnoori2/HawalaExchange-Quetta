@@ -5,6 +5,7 @@
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject ILedgerService LedgerService
+@inject ITransactionService TransactionService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
@@ -41,7 +42,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
+            <div class="stat-card" style="border-right-color: var(--success-color);">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon success">
                         <i class="bi bi-check-circle"></i>
@@ -54,7 +55,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-danger">
+            <div class="stat-card" style="border-right-color: var(--danger-color);">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon danger">
                         <i class="bi bi-archive"></i>
@@ -67,7 +68,7 @@
             </div>
         </div>
         <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-info">
+            <div class="stat-card" style="border-right-color: var(--info-color);">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon info">
                         <i class="bi bi-clock-history"></i>
@@ -84,32 +85,15 @@
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
-            <div class="table-card-header-left">
-                <!-- جستجو -->
-                <div class="search-modern">
-                    <span class="search-icon"><i class="bi bi-search"></i></span>
-                    <input type="text" class="search-input" placeholder="جستجوی مشتریان (کد، نام، تلفن، تذکره)..."
-                           @bind="searchTerm" @bind:event="oninput" />
-                    <button class="search-btn" @onclick="() => ClearSearch()">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                <!-- انتخاب تعداد نمایش -->
-                <div class="page-size-selector">
-                    <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
-                </div>
+            <div class="search-modern" style="flex: 1; max-width: 500px;">
+                <span class="search-icon"><i class="bi bi-search"></i></span>
+                <input type="text" class="search-input" placeholder="جستجوی مشتریان (کد، نام، تلفن، تذکره)..."
+                       @bind="searchTerm" @bind:event="oninput" />
+                <button class="search-btn" @onclick="() => ClearSearch()">
+                    <i class="bi bi-x-lg"></i>
+                </button>
             </div>
-
-            <div class="table-card-header-right">
+            <div>
                 <span class="badge-modern badge-info">
                     <i class="bi bi-list-ul"></i> @filteredCustomers.Count
                 </span>
@@ -122,25 +106,13 @@
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
-                            <th class="sortable-header @(sortColumn == "CustomerCode" ? "active" : "")" @onclick="@(() => SortBy("CustomerCode"))">
-                                کد مشتری
-                                @if (sortColumn == "CustomerCode")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
-                            <th class="sortable-header @(sortColumn == "FullName" ? "active" : "")" @onclick="@(() => SortBy("FullName"))">
-                                نام کامل
-                                @if (sortColumn == "FullName")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
-                            <th>شماره تلفن</th>
-                            <th>شماره تذکره</th>
-                            <th>آدرس</th>
-                            <th>وضعیت</th>
-                            <th class="text-center">عملیات</th>
+                            <th style="min-width: 120px;">کد مشتری</th>
+                            <th style="min-width: 150px;">نام کامل</th>
+                            <th style="min-width: 130px;">شماره تلفن</th>
+                            <th style="min-width: 120px;">شماره تذکره</th>
+                            <th style="min-width: 150px;">آدرس</th>
+                            <th style="min-width: 100px;">وضعیت</th>
+                            <th style="min-width: 260px;" class="text-center">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -148,21 +120,19 @@
                         {
                             <tr>
                                 <td colspan="8" class="text-center py-5">
-                                    <div class="loading-state">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">در حال بارگذاری...</span>
-                                        </div>
-                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
+                                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
                                     </div>
+                                    <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                 </td>
                             </tr>
                         }
-                        else if (!pagedCustomers.Any())
+                        else if (!filteredCustomers.Any())
                         {
                             <tr>
                                 <td colspan="8" class="text-center py-5">
                                     <div class="empty-state">
-                                        <i class="bi bi-inbox"></i>
+                                        <i class="bi bi-inbox fs-1 d-block text-muted mb-3"></i>
                                         <span class="fs-5 text-muted">هیچ مشتری‌ای یافت نشد</span>
                                         <p class="text-muted small">برای افزودن مشتری جدید، دکمه "مشتری جدید" را کلیک کنید</p>
                                     </div>
@@ -171,8 +141,8 @@
                         }
                         else
                         {
-                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredCustomers.Count : pageSize) + 1;
-                            @foreach (var customer in pagedCustomers)
+                            int rowIndex = 1;
+                            @foreach (var customer in filteredCustomers)
                             {
                                 <tr class="@(customer.IsArchived ? "table-row-archived" : "")">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
@@ -192,7 +162,7 @@
                                     </td>
                                     <td>@customer.TazkiraNumber</td>
                                     <td>
-                                        <span class="overflow-ellipsis">@customer.Address</span>
+                                        <span class="overflow-ellipsis" style="max-width: 130px;">@customer.Address</span>
                                     </td>
                                     <td>
                                         @if (customer.IsArchived)
@@ -215,6 +185,10 @@
                                             </button>
                                             @if (!customer.IsArchived)
                                             {
+                                                <!-- ✅ دکمه برداشت/پرداخت (جدید) -->
+                                                <button class="action-btn action-btn-financial" @onclick="() => OpenFinancialModal(customer.Id, customer.FullName)" title="برداشت/پرداخت">
+                                                    <i class="bi bi-cash-coin"></i>
+                                                </button>
                                                 <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(customer.Id)" title="ویرایش">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
@@ -243,38 +217,10 @@
         </div>
 
         <div class="table-card-footer">
-            <div class="table-card-footer-left">
-                <span class="text-muted small">
-                    نمایش <strong>@pagedCustomers.Count</strong> از <strong>@filteredCustomers.Count</strong> مشتری
-                </span>
-
-                <!-- صفحه‌بندی -->
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
-            </div>
-
-            <div class="table-card-footer-right">
+            <span class="text-muted small">
+                نمایش <strong>@filteredCustomers.Count</strong> از <strong>@customers.Count</strong> مشتری
+            </span>
+            <div class="d-flex gap-2">
                 <span class="badge-modern badge-success">
                     <i class="bi bi-check-circle-fill"></i> فعال: @customers.Count(c => !c.IsArchived)
                 </span>
@@ -286,7 +232,9 @@
     </div>
 </div>
 
-<!-- مودال ایجاد/ویرایش مشتری -->
+<!-- ============================================================ -->
+<!-- مودال ایجاد/ویرایش مشتری (همانند قبل) -->
+<!-- ============================================================ -->
 @if (showModal)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
@@ -300,7 +248,6 @@
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- پیام‌ها -->
                     @if (validationErrors.Any())
                     {
                         <div class="alert alert-danger alert-dismissible fade show">
@@ -321,7 +268,6 @@
                         </div>
                     }
 
-                    <!-- اطلاعات مشتری -->
                     <div class="modern-card mb-4">
                         <div class="card-header">
                             <h6 class="text-primary">
@@ -348,8 +294,9 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-person text-muted me-1"></i> نام کامل <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" class="form-control"
+                                    <input type="text" class="form-control @(string.IsNullOrEmpty(currentCustomer.FullName) ? "is-invalid" : "")"
                                            @bind="currentCustomer.FullName" placeholder="نام و نام خانوادگی" />
+                                    <div class="invalid-feedback">نام کامل الزامی است</div>
                                 </div>
                             </div>
 
@@ -386,7 +333,6 @@
                                 </div>
                             </div>
 
-                            <!-- سوئیچ موجودی اولیه - فقط در حالت ایجاد -->
                             @if (!isEditMode)
                             {
                                 <div class="form-check form-switch">
@@ -410,7 +356,6 @@
                         </div>
                     </div>
 
-                    <!-- موجودی اولیه - فقط در حالت ایجاد و وقتی سوئیچ فعال باشد -->
                     @if (!isEditMode && hasInitialBalance)
                     {
                         <div class="modern-card mb-4" style="border-right: 4px solid var(--primary-color);">
@@ -420,7 +365,6 @@
                                 </h6>
                             </div>
                             <div class="card-body">
-                                <!-- جدول موجودی‌ها -->
                                 @if (initialBalances.Any())
                                 {
                                     <div class="table-scroll-wrapper mb-3">
@@ -468,7 +412,6 @@
 
                                 <hr />
 
-                                <!-- فرم اضافه کردن موجودی -->
                                 <div class="row g-3 align-items-end">
                                     <div class="col-md-3">
                                         <label class="form-label fw-bold small">واحد پولی <span class="text-danger">*</span></label>
@@ -544,13 +487,15 @@
     </div>
 }
 
+<!-- ============================================================ -->
 <!-- مودال تأیید بایگانی/خروج از بایگانی -->
+<!-- ============================================================ -->
 @if (showConfirmModal)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header modal-header-danger">
+                <div class="modal-header" style="background: linear-gradient(135deg, #dc3545, #b02a37);">
                     <h5 class="modal-title text-white">
                         <i class="bi bi-exclamation-triangle me-2"></i> تأیید عملیات
                     </h5>
@@ -573,7 +518,9 @@
     </div>
 }
 
+<!-- ============================================================ -->
 <!-- مودال نمایش حساب مشتری -->
+<!-- ============================================================ -->
 @if (showAccountModal && selectedCustomer != null)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
@@ -599,7 +546,6 @@
                         </div>
                     }
 
-                    <!-- اطلاعات خلاصه -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-3 col-6">
                             <div class="info-card">
@@ -636,7 +582,6 @@
                         </div>
                     </div>
 
-                    <!-- موجودی -->
                     <div class="modern-card mb-4">
                         <div class="card-header" style="background: linear-gradient(135deg, #28a745, #1a7a3a); color: white; border-radius: var(--radius-md) var(--radius-md) 0 0;">
                             <h6 class="mb-0">
@@ -660,6 +605,8 @@
                                             <tr>
                                                 <th>واحد پولی</th>
                                                 <th>مانده</th>
+                                                <th>وضعیت</th>
+
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -667,8 +614,11 @@
                                             {
                                                 <tr>
                                                     <td><strong>@item.CurrencyCode</strong></td>
-                                                    <td class="@(item.Balance >= 0 ? "text-primary" : "text-danger") fw-bold fs-5">
+                                                    <td class="@(item.Balance >= 0 ? "text-success" : "text-danger") fw-bold fs-5">
                                                         @item.Balance.ToString("N2")
+                                                    </td>
+                                                    <td class="@(item.Balance >= 0 ? "text-success" : "text-danger") fw-bold fs-5">
+                                                        @(item.Balance >= 0 ? "طلبکار" : "بدهکار")
                                                     </td>
                                                 </tr>
                                             }
@@ -686,7 +636,6 @@
                         </div>
                     </div>
 
-                    <!-- تراکنش‌ها -->
                     <div class="modern-card">
                         <div class="card-header" style="background: linear-gradient(135deg, #6c757d, #5a6268); color: white; border-radius: var(--radius-md) var(--radius-md) 0 0;">
                             <h6 class="mb-0">
@@ -711,8 +660,8 @@
                                                 <th>#</th>
                                                 <th>تاریخ</th>
                                                 <th>واحد پولی</th>
+                                                <th>طلبکار</th>
                                                 <th>بدهکار</th>
-                                                <th>بستانکار</th>
                                                 <th>توضیحات</th>
                                             </tr>
                                         </thead>
@@ -723,8 +672,8 @@
                                                     <td>@entry.Id</td>
                                                     <td dir="ltr">@entry.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                                     <td><span class="badge-modern badge-info">@entry.CurrencyCode</span></td>
-                                                    <td class="text-danger fw-bold">@(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")</td>
-                                                    <td class="text-success fw-bold">@(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")</td>
+                                                    <td class="text-success fw-bold">@(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")</td>
+                                                    <td class="text-danger fw-bold">@(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")</td>
                                                     <td>@entry.Description</td>
                                                 </tr>
                                             }
@@ -752,12 +701,125 @@
     </div>
 }
 
+<!-- ============================================================ -->
+<!-- ✅ مودال برداشت/پرداخت (جدید) -->
+<!-- ============================================================ -->
+@if (showFinancialModal && selectedCustomerForFinancial != null)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
+        <div class="modal-dialog modal-md modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #6f42c1, #5a32a3);">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-cash-coin me-2"></i> برداشت/پرداخت
+                        <span class="text-white-50 small">@selectedCustomerForFinancial.FullName</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseFinancialModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (financialErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> خطاها:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in financialErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(financialSuccessMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i> @financialSuccessMessage
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold">نوع تراکنش <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="financialTransaction.TransactionType">
+                                <option value="Withdraw">برداشت از حساب</option>
+                                <option value="Deposit">پرداخت به حساب</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold">حساب طرف مقابل <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="financialTransaction.AccountId">
+                                <option value="0">انتخاب حساب</option>
+                                @foreach (var acc in accounts)
+                                {
+                                    <option value="@acc.Id">@acc.AccountName (@acc.AccountCode)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">واحد پولی <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="financialTransaction.CurrencyId">
+                                <option value="0">انتخاب کنید</option>
+                                @foreach (var curr in currencies)
+                                {
+                                    <option value="@curr.Id">@curr.Name (@curr.Code)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">مقدار <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" @bind="financialTransaction.Amount" step="0.01" min="0" placeholder="0" />
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold">توضیحات</label>
+                            <textarea class="form-control" @bind="financialTransaction.Description" rows="2" placeholder="توضیحات اختیاری"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info small">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>برداشت:</strong> از حساب مشتری کم می‌شود و به حساب طرف مقابل اضافه می‌شود.
+                        <br />
+                        <strong>پرداخت:</strong> به حساب مشتری اضافه می‌شود و از حساب طرف مقابل کم می‌شود.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseFinancialModal()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn-modern btn-success-modern" @onclick="() => SubmitFinancialTransaction()" disabled="@isFinancialSubmitting">
+                        @if (isFinancialSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle"></i>
+                        }
+                        ثبت تراکنش
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
+    // ===== لیست‌ها =====
     private List<CustomerDto> customers = new();
     private List<CustomerDto> filteredCustomers = new();
     private List<CurrencyDto> currencies = new();
     private List<AccountDto> accounts = new();
 
+    // ===== جستجو =====
     private string _searchTerm = string.Empty;
     private string searchTerm
     {
@@ -772,48 +834,11 @@
         }
     }
 
-    // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
-    private int pageSize = 10;
-    private int currentPage = 1;
-    private string sortColumn = "FullName";
-    private bool sortAscending = true;
-
-    private List<CustomerDto> pagedCustomers
-    {
-        get
-        {
-            // مرتب‌سازی
-            var sorted = filteredCustomers;
-            switch (sortColumn)
-            {
-                case "CustomerCode":
-                    sorted = sortAscending ? filteredCustomers.OrderBy(c => c.CustomerCode).ToList() : filteredCustomers.OrderByDescending(c => c.CustomerCode).ToList();
-                    break;
-                case "FullName":
-                    sorted = sortAscending ? filteredCustomers.OrderBy(c => c.FullName).ToList() : filteredCustomers.OrderByDescending(c => c.FullName).ToList();
-                    break;
-                default:
-                    sorted = filteredCustomers.OrderByDescending(c => c.CreatedAt).ToList();
-                    break;
-            }
-
-            // صفحه‌بندی
-            if (pageSize == 0)
-            {
-                currentPage = 1;
-                return sorted;
-            }
-
-            var skip = (currentPage - 1) * pageSize;
-            return sorted.Skip(skip).Take(pageSize).ToList();
-        }
-    }
-
-    private int totalPages => pageSize == 0 ? 1 : (int)Math.Ceiling((double)filteredCustomers.Count / pageSize);
-
+    // ===== وضعیت‌های مودال =====
     private bool showModal = false;
     private bool showConfirmModal = false;
     private bool showAccountModal = false;
+    private bool showFinancialModal = false;
     private bool isEditMode = false;
     private bool isLoading = false;
     private long editId = 0;
@@ -823,20 +848,41 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
 
+    // ===== موجودی اولیه =====
     private bool hasInitialBalance = false;
     private List<InitialBalanceDto> initialBalances = new();
     private InitialBalanceDto newInitialBalance = new();
 
+    // ===== متغیرهای کمکی =====
     private string? customerCodeDisplay = null;
     private CreateCustomerDto currentCustomer = new();
 
+    // ===== متغیرهای مربوط به مودال نمایش حساب =====
     private CustomerDto? selectedCustomer = null;
     private bool isBalanceLoading = false;
     private bool isLedgerLoading = false;
-
     private List<BalanceDto> balanceSummary = new();
     private List<LedgerEntryDto> ledgerEntries = new();
 
+    // ===== ✅ متغیرهای مربوط به مودال برداشت/پرداخت =====
+    private bool isFinancialSubmitting = false;
+    private List<string> financialErrors = new();
+    private string financialSuccessMessage = string.Empty;
+    private CustomerDto? selectedCustomerForFinancial = null;
+    private FinancialTransactionDto financialTransaction = new();
+
+    // ===== ✅ کلاس DTO داخلی برای تراکنش مالی =====
+    public class FinancialTransactionDto
+    {
+        public long CustomerId { get; set; }
+        public string TransactionType { get; set; } = "Withdraw";
+        public long AccountId { get; set; }
+        public long CurrencyId { get; set; }
+        public decimal Amount { get; set; }
+        public string? Description { get; set; }
+    }
+
+    // ===== بارگذاری داده‌ها =====
     protected override async Task OnInitializedAsync()
     {
         await LoadCustomers();
@@ -852,7 +898,6 @@
             var result = await CustomerService.GetAllAsync();
             customers = result.ToList();
             filteredCustomers = customers;
-            currentPage = 1;
         }
         catch (Exception ex)
         {
@@ -891,6 +936,7 @@
         }
     }
 
+    // ===== جستجو =====
     private void SearchCustomers()
     {
         if (string.IsNullOrWhiteSpace(_searchTerm))
@@ -908,7 +954,6 @@
                 (c.Address != null && c.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
             ).ToList();
         }
-        currentPage = 1;
         StateHasChanged();
     }
 
@@ -916,46 +961,23 @@
     {
         _searchTerm = string.Empty;
         filteredCustomers = customers;
-        currentPage = 1;
         StateHasChanged();
     }
 
-    private void GoToPage(int page)
-    {
-        if (page >= 1 && page <= totalPages)
-        {
-            currentPage = page;
-            StateHasChanged();
-        }
-    }
-
-    private void SortBy(string column)
-    {
-        if (sortColumn == column)
-        {
-            sortAscending = !sortAscending;
-        }
-        else
-        {
-            sortColumn = column;
-            sortAscending = true;
-        }
-        currentPage = 1;
-        StateHasChanged();
-    }
-
+    // ===== باز و بسته کردن مودال‌ها (ایجاد/ویرایش) =====
     private void OpenCreateModal()
     {
         currentCustomer = new CreateCustomerDto();
         customerCodeDisplay = null;
         isEditMode = false;
         editId = 0;
+        validationErrors.Clear();
         successMessage = string.Empty;
         showModal = true;
         hasInitialBalance = false;
         initialBalances.Clear();
         newInitialBalance = new InitialBalanceDto();
-        validationErrors.Clear();
+        StateHasChanged();
     }
 
     private async Task OpenEditModal(long id)
@@ -1020,6 +1042,7 @@
         StateHasChanged();
     }
 
+    // ===== موجودی اولیه =====
     private bool CanAddInitialBalance()
     {
         return newInitialBalance.CurrencyId > 0 &&
@@ -1057,6 +1080,7 @@
         StateHasChanged();
     }
 
+    // ===== ذخیره‌سازی مشتری =====
     private async Task SaveCustomer()
     {
         validationErrors.Clear();
@@ -1128,6 +1152,7 @@
         }
     }
 
+    // ===== بایگانی =====
     private void ShowArchiveConfirm(long id)
     {
         confirmId = id;
@@ -1175,6 +1200,7 @@
         }
     }
 
+    // ===== مشاهده حساب =====
     private async Task ViewAccount(long customerId)
     {
         try
@@ -1247,8 +1273,150 @@
         }
     }
 
+    // ===== مشاهده تراکنش‌ها =====
     private void ViewTransactions(long id)
     {
         NavigationManager.NavigateTo($"/customers/{id}/transactions");
+    }
+
+    // ================================================================
+    // ✅ متدهای جدید برای برداشت/پرداخت
+    // ================================================================
+
+    private void OpenFinancialModal(long customerId, string customerName)
+    {
+        selectedCustomerForFinancial = new CustomerDto
+        {
+            Id = customerId,
+            FullName = customerName
+        };
+        financialTransaction = new FinancialTransactionDto
+        {
+            CustomerId = customerId,
+            TransactionType = "Withdraw",
+            AccountId = 0,
+            CurrencyId = 0,
+            Amount = 0
+        };
+        financialErrors.Clear();
+        financialSuccessMessage = string.Empty;
+        showFinancialModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseFinancialModal()
+    {
+        showFinancialModal = false;
+        selectedCustomerForFinancial = null;
+        financialTransaction = new FinancialTransactionDto();
+        financialErrors.Clear();
+        financialSuccessMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task SubmitFinancialTransaction()
+    {
+        financialErrors.Clear();
+        financialSuccessMessage = string.Empty;
+
+        // اعتبارسنجی
+        if (financialTransaction.AccountId == 0)
+            financialErrors.Add("لطفاً حساب طرف مقابل را انتخاب کنید.");
+        if (financialTransaction.CurrencyId == 0)
+            financialErrors.Add("لطفاً واحد پولی را انتخاب کنید.");
+        if (financialTransaction.Amount <= 0)
+            financialErrors.Add("مقدار باید بزرگ‌تر از صفر باشد.");
+
+        if (financialErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isFinancialSubmitting = true;
+            StateHasChanged();
+
+            // ۱. ایجاد تراکنش از نوع Adjustment با استفاده از TransactionService.CreateAsync
+            var createTransactionDto = new CreateTransactionDto
+            {
+                TransactionType = "Adjustment",
+                BranchId = 1, // مقدار پیش‌فرض – از تنظیمات دریافت کنید
+                CustomerId = financialTransaction.CustomerId,
+                CustomerFullName = selectedCustomerForFinancial?.FullName,
+                Remarks = financialTransaction.Description ?? $"{(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "پرداخت")} از/به حساب مشتری",
+                TransactionDetails = new List<CreateTransactionDetailDto>()
+            };
+
+            var transaction = await TransactionService.CreateAsync(createTransactionDto);
+
+            // ۲. دریافت حساب مشتری
+            var customerAccount = (await AccountService.GetByReferenceAsync("Customer", financialTransaction.CustomerId)).FirstOrDefault();
+            if (customerAccount == null)
+            {
+                financialErrors.Add("حساب مشتری یافت نشد.");
+                return;
+            }
+
+            // ۳. دریافت حساب طرف مقابل
+            var oppositeAccount = await AccountService.GetByIdAsync(financialTransaction.AccountId);
+            if (oppositeAccount == null)
+            {
+                financialErrors.Add("حساب طرف مقابل یافت نشد.");
+                return;
+            }
+
+            // ۴. ثبت ورودی‌های دفتر کل با استفاده از LedgerService.CreateLedgerEntryAsync
+            decimal customerTalabKar = 0, customerBadehKar = 0;
+            decimal oppositeTalabKar = 0, oppositeBadehKar = 0;
+
+            if (financialTransaction.TransactionType == "Withdraw") // برداشت
+            {
+                customerTalabKar = financialTransaction.Amount; // مشتری بدهکار
+                oppositeBadehKar = financialTransaction.Amount; // حساب طرف مقابل بستانکار
+            }
+            else if (financialTransaction.TransactionType == "Deposit") // پرداخت
+            {
+                customerBadehKar = financialTransaction.Amount; // مشتری بستانکار
+                oppositeTalabKar = financialTransaction.Amount; // حساب طرف مقابل بدهکار
+            }
+
+            // ورودی مشتری
+            await LedgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
+            {
+                TransactionId = transaction.Id,
+                AccountId = customerAccount.Id,
+                CurrencyId = financialTransaction.CurrencyId,
+                TalabKar = customerTalabKar,
+                BadehKar = customerBadehKar,
+                Description = $"{(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "پرداخت")} از/به حساب مشتری"
+            });
+
+            // ورودی طرف مقابل
+            await LedgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
+            {
+                TransactionId = transaction.Id,
+                AccountId = oppositeAccount.Id,
+                CurrencyId = financialTransaction.CurrencyId,
+                TalabKar = oppositeTalabKar,
+                BadehKar = oppositeBadehKar,
+                Description = $"طرف مقابل {(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "پرداخت")} مشتری"
+            });
+
+            financialSuccessMessage = $"تراکنش با موفقیت ثبت شد. شماره: {transaction.TransactionNo}";
+            await Task.Delay(1500);
+            CloseFinancialModal();
+            await LoadCustomers();
+        }
+        catch (Exception ex)
+        {
+            financialErrors.Add($"خطا در ثبت تراکنش: {ex.Message}");
+        }
+        finally
+        {
+            isFinancialSubmitting = false;
+            StateHasChanged();
+        }
     }
 }

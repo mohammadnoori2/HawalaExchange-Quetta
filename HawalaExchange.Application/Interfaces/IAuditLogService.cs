@@ -10,5 +10,12 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<IEnumerable<AuditLogDto>> GetLogsByDateRangeAsync(DateTime fromDate, DateTime toDate);
         Task<IEnumerable<AuditLogDto>> GetLogsByActionAsync(string action);
         Task<IEnumerable<AuditLogDto>> GetAllLogsAsync();
+
+        Task<PaginatedResult<AuditLogDto>> GetFilteredLogsAsync(AuditLogFilterDto filter);
+        Task<IEnumerable<AuditLogDto>> GetFilteredLogsNoPagingAsync(DateTime? fromDate = null, DateTime? toDate = null, long? userId = null, string? action = null, string? tableName = null, string? searchTerm = null);
+        Task<AuditLogStatisticsDto> GetStatisticsAsync(DateTime? fromDate = null, DateTime? toDate = null);
+        Task<IEnumerable<string>> GetDistinctActionsAsync();
+        Task<IEnumerable<string>> GetDistinctTablesAsync();
+        Task<int> CleanupOldLogsAsync(int daysToKeep = 30);
     }
 }

@@ -6,84 +6,235 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<div class="container-fluid mt-4" dir="rtl">
-    <div class="card shadow-lg border-0">
-        <div class="card-header bg-gradient-primary text-white py-3" style="background: linear-gradient(135deg, #0061f2, #0050c8);">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                <h4 class="mb-0">
-                    <i class="bi bi-clock-history me-2"></i> لاگ‌های سیستم
-                </h4>
-                <button class="btn btn-light btn-lg" @onclick="LoadLogs">
-                    <i class="bi bi-arrow-clockwise"></i> بروزرسانی
-                </button>
+<div class="page-wrapper">
+    <!-- هدر صفحه -->
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-clock-history"></i>
+                لاگ‌های سیستم
+                <span class="page-subtitle">مشاهده و جستجوی رویدادهای سیستم</span>
+            </h5>
+        </div>
+        <div class="page-actions">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="LoadLogs">
+                <i class="bi bi-arrow-clockwise"></i> بروزرسانی
+            </button>
+        </div>
+    </div>
+
+    <!-- کارت آماری -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-2 col-6">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon primary">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@totalCount</div>
+                        <div class="stat-label">تعداد کل</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="stat-card stat-card-success">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon success">
+                        <i class="bi bi-plus-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@createCount</div>
+                        <div class="stat-label">ایجاد</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="stat-card stat-card-info">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon info">
+                        <i class="bi bi-pencil"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@updateCount</div>
+                        <div class="stat-label">ویرایش</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="stat-card stat-card-danger">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon danger">
+                        <i class="bi bi-trash"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@deleteCount</div>
+                        <div class="stat-label">حذف</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="stat-card stat-card-warning">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon warning">
+                        <i class="bi bi-x-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@cancelCount</div>
+                        <div class="stat-label">لغو</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="stat-card stat-card-secondary">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: #e9ecef; color: #6c757d;">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@reverseCount</div>
+                        <div class="stat-label">برگشت</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- فیلترها -->
+    <div class="row g-3 mb-4 align-items-end">
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
+            <input type="datetime-local" class="form-control" @bind="fromDate" @bind:event="oninput" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
+            <input type="datetime-local" class="form-control" @bind="toDate" @bind:event="oninput" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-person text-muted me-1"></i> کاربر</label>
+            <select class="form-select" @bind="filterUserId" @bind:event="oninput">
+                <option value="">همه کاربران</option>
+                @foreach (var user in users)
+                {
+                    <option value="@user.Id">@user.FullName (@user.UserName)</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-tag text-muted me-1"></i> عملیات</label>
+            <select class="form-select" @bind="filterAction" @bind:event="oninput">
+                <option value="">همه عملیات</option>
+                <option value="CREATE">ایجاد</option>
+                <option value="UPDATE">ویرایش</option>
+                <option value="DELETE">حذف</option>
+                <option value="CANCEL">لغو</option>
+                <option value="REVERSE">برگشت</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-table text-muted me-1"></i> جدول</label>
+            <input type="text" class="form-control" placeholder="نام جدول" @bind="filterTable" @bind:event="oninput" />
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilters">
+                <i class="bi bi-search"></i> فیلتر
+            </button>
+            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- کارت جدول -->
+    <div class="table-card">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <!-- جستجو -->
+                <div class="search-modern">
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" class="search-input" placeholder="جستجو در لاگ‌ها (جدول، مقدار)..."
+                           @bind="searchTerm" @bind:event="oninput" />
+                    <button class="search-btn" @onclick="() => ClearSearch()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- انتخاب تعداد نمایش -->
+                <div class="page-size-selector">
+                    <span class="text-muted small">تعداد نمایش:</span>
+                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">همه</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i> @filteredLogs.Count
+                </span>
             </div>
         </div>
 
-        <div class="card-body">
-            <!-- فیلترها -->
-            <div class="row g-3 mb-4 align-items-end">
-                <div class="col-md-2">
-                    <label class="form-label">از تاریخ</label>
-                    <input type="datetime-local" class="form-control" @bind="fromDate" @bind:event="oninput" />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">تا تاریخ</label>
-                    <input type="datetime-local" class="form-control" @bind="toDate" @bind:event="oninput" />
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">کاربر</label>
-                    <select class="form-select" @bind="filterUserId">
-                        <option value="">همه کاربران</option>
-                        @foreach (var user in users)
-                        {
-                            <option value="@user.Id">@user.FullName (@user.UserName)</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">عملیات</label>
-                    <select class="form-select" @bind="filterAction">
-                        <option value="">همه</option>
-                        <option value="CREATE">ایجاد</option>
-                        <option value="UPDATE">ویرایش</option>
-                        <option value="DELETE">حذف</option>
-                        <option value="CANCEL">لغو</option>
-                        <option value="REVERSE">برگشت</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">جدول</label>
-                    <input type="text" class="form-control" placeholder="نام جدول" @bind="filterTable" @bind:event="oninput" />
-                </div>
-                <div class="col-md-2 d-flex gap-2">
-                    <button class="btn btn-primary w-100" @onclick="ApplyFilters">فیلتر</button>
-                    <button class="btn btn-outline-secondary w-100" @onclick="ResetFilters">بازنشانی</button>
-                </div>
-            </div>
-
-            <!-- جدول لاگ‌ها -->
-            <div class="table-responsive">
-                <table class="table table-hover table-striped align-middle">
-                    <thead class="table-dark">
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
                         <tr>
-                            <th scope="col">#</th>
-                            <th scope="col">کاربر</th>
-                            <th scope="col">عملیات</th>
-                            <th scope="col">جدول</th>
-                            <th scope="col">شناسه رکورد</th>
-                            <th scope="col">مقدار قبلی</th>
-                            <th scope="col">مقدار جدید</th>
-                            <th scope="col">تاریخ</th>
-                            <th scope="col" style="min-width: 80px;">عملیات</th>
+                            <th style="width: 50px;">#</th>
+                            <th class="sortable-header @(sortColumn == "UserName" ? "active" : "")" @onclick="@(() => SortBy("UserName"))">
+                                کاربر
+                                @if (sortColumn == "UserName")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "Action" ? "active" : "")" @onclick="@(() => SortBy("Action"))">
+                                عملیات
+                                @if (sortColumn == "Action")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "TableName" ? "active" : "")" @onclick="@(() => SortBy("TableName"))">
+                                جدول
+                                @if (sortColumn == "TableName")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th>شناسه رکورد</th>
+                            <th>مقدار قبلی</th>
+                            <th>مقدار جدید</th>
+                            <th class="sortable-header @(sortColumn == "CreatedAt" ? "active" : "")" @onclick="@(() => SortBy("CreatedAt"))">
+                                تاریخ
+                                @if (sortColumn == "CreatedAt")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="text-center">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (isLoading && logs == null)
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-4">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                <td colspan="9" class="text-center py-5">
+                                    <div class="loading-state">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">در حال بارگذاری...</span>
+                                        </div>
+                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                     </div>
                                 </td>
                             </tr>
@@ -91,27 +242,38 @@
                         else if (!filteredLogs.Any())
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-4 text-muted">
-                                    <i class="bi bi-inbox fs-1 d-block"></i>
-                                    <span class="fs-5">هیچ لاگی یافت نشد</span>
+                                <td colspan="9" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <span class="fs-5 text-muted">هیچ لاگی یافت نشد</span>
+                                        <p class="text-muted small">هیچ رویدادی در سیستم ثبت نشده است.</p>
+                                    </div>
                                 </td>
                             </tr>
                         }
                         else
                         {
-                            int rowIndex = 1;
+                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredLogs.Count : pageSize) + 1;
                             @foreach (var log in filteredLogs)
                             {
                                 <tr>
-                                    <td>@rowIndex</td>
-                                    <td>@(log.UserName ?? "سیستم")</td>
-                                    <td><span class="badge @GetActionBadge(log.Action)">@GetActionName(log.Action)</span></td>
-                                    <td>@log.TableName</td>
+                                    <td><span class="fw-bold text-muted">@rowIndex</span></td>
+                                    <td>
+                                        <span class="fw-semibold">@(log.UserName ?? "سیستم")</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge-modern @GetActionBadge(log.Action)">
+                                            @GetActionName(log.Action)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="customer-code">@log.TableName</span>
+                                    </td>
                                     <td>@log.RecordId</td>
                                     <td>
                                         @if (!string.IsNullOrEmpty(log.OldValue))
                                         {
-                                            <span class="text-truncate d-inline-block" style="max-width: 120px;" title="@log.OldValue">@log.OldValue</span>
+                                            <span class="overflow-ellipsis" style="max-width: 120px;" title="@log.OldValue">@log.OldValue</span>
                                         }
                                         else
                                         {
@@ -121,7 +283,7 @@
                                     <td>
                                         @if (!string.IsNullOrEmpty(log.NewValue))
                                         {
-                                            <span class="text-truncate d-inline-block" style="max-width: 120px;" title="@log.NewValue">@log.NewValue</span>
+                                            <span class="overflow-ellipsis" style="max-width: 120px;" title="@log.NewValue">@log.NewValue</span>
                                         }
                                         else
                                         {
@@ -130,9 +292,11 @@
                                     </td>
                                     <td dir="ltr">@log.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-info" @onclick="() => ViewLog(log.Id)" title="مشاهده جزئیات">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
+                                        <div class="action-group justify-content-center">
+                                            <button class="action-btn action-btn-view" @onclick="() => ViewLog(log.Id)" title="مشاهده جزئیات">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -142,48 +306,150 @@
                 </table>
             </div>
         </div>
+
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@filteredLogs.Count</strong> از <strong>@totalCount</strong> لاگ
+                </span>
+
+                <!-- صفحه‌بندی -->
+                @if (totalPages > 1)
+                {
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination-modern">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
+                                </li>
+                            }
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+
+            <div class="table-card-footer-right">
+                <span class="badge-modern badge-success">
+                    <i class="bi bi-plus-circle"></i> ایجاد: @createCount
+                </span>
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-pencil"></i> ویرایش: @updateCount
+                </span>
+                <span class="badge-modern badge-danger">
+                    <i class="bi bi-trash"></i> حذف: @deleteCount
+                </span>
+                <span class="badge-modern badge-warning">
+                    <i class="bi bi-x-circle"></i> لغو: @cancelCount
+                </span>
+                <span class="badge-modern badge-secondary">
+                    <i class="bi bi-arrow-counterclockwise"></i> برگشت: @reverseCount
+                </span>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- مودال مشاهده جزئیات لاگ -->
 @if (showDetailModal && selectedLog != null)
 {
-    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title">
+                <div class="modal-header" style="background: linear-gradient(135deg, #0dcaf0, #0a9ec4);">
+                    <h5 class="modal-title text-white">
                         <i class="bi bi-info-circle me-2"></i> جزئیات لاگ
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6"><strong>شناسه:</strong> @selectedLog.Id</div>
-                        <div class="col-md-6"><strong>کاربر:</strong> @(selectedLog.UserName ?? "سیستم")</div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">شناسه</span>
+                                <span class="info-value">@selectedLog.Id</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">کاربر</span>
+                                <span class="info-value">@(selectedLog.UserName ?? "سیستم")</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">تاریخ</span>
+                                <span class="info-value">@selectedLog.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="row mt-2">
-                        <div class="col-md-6"><strong>عملیات:</strong> @GetActionName(selectedLog.Action)</div>
-                        <div class="col-md-6"><strong>جدول:</strong> @selectedLog.TableName</div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">عملیات</span>
+                                <span class="info-value">
+                                    <span class="badge-modern @GetActionBadge(selectedLog.Action)">
+                                        @GetActionName(selectedLog.Action)
+                                    </span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">جدول</span>
+                                <span class="info-value">@selectedLog.TableName</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">شناسه رکورد</span>
+                                <span class="info-value">@selectedLog.RecordId</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="row mt-2">
-                        <div class="col-md-6"><strong>شناسه رکورد:</strong> @selectedLog.RecordId</div>
-                        <div class="col-md-6"><strong>تاریخ:</strong> @selectedLog.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</div>
-                    </div>
+
                     <hr />
-                    <div class="row">
+
+                    <div class="row g-3">
                         <div class="col-md-6">
-                            <h6>مقدار قبلی</h6>
-                            <pre class="bg-light p-2 border rounded" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;">@(selectedLog.OldValue ?? "—")</pre>
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0 text-danger">
+                                        <i class="bi bi-arrow-left"></i> مقدار قبلی
+                                    </h6>
+                                </div>
+                                <div class="card-body p-3">
+                                    <pre class="bg-light p-2 border rounded mb-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem;">@(selectedLog.OldValue ?? "—")</pre>
+                                </div>
+                            </div>
                         </div>
                         <div class="col-md-6">
-                            <h6>مقدار جدید</h6>
-                            <pre class="bg-light p-2 border rounded" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;">@(selectedLog.NewValue ?? "—")</pre>
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0 text-success">
+                                        <i class="bi bi-arrow-right"></i> مقدار جدید
+                                    </h6>
+                                </div>
+                                <div class="card-body p-3">
+                                    <pre class="bg-light p-2 border rounded mb-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem;">@(selectedLog.NewValue ?? "—")</pre>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="() => CloseDetailModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseDetailModal()">
                         <i class="bi bi-x-circle"></i> بستن
                     </button>
                 </div>
@@ -203,6 +469,22 @@
     private long? filterUserId;
     private string filterAction = "";
     private string filterTable = "";
+    private string searchTerm = "";
+
+    // صفحه‌بندی
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string sortColumn = "CreatedAt";
+    private bool sortAscending = false;
+
+    // آمار
+    private int totalCount = 0;
+    private int totalPages = 1;
+    private int createCount = 0;
+    private int updateCount = 0;
+    private int deleteCount = 0;
+    private int cancelCount = 0;
+    private int reverseCount = 0;
 
     private bool isLoading = false;
     private bool showDetailModal = false;
@@ -228,9 +510,30 @@
         try
         {
             isLoading = true;
-            var result = await AuditLogService.GetAllLogsAsync();
-            logs = result.ToList();
-            filteredLogs = logs;
+            StateHasChanged();
+
+            var filter = new AuditLogFilterDto
+            {
+                FromDate = fromDate,
+                ToDate = toDate,
+                UserId = filterUserId,
+                Action = string.IsNullOrEmpty(filterAction) ? null : filterAction,
+                TableName = string.IsNullOrEmpty(filterTable) ? null : filterTable,
+                SearchTerm = string.IsNullOrEmpty(searchTerm) ? null : searchTerm,
+                PageNumber = currentPage,
+                PageSize = pageSize == 0 ? int.MaxValue : pageSize,
+                SortColumn = sortColumn,
+                SortDirection = sortAscending ? "asc" : "desc"
+            };
+
+            var result = await AuditLogService.GetFilteredLogsAsync(filter);
+
+            filteredLogs = result.Items.ToList();
+            totalCount = result.TotalCount;
+            totalPages = result.TotalPages;
+
+            // دریافت آمار
+            await LoadStatistics();
         }
         catch (Exception ex)
         {
@@ -243,23 +546,25 @@
         }
     }
 
+    private async Task LoadStatistics()
+    {
+        try
+        {
+            var stats = await AuditLogService.GetStatisticsAsync();
+            totalCount = stats.TotalLogs;
+            createCount = stats.CreateCount;
+            updateCount = stats.UpdateCount;
+            deleteCount = stats.DeleteCount;
+            cancelCount = stats.CancelCount;
+            reverseCount = stats.ReverseCount;
+        }
+        catch { }
+    }
+
     private void ApplyFilters()
     {
-        var query = logs.AsEnumerable();
-
-        if (fromDate.HasValue)
-            query = query.Where(l => l.CreatedAt >= fromDate.Value);
-        if (toDate.HasValue)
-            query = query.Where(l => l.CreatedAt <= toDate.Value);
-        if (filterUserId.HasValue && filterUserId.Value > 0)
-            query = query.Where(l => l.UserId == filterUserId.Value);
-        if (!string.IsNullOrEmpty(filterAction))
-            query = query.Where(l => l.Action == filterAction);
-        if (!string.IsNullOrEmpty(filterTable))
-            query = query.Where(l => l.TableName.Contains(filterTable, StringComparison.OrdinalIgnoreCase));
-
-        filteredLogs = query.ToList();
-        StateHasChanged();
+        currentPage = 1;
+        _ = LoadLogs();
     }
 
     private void ResetFilters()
@@ -269,13 +574,45 @@
         filterUserId = null;
         filterAction = "";
         filterTable = "";
-        filteredLogs = logs;
-        StateHasChanged();
+        searchTerm = "";
+        currentPage = 1;
+        _ = LoadLogs();
+    }
+
+    private void ClearSearch()
+    {
+        searchTerm = "";
+        currentPage = 1;
+        _ = LoadLogs();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            _ = LoadLogs();
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+        currentPage = 1;
+        _ = LoadLogs();
     }
 
     private async Task ViewLog(long id)
     {
-        selectedLog = logs.FirstOrDefault(l => l.Id == id);
+        selectedLog = filteredLogs.FirstOrDefault(l => l.Id == id);
         if (selectedLog != null)
             showDetailModal = true;
         StateHasChanged();
@@ -300,11 +637,11 @@
 
     private string GetActionBadge(string action) => action?.ToUpper() switch
     {
-        "CREATE" => "bg-success",
-        "UPDATE" => "bg-primary",
-        "DELETE" => "bg-danger",
-        "CANCEL" => "bg-warning text-dark",
-        "REVERSE" => "bg-secondary",
-        _ => "bg-light text-dark"
+        "CREATE" => "badge-success",
+        "UPDATE" => "badge-info",
+        "DELETE" => "badge-danger",
+        "CANCEL" => "badge-warning",
+        "REVERSE" => "badge-secondary",
+        _ => "badge-light"
     };
 }

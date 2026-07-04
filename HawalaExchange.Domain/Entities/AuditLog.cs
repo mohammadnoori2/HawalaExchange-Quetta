@@ -14,8 +14,8 @@ namespace HawalaExchange.Domain.Entities
         public long? UserId { get; set; }
 
         [Required]
-        [MaxLength(100)]
-        public string Action { get; set; } // Insert, Update, Delete, Cancel, Reverse
+        [MaxLength(50)]
+        public string Action { get; set; }
 
         [Required]
         [MaxLength(100)]
@@ -24,13 +24,14 @@ namespace HawalaExchange.Domain.Entities
         [Required]
         public long RecordId { get; set; }
 
+        [Column(TypeName = "nvarchar(max)")]
         public string? OldValue { get; set; }
 
+        [Column(TypeName = "nvarchar(max)")]
         public string? NewValue { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigation Properties
         [ForeignKey(nameof(UserId))]
         public virtual User? User { get; set; }
     }

@@ -64,12 +64,12 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.CorrespondentName, opt => opt.MapFrom(src => src.Correspondent.Name));
             CreateMap<CreateTransactionDetailDto, TransactionDetail>();
 
-            // LedgerEntry mappings (با TransactionId)
+            // LedgerEntry mappings
             CreateMap<LedgerEntry, LedgerEntryDto>()
                 .ForMember(dest => dest.AccountName, opt => opt.MapFrom(src => src.Account.AccountName))
                 .ForMember(dest => dest.AccountCode, opt => opt.MapFrom(src => src.Account.AccountCode))
                 .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code));
-            CreateMap<CreateLedgerEntryDto, LedgerEntry>(); // TransactionId به‌طور خودکار نگاشت می‌شود
+            CreateMap<CreateLedgerEntryDto, LedgerEntry>();
 
             // Transfer mappings
             CreateMap<Transfer, TransferDto>()
@@ -78,10 +78,10 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code));
             CreateMap<CreateTransferDto, Transfer>();
 
-            // Expense mappings – با فرض اینکه CreateExpenseDto دارای TransactionId است
+            // Expense mappings
             CreateMap<Expense, ExpenseDto>()
                 .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code));
-            CreateMap<CreateExpenseDto, Expense>(); // ✅ TransactionId به‌طور خودکار نگاشت می‌شود
+            CreateMap<CreateExpenseDto, Expense>();
 
             // Document mappings
             CreateMap<Document, DocumentDto>().ReverseMap();
@@ -97,6 +97,33 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser.FullName));
             CreateMap<CreateAccountBadehkarLimitDto, AccountBadehkarLimit>();
             CreateMap<UpdateAccountBadehkarLimitDto, AccountBadehkarLimit>();
+
+            // ===== Hawala mappings =====
+            // Hawala to HawalaDto
+            CreateMap<Hawala, HawalaDto>()
+                .ForMember(dest => dest.TransactionNo, opt => opt.MapFrom(src => src.Transaction != null ? src.Transaction.TransactionNo : ""))
+                .ForMember(dest => dest.BranchName, opt => opt.MapFrom(src => src.Branch != null ? src.Branch.Name : ""))
+                .ForMember(dest => dest.CustomerFullName, opt => opt.MapFrom(src => src.Customer != null ? src.Customer.FullName : null))
+                .ForMember(dest => dest.CorrespondentName, opt => opt.MapFrom(src => src.Correspondent != null ? src.Correspondent.Name : null))
+                .ForMember(dest => dest.FromCurrencyCode, opt => opt.MapFrom(src => src.FromCurrency != null ? src.FromCurrency.Code : ""))
+                .ForMember(dest => dest.ToCurrencyCode, opt => opt.MapFrom(src => src.ToCurrency != null ? src.ToCurrency.Code : ""))
+                .ForMember(dest => dest.CommissionCurrencyCode, opt => opt.MapFrom(src => src.CommissionCurrency != null ? src.CommissionCurrency.Code : null))
+                .ForMember(dest => dest.AgentCommissionCurrencyCode, opt => opt.MapFrom(src => src.AgentCommissionCurrency != null ? src.AgentCommissionCurrency.Code : null))
+                .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser != null ? src.CreatedByUser.FullName : ""))
+                .ForMember(dest => dest.PaidByName, opt => opt.MapFrom(src => src.PaidByUser != null ? src.PaidByUser.FullName : null))
+                .ForMember(dest => dest.CancelledByName, opt => opt.MapFrom(src => src.CancelledByUser != null ? src.CancelledByUser.FullName : null))
+                .ForMember(dest => dest.HawalaTypeName, opt => opt.Ignore())
+                .ForMember(dest => dest.StatusName, opt => opt.Ignore());
+
+            // CreateHawalaDto to Hawala
+            CreateMap<CreateHawalaDto, Hawala>()
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status ?? "Pending"));
+
+            // UpdateHawalaDto to Hawala
+            CreateMap<UpdateHawalaDto, Hawala>()
+                .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
         }
     }
 }

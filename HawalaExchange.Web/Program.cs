@@ -43,6 +43,7 @@ public partial class Program
         builder.Services.AddScoped<IBalanceService, BalanceService>();
         builder.Services.AddScoped<IReportService, ReportService>();
         builder.Services.AddScoped<IAccountBadehkarLimitService, AccountBadehkarLimitService>();
+        builder.Services.AddScoped<IHawalaService, HawalaService>();
         var app = builder.Build();
 
         // Configure the HTTP request pipeline.

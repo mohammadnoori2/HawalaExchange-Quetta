@@ -70,5 +70,8 @@ namespace HawalaExchange.Domain.Entities
         public virtual ICollection<Expense>? Expenses { get; set; }
         public virtual ICollection<Document>? Documents { get; set; }
         public virtual ICollection<AuditLog>? AuditLogs { get; set; }
+
+        public virtual Hawala? Hawala { get; set; }
+
     }
 }

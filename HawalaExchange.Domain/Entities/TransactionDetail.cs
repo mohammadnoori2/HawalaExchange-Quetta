@@ -24,7 +24,7 @@ namespace HawalaExchange.Domain.Entities
 
         public decimal? ExchangeRate { get; set; }
 
-        public decimal? TransferAmount { get; set; }
+        
 
         public long? CommissionCurrencyId { get; set; }
 
@@ -36,14 +36,21 @@ namespace HawalaExchange.Domain.Entities
 
         public long? CorrespondentId { get; set; }
 
+
         [MaxLength(200)]
         public string? SenderName { get; set; }
+        
+        [MaxLength(200)]
+        public string SenderFatherName { get; set; }
 
         [MaxLength(50)]
         public string? SenderPhone { get; set; }
 
         [MaxLength(100)]
         public string? SenderTazkiraNumber { get; set; }
+
+        [MaxLength(500)]
+        public string SenderTazkiraImagePath { get; set; } 
 
         [MaxLength(200)]
         public string? ReceiverName { get; set; }
@@ -53,6 +60,9 @@ namespace HawalaExchange.Domain.Entities
 
         [MaxLength(100)]
         public string? ReceiverTazkiraNumber { get; set; }
+
+        [MaxLength(500)]
+        public string ReceiverTazkiraImagePath { get; set; }    
 
         [MaxLength(100)]
         public string? ReferenceNumber { get; set; }

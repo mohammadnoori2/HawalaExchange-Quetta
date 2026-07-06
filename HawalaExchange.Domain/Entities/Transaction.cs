@@ -19,11 +19,13 @@ namespace HawalaExchange.Domain.Entities
         [MaxLength(50)]
         public string TransactionType { get; set; } // Exchange, HawalaSend, HawalaReceive, Transfer, Expense, Adjustment
 
-        //[Required]
-        //public long BranchId { get; set; }
+        [Required]
+        public long BranchId { get; set; }
 
-        [MaxLength(50)]
-        public string PaymentLocation { get; set; } // Branch, Correspondent, Other
+        public long? CustomerId { get; set; }
+
+        [MaxLength(200)]
+        public string? CustomerFullName { get; set; }
 
         [Required]
         [MaxLength(20)]
@@ -47,11 +49,11 @@ namespace HawalaExchange.Domain.Entities
         public long? ReversedTransactionId { get; set; }
 
         // Navigation Properties
-        //[ForeignKey(nameof(BranchId))]
-        //public virtual Branch? Branch { get; set; }
+        [ForeignKey(nameof(BranchId))]
+        public virtual Branch? Branch { get; set; }
 
-        [ForeignKey(nameof(Id))]
-        public long CustomerId { get; set; }
+        [ForeignKey(nameof(CustomerId))]
+        public virtual Customer? Customer { get; set; }
 
         [ForeignKey(nameof(CreatedBy))]
         public virtual User? CreatedByUser { get; set; }
@@ -68,7 +70,6 @@ namespace HawalaExchange.Domain.Entities
         public virtual ICollection<Expense>? Expenses { get; set; }
         public virtual ICollection<Document>? Documents { get; set; }
         public virtual ICollection<AuditLog>? AuditLogs { get; set; }
-        public virtual ICollection<Customer>? Customers { get; set; }
 
         public virtual Hawala? Hawala { get; set; }
 

@@ -1373,13 +1373,15 @@
 
             if (financialTransaction.TransactionType == "Withdraw") // برداشت
             {
-                customerTalabKar = financialTransaction.Amount; // مشتری بدهکار
-                oppositeBadehKar = financialTransaction.Amount; // حساب طرف مقابل بستانکار
+                customerBadehKar = financialTransaction.Amount; // مشتری بستانکار
+                oppositeTalabKar = financialTransaction.Amount; // حساب طرف مقابل بدهکار
             }
             else if (financialTransaction.TransactionType == "Deposit") // پرداخت
             {
-                customerBadehKar = financialTransaction.Amount; // مشتری بستانکار
-                oppositeTalabKar = financialTransaction.Amount; // حساب طرف مقابل بدهکار
+                
+
+                customerTalabKar = financialTransaction.Amount; // مشتری بدهکار
+                oppositeBadehKar = financialTransaction.Amount; // حساب طرف مقابل
             }
 
             // ورودی مشتری

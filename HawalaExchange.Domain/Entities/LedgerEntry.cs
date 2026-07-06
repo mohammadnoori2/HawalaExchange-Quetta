@@ -11,8 +11,8 @@ namespace HawalaExchange.Domain.Entities
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
 
-        [Required]
-        public long TransactionId { get; set; }
+        //[Required]
+        public long? TransactionId { get; set; }
 
         [Required]
         public long AccountId { get; set; }

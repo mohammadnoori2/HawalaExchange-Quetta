@@ -10,23 +10,18 @@ namespace HawalaExchange.Domain.Entities
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
-
-        [Required]
-        public long TransactionId { get; set; }
-
         [Required]
         [MaxLength(50)]
         public string HawalaType { get; set; } // HawalaSend, HawalaReceive, HawalaOther
-
-        [Required]
-        public long BranchId { get; set; }
-
-        public long? CustomerId { get; set; }
-
         public long? CorrespondentId { get; set; }
 
         [MaxLength(200)]
         public string? SenderName { get; set; }
+        [Required]
+        public string? SenderFatherName { get; set; }
+
+        [MaxLength(500)]
+        public string? TazkiraImagePath { get; set; }
 
         [MaxLength(50)]
         public string? SenderPhone { get; set; }
@@ -36,6 +31,14 @@ namespace HawalaExchange.Domain.Entities
 
         [MaxLength(200)]
         public string? ReceiverName { get; set; }
+        [Required]
+        [MaxLength(200)]
+        public string? ReceiverFatherName { get; set; }
+        
+        
+        [MaxLength(500)]
+        public string? ReceiverTazkiraImagePath { get; set; }
+
 
         [MaxLength(50)]
         public string? ReceiverPhone { get; set; }
@@ -103,15 +106,8 @@ namespace HawalaExchange.Domain.Entities
 
         public long? ReversedTransactionId { get; set; }
 
-        // Navigation Properties
-        [ForeignKey(nameof(TransactionId))]
-        public virtual Transaction? Transaction { get; set; }
-
-        [ForeignKey(nameof(BranchId))]
-        public virtual Branch? Branch { get; set; }
-
-        [ForeignKey(nameof(CustomerId))]
-        public virtual Customer? Customer { get; set; }
+        [MaxLength(200)]
+       public string? PaymentLocation { get; set; }
 
         [ForeignKey(nameof(CorrespondentId))]
         public virtual Correspondent? Correspondent { get; set; }

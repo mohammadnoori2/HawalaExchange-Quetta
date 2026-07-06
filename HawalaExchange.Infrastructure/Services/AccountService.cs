@@ -60,9 +60,9 @@ namespace HawalaExchange.Application.Services
                 {
                     decimal talabKar = 0, badehKar = 0;
                     if (initialBalance.Direction == "Debit")
-                        talabKar = initialBalance.Amount;
-                    else if (initialBalance.Direction == "Credit")
                         badehKar = initialBalance.Amount;
+                    else if (initialBalance.Direction == "Credit")
+                        talabKar = initialBalance.Amount;
 
                     var ledgerEntryDto = new CreateLedgerEntryDto
                     {

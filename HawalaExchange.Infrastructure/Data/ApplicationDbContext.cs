@@ -71,7 +71,7 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TableName, x.RecordId });
 
             // ایندکس جدید برای حواله
-            modelBuilder.Entity<Hawala>().HasIndex(x => x.TransactionId).IsUnique();
+           
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.HawalaType, x.Status });
             modelBuilder.Entity<Hawala>().HasIndex(x => x.ReferenceNumber);
             modelBuilder.Entity<Hawala>().HasIndex(x => x.CreatedAt);
@@ -416,27 +416,7 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasForeignKey(al => al.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- روابط جدید برای حواله ---
-            // Hawala <-> Transaction
-            modelBuilder.Entity<Hawala>()
-                .HasOne(h => h.Transaction)
-                .WithOne(t => t.Hawala)
-                .HasForeignKey<Hawala>(h => h.TransactionId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // Hawala <-> Branch
-            modelBuilder.Entity<Hawala>()
-                .HasOne(h => h.Branch)
-                .WithMany()
-                .HasForeignKey(h => h.BranchId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // Hawala <-> Customer
-            modelBuilder.Entity<Hawala>()
-                .HasOne(h => h.Customer)
-                .WithMany()
-                .HasForeignKey(h => h.CustomerId)
-                .OnDelete(DeleteBehavior.Restrict);
+            
 
             // Hawala <-> Correspondent
             modelBuilder.Entity<Hawala>()

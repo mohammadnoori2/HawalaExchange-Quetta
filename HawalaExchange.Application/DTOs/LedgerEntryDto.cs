@@ -24,7 +24,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class CreateLedgerEntryDto
     {
-        public long TransactionId { get; set; }
+        public long? TransactionId { get; set; }  
         public long AccountId { get; set; }
         public long CurrencyId { get; set; }
         public decimal TalabKar { get; set; }

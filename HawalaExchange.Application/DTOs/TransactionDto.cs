@@ -9,7 +9,7 @@ namespace HawalaExchange.Application.DTOs
         public long Id { get; set; }
         public string TransactionNo { get; set; }
         public string TransactionType { get; set; }
-        public long BranchId { get; set; }
+       // public long BranchId { get; set; }
         public string BranchName { get; set; }
         public long? CustomerId { get; set; }
         public string? CustomerFullName { get; set; }

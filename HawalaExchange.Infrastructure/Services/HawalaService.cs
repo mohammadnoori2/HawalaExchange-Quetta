@@ -102,20 +102,22 @@ namespace HawalaExchange.Application.Services
                 throw new InvalidOperationException("حساب نماینده فرستنده یافت نشد.");
 
             var commissionAccount = await GetOrCreateCommissionAccountAsync();
-            var expenseAccount = await GetOrCreateExpenseAccountAsync();
 
-            // 3. نماینده فرستنده بدهکار می‌شود
+            // 3. نماینده فرستنده بابت اصل حواله بدهکار می‌شود
             await CreateLedgerEntry(
                 hawala.Id,
                 correspondentAccount.Id,
                 hawala.FromCurrencyId,
+                0,
                 hawala.FromAmount,
-                 hawala.FromAmount,
-                $"حواله دریافتی {hawala.Id}: طلب از نماینده فرستنده"
+                $"حواله دریافتی {hawala.Id}: بدهکار شدن نماینده فرستنده بابت اصل حواله"
             );
 
-            // 4. حساب انتخاب‌شده طلبکار می‌شود
+            // 4. حساب پرداخت‌کننده بابت اصل حواله طلبکار می‌شود
             var toAmount = hawala.ToAmount ?? hawala.FromAmount;
+
+            if (toAmount <= 0)
+                throw new InvalidOperationException("مبلغ پرداختی حواله باید بزرگتر از صفر باشد.");
 
             await CreateLedgerEntry(
                 hawala.Id,
@@ -123,23 +125,25 @@ namespace HawalaExchange.Application.Services
                 hawala.ToCurrencyId,
                 toAmount,
                 0,
-                $"حواله دریافتی {hawala.Id}: پرداخت حواله از حساب انتخاب‌شده"
+                $"حواله دریافتی {hawala.Id}: پرداخت اصل حواله از حساب انتخاب‌شده"
             );
 
             // 5. کارمزد دریافتی از نماینده
-            if (hawala.CommissionAmount > 0)
+            if (hawala.CommissionAmount.HasValue && hawala.CommissionAmount.Value > 0)
             {
                 var commissionCurrencyId = hawala.CommissionCurrencyId ?? hawala.FromCurrencyId;
 
+                // نماینده فرستنده بابت کمیشن بدهکار می‌شود
                 await CreateLedgerEntry(
                     hawala.Id,
                     correspondentAccount.Id,
                     commissionCurrencyId,
                     0,
                     hawala.CommissionAmount.Value,
-                    $"حواله دریافتی {hawala.Id}: کارمزد قابل دریافت از نماینده"
+                    $"حواله دریافتی {hawala.Id}: بدهکار شدن نماینده فرستنده بابت کمیشن"
                 );
 
+                // حساب درآمد کمیشن طلبکار می‌شود
                 await CreateLedgerEntry(
                     hawala.Id,
                     commissionAccount.Id,
@@ -150,27 +154,32 @@ namespace HawalaExchange.Application.Services
                 );
             }
 
-            // 6. کارمزد پرداختی به نماینده/شخص دیگر
-            if (hawala.AgentCommissionAmount > 0)
+            // 6. سهم نماینده پرداخت‌کننده از کمیشن
+            if (hawala.AgentCommissionAmount.HasValue && hawala.AgentCommissionAmount.Value > 0)
             {
-                var agentCommissionCurrencyId = hawala.AgentCommissionCurrencyId ?? hawala.ToCurrencyId;
+                var agentCommissionCurrencyId =
+                    hawala.AgentCommissionCurrencyId
+                    ?? hawala.CommissionCurrencyId
+                    ?? hawala.ToCurrencyId;
 
+                // عواید کمیشن بابت سهم نماینده پرداخت‌کننده بدهکار می‌شود
                 await CreateLedgerEntry(
                     hawala.Id,
                     commissionAccount.Id,
                     agentCommissionCurrencyId,
                     0,
                     hawala.AgentCommissionAmount.Value,
-                    $"حواله دریافتی {hawala.Id}: هزینه کارمزد پرداختی"
+                    $"حواله دریافتی {hawala.Id}: سهم نماینده پرداخت‌کننده از کمیشن"
                 );
 
+                // حساب پرداخت‌کننده بابت کمیشن خود طلبکار می‌شود
                 await CreateLedgerEntry(
                     hawala.Id,
                     paidFromAccount.Id,
                     agentCommissionCurrencyId,
-                    0,
                     hawala.AgentCommissionAmount.Value,
-                    $"حواله دریافتی {hawala.Id}: پرداخت کارمزد از حساب انتخاب‌شده"
+                    0,
+                    $"حواله دریافتی {hawala.Id}: کمیشن قابل پرداخت به حساب انتخاب‌شده"
                 );
             }
         }
@@ -338,7 +347,7 @@ namespace HawalaExchange.Application.Services
 
         private async Task<Account> GetOrCreateExpenseAccountAsync()
         {
-            const string accountCode = "4100";
+            const string accountCode = "4001";
 
             // ✅ ابتدا بر اساس کد حساب جستجو کن
             var account = await _context.Accounts.FirstOrDefaultAsync(a => a.AccountCode == accountCode);

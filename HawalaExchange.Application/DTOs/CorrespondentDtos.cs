@@ -27,6 +27,8 @@ namespace HawalaExchange.Application.DTOs
         public string? PhoneNumber { get; set; }
         public string? Address { get; set; }
         public string? Remarks { get; set; }
+        public bool HasInitialBalance { get; set; } = false;
+        public List<InitialBalanceDto>? InitialBalances { get; set; }
     }
 
     public class UpdateCorrespondentDto
@@ -39,5 +41,6 @@ namespace HawalaExchange.Application.DTOs
         public string? Address { get; set; }
         public bool IsArchived { get; set; }
         public string? Remarks { get; set; }
+
     }
 }

@@ -70,7 +70,7 @@ namespace HawalaExchange.Application.Services
             }
             else if (hawala.HawalaType == "HawalaReceive")
             {
-                await ProcessHawalaReceiveLedgerAsync(hawala);
+                await ProcessHawalaReceiveLedgerAsync(hawala, fromAccountId);
             }
             else
             {
@@ -78,104 +78,99 @@ namespace HawalaExchange.Application.Services
                 await ProcessHawalaOtherLedgerAsync(hawala);
             }
         }
-        private async Task ProcessHawalaReceiveLedgerAsync(Hawala hawala)
+        private async Task ProcessHawalaReceiveLedgerAsync(Hawala hawala, long? fromAccountId)
         {
-            // ۱. دریافت حساب نماینده فرستنده (از CorrespondentId)
+            // 1. حسابی که حواله از آن پرداخت شده است
+            if (!fromAccountId.HasValue)
+                throw new InvalidOperationException("برای حواله دریافتی، انتخاب حساب پرداخت‌کننده الزامی است.");
+
+            var paidFromAccount = await _context.Accounts.FindAsync(fromAccountId.Value);
+
+            if (paidFromAccount == null)
+                throw new InvalidOperationException("حساب پرداخت‌کننده انتخاب شده معتبر نیست.");
+
+            // 2. حساب نماینده فرستنده
             if (!hawala.CorrespondentId.HasValue)
                 throw new InvalidOperationException("برای حواله دریافتی، انتخاب نماینده فرستنده الزامی است.");
 
-            var fromAccount = await _context.Accounts
-                .FirstOrDefaultAsync(a => a.ReferenceType == "Correspondent" && a.ReferenceId == hawala.CorrespondentId);
-            if (fromAccount == null)
+            var correspondentAccount = await _context.Accounts
+                .FirstOrDefaultAsync(a =>
+                    a.ReferenceType == "Correspondent" &&
+                    a.ReferenceId == hawala.CorrespondentId);
+
+            if (correspondentAccount == null)
                 throw new InvalidOperationException("حساب نماینده فرستنده یافت نشد.");
 
-            // ۲. دریافت حساب گیرنده (صندوق پیش‌فرض یا مشتری)
-            // در صورت نیاز می‌توانید یک فیلد ToAccountId نیز اضافه کنید، اما فعلاً صندوق را در نظر می‌گیریم.
-            var toAccount = await _context.Accounts
-                .FirstOrDefaultAsync(a => a.AccountType == "Cash" && a.ReferenceId == null);
-            if (toAccount == null)
-                throw new InvalidOperationException("حساب گیرنده (صندوق) یافت نشد.");
-
-            // ۳. دریافت حساب‌های درآمد و هزینه
             var commissionAccount = await GetOrCreateCommissionAccountAsync();
             var expenseAccount = await GetOrCreateExpenseAccountAsync();
 
-            // ۴. ثبت ورودی‌های لیجر
-
-            // ۴-۱. نماینده فرستنده بدهکار به مبلغ حواله (با ارز مبدأ)
+            // 3. نماینده فرستنده بدهکار می‌شود
             await CreateLedgerEntry(
                 hawala.Id,
-                fromAccount.Id,
+                correspondentAccount.Id,
                 hawala.FromCurrencyId,
                 hawala.FromAmount,
-                0,
-                $"حواله دریافتی {hawala.Id}: مبلغ حواله از فرستنده"
+                 hawala.FromAmount,
+                $"حواله دریافتی {hawala.Id}: طلب از نماینده فرستنده"
             );
 
-            // ۴-۲. نماینده فرستنده بدهکار به مبلغ کارمزد دریافتی از نماینده (با ارز کارمزد)
-            if (hawala.CommissionAmount > 0)
-            {
-                var commissionCurrencyId = hawala.CommissionCurrencyId ?? hawala.FromCurrencyId;
-                await CreateLedgerEntry(
-                    hawala.Id,
-                    fromAccount.Id,
-                    commissionCurrencyId,
-                    hawala.CommissionAmount.Value,
-                    0,
-                    $"حواله دریافتی {hawala.Id}: کارمزد دریافتی از نماینده"
-                );
-            }
-
-            // ۴-۳. حساب گیرنده (صندوق) بستانکار به مبلغ حواله (با ارز مقصد)
+            // 4. حساب انتخاب‌شده طلبکار می‌شود
             var toAmount = hawala.ToAmount ?? hawala.FromAmount;
+
             await CreateLedgerEntry(
                 hawala.Id,
-                toAccount.Id,
+                paidFromAccount.Id,
                 hawala.ToCurrencyId,
-                0,
                 toAmount,
-                $"حواله دریافتی {hawala.Id}: مبلغ قابل پرداخت به گیرنده"
+                0,
+                $"حواله دریافتی {hawala.Id}: پرداخت حواله از حساب انتخاب‌شده"
             );
 
-            // ۴-۴. حساب گیرنده بستانکار به مبلغ کارمزد پرداختی به گیرنده/نماینده دیگر (با ارز کارمزد پرداختی)
-            if (hawala.AgentCommissionAmount > 0)
-            {
-                var agentCommissionCurrencyId = hawala.AgentCommissionCurrencyId ?? hawala.ToCurrencyId;
-                await CreateLedgerEntry(
-                    hawala.Id,
-                    toAccount.Id,
-                    agentCommissionCurrencyId,
-                    0,
-                    hawala.AgentCommissionAmount.Value,
-                    $"حواله دریافتی {hawala.Id}: کارمزد پرداختی به گیرنده"
-                );
-            }
-
-            // ۴-۵. حساب درآمد کارمزد بستانکار (با ارز کارمزد دریافتی از نماینده)
+            // 5. کارمزد دریافتی از نماینده
             if (hawala.CommissionAmount > 0)
             {
                 var commissionCurrencyId = hawala.CommissionCurrencyId ?? hawala.FromCurrencyId;
+
+                await CreateLedgerEntry(
+                    hawala.Id,
+                    correspondentAccount.Id,
+                    commissionCurrencyId,
+                    0,
+                    hawala.CommissionAmount.Value,
+                    $"حواله دریافتی {hawala.Id}: کارمزد قابل دریافت از نماینده"
+                );
+
                 await CreateLedgerEntry(
                     hawala.Id,
                     commissionAccount.Id,
                     commissionCurrencyId,
-                    0,
                     hawala.CommissionAmount.Value,
+                    0,
                     $"حواله دریافتی {hawala.Id}: درآمد کارمزد"
                 );
             }
 
-            // ۴-۶. حساب هزینه کارمزد پرداختی بدهکار (با ارز کارمزد پرداختی)
+            // 6. کارمزد پرداختی به نماینده/شخص دیگر
             if (hawala.AgentCommissionAmount > 0)
             {
                 var agentCommissionCurrencyId = hawala.AgentCommissionCurrencyId ?? hawala.ToCurrencyId;
+
                 await CreateLedgerEntry(
                     hawala.Id,
-                    expenseAccount.Id,
+                    commissionAccount.Id,
                     agentCommissionCurrencyId,
-                    hawala.AgentCommissionAmount.Value,
                     0,
+                    hawala.AgentCommissionAmount.Value,
                     $"حواله دریافتی {hawala.Id}: هزینه کارمزد پرداختی"
+                );
+
+                await CreateLedgerEntry(
+                    hawala.Id,
+                    paidFromAccount.Id,
+                    agentCommissionCurrencyId,
+                    0,
+                    hawala.AgentCommissionAmount.Value,
+                    $"حواله دریافتی {hawala.Id}: پرداخت کارمزد از حساب انتخاب‌شده"
                 );
             }
         }

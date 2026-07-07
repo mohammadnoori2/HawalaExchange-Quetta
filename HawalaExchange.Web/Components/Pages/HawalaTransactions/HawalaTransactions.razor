@@ -621,6 +621,38 @@
                                     </div>
                                 </div>
                             }
+                            @if (currentHawala.HawalaType == "HawalaReceive")
+                            {
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-wallet2 text-muted me-1"></i>
+                                            حساب پرداخت‌کننده حواله (بدهکار)
+                                            <span class="text-danger">*</span>
+                                        </label>
+
+                                        <input type="text"
+                                               class="form-control mb-2"
+                                               placeholder="جستجوی حساب بر اساس نام، کد یا نوع حساب..."
+                                               @bind="accountSearchText"
+                                               @bind:event="oninput" />
+
+                                        <select class="form-select" @bind="currentHawala.FromAccountId">
+                                            <option value="">انتخاب حساب</option>
+                                            @foreach (var account in FilteredAccounts)
+                                            {
+                                                <option value="@account.Id">
+                                                    @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
+                                                </option>
+                                            }
+                                        </select>
+
+                                        <small class="text-muted">
+                                            این حساب به مبلغ حواله بدهکار می‌شود.
+                                        </small>
+                                    </div>
+                                </div>
+                            }
 
                             <div class="row">
                                 <div class="col-md-12 mb-3">
@@ -939,6 +971,16 @@
     private HawalaDto? selectedHawala = null;
     private CreateHawalaDto currentHawala = new();
 
+    private string accountSearchText = "";
+
+    private IEnumerable<AccountDto> FilteredAccounts =>
+        string.IsNullOrWhiteSpace(accountSearchText)
+            ? accounts
+            : accounts.Where(a =>
+                (a.AccountName != null && a.AccountName.Contains(accountSearchText, StringComparison.OrdinalIgnoreCase)) ||
+                (a.AccountCode != null && a.AccountCode.Contains(accountSearchText, StringComparison.OrdinalIgnoreCase)) ||
+                (a.AccountType != null && a.AccountType.Contains(accountSearchText, StringComparison.OrdinalIgnoreCase)));
+
     // ===== متدهای بارگذاری =====
 
     protected override async Task OnInitializedAsync()
@@ -1255,6 +1297,8 @@
             validationErrors.Add("برای حواله دریافت، انتخاب نماینده فرستنده الزامی است.");
         if (currentHawala.HawalaType == "HawalaSend" && currentHawala.FromAccountId == null)
             validationErrors.Add("برای حواله ارسال، انتخاب حساب مبدأ الزامی است.");
+        if (currentHawala.HawalaType == "HawalaReceive" && currentHawala.FromAccountId == null)
+            validationErrors.Add("برای حواله دریافت، انتخاب حساب پرداخت‌کننده الزامی است.");
 
         if (validationErrors.Any())
         {
@@ -1337,8 +1381,11 @@
     private void OnHawalaTypeChanged()
     {
         // اگر نوع حواله تغییر کرد، نماینده و حساب مبدأ را ریست می‌کنیم
+
         currentHawala.CorrespondentId = null;
         currentHawala.FromAccountId = null;
+        accountSearchText = "";
+
         StateHasChanged();
     }
 

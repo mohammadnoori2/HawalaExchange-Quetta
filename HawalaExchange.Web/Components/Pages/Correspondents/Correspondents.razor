@@ -2,6 +2,8 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @inject ICorrespondentService CorrespondentService
+@inject ICurrencyService CurrencyService
+@inject IAccountService AccountService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
@@ -289,7 +291,9 @@
     </div>
 </div>
 
-<!-- مودال ایجاد/ویرایش نماینده -->
+<!-- ============================================================ -->
+<!-- مودال ایجاد/ویرایش نماینده (با قابلیت موجودی اولیه) -->
+<!-- ============================================================ -->
 @if (showModal)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
@@ -395,8 +399,135 @@
                                     <textarea class="form-control" @bind="currentCorrespondent.Remarks" rows="2" placeholder="توضیحات اضافی"></textarea>
                                 </div>
                             </div>
+
+                            <!-- ===== سوئیچ موجودی اولیه (فقط در حالت ایجاد) ===== -->
+                            @if (!isEditMode)
+                            {
+                                <div class="form-check form-switch mt-3">
+                                    <input class="form-check-input" type="checkbox" id="hasInitialBalance"
+                                           @bind="hasInitialBalance" />
+                                    <label class="form-check-label fw-bold" for="hasInitialBalance">
+                                        <i class="bi bi-plus-circle text-success me-1"></i> افزودن موجودی اولیه
+                                    </label>
+                                </div>
+                                <div class="text-muted small mt-1">
+                                    <i class="bi bi-info-circle"></i> با ایجاد نماینده، یک حساب با نوع <strong>نماینده</strong> به‌طور خودکار ساخته می‌شود.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="alert alert-warning mt-2">
+                                    <i class="bi bi-info-circle"></i>
+                                    <small>موجودی اولیه فقط در زمان ایجاد نماینده قابل ثبت است.</small>
+                                </div>
+                            }
                         </div>
                     </div>
+
+                    <!-- ===== بخش ثبت موجودی اولیه (فقط در حالت ایجاد و زمانی که سوئیچ فعال باشد) ===== -->
+                    @if (!isEditMode && hasInitialBalance)
+                    {
+                        <div class="modern-card mb-4" style="border-right: 4px solid var(--primary-color);">
+                            <div class="card-header">
+                                <h6 class="text-primary">
+                                    <i class="bi bi-wallet2 me-2"></i> ثبت موجودی اولیه
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- جدول موجودی‌های ثبت‌شده -->
+                                @if (initialBalances.Any())
+                                {
+                                    <div class="table-scroll-wrapper mb-3">
+                                        <table class="table-modern table-striped-modern">
+                                            <thead>
+                                                <tr>
+                                                    <th>واحد پولی</th>
+                                                    <th>مقدار</th>
+                                                    <th>نوع</th>
+                                                    <th>حساب طرف مقابل</th>
+                                                    <th>توضیحات</th>
+                                                    <th class="text-center">عملیات</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var item in initialBalances)
+                                                {
+                                                    var currency = currencies.FirstOrDefault(c => c.Id == item.CurrencyId);
+                                                    var account = accounts.FirstOrDefault(a => a.Id == item.OppositeAccountId);
+                                                    <tr>
+                                                        <td>@(currency?.Name ?? "نامشخص") (@(currency?.Code ?? ""))</td>
+                                                        <td class="fw-bold">@item.Amount.ToString("N2")</td>
+                                                        <td>
+                                                            <span class="badge-modern @(item.Direction == "Debit" ? "badge-danger" : "badge-success")">
+                                                                @(item.Direction == "Debit" ? "بدهکار" : "بستانکار")
+                                                            </span>
+                                                        </td>
+                                                        <td>@(account?.AccountName ?? "نامشخص")</td>
+                                                        <td>@item.Description</td>
+                                                        <td class="text-center">
+                                                            <button class="action-btn action-btn-delete" @onclick="() => RemoveInitialBalance(item)">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="alert alert-info">هیچ موجودی اولیه‌ای ثبت نشده است.</div>
+                                }
+
+                                <hr />
+
+                                <!-- فرم اضافه کردن موجودی جدید -->
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-bold small">واحد پولی <span class="text-danger">*</span></label>
+                                        <select class="form-select" @bind="newInitialBalance.CurrencyId">
+                                            <option value="0">انتخاب کنید</option>
+                                            @foreach (var currency in currencies)
+                                            {
+                                                <option value="@currency.Id">@currency.Name (@currency.Code)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold small">مقدار <span class="text-danger">*</span></label>
+                                        <input type="number" class="form-control" @bind="newInitialBalance.Amount" step="0.01" min="0" placeholder="0" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold small">نوع <span class="text-danger">*</span></label>
+                                        <select class="form-select" @bind="newInitialBalance.Direction">
+                                            <option value="Debit">بدهکار</option>
+                                            <option value="Credit">بستانکار</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-bold small">حساب طرف مقابل <span class="text-danger">*</span></label>
+                                        <select class="form-select" @bind="newInitialBalance.OppositeAccountId">
+                                            <option value="0">انتخاب حساب</option>
+                                            @foreach (var acc in accounts)
+                                            {
+                                                <option value="@acc.Id">@acc.AccountName (@acc.AccountCode)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold small">توضیحات</label>
+                                        <input type="text" class="form-control" @bind="newInitialBalance.Description" placeholder="اختیاری" />
+                                    </div>
+                                    <div class="col-md-1">
+                                        <button class="btn-modern btn-success-modern w-100" @onclick="AddInitialBalance" disabled="@(!CanAddInitialBalance())">
+                                            <i class="bi bi-plus-lg"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
 
                     @if (isEditMode)
                     {
@@ -457,9 +588,13 @@
 }
 
 @code {
+    // ===== لیست‌ها =====
     private List<CorrespondentDto> correspondents = new();
     private List<CorrespondentDto> filteredCorrespondents = new();
+    private List<CurrencyDto> currencies = new();
+    private List<AccountDto> accounts = new();
 
+    // ===== جستجو، صفحه‌بندی و مرتب‌سازی =====
     private string _searchTerm = string.Empty;
     private string searchTerm
     {
@@ -474,7 +609,6 @@
         }
     }
 
-    // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
     private int pageSize = 10;
     private int currentPage = 1;
     private string sortColumn = "Code";
@@ -484,7 +618,6 @@
     {
         get
         {
-            // مرتب‌سازی
             var sorted = filteredCorrespondents;
             switch (sortColumn)
             {
@@ -505,7 +638,6 @@
                     break;
             }
 
-            // صفحه‌بندی
             if (pageSize == 0)
             {
                 currentPage = 1;
@@ -519,6 +651,7 @@
 
     private int totalPages => pageSize == 0 ? 1 : (int)Math.Ceiling((double)filteredCorrespondents.Count / pageSize);
 
+    // ===== وضعیت‌های مودال =====
     private bool showModal = false;
     private bool showConfirmModal = false;
     private bool isEditMode = false;
@@ -533,9 +666,17 @@
 
     private CreateCorrespondentDto currentCorrespondent = new();
 
+    // ===== متغیرهای موجودی اولیه =====
+    private bool hasInitialBalance = false;
+    private List<InitialBalanceDto> initialBalances = new();
+    private InitialBalanceDto newInitialBalance = new();
+
+    // ===== متدهای بارگذاری =====
     protected override async Task OnInitializedAsync()
     {
         await LoadCorrespondents();
+        await LoadCurrencies();
+        await LoadAccounts();
     }
 
     private async Task LoadCorrespondents()
@@ -559,6 +700,33 @@
         }
     }
 
+    private async Task LoadCurrencies()
+    {
+        try
+        {
+            var result = await CurrencyService.GetActiveCurrenciesAsync();
+            currencies = result.ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری ارزها: {ex.Message}");
+        }
+    }
+
+    private async Task LoadAccounts()
+    {
+        try
+        {
+            var result = await AccountService.GetAllAsync();
+            accounts = result.Where(a => !a.IsArchived).ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری حساب‌ها: {ex.Message}");
+        }
+    }
+
+    // ===== جستجو =====
     private void SearchCorrespondents()
     {
         if (string.IsNullOrWhiteSpace(_searchTerm))
@@ -588,6 +756,7 @@
         StateHasChanged();
     }
 
+    // ===== صفحه‌بندی و مرتب‌سازی =====
     private void GoToPage(int page)
     {
         if (page >= 1 && page <= totalPages)
@@ -612,6 +781,45 @@
         StateHasChanged();
     }
 
+    // ===== متدهای موجودی اولیه =====
+    private bool CanAddInitialBalance()
+    {
+        return newInitialBalance.CurrencyId > 0 &&
+               newInitialBalance.Amount > 0 &&
+               newInitialBalance.OppositeAccountId > 0;
+    }
+
+    private void AddInitialBalance()
+    {
+        if (!CanAddInitialBalance()) return;
+
+        if (initialBalances.Any(b => b.CurrencyId == newInitialBalance.CurrencyId))
+        {
+            validationErrors.Add("این واحد پولی قبلاً ثبت شده است.");
+            StateHasChanged();
+            return;
+        }
+
+        initialBalances.Add(new InitialBalanceDto
+        {
+            CurrencyId = newInitialBalance.CurrencyId,
+            Amount = newInitialBalance.Amount,
+            Direction = newInitialBalance.Direction,
+            OppositeAccountId = newInitialBalance.OppositeAccountId,
+            Description = newInitialBalance.Description
+        });
+
+        newInitialBalance = new InitialBalanceDto();
+        StateHasChanged();
+    }
+
+    private void RemoveInitialBalance(InitialBalanceDto item)
+    {
+        initialBalances.Remove(item);
+        StateHasChanged();
+    }
+
+    // ===== باز و بسته کردن مودال‌ها =====
     private void OpenCreateModal()
     {
         currentCorrespondent = new CreateCorrespondentDto();
@@ -621,6 +829,9 @@
         validationErrors.Clear();
         successMessage = string.Empty;
         showModal = true;
+        hasInitialBalance = false;
+        initialBalances.Clear();
+        newInitialBalance = new InitialBalanceDto();
         StateHasChanged();
     }
 
@@ -651,6 +862,8 @@
                 validationErrors.Clear();
                 successMessage = string.Empty;
                 showModal = true;
+                hasInitialBalance = false;
+                initialBalances.Clear();
             }
         }
         catch (Exception ex)
@@ -676,6 +889,7 @@
         StateHasChanged();
     }
 
+    // ===== ذخیره‌سازی =====
     private async Task SaveCorrespondent()
     {
         validationErrors.Clear();
@@ -685,6 +899,8 @@
             validationErrors.Add("کد نماینده الزامی است");
         if (string.IsNullOrWhiteSpace(currentCorrespondent.Name))
             validationErrors.Add("نام نماینده الزامی است");
+        if (hasInitialBalance && !initialBalances.Any())
+            validationErrors.Add("حداقل یک موجودی اولیه باید ثبت شود");
 
         if (validationErrors.Any())
         {
@@ -715,16 +931,23 @@
             }
             else
             {
+                if (hasInitialBalance && initialBalances.Any())
+                {
+                    currentCorrespondent.HasInitialBalance = true;
+                    currentCorrespondent.InitialBalances = initialBalances.ToList();
+                }
+                else
+                {
+                    currentCorrespondent.HasInitialBalance = false;
+                    currentCorrespondent.InitialBalances = null;
+                }
+
                 await CorrespondentService.CreateAsync(currentCorrespondent);
                 successMessage = "نماینده با موفقیت ایجاد شد";
             }
 
             showModal = false;
             await LoadCorrespondents();
-        }
-        catch (InvalidOperationException ex)
-        {
-            validationErrors.Add(ex.Message);
         }
         catch (Exception ex)
         {
@@ -737,6 +960,7 @@
         }
     }
 
+    // ===== بایگانی =====
     private void ShowArchiveConfirm(long id)
     {
         confirmId = id;

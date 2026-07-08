@@ -10,6 +10,9 @@ namespace HawalaExchange.Domain.Entities
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+
+        [Required]
+        public long Number { get; set; } // Unique Hawala number
         [Required]
         [MaxLength(50)]
         public string HawalaType { get; set; } // HawalaSend, HawalaReceive, HawalaOther

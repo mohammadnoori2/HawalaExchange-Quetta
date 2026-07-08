@@ -20,7 +20,7 @@ namespace HawalaExchange.Domain.Entities
 
         [MaxLength(200)]
         public string? SenderName { get; set; }
-        [Required]
+        [MaxLength(200)]
         public string? SenderFatherName { get; set; }
 
         [MaxLength(500)]
@@ -34,7 +34,7 @@ namespace HawalaExchange.Domain.Entities
 
         [MaxLength(200)]
         public string? ReceiverName { get; set; }
-        [Required]
+        
         [MaxLength(200)]
         public string? ReceiverFatherName { get; set; }
         

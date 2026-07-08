@@ -513,38 +513,88 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-right text-muted me-1"></i> از ارز <span class="text-danger">*</span>
                                     </label>
-                                    <select class="form-select" @bind="currentHawala.FromCurrencyId">
-                                        <option value="0">انتخاب ارز</option>
-                                        @foreach (var currency in currencies)
-                                        {
-                                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                                        }
-                                    </select>
+                                <select class="form-select"
+                                        value="@currentHawala.FromCurrencyId"
+                                        @onchange="OnFromCurrencyChanged">
+                                    <option value="0">انتخاب ارز</option>
+                                    @foreach (var currency in currencies)
+                                    {
+                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                    }
+                                </select>
                                 </div>
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-calculator text-muted me-1"></i> روش محاسبه
+                                    </label>
+
+                                    <div class="d-flex gap-4 flex-wrap">
+                                        <div class="form-check">
+                                            <input class="form-check-input"
+                                                   type="radio"
+                                                   name="calculationMode"
+                                                   id="calcByRate"
+                                                   value="RateToAmount"
+                                                   checked="@(calculationMode == "RateToAmount")"
+                                                   @onchange="OnCalculationModeChanged" />
+                                            <label class="form-check-label" for="calcByRate">
+                                                نرخ را وارد می‌کنم، مبلغ مقصد محاسبه شود
+                                            </label>
+                                        </div>
+
+                                        <div class="form-check">
+                                            <input class="form-check-input"
+                                                   type="radio"
+                                                   name="calculationMode"
+                                                   id="calcByAmount"
+                                                   value="AmountToRate"
+                                                   checked="@(calculationMode == "AmountToRate")"
+                                                   @onchange="OnCalculationModeChanged" />
+                                            <label class="form-check-label" for="calcByAmount">
+                                                مبلغ مقصد را وارد می‌کنم، نرخ محاسبه شود
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ از <span class="text-danger">*</span>
                                     </label>
-                                    <input type="number" step="0.01" class="form-control" @bind="currentHawala.FromAmount" placeholder="مبلغ" />
-                                </div>
+                                <input type="number"
+                                       step="0.01"
+                                       class="form-control"
+                                       value="@currentHawala.FromAmount"
+                                       @oninput="OnFromAmountChanged"
+                                       placeholder="مبلغ" />
+                            </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-left text-muted me-1"></i> به ارز <span class="text-danger">*</span>
                                     </label>
-                                    <select class="form-select" @bind="currentHawala.ToCurrencyId">
-                                        <option value="0">انتخاب ارز</option>
-                                        @foreach (var currency in currencies)
-                                        {
-                                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                                        }
-                                    </select>
+                                <select class="form-select"
+                                        value="@currentHawala.ToCurrencyId"
+                                        @onchange="OnToCurrencyChanged">
+                                    <option value="0">انتخاب ارز</option>
+                                    @foreach (var currency in currencies)
+                                    {
+                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                    }
+                                </select>
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ به
                                     </label>
-                                    <input type="number" step="0.01" class="form-control" @bind="currentHawala.ToAmount" placeholder="مبلغ" />
-                                </div>
+                                <input type="number"
+                                       step="0.01"
+                                       class="form-control"
+                                       value="@currentHawala.ToAmount"
+                                       @oninput="OnToAmountChanged"
+                                       disabled="@(calculationMode == "RateToAmount")"
+                                       placeholder="مبلغ مقصد" />
+                            </div>
                             </div>
 
                             <div class="row">
@@ -552,8 +602,15 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-left-right text-muted me-1"></i> نرخ تبدیل
                                     </label>
-                                    <input type="number" step="0.0001" class="form-control" @bind="currentHawala.ExchangeRate" placeholder="نرخ تبدیل" />
-                                </div>
+                                   
+                                <input type="number"
+                                       step="0.0001"
+                                       class="form-control"
+                                       value="@currentHawala.ExchangeRate"
+                                       @oninput="OnExchangeRateChanged"
+                                       disabled="@(calculationMode == "AmountToRate")"
+                                       placeholder="نرخ تبدیل" />
+                            </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-percent text-muted me-1"></i> کارمزد
@@ -588,13 +645,44 @@
                                         <label class="form-label fw-bold">
                                             <i class="bi bi-wallet2 text-muted me-1"></i> حساب مبدأ (بدهکار) <span class="text-danger">*</span>
                                         </label>
-                                        <select class="form-select" @bind="currentHawala.FromAccountId">
-                                            <option value="">انتخاب حساب</option>
-                                            @foreach (var account in accounts)
-                                            {
-                                                <option value="@account.Id">@account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))</option>
-                                            }
-                                        </select>
+                                    <div class="searchable-dropdown">
+                                        <div class="searchable-dropdown-input"
+                                             @onclick="() => showFromAccountDropdown = true">
+                                            <input type="text"
+                                                   class="form-control"
+                                                   placeholder="جستجوی حساب مبدأ..."
+                                                   value="@GetSelectedFromAccountText()"
+                                                   @oninput="OnFromAccountSearchChanged"
+                                                   @onfocus="() => showFromAccountDropdown = true" />
+                                        </div>
+
+                                        @if (showFromAccountDropdown)
+                                        {
+                                            <div class="searchable-dropdown-menu">
+                                                @if (!FilteredFromAccounts.Any())
+                                                {
+                                                    <div class="searchable-dropdown-item text-muted">
+                                                        حسابی یافت نشد
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var account in FilteredFromAccounts.Take(30))
+                                                    {
+                                                        <div class="searchable-dropdown-item"
+                                                             @onclick="() => SelectFromAccount(account)">
+                                                            <div class="fw-bold">
+                                                                @account.AccountName
+                                                            </div>
+                                                            <small class="text-muted">
+                                                                @account.AccountCode - @GetAccountTypeName(account.AccountType)
+                                                            </small>
+                                                        </div>
+                                                    }
+                                                }
+                                            </div>
+                                        }
+                                    </div>
                                         <small class="text-muted">این حساب به مبلغ حواله و کارمزد بدهکار می‌شود.</small>
                                     </div>
                                 </div>
@@ -608,14 +696,44 @@
                                         <label class="form-label fw-bold">
                                             <i class="bi bi-wallet2 text-muted me-1"></i> حساب پرداخت‌کننده (بدهکار) <span class="text-danger">*</span>
                                         </label>
-                                        <input type="text" class="form-control mb-2" placeholder="جستجوی حساب..." @bind="accountSearchText" @bind:event="oninput" />
-                                        <select class="form-select" @bind="currentHawala.FromAccountId">
-                                            <option value="">انتخاب حساب</option>
-                                            @foreach (var account in FilteredAccounts)
-                                            {
-                                                <option value="@account.Id">@account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))</option>
-                                            }
-                                        </select>
+                                    <div class="searchable-dropdown">
+                                        <div class="searchable-dropdown-input"
+                                             @onclick="() => showFromAccountDropdown = true">
+                                            <input type="text"
+                                                   class="form-control"
+                                                   placeholder="جستجوی حساب مبدأ..."
+                                                   value="@GetSelectedFromAccountText()"
+                                                   @oninput="OnFromAccountSearchChanged"
+                                                   @onfocus="() => showFromAccountDropdown = true" />
+                                        </div>
+
+                                        @if (showFromAccountDropdown)
+                                        {
+                                            <div class="searchable-dropdown-menu">
+                                                @if (!FilteredFromAccounts.Any())
+                                                {
+                                                    <div class="searchable-dropdown-item text-muted">
+                                                        حسابی یافت نشد
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var account in FilteredFromAccounts.Take(30))
+                                                    {
+                                                        <div class="searchable-dropdown-item"
+                                                             @onclick="() => SelectFromAccount(account)">
+                                                            <div class="fw-bold">
+                                                                @account.AccountName
+                                                            </div>
+                                                            <small class="text-muted">
+                                                                @account.AccountCode - @GetAccountTypeName(account.AccountType)
+                                                            </small>
+                                                        </div>
+                                                    }
+                                                }
+                                            </div>
+                                        }
+                                    </div>
                                         <small class="text-muted">این حساب به مبلغ حواله بدهکار می‌شود.</small>
                                     </div>
                                 </div>
@@ -948,6 +1066,27 @@
     private HawalaDto? selectedHawala = null;
     private CreateHawalaDto currentHawala = new();
 
+    private long afnCurrencyId = 0;
+
+    private string calculationMode = "RateToAmount";
+    // RateToAmount = کاربر نرخ را وارد می‌کند، مبلغ مقصد محاسبه می‌شود
+    // AmountToRate = کاربر مبلغ مقصد را وارد می‌کند، نرخ محاسبه می‌شود
+
+    private string fromAccountSearchText = "";
+    private bool showFromAccountDropdown = false;
+
+    private IEnumerable<AccountDto> FilteredFromAccounts =>
+        string.IsNullOrWhiteSpace(fromAccountSearchText)
+            ? accounts
+            : accounts.Where(a =>
+                (!string.IsNullOrWhiteSpace(a.AccountName) &&
+                 a.AccountName.Contains(fromAccountSearchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(a.AccountCode) &&
+                 a.AccountCode.Contains(fromAccountSearchText, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(a.AccountType) &&
+                 GetAccountTypeName(a.AccountType).Contains(fromAccountSearchText, StringComparison.OrdinalIgnoreCase)));
+
+
     private string accountSearchText = "";
 
     private IEnumerable<AccountDto> FilteredAccounts =>
@@ -973,10 +1112,13 @@
         {
             correspondents = (await CorrespondentService.GetAllAsync()).ToList();
             currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
+            var afn = currencies.FirstOrDefault(x => x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
+            afnCurrencyId = afn?.Id ?? 0;
         }
         catch (Exception ex)
         {
             validationErrors.Add($"خطا در بارگذاری اطلاعات: {ex.Message}");
+
         }
     }
 
@@ -1085,11 +1227,17 @@
         currentHawala = new CreateHawalaDto
         {
             Status = "Pending",
-            FromCurrencyId = 0,
-            ToCurrencyId = 0,
+            FromCurrencyId = afnCurrencyId,
+            ToCurrencyId = afnCurrencyId,
+            CommissionCurrencyId = afnCurrencyId,
+            AgentCommissionCurrencyId = afnCurrencyId,
             HawalaType = "",
             Number = 0
         };
+
+        calculationMode = "RateToAmount";
+        fromAccountSearchText = "";
+        showFromAccountDropdown = false;
         isEditMode = false;
         editId = 0;
         validationErrors.Clear();
@@ -1441,5 +1589,125 @@
             "equity" => "سرمایه",
             _ => type ?? "نامشخص"
         };
+    }
+
+    private void OnCalculationModeChanged(ChangeEventArgs e)
+    {
+        calculationMode = e.Value?.ToString() ?? "RateToAmount";
+
+        CalculateFinancialValues();
+    }
+
+    private void OnFromAmountChanged(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var amount))
+        {
+            currentHawala.FromAmount = amount;
+        }
+        else
+        {
+            currentHawala.FromAmount = 0;
+        }
+
+        CalculateFinancialValues();
+    }
+
+    private void OnExchangeRateChanged(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var rate))
+        {
+            currentHawala.ExchangeRate = rate;
+        }
+        else
+        {
+            currentHawala.ExchangeRate = null;
+        }
+
+        CalculateFinancialValues();
+    }
+
+    private void OnToAmountChanged(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var amount))
+        {
+            currentHawala.ToAmount = amount;
+        }
+        else
+        {
+            currentHawala.ToAmount = null;
+        }
+
+        CalculateFinancialValues();
+    }
+
+    private void CalculateFinancialValues()
+    {
+        if (currentHawala.FromAmount <= 0)
+            return;
+
+        if (calculationMode == "RateToAmount")
+        {
+            if (currentHawala.ExchangeRate.HasValue &&
+                currentHawala.ExchangeRate.Value > 0)
+            {
+                currentHawala.ToAmount =
+                    Math.Round(currentHawala.FromAmount * currentHawala.ExchangeRate.Value, 2);
+            }
+        }
+        else if (calculationMode == "AmountToRate")
+        {
+            if (currentHawala.ToAmount.HasValue &&
+                currentHawala.ToAmount.Value > 0)
+            {
+                currentHawala.ExchangeRate =
+                    Math.Round(currentHawala.ToAmount.Value / currentHawala.FromAmount, 4);
+            }
+
+        }
+
+    }
+    private void OnFromCurrencyChanged(ChangeEventArgs e)
+    {
+        currentHawala.FromCurrencyId =
+            long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+        CalculateFinancialValues();
+    }
+
+    private void OnToCurrencyChanged(ChangeEventArgs e)
+    {
+        currentHawala.ToCurrencyId =
+            long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+        CalculateFinancialValues();
+    }
+    private void OnFromAccountSearchChanged(ChangeEventArgs e)
+    {
+        fromAccountSearchText = e.Value?.ToString() ?? "";
+        currentHawala.FromAccountId = null;
+        showFromAccountDropdown = true;
+    }
+
+    private void SelectFromAccount(AccountDto account)
+    {
+        currentHawala.FromAccountId = account.Id;
+        fromAccountSearchText = "";
+        showFromAccountDropdown = false;
+    }
+
+    private string GetSelectedFromAccountText()
+    {
+        if (!string.IsNullOrWhiteSpace(fromAccountSearchText))
+            return fromAccountSearchText;
+
+        if (!currentHawala.FromAccountId.HasValue)
+            return string.Empty;
+
+        var account = accounts.FirstOrDefault(x => x.Id == currentHawala.FromAccountId.Value);
+
+        if (account == null)
+            return string.Empty;
+
+        return $"{account.AccountName} ({account.AccountCode} - {GetAccountTypeName(account.AccountType)})";
     }
 }

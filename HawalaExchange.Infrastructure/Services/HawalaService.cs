@@ -76,6 +76,7 @@ namespace HawalaExchange.Application.Services
 
                 // ثبت ورودی‌های دفتر کل
                 await ProcessLedgerEntries(hawala, dto.FromAccountId);
+                await _context.SaveChangesAsync();
 
                 await _auditLogService.LogAsync("CREATE", "Hawalas", hawala.Id, null, $"حواله {hawala.HawalaType} با شماره {hawala.Number} ایجاد شد", GetCurrentUserId());
 
@@ -90,6 +91,17 @@ namespace HawalaExchange.Application.Services
             }
         }
 
+        private async Task DeleteHawalaLedgerEntriesAsync(long hawalaId)
+        {
+            var ledgerEntries = await _context.LedgerEntries
+                .Where(x => x.HawalaId == hawalaId)
+                .ToListAsync();
+
+            if (ledgerEntries.Any())
+            {
+                _context.LedgerEntries.RemoveRange(ledgerEntries);
+            }
+        }
         public async Task<long> GetNextNumberAsync(long correspondentId, string hawalaType)
         {
             var lastNumber = await _context.Hawalas
@@ -198,33 +210,90 @@ namespace HawalaExchange.Application.Services
 
         public async Task<HawalaDto> UpdateHawalaAsync(long id, UpdateHawalaDto dto)
         {
-            var hawala = await _context.Hawalas.FindAsync(id);
-            if (hawala == null)
-                throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-            _mapper.Map(dto, hawala);
-            await _context.SaveChangesAsync();
+            try
+            {
+                var hawala = await _context.Hawalas
+                    .FirstOrDefaultAsync(x => x.Id == id);
 
-            await _auditLogService.LogAsync("UPDATE", "Hawalas", hawala.Id, null, $"حواله با شناسه {hawala.Id} ویرایش شد", GetCurrentUserId());
+                if (hawala == null)
+                    throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
 
-            return _mapper.Map<HawalaDto>(hawala);
+                if (hawala.Status == "Paid")
+                    throw new InvalidOperationException("حواله پرداخت شده قابل ویرایش نیست.");
+
+                if (hawala.Status == "Cancel")
+                    throw new InvalidOperationException("حواله لغو شده قابل ویرایش نیست.");
+
+                // حذف لیجرهای قبلی
+                await DeleteHawalaLedgerEntriesAsync(hawala.Id);
+
+                // آپدیت خود حواله
+                _mapper.Map(dto, hawala);
+
+                // ایجاد دوباره لیجرها براساس معلومات جدید
+                await ProcessLedgerEntries(hawala, dto.FromAccountId);
+
+                await _context.SaveChangesAsync();
+
+                await _auditLogService.LogAsync(
+                    "UPDATE",
+                    "Hawalas",
+                    hawala.Id,
+                    null,
+                    $"حواله با شناسه {hawala.Id} ویرایش شد و لیجر آن دوباره ساخته شد",
+                    GetCurrentUserId());
+
+                await transaction.CommitAsync();
+
+                return _mapper.Map<HawalaDto>(hawala);
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
-
         public async Task DeleteHawalaAsync(long id)
         {
-            var hawala = await _context.Hawalas.FindAsync(id);
-            if (hawala == null)
-                throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-            if (hawala.Status == "Paid")
-                throw new InvalidOperationException("حواله پرداخت شده قابل حذف نیست.");
+            try
+            {
+                var hawala = await _context.Hawalas
+                    .FirstOrDefaultAsync(x => x.Id == id);
 
-            _context.Hawalas.Remove(hawala);
-            await _context.SaveChangesAsync();
+                if (hawala == null)
+                    throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
 
-            await _auditLogService.LogAsync("DELETE", "Hawalas", id, null, $"حواله با شناسه {id} حذف شد", GetCurrentUserId());
+                if (hawala.Status == "Paid")
+                    throw new InvalidOperationException("حواله پرداخت شده قابل حذف نیست.");
+
+                // اول لیجرهای مربوط به حواله حذف شود
+                await DeleteHawalaLedgerEntriesAsync(hawala.Id);
+
+                // بعد خود حواله حذف شود
+                _context.Hawalas.Remove(hawala);
+
+                await _context.SaveChangesAsync();
+
+                await _auditLogService.LogAsync(
+                    "DELETE",
+                    "Hawalas",
+                    id,
+                    null,
+                    $"حواله با شناسه {id} و لیجرهای مربوطه حذف شد",
+                    GetCurrentUserId());
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
-
         public async Task<HawalaDto> MarkAsPaidAsync(long id)
         {
             var hawala = await _context.Hawalas.FindAsync(id);
@@ -396,18 +465,27 @@ namespace HawalaExchange.Application.Services
                 $"حواله متفرقه {hawala.Id}: مبلغ {hawala.FromAmount} {hawala.FromCurrency?.Code}");
         }
 
-        private async Task CreateLedgerEntry(long hawalaId, long accountId, long currencyId, decimal talabKar, decimal badehKar, string description)
+        private async Task CreateLedgerEntry(
+    long hawalaId,
+    long accountId,
+    long currencyId,
+    decimal talabKar,
+    decimal badehKar,
+    string description)
         {
-            var ledgerEntryDto = new CreateLedgerEntryDto
+            var ledgerEntry = new LedgerEntry
             {
                 TransactionId = null,
+                HawalaId = hawalaId,
                 AccountId = accountId,
                 CurrencyId = currencyId,
                 TalabKar = talabKar,
                 BadehKar = badehKar,
-                Description = description
+                Description = description,
+                CreatedAt = DateTime.UtcNow
             };
-            await _ledgerService.CreateLedgerEntryAsync(ledgerEntryDto);
+
+            await _context.LedgerEntries.AddAsync(ledgerEntry);
         }
 
         private async Task<Account> GetOrCreateCommissionAccountAsync()

@@ -30,9 +30,7 @@
         <div class="col-md-2 col-6">
             <div class="stat-card">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-arrow-left-right"></i>
-                    </div>
+                    <div class="stat-icon primary"><i class="bi bi-arrow-left-right"></i></div>
                     <div>
                         <div class="stat-number">@totalCount</div>
                         <div class="stat-label">تعداد کل</div>
@@ -43,9 +41,7 @@
         <div class="col-md-2 col-6">
             <div class="stat-card stat-card-success">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-send"></i>
-                    </div>
+                    <div class="stat-icon success"><i class="bi bi-send"></i></div>
                     <div>
                         <div class="stat-number">@hawalaSendCount</div>
                         <div class="stat-label">حواله ارسال</div>
@@ -56,9 +52,7 @@
         <div class="col-md-2 col-6">
             <div class="stat-card stat-card-info">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-download"></i>
-                    </div>
+                    <div class="stat-icon info"><i class="bi bi-download"></i></div>
                     <div>
                         <div class="stat-number">@hawalaReceiveCount</div>
                         <div class="stat-label">حواله دریافت</div>
@@ -69,9 +63,7 @@
         <div class="col-md-2 col-6">
             <div class="stat-card stat-card-warning">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning">
-                        <i class="bi bi-asterisk"></i>
-                    </div>
+                    <div class="stat-icon warning"><i class="bi bi-asterisk"></i></div>
                     <div>
                         <div class="stat-number">@hawalaOtherCount</div>
                         <div class="stat-label">حواله متفرقه</div>
@@ -82,9 +74,7 @@
         <div class="col-md-2 col-6">
             <div class="stat-card stat-card-danger">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger">
-                        <i class="bi bi-clock-history"></i>
-                    </div>
+                    <div class="stat-icon danger"><i class="bi bi-clock-history"></i></div>
                     <div>
                         <div class="stat-number">@pendingCount</div>
                         <div class="stat-label">در انتظار</div>
@@ -95,9 +85,7 @@
         <div class="col-md-2 col-6">
             <div class="stat-card stat-card-secondary">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon" style="background: #e9ecef; color: #6c757d;">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
+                    <div class="stat-icon" style="background: #e9ecef; color: #6c757d;"><i class="bi bi-check-circle"></i></div>
                     <div>
                         <div class="stat-number">@paidCount</div>
                         <div class="stat-label">پرداخت شده</div>
@@ -111,8 +99,7 @@
     <div class="row g-3 mb-4 align-items-end">
         <div class="col-md-3">
             <label class="form-label fw-bold"><i class="bi bi-search text-muted me-1"></i> جستجو</label>
-            <input type="text" class="form-control" placeholder="شماره، فرستنده، گیرنده، مرجع..."
-                   @bind="searchTerm" @bind:event="oninput" />
+            <input type="text" class="form-control" placeholder="شماره، فرستنده، گیرنده، مرجع..." @bind="searchTerm" @bind:event="oninput" />
         </div>
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-tag text-muted me-1"></i> نوع حواله</label>
@@ -143,12 +130,8 @@
             </select>
         </div>
         <div class="col-md-3 d-flex gap-2">
-            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilters">
-                <i class="bi bi-search"></i> فیلتر
-            </button>
-            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters">
-                <i class="bi bi-arrow-clockwise"></i> بازنشانی
-            </button>
+            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilters"><i class="bi bi-search"></i> فیلتر</button>
+            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters"><i class="bi bi-arrow-clockwise"></i> بازنشانی</button>
         </div>
     </div>
 
@@ -156,9 +139,7 @@
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <span class="badge-modern badge-info">
-                    <i class="bi bi-list-ul"></i> @filteredHawalas.Count
-                </span>
+                <span class="badge-modern badge-info"><i class="bi bi-list-ul"></i> @filteredHawalas.Count</span>
             </div>
             <div class="table-card-header-right">
                 <div class="page-size-selector">
@@ -180,7 +161,14 @@
                 <table class="table-modern table-striped-modern">
                     <thead>
                         <tr>
-                            <th style="width: 50px;">#</th>
+                            <th style="width:50px;">#</th>
+                            <th style="width:80px;" class="sortable-header" @onclick="@(() => SortBy("Number"))">
+                                نمبر
+                                @if (sortColumn == "Number")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
                             <th class="sortable-header" @onclick="@(() => SortBy("HawalaType"))">
                                 نوع
                                 @if (sortColumn == "HawalaType")
@@ -225,18 +213,16 @@
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
-                            <th class="text-center">عملیات</th>
+                            <th class="text-center" style="min-width:160px;">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (isLoading && filteredHawalas == null)
                         {
                             <tr>
-                                <td colspan="10" class="text-center py-5">
+                                <td colspan="11" class="text-center py-5">
                                     <div class="loading-state">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">در حال بارگذاری...</span>
-                                        </div>
+                                        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">در حال بارگذاری...</span></div>
                                         <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
                                     </div>
                                 </td>
@@ -245,7 +231,7 @@
                         else if (!filteredHawalas.Any())
                         {
                             <tr>
-                                <td colspan="10" class="text-center py-5">
+                                <td colspan="11" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ حواله‌ای یافت نشد</span>
@@ -261,17 +247,14 @@
                             {
                                 <tr>
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
+                                    <td><span class="fw-bold">@hawala.Number</span></td>
                                     <td>
                                         <span class="badge-modern @GetTypeBadge(hawala.HawalaType)">
                                             @hawala.HawalaTypeName
                                         </span>
                                     </td>
-                                    <td>
-                                        <span class="fw-semibold">@(hawala.SenderName ?? "-")</span>
-                                    </td>
-                                    <td>
-                                        <span class="fw-semibold">@(hawala.ReceiverName ?? "-")</span>
-                                    </td>
+                                    <td><span class="fw-semibold">@(hawala.SenderName ?? "-")</span></td>
+                                    <td><span class="fw-semibold">@(hawala.ReceiverName ?? "-")</span></td>
                                     <td dir="ltr" class="fw-bold text-primary">
                                         @hawala.FromAmount.ToString("N2") @hawala.FromCurrencyCode
                                     </td>
@@ -319,18 +302,13 @@
 
         <div class="table-card-footer">
             <div class="table-card-footer-left">
-                <span class="text-muted small">
-                    نمایش <strong>@filteredHawalas.Count</strong> از <strong>@totalCount</strong> حواله
-                </span>
-
+                <span class="text-muted small">نمایش <strong>@filteredHawalas.Count</strong> از <strong>@totalCount</strong> حواله</span>
                 @if (totalPages > 1)
                 {
                     <nav aria-label="Page navigation">
                         <ul class="pagination-modern">
                             <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)"><i class="bi bi-chevron-right"></i></button>
                             </li>
                             @for (int i = 1; i <= totalPages; i++)
                             {
@@ -339,35 +317,24 @@
                                 </li>
                             }
                             <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)"><i class="bi bi-chevron-left"></i></button>
                             </li>
                         </ul>
                     </nav>
                 }
             </div>
-
             <div class="table-card-footer-right">
-                <span class="badge-modern badge-success">
-                    <i class="bi bi-send"></i> ارسال: @hawalaSendCount
-                </span>
-                <span class="badge-modern badge-info">
-                    <i class="bi bi-download"></i> دریافت: @hawalaReceiveCount
-                </span>
-                <span class="badge-modern badge-warning">
-                    <i class="bi bi-asterisk"></i> متفرقه: @hawalaOtherCount
-                </span>
-                <span class="badge-modern badge-danger">
-                    <i class="bi bi-clock-history"></i> در انتظار: @pendingCount
-                </span>
+                <span class="badge-modern badge-success"><i class="bi bi-send"></i> ارسال: @hawalaSendCount</span>
+                <span class="badge-modern badge-info"><i class="bi bi-download"></i> دریافت: @hawalaReceiveCount</span>
+                <span class="badge-modern badge-warning"><i class="bi bi-asterisk"></i> متفرقه: @hawalaOtherCount</span>
+                <span class="badge-modern badge-danger"><i class="bi bi-clock-history"></i> در انتظار: @pendingCount</span>
             </div>
         </div>
     </div>
 </div>
 
 <!-- ============================================================ -->
-<!-- مودال ایجاد/ویرایش حواله -->
+<!-- مودال ایجاد/ویرایش حواله (اصلاح‌شده) -->
 <!-- ============================================================ -->
 @if (showModal)
 {
@@ -405,35 +372,39 @@
                     <!-- اطلاعات حواله -->
                     <div class="modern-card mb-4">
                         <div class="card-header">
-                            <h6 class="text-primary">
-                                <i class="bi bi-arrow-left-right me-2"></i> اطلاعات حواله
-                            </h6>
+                            <h6 class="text-primary"><i class="bi bi-arrow-left-right me-2"></i> اطلاعات حواله</h6>
                         </div>
                         <div class="card-body">
                             <div class="row">
+                                <!-- نوع حواله -->
                                 <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-tag text-muted me-1"></i> نوع حواله <span class="text-danger">*</span>
-                                    </label>
-                                    <select class="form-select" value="@currentHawala.HawalaType" @onchange="(ChangeEventArgs e) => { currentHawala.HawalaType = e.Value?.ToString() ?? string.Empty; OnHawalaTypeChanged(); }">
+                                    <label class="form-label fw-bold">نوع حواله <span class="text-danger">*</span></label>
+                                    <select class="form-select"
+                                            value="@currentHawala.HawalaType"
+                                            @onchange="(ChangeEventArgs e) => { currentHawala.HawalaType = e.Value?.ToString() ?? string.Empty; OnHawalaTypeChanged(e); }">
                                         <option value="">انتخاب نوع</option>
                                         <option value="HawalaSend">حواله ارسال</option>
                                         <option value="HawalaReceive">حواله دریافت</option>
                                         <option value="HawalaOther">حواله متفرقه</option>
                                     </select>
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-person text-muted me-1"></i> نماینده <span class="text-danger" id="correspondent-required">*</span>
-                                    </label>
-                                    <select class="form-select" @bind="currentHawala.CorrespondentId">
-                                        <option value="">انتخاب نماینده</option>
-                                        @foreach (var correspondent in correspondents)
-                                        {
-                                            <option value="@correspondent.Id">@correspondent.Name (@correspondent.Code)</option>
-                                        }
-                                    </select>
-                                </div>
+                                <!-- نماینده (اصلاح‌شده: بدون @bind، استفاده از value و @onchange) -->
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold"> نماینده <span class="text-danger">*</span></label>
+                                <select class="form-select"
+                                        value="@currentHawala.CorrespondentId"
+                                        @onchange="(ChangeEventArgs e) => {
+                                                currentHawala.CorrespondentId = long.TryParse(e.Value?.ToString(), out long id) ? id : null;
+                                                OnCorrespondentChanged(e);
+                                            }">
+                                <option value="">انتخاب نماینده</option>
+                                @foreach (var correspondent in correspondents)
+                                {
+                                    <option value="@correspondent.Id">@correspondent.Name (@correspondent.Code)</option>
+                                }
+                            </select>
+                        </div>
+                                <!-- محل پرداخت -->
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-geo-alt text-muted me-1"></i> محل پرداخت
@@ -443,6 +414,7 @@
                             </div>
 
                             <div class="row">
+                                <!-- وضعیت -->
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-person text-muted me-1"></i> وضعیت
@@ -452,20 +424,36 @@
                                         <option value="Paid">پرداخت شده</option>
                                     </select>
                                 </div>
+                                <!-- شماره مرجع -->
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-hash text-muted me-1"></i> شماره مرجع
                                     </label>
                                     <input type="text" class="form-control" @bind="currentHawala.ReferenceNumber" placeholder="شماره مرجع" />
                                 </div>
+                                <!-- ===== فیلد شماره (نمبر) اصلاح‌شده با long? ===== -->
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-hash text-muted me-1"></i> نمبر حواله
+
+                                    </label>
+                                    @if (isEditMode)
+                                    {
+                                        <!-- در حالت ویرایش: غیرفعال و فقط نمایشی -->
+                                        <input type="number" class="form-control bg-light" value="@currentHawala.Number" />
+                                        <small class="text-muted">شماره قابل ویرایش نیست</small>
+                                    }
+                                    else
+                                    {
+                                        <!-- در حالت ایجاد: قابل ویرایش، با مقدار پیش‌نمایش -->
+                                        <input type="number" class="form-control" @bind="currentHawala.Number" />
+
+                                    }
+                                </div>
                             </div>
 
                             <hr />
-
-                            <h6 class="text-primary mb-3">
-                                <i class="bi bi-person"></i> اطلاعات فرستنده
-                            </h6>
-
+                            <h6 class="text-primary mb-3"><i class="bi bi-person"></i> اطلاعات فرستنده</h6>
                             <div class="row">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">نام فرستنده</label>
@@ -480,7 +468,6 @@
                                     <input type="text" class="form-control" @bind="currentHawala.SenderPhone" placeholder="تلفن" />
                                 </div>
                             </div>
-
                             <div class="row">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">شماره تذکره فرستنده</label>
@@ -493,11 +480,7 @@
                             </div>
 
                             <hr />
-
-                            <h6 class="text-primary mb-3">
-                                <i class="bi bi-person"></i> اطلاعات گیرنده
-                            </h6>
-
+                            <h6 class="text-primary mb-3"><i class="bi bi-person"></i> اطلاعات گیرنده</h6>
                             <div class="row">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">نام گیرنده</label>
@@ -512,7 +495,6 @@
                                     <input type="text" class="form-control" @bind="currentHawala.ReceiverPhone" placeholder="تلفن" />
                                 </div>
                             </div>
-
                             <div class="row">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">شماره تذکره گیرنده</label>
@@ -525,11 +507,7 @@
                             </div>
 
                             <hr />
-
-                            <h6 class="text-primary mb-3">
-                                <i class="bi bi-currency-exchange"></i> اطلاعات مالی
-                            </h6>
-
+                            <h6 class="text-primary mb-3"><i class="bi bi-currency-exchange"></i> اطلاعات مالی</h6>
                             <div class="row">
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
@@ -602,7 +580,7 @@
                                 </div>
                             </div>
 
-                            <!-- ✅ انتخاب حساب مبدأ (فقط برای حواله ارسالی) -->
+                            <!-- انتخاب حساب مبدأ (فقط برای حواله ارسالی) -->
                             @if (currentHawala.HawalaType == "HawalaSend")
                             {
                                 <div class="row">
@@ -621,44 +599,32 @@
                                     </div>
                                 </div>
                             }
+
+                            <!-- انتخاب حساب پرداخت‌کننده (فقط برای حواله دریافتی) -->
                             @if (currentHawala.HawalaType == "HawalaReceive")
                             {
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">
-                                            <i class="bi bi-wallet2 text-muted me-1"></i>
-                                            حساب پرداخت‌کننده حواله (بدهکار)
-                                            <span class="text-danger">*</span>
+                                            <i class="bi bi-wallet2 text-muted me-1"></i> حساب پرداخت‌کننده (بدهکار) <span class="text-danger">*</span>
                                         </label>
-
-                                        <input type="text"
-                                               class="form-control mb-2"
-                                               placeholder="جستجوی حساب بر اساس نام، کد یا نوع حساب..."
-                                               @bind="accountSearchText"
-                                               @bind:event="oninput" />
-
+                                        <input type="text" class="form-control mb-2" placeholder="جستجوی حساب..." @bind="accountSearchText" @bind:event="oninput" />
                                         <select class="form-select" @bind="currentHawala.FromAccountId">
                                             <option value="">انتخاب حساب</option>
                                             @foreach (var account in FilteredAccounts)
                                             {
-                                                <option value="@account.Id">
-                                                    @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
-                                                </option>
+                                                <option value="@account.Id">@account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))</option>
                                             }
                                         </select>
-
-                                        <small class="text-muted">
-                                            این حساب به مبلغ حواله بدهکار می‌شود.
-                                        </small>
+                                        <small class="text-muted">این حساب به مبلغ حواله بدهکار می‌شود.</small>
                                     </div>
                                 </div>
                             }
 
+                            <!-- یادداشت‌ها -->
                             <div class="row">
                                 <div class="col-md-12 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-chat text-muted me-1"></i> یادداشت‌ها
-                                    </label>
+                                    <label class="form-label fw-bold"><i class="bi bi-chat text-muted me-1"></i> یادداشت‌ها</label>
                                     <textarea class="form-control" @bind="currentHawala.Notes" rows="2" placeholder="یادداشت‌های اضافی"></textarea>
                                 </div>
                             </div>
@@ -694,7 +660,9 @@
     </div>
 }
 
+<!-- ============================================================ -->
 <!-- مودال نمایش جزئیات حواله -->
+<!-- ============================================================ -->
 @if (showDetailModal && selectedHawala != null)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
@@ -707,6 +675,7 @@
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- اطلاعات خلاصه -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <div class="info-card">
@@ -720,6 +689,12 @@
                         </div>
                         <div class="col-md-4">
                             <div class="info-card">
+                                <span class="info-label">شماره (نمبر)</span>
+                                <span class="info-value fw-bold">@selectedHawala.Number</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-card">
                                 <span class="info-label">وضعیت</span>
                                 <span class="info-value">
                                     <span class="badge-modern @GetStatusBadge(selectedHawala.Status)">
@@ -728,14 +703,9 @@
                                 </span>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="info-card">
-                                <span class="info-label">نماینده</span>
-                                <span class="info-value">@(selectedHawala.CorrespondentName ?? "-")</span>
-                            </div>
-                        </div>
                     </div>
 
+                    <!-- اطلاعات فرستنده و گیرنده -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <div class="info-card">
@@ -775,6 +745,7 @@
                         </div>
                     </div>
 
+                    <!-- اطلاعات مالی -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
                             <div class="info-card">
@@ -838,6 +809,12 @@
                             <div class="info-card">
                                 <span class="info-label">تاریخ ایجاد</span>
                                 <span class="info-value" dir="ltr">@selectedHawala.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">نماینده</span>
+                                <span class="info-value">@(selectedHawala.CorrespondentName ?? "-")</span>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -939,7 +916,7 @@
     private string filterStatus = "";
     private long filterCorrespondentId = 0;
 
-    // ===== صفحه‌بندی =====
+    // ===== صفحه‌بندی و مرتب‌سازی =====
     private int pageSize = 10;
     private int currentPage = 1;
     private string sortColumn = "CreatedAt";
@@ -1110,7 +1087,8 @@
             Status = "Pending",
             FromCurrencyId = 0,
             ToCurrencyId = 0,
-            HawalaType = ""
+            HawalaType = "",
+            Number = 0
         };
         isEditMode = false;
         editId = 0;
@@ -1132,6 +1110,7 @@
             {
                 currentHawala = new CreateHawalaDto
                 {
+                    Number = hawala.Number,
                     HawalaType = hawala.HawalaType,
                     CorrespondentId = hawala.CorrespondentId,
                     SenderName = hawala.SenderName,
@@ -1157,7 +1136,7 @@
                     Notes = hawala.Notes,
                     Status = hawala.Status,
                     PaymentLocation = hawala.PaymentLocation,
-                    FromAccountId = null // در ویرایش نمی‌توانیم حساب مبدأ را تغییر دهیم (یا می‌توانیم، اما اینجا خالی می‌گذاریم)
+                    FromAccountId = null
                 };
 
                 isEditMode = true;
@@ -1299,7 +1278,10 @@
             validationErrors.Add("برای حواله ارسال، انتخاب حساب مبدأ الزامی است.");
         if (currentHawala.HawalaType == "HawalaReceive" && currentHawala.FromAccountId == null)
             validationErrors.Add("برای حواله دریافت، انتخاب حساب پرداخت‌کننده الزامی است.");
-
+        if (currentHawala.HawalaType == "HawalaReceive" && (currentHawala.Number <= 0))
+            validationErrors.Add("برای حواله آمد، شماره (نمبر) الزامی است.");
+        if (currentHawala.Number <= 0)
+            validationErrors.Add("نمبر حواله الزامی است");
         if (validationErrors.Any())
         {
             StateHasChanged();
@@ -1315,6 +1297,7 @@
             {
                 var updateDto = new UpdateHawalaDto
                 {
+                    FromAccountId = currentHawala.FromAccountId,
                     SenderName = currentHawala.SenderName,
                     SenderFatherName = currentHawala.SenderFatherName,
                     SenderPhone = currentHawala.SenderPhone,
@@ -1378,18 +1361,50 @@
         }
     }
 
-    private void OnHawalaTypeChanged()
+    // ===== رویدادهای تغییر نوع و نماینده =====
+
+    private async Task OnHawalaTypeChanged(ChangeEventArgs e)
     {
-        // اگر نوع حواله تغییر کرد، نماینده و حساب مبدأ را ریست می‌کنیم
+        currentHawala.HawalaType = e?.Value?.ToString() ?? string.Empty;
+    
+        // ریست شماره برای همه انواع
+        currentHawala.Number = 0;
 
-        currentHawala.CorrespondentId = null;
-        currentHawala.FromAccountId = null;
-        accountSearchText = "";
-
+        await GetSuggestedNumber();
         StateHasChanged();
     }
 
-    // ===== متدهای کمکی =====
+    private async Task OnCorrespondentChanged(ChangeEventArgs e)
+    {
+        await GetSuggestedNumber();
+        StateHasChanged();
+    }
+
+    private async Task GetSuggestedNumber()
+    {
+        // شرط اصلی: نماینده انتخاب شده باشه + نوع حواله انتخاب شده باشه
+        if (currentHawala.CorrespondentId.HasValue &&
+            !string.IsNullOrEmpty(currentHawala.HawalaType))
+        {
+            try
+            {
+                var nextNumber = await HawalaService.GetNextNumberAsync(
+                    currentHawala.CorrespondentId.Value,
+                    currentHawala.HawalaType);
+
+                currentHawala.Number = nextNumber > 0 ? nextNumber : 1;
+            
+                StateHasChanged();   // خیلی مهم
+            }
+            catch (Exception ex)
+            {
+                validationErrors.Add($"خطا در دریافت شماره پیشنهادی: {ex.Message}");
+                currentHawala.Number = 0;
+            }
+        }
+    }
+
+    // ===== توابع کمکی =====
 
     private string GetTypeBadge(string type)
     {

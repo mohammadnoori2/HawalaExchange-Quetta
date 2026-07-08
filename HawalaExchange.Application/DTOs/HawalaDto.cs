@@ -6,6 +6,7 @@ namespace HawalaExchange.Application.DTOs
     public class HawalaDto
     {
         public long Id { get; set; }
+        public long Number { get; set; }
         public string HawalaType { get; set; } = string.Empty;
         public string HawalaTypeName => HawalaType switch
         {
@@ -66,6 +67,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class CreateHawalaDto
     {
+        public long Number { get; set; }
         public string HawalaType { get; set; } = string.Empty;
         public long? CorrespondentId { get; set; }
         public long? FromAccountId { get; set; }
@@ -122,6 +124,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class HawalaFilterDto
     {
+        public long Number { get; set; }
         public string? SearchTerm { get; set; }
         public string? HawalaType { get; set; }
         public string? Status { get; set; }

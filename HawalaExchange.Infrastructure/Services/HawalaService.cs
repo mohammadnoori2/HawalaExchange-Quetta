@@ -320,6 +320,9 @@ namespace HawalaExchange.Application.Services
                 var agentCommissionCurrencyId = hawala.AgentCommissionCurrencyId ?? hawala.ToCurrencyId;
                 await CreateLedgerEntry(hawala.Id, correspondentAccount.Id, agentCommissionCurrencyId, hawala.AgentCommissionAmount.Value, 0,
                     $"حواله ارسالی {hawala.Id}: کارمزد نمایندگی");
+
+                await CreateLedgerEntry(hawala.Id, commissionAccount.Id, agentCommissionCurrencyId, 0, hawala.AgentCommissionAmount.Value,
+                    $"حواله ارسالی {hawala.Id}: درآمد کارمزد");
             }
 
             // ۵. حساب درآمد کارمزد بستانکار

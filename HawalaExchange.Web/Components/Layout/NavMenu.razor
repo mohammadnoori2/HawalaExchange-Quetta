@@ -81,6 +81,12 @@
                 </NavLink>
             </div>
             <div class="nav-item px-3">
+                <NavLink class="nav-link-custom" href="/ledger">
+                    <span class="bi bi-wallet2"></span> دفتر کل
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/hawala-transactions">
                     <span class="bi bi-wallet2"></span> حواله‌ها
                 </NavLink>
@@ -124,11 +130,14 @@
                     <span class="bi bi-currency-exchange"></span> نرخ تبادله اسعار
                 </NavLink>
             </div>
-            <div class="nav-item px-3">
+
+            <AuthorizeView Roles="Admin">
+             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/transactions">
                     <span class="bi bi-arrow-left-right"></span> تراکنش‌ها
                 </NavLink>
-            </div>
+             </div>
+            </AuthorizeView>
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/transfers">
                     <span class="bi bi-send"></span> انتقال‌ها
@@ -145,19 +154,24 @@
                     <span class="bi bi-receipt-cutoff"></span> مصارف
                 </NavLink>
             </div>
-            <div class="nav-item px-3">
+            <AuthorizeView Roles="Admin">
+              <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/documents">
                     <span class="bi bi-file-text"></span> اسناد
                 </NavLink>
-            </div>
+               </div>
+             </AuthorizeView>
 
             <div class="nav-divider"></div>
 
-            <div class="nav-item px-3">
+            <AuthorizeView Roles="Admin">
+               <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/reports">
                     <span class="bi bi-pie-chart"></span> گزارش‌ها
                 </NavLink>
-            </div>
+               </div>
+            </AuthorizeView>
+
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/account-limits">
                     <span class="bi bi-lock"></span> محدودیت حساب‌ها

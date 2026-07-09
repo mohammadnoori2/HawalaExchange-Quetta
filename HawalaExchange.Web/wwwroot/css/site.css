@@ -3,10 +3,6 @@
 ========================================= */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-:root {
-    --font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
-}
-
 /* =========================================
    استایل‌های صفحات - site.css
 ========================================= */
@@ -281,6 +277,25 @@ body {
         font-size: 0.8rem;
         color: var(--text-muted);
     }
+
+/* =========================================
+   STAT CARD VARIATIONS
+========================================= */
+.stat-card-success {
+    border-right-color: var(--success-color, #28a745) !important;
+}
+
+.stat-card-danger {
+    border-right-color: var(--danger-color, #dc3545) !important;
+}
+
+.stat-card-info {
+    border-right-color: var(--info-color, #0dcaf0) !important;
+}
+
+.stat-card-warning {
+    border-right-color: var(--warning-color, #ff9f43) !important;
+}
 
 /* =========================================
    CURRENCY RATES GRID
@@ -711,7 +726,7 @@ body {
     }
 
 /* =========================================
-   TABLE SCROLL WRAPPER - اسکرول افقی جدول
+   TABLE SCROLL WRAPPER
 ========================================= */
 .table-scroll-wrapper {
     width: 100%;
@@ -757,7 +772,7 @@ body {
         }
 
 /* =========================================
-   MODERN TABLE - جلوگیری از تداخل با اسکرول
+   MODERN TABLE
 ========================================= */
 .table-modern {
     font-size: 0.9rem;
@@ -807,8 +822,18 @@ body {
         background: var(--primary-light);
     }
 
+.table-row-archived {
+    opacity: 0.7;
+    background-color: #f8f9fa !important;
+}
+
+    .table-row-archived:hover {
+        opacity: 1;
+        background-color: #f1f3f5 !important;
+    }
+
 /* =========================================
-   TABLE CARD - کارت جدول
+   TABLE CARD
 ========================================= */
 .table-card {
     background: var(--card-bg);
@@ -822,8 +847,59 @@ body {
         overflow: hidden;
     }
 
+.table-card-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color, #dce3ed);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    background: #fafbfc;
+}
+
+.table-card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.table-card-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-card-footer {
+    padding: 0.8rem 1.5rem;
+    border-top: 1px solid var(--border-color);
+    background: #fafbfc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border-radius: 0 0 var(--radius-lg, 16px) var(--radius-lg, 16px);
+}
+
+.table-card-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.table-card-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
 /* =========================================
-   MODERN CARD - کارت مدرن
+   MODERN CARD
 ========================================= */
 .modern-card {
     background: var(--card-bg);
@@ -895,7 +971,7 @@ body {
     }
 
 /* =========================================
-   BUTTONS MODERN - دکمه‌های مدرن
+   BUTTONS MODERN
 ========================================= */
 .btn-modern {
     border: none;
@@ -1032,7 +1108,7 @@ body {
     }
 
 /* =========================================
-   ACTION BUTTONS - دکمه‌های عملیات
+   ACTION BUTTONS
 ========================================= */
 .action-group {
     display: flex;
@@ -1100,7 +1176,7 @@ body {
 }
 
 /* =========================================
-   SEARCH MODERN - جستجوی مدرن
+   SEARCH MODERN
 ========================================= */
 .search-modern {
     display: flex;
@@ -1162,7 +1238,7 @@ body {
         }
 
 /* =========================================
-   BADGE MODERN - بج مدرن
+   BADGE MODERN
 ========================================= */
 .badge-modern {
     display: inline-flex;
@@ -1219,8 +1295,28 @@ body {
     color: #0061f2;
 }
 
+.badge-secondary {
+    background: #f0f0f0;
+    color: #6c757d;
+}
+
+.badge-dark {
+    background: #343a40;
+    color: #fff;
+}
+
+.badge-light {
+    background: #f8f9fa;
+    color: #212529;
+}
+
+.badge-primary {
+    background: var(--primary-light);
+    color: var(--primary-color);
+}
+
 /* =========================================
-   AVATAR - آواتار
+   AVATAR
 ========================================= */
 .avatar {
     width: 40px;
@@ -1274,7 +1370,7 @@ body {
 }
 
 /* =========================================
-   MODAL MODERN - مودال مدرن
+   MODAL MODERN
 ========================================= */
 .modal-modern .modal-content {
     border-radius: var(--radius-lg);
@@ -1321,7 +1417,7 @@ body {
 .modal-modern .btn-close-white {
     color: white;
 }
-/* نمایش مودال */
+
 .modal.show {
     display: block !important;
 }
@@ -1330,8 +1426,12 @@ body {
         transform: translate(0, 0) !important;
     }
 
+.modal-header-danger {
+    background: linear-gradient(135deg, #dc3545, #b02a37);
+}
+
 /* =========================================
-   FORM MODERN - فرم مدرن
+   FORM MODERN
 ========================================= */
 .form-modern {
     background: white;
@@ -1444,7 +1544,165 @@ body {
 }
 
 /* =========================================
-   CUSTOM SCROLLBAR - اسکرول‌بار سفارشی
+   PAGE SIZE SELECTOR
+========================================= */
+.page-size-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+    .page-size-selector .text-muted {
+        font-size: 0.8rem;
+        color: var(--text-muted, #667085);
+    }
+
+.select-page-size {
+    width: auto;
+    min-width: 70px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #dce3ed);
+    padding: 0.3rem 1.8rem 0.3rem 0.8rem;
+    appearance: auto;
+    font-size: 0.875rem;
+    color: var(--text-color, #1d2939);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+    .select-page-size:hover {
+        border-color: var(--primary-color, #0061f2);
+    }
+
+    .select-page-size:focus {
+        border-color: var(--primary-color, #0061f2);
+        box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.1);
+        outline: none;
+    }
+
+    .select-page-size option {
+        padding: 0.3rem 0.5rem;
+    }
+
+/* =========================================
+   SORTABLE HEADER
+========================================= */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+    .sortable-header:hover {
+        color: var(--primary-color, #0061f2);
+    }
+
+    .sortable-header i {
+        font-size: 0.7rem;
+        margin-right: 0.25rem;
+        transition: all 0.2s ease;
+    }
+
+    .sortable-header.active {
+        color: var(--primary-color, #0061f2);
+    }
+
+/* =========================================
+   PAGINATION MODERN
+========================================= */
+.pagination-modern {
+    display: flex;
+    gap: 0.25rem;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+    .pagination-modern .page-item {
+        display: inline-block;
+    }
+
+    .pagination-modern .page-link {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 32px;
+        padding: 0 0.5rem;
+        border-radius: 8px;
+        border: 1px solid var(--border-color, #dce3ed);
+        background: #fff;
+        color: var(--text-color, #1d2939);
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+
+        .pagination-modern .page-link:hover {
+            background: var(--primary-light, #e6f0ff);
+            border-color: var(--primary-color, #0061f2);
+            color: var(--primary-color, #0061f2);
+        }
+
+    .pagination-modern .page-item.active .page-link {
+        background: var(--primary-gradient, linear-gradient(135deg, #0061f2, #0050c8));
+        border-color: var(--primary-color, #0061f2);
+        color: #fff;
+    }
+
+    .pagination-modern .page-item.disabled .page-link {
+        opacity: 0.5;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    .pagination-modern .page-item .page-link i {
+        font-size: 0.8rem;
+    }
+
+/* =========================================
+   EMPTY STATE
+========================================= */
+.empty-state {
+    text-align: center;
+    padding: 2rem 0;
+}
+
+    .empty-state i {
+        font-size: 3rem;
+        color: var(--text-muted, #667085);
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    .empty-state .fs-5 {
+        font-size: 1.2rem;
+        color: var(--text-muted, #667085);
+    }
+
+    .empty-state .text-muted {
+        color: var(--text-muted, #667085);
+        font-size: 0.9rem;
+    }
+
+/* =========================================
+   LOADING STATE
+========================================= */
+.loading-state {
+    text-align: center;
+    padding: 2rem 0;
+}
+
+    .loading-state .spinner-border {
+        width: 3rem;
+        height: 3rem;
+    }
+
+/* =========================================
+   CUSTOM SCROLLBAR
 ========================================= */
 .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -1481,7 +1739,7 @@ body {
     }
 
 /* =========================================
-   UTILITY CLASSES - کلاس‌های کمکی
+   UTILITY CLASSES
 ========================================= */
 .text-gradient {
     background: var(--primary-gradient);
@@ -1551,7 +1809,7 @@ body {
 }
 
 /* =========================================
-   ANIMATIONS - انیمیشن‌ها
+   ANIMATIONS
 ========================================= */
 @keyframes fadeIn {
     from {
@@ -1604,7 +1862,7 @@ body {
 }
 
 /* =========================================
-   NAVMENU – استایل‌های منوی ناوبری
+   NAVMENU
 ========================================= */
 .nav-sidebar {
     width: 280px;
@@ -1836,323 +2094,7 @@ body {
 }
 
 /* =========================================
-   استایل‌های هدر کارت جدول - بخش دکمه تعداد نمایش
-========================================= */
-.table-card-header {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--border-color, #dce3ed);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    background: #fafbfc;
-}
-
-.table-card-header-left {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-    flex: 1;
-}
-
-.table-card-header-right {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.table-card-footer {
-    padding: 0.8rem 1.5rem;
-    border-top: 1px solid var(--border-color);
-    background: #fafbfc;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    border-radius: 0 0 var(--radius-lg, 16px) var(--radius-lg, 16px);
-}
-
-.table-card-footer-left {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.table-card-footer-right {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-/* استایل انتخاب تعداد نمایش */
-.page-size-selector {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    white-space: nowrap;
-}
-
-    .page-size-selector .text-muted {
-        font-size: 0.8rem;
-        color: var(--text-muted, #667085);
-    }
-
-.select-page-size {
-    width: auto;
-    min-width: 70px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color, #dce3ed);
-    padding: 0.3rem 1.8rem 0.3rem 0.8rem;
-    appearance: auto;
-    font-size: 0.875rem;
-    color: var(--text-color, #1d2939);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-    .select-page-size:hover {
-        border-color: var(--primary-color, #0061f2);
-    }
-
-    .select-page-size:focus {
-        border-color: var(--primary-color, #0061f2);
-        box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.1);
-        outline: none;
-    }
-
-    .select-page-size option {
-        padding: 0.3rem 0.5rem;
-    }
-
-/* استایل ستون‌های قابل مرتب‌سازی */
-.sortable-header {
-    cursor: pointer;
-    user-select: none;
-    transition: all 0.2s ease;
-    position: relative;
-}
-
-    .sortable-header:hover {
-        color: var(--primary-color, #0061f2);
-    }
-
-    .sortable-header i {
-        font-size: 0.7rem;
-        margin-right: 0.25rem;
-        transition: all 0.2s ease;
-    }
-
-    .sortable-header.active {
-        color: var(--primary-color, #0061f2);
-    }
-
-/* استایل صفحه‌بندی مدرن */
-.pagination-modern {
-    display: flex;
-    gap: 0.25rem;
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-    .pagination-modern .page-item {
-        display: inline-block;
-    }
-
-    .pagination-modern .page-link {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 32px;
-        height: 32px;
-        padding: 0 0.5rem;
-        border-radius: 8px;
-        border: 1px solid var(--border-color, #dce3ed);
-        background: #fff;
-        color: var(--text-color, #1d2939);
-        font-size: 0.875rem;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        text-decoration: none;
-    }
-
-        .pagination-modern .page-link:hover {
-            background: var(--primary-light, #e6f0ff);
-            border-color: var(--primary-color, #0061f2);
-            color: var(--primary-color, #0061f2);
-        }
-
-    .pagination-modern .page-item.active .page-link {
-        background: var(--primary-gradient, linear-gradient(135deg, #0061f2, #0050c8));
-        border-color: var(--primary-color, #0061f2);
-        color: #fff;
-    }
-
-    .pagination-modern .page-item.disabled .page-link {
-        opacity: 0.5;
-        cursor: not-allowed;
-        pointer-events: none;
-    }
-
-    .pagination-modern .page-item .page-link i {
-        font-size: 0.8rem;
-    }
-
-/* استایل ردیف‌های بایگانی شده */
-.table-row-archived {
-    opacity: 0.7;
-    background-color: #f8f9fa !important;
-}
-
-    .table-row-archived:hover {
-        opacity: 1;
-        background-color: #f1f3f5 !important;
-    }
-
-/* استایل خالی بودن جدول */
-.empty-state {
-    text-align: center;
-    padding: 2rem 0;
-}
-
-    .empty-state i {
-        font-size: 3rem;
-        color: var(--text-muted, #667085);
-        display: block;
-        margin-bottom: 0.5rem;
-    }
-
-    .empty-state .fs-5 {
-        font-size: 1.2rem;
-        color: var(--text-muted, #667085);
-    }
-
-    .empty-state .text-muted {
-        color: var(--text-muted, #667085);
-        font-size: 0.9rem;
-    }
-
-/* استایل بارگذاری */
-.loading-state {
-    text-align: center;
-    padding: 2rem 0;
-}
-
-    .loading-state .spinner-border {
-        width: 3rem;
-        height: 3rem;
-    }
-
-/* استایل فرم در مودال */
-.modern-card .form-label {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--text-color, #1d2939);
-    margin-bottom: 0.3rem;
-}
-
-    .modern-card .form-label .text-danger {
-        color: var(--danger-color, #dc3545);
-    }
-
-.modern-card .form-control {
-    border: 2px solid var(--border-color, #dce3ed);
-    border-radius: var(--radius-sm, 8px);
-    padding: 0.6rem 0.8rem;
-    transition: all 0.3s ease;
-    font-size: 0.9rem;
-    width: 100%;
-}
-
-    .modern-card .form-control:focus {
-        border-color: var(--primary-color, #0061f2);
-        box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.1);
-        outline: none;
-    }
-
-    .modern-card .form-control.is-invalid {
-        border-color: var(--danger-color, #dc3545);
-    }
-
-    .modern-card .form-control:disabled,
-    .modern-card .form-control[readonly] {
-        background-color: #f8f9fa;
-        opacity: 0.8;
-    }
-
-    .modern-card .form-control.bg-light {
-        background-color: #f8f9fa !important;
-    }
-
-.modern-card .invalid-feedback {
-    color: var(--danger-color, #dc3545);
-    font-size: 0.8rem;
-    margin-top: 0.2rem;
-}
-
-.modern-card textarea.form-control {
-    resize: vertical;
-}
-
-/* استایل دکمه‌های مودال */
-.modal-footer .btn-modern {
-    padding: 0.5rem 1.5rem;
-    border-radius: var(--radius-sm, 8px);
-    font-weight: 500;
-    transition: all 0.3s ease;
-}
-
-/* استایل پیام‌های مودال */
-.modal-body .alert {
-    border-radius: var(--radius-sm, 8px);
-    padding: 0.8rem 1rem;
-    margin-bottom: 1rem;
-}
-
-    .modal-body .alert .alert-heading {
-        font-weight: 600;
-        font-size: 0.9rem;
-    }
-
-    .modal-body .alert ul {
-        padding-right: 1.5rem;
-        margin-top: 0.3rem;
-    }
-
-        .modal-body .alert ul li {
-            margin-bottom: 0.2rem;
-        }
-
-/* استایل هدر مودال خطر */
-.modal-header-danger {
-    background: linear-gradient(135deg, #dc3545, #b02a37);
-}
-
-/* کلاس‌های کمکی برای کارت‌های آماری */
-.stat-card-success {
-    border-right-color: var(--success-color, #28a745) !important;
-}
-
-.stat-card-danger {
-    border-right-color: var(--danger-color, #dc3545) !important;
-}
-
-.stat-card-info {
-    border-right-color: var(--info-color, #0dcaf0) !important;
-}
-
-.stat-card-warning {
-    border-right-color: var(--warning-color, #ff9f43) !important;
-}
-
-
-/* =========================================
-   USER INFO CARD - کارت اطلاعات کاربر در منو
+   USER INFO CARD
 ========================================= */
 .user-info-card {
     display: flex;
@@ -2210,7 +2152,7 @@ body {
 }
 
 /* =========================================
-   NAV LINK LOGOUT/LOGIN - دکمه‌های ورود/خروج
+   NAV LINK LOGOUT/LOGIN
 ========================================= */
 .nav-link-logout {
     color: #dc3545 !important;
@@ -2256,8 +2198,9 @@ body {
         color: #0061f2 !important;
     }
 
-
-/* Hawala Searchable dropdwon styles */
+/* =========================================
+   SEARCHABLE DROPDOWN
+========================================= */
 .searchable-dropdown {
     position: relative;
     z-index: 4;
@@ -2292,3 +2235,115 @@ body {
         border-bottom: none;
     }
 
+/* =========================================
+   MODAL BODY ALERT
+========================================= */
+.modal-body .alert {
+    border-radius: var(--radius-sm, 8px);
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+}
+
+    .modal-body .alert .alert-heading {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .modal-body .alert ul {
+        padding-right: 1.5rem;
+        margin-top: 0.3rem;
+    }
+
+        .modal-body .alert ul li {
+            margin-bottom: 0.2rem;
+        }
+
+/* =========================================
+   MODERN CARD FORM LABEL
+========================================= */
+.modern-card .form-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-color, #1d2939);
+    margin-bottom: 0.3rem;
+}
+
+    .modern-card .form-label .text-danger {
+        color: var(--danger-color, #dc3545);
+    }
+
+.modern-card .form-control {
+    border: 2px solid var(--border-color, #dce3ed);
+    border-radius: var(--radius-sm, 8px);
+    padding: 0.6rem 0.8rem;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    width: 100%;
+}
+
+    .modern-card .form-control:focus {
+        border-color: var(--primary-color, #0061f2);
+        box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.1);
+        outline: none;
+    }
+
+    .modern-card .form-control.is-invalid {
+        border-color: var(--danger-color, #dc3545);
+    }
+
+    .modern-card .form-control:disabled,
+    .modern-card .form-control[readonly] {
+        background-color: #f8f9fa;
+        opacity: 0.8;
+    }
+
+    .modern-card .form-control.bg-light {
+        background-color: #f8f9fa !important;
+    }
+
+.modern-card .invalid-feedback {
+    color: var(--danger-color, #dc3545);
+    font-size: 0.8rem;
+    margin-top: 0.2rem;
+}
+
+.modern-card textarea.form-control {
+    resize: vertical;
+}
+
+/* =========================================
+   MODAL FOOTER BUTTONS
+========================================= */
+.modal-footer .btn-modern {
+    padding: 0.5rem 1.5rem;
+    border-radius: var(--radius-sm, 8px);
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+/* =========================================
+   FILTER SELECTOR
+========================================= */
+.filter-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+    .filter-selector .form-select-sm {
+        min-width: 130px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color, #dce3ed);
+        padding: 0.3rem 1.8rem 0.3rem 0.8rem;
+        font-size: 0.85rem;
+        color: var(--text-color, #1d2939);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background-color: #fff;
+    }
+
+        .filter-selector .form-select-sm:focus {
+            border-color: var(--primary-color, #0061f2);
+            box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.1);
+            outline: none;
+        }

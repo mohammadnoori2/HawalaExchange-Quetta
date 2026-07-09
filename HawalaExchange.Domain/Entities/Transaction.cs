@@ -56,10 +56,10 @@ namespace HawalaExchange.Domain.Entities
         public virtual Customer? Customer { get; set; }
 
         [ForeignKey(nameof(CreatedBy))]
-        public virtual User? CreatedByUser { get; set; }
+        public virtual ApplicationUser? CreatedByUser { get; set; }
 
         [ForeignKey(nameof(CancelledBy))]
-        public virtual User? CancelledByUser { get; set; }
+        public virtual ApplicationUser? CancelledByUser { get; set; }
 
         [ForeignKey(nameof(ReversedTransactionId))]
         public virtual Transaction? ReversedTransaction { get; set; }

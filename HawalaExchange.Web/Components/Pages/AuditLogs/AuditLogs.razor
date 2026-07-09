@@ -1,9 +1,16 @@
 ﻿@page "/auditlogs"
-@using HawalaExchange.Application.DTOs
+@attribute [Authorize(Roles = "Admin")]
+
 @using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using HawalaExchange.Domain.Entities
+@using HawalaExchange.Application.DTOs
 @inject IAuditLogService AuditLogService
-@inject IUserService UserService
+@inject UserManager<ApplicationUser> UserManager
 @inject NavigationManager NavigationManager
+@inject ILogger<AuditLogs> Logger
 @rendermode InteractiveServer
 
 <div class="page-wrapper">
@@ -159,7 +166,7 @@
                     <span class="search-icon"><i class="bi bi-search"></i></span>
                     <input type="text" class="search-input" placeholder="جستجو در لاگ‌ها (جدول، مقدار)..."
                            @bind="searchTerm" @bind:event="oninput" />
-                    <button class="search-btn" @onclick="() => ClearSearch()">
+                    <button class="search-btn" @onclick="ClearSearch">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
@@ -370,7 +377,7 @@
                     <h5 class="modal-title text-white">
                         <i class="bi bi-info-circle me-2"></i> جزئیات لاگ
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseDetailModal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-3 mb-4">
@@ -449,7 +456,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseDetailModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="CloseDetailModal">
                         <i class="bi bi-x-circle"></i> بستن
                     </button>
                 </div>
@@ -500,9 +507,25 @@
     {
         try
         {
-            users = (await UserService.GetAllAsync()).ToList();
+            var dbUsers = await UserManager.Users
+                .Where(u => u.IsActive)
+                .OrderBy(u => u.FullName)
+                .ToListAsync();
+
+            users = dbUsers.Select(u => new UserDto
+            {
+                Id = u.Id,
+                UserName = u.UserName,
+                FullName = u.FullName,
+                Email = u.Email,
+                IsActive = u.IsActive,
+                CreatedAt = u.CreatedAt
+            }).ToList();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading users for audit logs");
+        }
     }
 
     private async Task LoadLogs()
@@ -532,12 +555,11 @@
             totalCount = result.TotalCount;
             totalPages = result.TotalPages;
 
-            // دریافت آمار
             await LoadStatistics();
         }
         catch (Exception ex)
         {
-            // مدیریت خطا
+            Logger?.LogError(ex, "Error loading audit logs");
         }
         finally
         {
@@ -558,7 +580,10 @@
             cancelCount = stats.CancelCount;
             reverseCount = stats.ReverseCount;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading statistics");
+        }
     }
 
     private void ApplyFilters()
@@ -614,8 +639,10 @@
     {
         selectedLog = filteredLogs.FirstOrDefault(l => l.Id == id);
         if (selectedLog != null)
+        {
             showDetailModal = true;
-        StateHasChanged();
+            StateHasChanged();
+        }
     }
 
     private void CloseDetailModal()

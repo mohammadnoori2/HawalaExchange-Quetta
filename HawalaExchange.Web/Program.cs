@@ -1,34 +1,85 @@
 ﻿using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
+using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
 using HawalaExchange.Web.Components;
 using HawalaSystem.Mappings;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Identity;
+using HawalaExchange.Web.Components.Account;
 
 public partial class Program
 {
-    private static void Main(string[] args)
+    public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Add services to the container.
+        // ============================================================
+        // 1. Add services to the container
+        // ============================================================
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
 
-        // Register DbContext
+        // ============================================================
+        // 2. Database Context
+        // ============================================================
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-        // Register AutoMapper
+        // ============================================================
+        // 3. Identity Configuration
+        // ============================================================
+        builder.Services.AddIdentity<ApplicationUser, IdentityRole<long>>(options =>
+        {
+            // Password settings
+            options.Password.RequireDigit = true;
+            options.Password.RequiredLength = 6;
+            options.Password.RequireNonAlphanumeric = false;
+            options.Password.RequireUppercase = true;
+            options.Password.RequireLowercase = true;
+
+            // Lockout settings
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+            options.Lockout.MaxFailedAccessAttempts = 5;
+            options.Lockout.AllowedForNewUsers = true;
+
+            // User settings
+            options.User.RequireUniqueEmail = true;
+            options.SignIn.RequireConfirmedAccount = false;
+        })
+        .AddEntityFrameworkStores<ApplicationDbContext>()
+        .AddDefaultTokenProviders();
+
+        // ============================================================
+        // 4. Authentication & Authorization
+        // ============================================================
+        // ✅ حذف AddAuthentication اضافی - فقط از Identity استفاده کنید
+        // ❌ builder.Services.AddAuthentication(...) را حذف کنید
+
+        builder.Services.AddAuthorization();
+        builder.Services.AddCascadingAuthenticationState();
+        builder.Services.AddHttpContextAccessor();
+
+        // ============================================================
+        // 5. Identity Services for Blazor
+        // ============================================================
+        builder.Services.AddScoped<IdentityRedirectManager>();
+        builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+
+        // ============================================================
+        // 6. AutoMapper
+        // ============================================================
         builder.Services.AddAutoMapper(cfg =>
         {
             cfg.AddProfile<MappingProfile>();
         }, typeof(MappingProfile).Assembly);
 
-        // Register Services
+        // ============================================================
+        // 7. Register Business Services
+        // ============================================================
         builder.Services.AddScoped<IBranchService, BranchService>();
-        builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<ICustomerService, CustomerService>();
         builder.Services.AddScoped<ICorrespondentService, CorrespondentService>();
         builder.Services.AddScoped<ICurrencyService, CurrencyService>();
@@ -44,9 +95,17 @@ public partial class Program
         builder.Services.AddScoped<IReportService, ReportService>();
         builder.Services.AddScoped<IAccountBadehkarLimitService, AccountBadehkarLimitService>();
         builder.Services.AddScoped<IHawalaService, HawalaService>();
+
+        // ============================================================
+        // 8. Email Sender
+        // ============================================================
+        builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+
         var app = builder.Build();
 
-        // Configure the HTTP request pipeline.
+        // ============================================================
+        // 9. Configure HTTP Request Pipeline
+        // ============================================================
         if (!app.Environment.IsDevelopment())
         {
             app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -55,10 +114,42 @@ public partial class Program
 
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
         app.UseHttpsRedirection();
+        app.UseStaticFiles();
         app.UseAntiforgery();
+
+        // ✅ Authentication & Authorization Middleware
+        app.UseAuthentication();
+        app.UseAuthorization();
+
         app.MapStaticAssets();
         app.MapRazorComponents<App>()
             .AddInteractiveServerRenderMode();
+
+        // ✅ Map Identity Endpoints
+        app.MapAdditionalIdentityEndpoints();
+
+        // ============================================================
+        // 10. Seed Data
+        // ============================================================
+        using (var scope = app.Services.CreateScope())
+        {
+            var services = scope.ServiceProvider;
+            try
+            {
+                var context = services.GetRequiredService<ApplicationDbContext>();
+                context.Database.Migrate();
+
+                var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();
+                var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+
+                SeedData.InitializeAsync(roleManager, userManager, context).Wait();
+            }
+            catch (Exception ex)
+            {
+                var logger = services.GetRequiredService<ILogger<Program>>();
+                logger.LogError(ex, "An error occurred while seeding the database.");
+            }
+        }
 
         app.Run();
     }

@@ -23,7 +23,7 @@ namespace HawalaExchange.Infrastructure
 
             // Base/Common Services
             services.AddScoped<IBranchService, BranchService>();
-            services.AddScoped<IUserService, UserService>();
+            
 
             // Entity Services
             services.AddScoped<ICustomerService, CustomerService>();

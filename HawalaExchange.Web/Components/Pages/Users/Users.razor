@@ -1,9 +1,17 @@
 ﻿@page "/users"
-@using HawalaExchange.Application.DTOs
+@attribute [Authorize(Roles = "Admin,Manager")]
+
 @using HawalaExchange.Application.Interfaces.Services
-@inject IUserService UserService
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using HawalaExchange.Domain.Entities
+@using HawalaExchange.Application.DTOs
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole<long>> RoleManager
 @inject IBranchService BranchService
 @inject NavigationManager NavigationManager
+@inject ILogger<Users> Logger
 @rendermode InteractiveServer
 
 <div class="page-wrapper">
@@ -17,7 +25,7 @@
             </h5>
         </div>
         <div class="page-actions">
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
                 <i class="bi bi-plus-circle"></i> کاربر جدید
             </button>
         </div>
@@ -32,7 +40,7 @@
                         <i class="bi bi-people"></i>
                     </div>
                     <div>
-                        <div class="stat-number">@users.Count</div>
+                        <div class="stat-number">@totalCount</div>
                         <div class="stat-label">تعداد کاربران</div>
                     </div>
                 </div>
@@ -79,21 +87,60 @@
         </div>
     </div>
 
+    <!-- فیلترها -->
+    <div class="row g-3 mb-4 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label fw-bold"><i class="bi bi-search text-muted me-1"></i> جستجو</label>
+            <input type="text" class="form-control" placeholder="نام، نام کاربری، ایمیل..."
+                   @bind="searchTerm" @bind:event="oninput" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-tag text-muted me-1"></i> نقش</label>
+            <select class="form-select" @bind="filterRole" @bind:event="oninput">
+                <option value="">همه نقش‌ها</option>
+                @foreach (var role in roles)
+                {
+                    <option value="@role">@GetRoleName(role)</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-circle text-muted me-1"></i> وضعیت</label>
+            <select class="form-select" @bind="filterStatus" @bind:event="oninput">
+                <option value="">همه</option>
+                <option value="true">فعال</option>
+                <option value="false">غیرفعال</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
+            <select class="form-select" @bind="filterBranchId" @bind:event="oninput">
+                <option value="0">همه شعبه‌ها</option>
+                @foreach (var branch in branches)
+                {
+                    <option value="@branch.Id">@branch.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilters">
+                <i class="bi bi-search"></i> فیلتر
+            </button>
+            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <!-- جستجو -->
-                <div class="search-modern">
-                    <span class="search-icon"><i class="bi bi-search"></i></span>
-                    <input type="text" class="search-input" placeholder="جستجوی کاربران (نام، نام کاربری، نقش، شعبه)..."
-                           @bind="searchTerm" @bind:event="oninput" />
-                    <button class="search-btn" @onclick="() => ClearSearch()">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                <!-- انتخاب تعداد نمایش -->
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i> @filteredUsers.Count
+                </span>
+            </div>
+            <div class="table-card-header-right">
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
                     <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
@@ -106,12 +153,6 @@
                     </select>
                 </div>
             </div>
-
-            <div class="table-card-header-right">
-                <span class="badge-modern badge-info">
-                    <i class="bi bi-list-ul"></i> @filteredUsers.Count
-                </span>
-            </div>
         </div>
 
         <div class="table-card-body">
@@ -120,36 +161,43 @@
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
-                            <th class="sortable-header @(sortColumn == "FullName" ? "active" : "")" @onclick="@(() => SortBy("FullName"))">
+                            <th class="sortable-header" @onclick="@(() => SortBy("FullName"))">
                                 نام کامل
                                 @if (sortColumn == "FullName")
                                 {
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
-                            <th class="sortable-header @(sortColumn == "UserName" ? "active" : "")" @onclick="@(() => SortBy("UserName"))">
+                            <th class="sortable-header" @onclick="@(() => SortBy("UserName"))">
                                 نام کاربری
                                 @if (sortColumn == "UserName")
                                 {
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
-                            <th class="sortable-header @(sortColumn == "BranchName" ? "active" : "")" @onclick="@(() => SortBy("BranchName"))">
+                            <th class="sortable-header" @onclick="@(() => SortBy("Email"))">
+                                ایمیل
+                                @if (sortColumn == "Email")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th>نقش‌ها</th>
+                            <th class="sortable-header" @onclick="@(() => SortBy("BranchName"))">
                                 شعبه
                                 @if (sortColumn == "BranchName")
                                 {
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
-                            <th class="sortable-header @(sortColumn == "Role" ? "active" : "")" @onclick="@(() => SortBy("Role"))">
-                                نقش
-                                @if (sortColumn == "Role")
+                            <th class="sortable-header" @onclick="@(() => SortBy("IsActive"))">
+                                وضعیت
+                                @if (sortColumn == "IsActive")
                                 {
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
-                            <th>وضعیت</th>
-                            <th class="sortable-header @(sortColumn == "CreatedAt" ? "active" : "")" @onclick="@(() => SortBy("CreatedAt"))">
+                            <th class="sortable-header" @onclick="@(() => SortBy("CreatedAt"))">
                                 تاریخ ایجاد
                                 @if (sortColumn == "CreatedAt")
                                 {
@@ -203,12 +251,16 @@
                                     <td>
                                         <span class="customer-code">@user.UserName</span>
                                     </td>
-                                    <td>@user.BranchName</td>
+                                    <td>@user.Email</td>
                                     <td>
-                                        <span class="badge-modern @GetRoleBadge(user.Role)">
-                                            @GetRoleName(user.Role)
-                                        </span>
+                                        @foreach (var role in user.Roles)
+                                        {
+                                            <span class="badge-modern @GetRoleBadge(role)">
+                                                @GetRoleName(role)
+                                            </span>
+                                        }
                                     </td>
+                                    <td>@(user.BranchName ?? "-")</td>
                                     <td>
                                         @if (user.IsActive)
                                         {
@@ -223,9 +275,12 @@
                                             </span>
                                         }
                                     </td>
-                                    <td dir="ltr" class="text-start">@user.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td dir="ltr">@user.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                     <td>
                                         <div class="action-group justify-content-center">
+                                            <button class="action-btn action-btn-view" @onclick="() => ViewUser(user.Id)" title="مشاهده">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
                                             <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(user.Id)" title="ویرایش">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
@@ -241,6 +296,9 @@
                                                     <i class="bi bi-check-circle"></i>
                                                 </button>
                                             }
+                                            <button class="action-btn action-btn-print" @onclick="() => ShowResetPasswordModal(user.Id)" title="بازنشانی رمز">
+                                                <i class="bi bi-key"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -258,7 +316,6 @@
                     نمایش <strong>@pagedUsers.Count</strong> از <strong>@filteredUsers.Count</strong> کاربر
                 </span>
 
-                <!-- صفحه‌بندی -->
                 @if (totalPages > 1)
                 {
                     <nav aria-label="Page navigation">
@@ -286,17 +343,17 @@
 
             <div class="table-card-footer-right">
                 <span class="badge-modern badge-success">
-                    <i class="bi bi-check-circle-fill"></i> فعال: @users.Count(u => u.IsActive)
+                    <i class="bi bi-check-circle"></i> فعال: @users.Count(u => u.IsActive)
                 </span>
-                <span class="badge-modern badge-archived">
-                    <i class="bi bi-slash-circle-fill"></i> غیرفعال: @users.Count(u => !u.IsActive)
+                <span class="badge-modern badge-danger">
+                    <i class="bi bi-slash-circle"></i> غیرفعال: @users.Count(u => !u.IsActive)
                 </span>
             </div>
         </div>
     </div>
 </div>
 
-<!-- مودال ایجاد/ویرایش کاربر -->
+<!-- مودال‌ها -->
 @if (showModal)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
@@ -307,13 +364,12 @@
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
                         @(isEditMode ? "ویرایش کاربر" : "ایجاد کاربر جدید")
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
                 </div>
                 <div class="modal-body">
-                    <!-- پیام‌های خطا - فقط در این بخش نمایش داده می‌شوند -->
                     @if (validationErrors.Any())
                     {
-                        <div class="alert alert-danger alert-dismissible fade show">
+                        <div class="alert alert-danger">
                             <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
                             <ul class="mb-0">
                                 @foreach (var error in validationErrors)
@@ -326,32 +382,23 @@
 
                     @if (!string.IsNullOrEmpty(successMessage))
                     {
-                        <div class="alert alert-success alert-dismissible fade show">
+                        <div class="alert alert-success">
                             <i class="bi bi-check-circle me-2"></i> @successMessage
                         </div>
                     }
 
-                    <!-- اطلاعات کاربر -->
                     <div class="modern-card mb-4">
                         <div class="card-header">
-                            <h6 class="text-primary">
-                                <i class="bi bi-person-badge me-2"></i> اطلاعات کاربر
-                            </h6>
+                            <h6 class="text-primary"><i class="bi bi-person-badge me-2"></i> اطلاعات کاربر</h6>
                         </div>
                         <div class="card-body">
-                            <!-- ردیف اول: نام کامل و نام کاربری -->
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-person text-muted me-1"></i> نام کامل <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="text" class="form-control"
-                                           @bind="currentUser.FullName" placeholder="نام و نام خانوادگی" />
+                                    <label class="form-label fw-bold">نام کامل <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" @bind="currentUser.FullName" placeholder="نام و نام خانوادگی" />
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-person-badge text-muted me-1"></i> نام کاربری <span class="text-danger">*</span>
-                                    </label>
+                                    <label class="form-label fw-bold">نام کاربری <span class="text-danger">*</span></label>
                                     @if (isEditMode)
                                     {
                                         <input type="text" class="form-control bg-light" value="@userNameDisplay" disabled readonly />
@@ -359,33 +406,32 @@
                                     }
                                     else
                                     {
-                                        <input type="text" class="form-control"
-                                               @bind="currentUser.UserName" placeholder="نام کاربری" />
+                                        <input type="text" class="form-control" @bind="currentUser.UserName" placeholder="نام کاربری" />
                                     }
                                 </div>
                             </div>
 
-                            <!-- ردیف دوم: شعبه و نقش -->
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-building text-muted me-1"></i> شعبه <span class="text-danger">*</span>
-                                    </label>
-                                    <select class="form-select"
-                                            @bind="currentUser.BranchId">
+                                    <label class="form-label fw-bold">ایمیل <span class="text-danger">*</span></label>
+                                    <input type="email" class="form-control" @bind="currentUser.Email" placeholder="example@email.com" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">شعبه <span class="text-danger">*</span></label>
+                                    <select class="form-select" @bind="currentUser.BranchId">
                                         <option value="0">انتخاب شعبه</option>
                                         @foreach (var branch in branches)
                                         {
-                                            <option value="@branch.Id">@branch.Name (@branch.Code)</option>
+                                            <option value="@branch.Id">@branch.Name</option>
                                         }
                                     </select>
                                 </div>
+                            </div>
+
+                            <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-tag text-muted me-1"></i> نقش <span class="text-danger">*</span>
-                                    </label>
-                                    <select class="form-select"
-                                            @bind="currentUser.Role">
+                                    <label class="form-label fw-bold">نقش <span class="text-danger">*</span></label>
+                                    <select class="form-select" @bind="currentUser.Role">
                                         <option value="">انتخاب نقش</option>
                                         <option value="Admin">مدیر</option>
                                         <option value="Manager">سرپرست</option>
@@ -395,18 +441,24 @@
                                 </div>
                             </div>
 
-                            <!-- ردیف سوم: رمز عبور (فقط در حالت ایجاد) -->
                             @if (!isEditMode)
                             {
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label fw-bold">
-                                            <i class="bi bi-lock text-muted me-1"></i> رمز عبور <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="password" class="form-control"
-                                               @bind="currentUser.Password" placeholder="رمز عبور" />
+                                        <label class="form-label fw-bold">رمز عبور <span class="text-danger">*</span></label>
+                                        <input type="password" class="form-control" @bind="currentUser.Password" placeholder="رمز عبور" />
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">تکرار رمز عبور <span class="text-danger">*</span></label>
+                                        <input type="password" class="form-control" @bind="currentUser.ConfirmPassword" placeholder="تکرار رمز عبور" />
                                     </div>
                                 </div>
+                                @if (!string.IsNullOrEmpty(currentUser.Password) && !string.IsNullOrEmpty(currentUser.ConfirmPassword) && currentUser.Password != currentUser.ConfirmPassword)
+                                {
+                                    <div class="alert alert-warning">
+                                        <i class="bi bi-exclamation-triangle"></i> رمز عبور و تکرار آن مطابقت ندارند.
+                                    </div>
+                                }
                             }
                             else
                             {
@@ -427,10 +479,10 @@
                     }
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="CloseModal">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveUser()" disabled="@isLoading">
+                    <button type="button" class="btn-modern btn-primary-modern" @onclick="SaveUser" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -447,28 +499,76 @@
     </div>
 }
 
-<!-- مودال تأیید فعال/غیرفعال‌سازی -->
+<!-- مودال تأیید -->
 @if (showConfirmModal)
 {
-    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header modal-header-danger">
                     <h5 class="modal-title text-white">
                         <i class="bi bi-exclamation-triangle me-2"></i> تأیید عملیات
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseConfirmModal()"></button>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseConfirmModal"></button>
                 </div>
                 <div class="modal-body text-center py-4">
                     <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
                     <p class="fs-5">@confirmMessage</p>
                 </div>
                 <div class="modal-footer justify-content-center">
-                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseConfirmModal()">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="CloseConfirmModal">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmAction()">
+                    <button type="button" class="btn-modern btn-danger-modern" @onclick="ConfirmAction">
                         <i class="bi bi-check-circle"></i> تأیید
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال بازنشانی رمز -->
+@if (showResetPasswordModal)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #6f42c1, #5a32a3);">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-key me-2"></i> بازنشانی رمز عبور
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseResetPasswordModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>رمز عبور جدید برای کاربر <strong>@resetPasswordUserName</strong> را وارد کنید:</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">رمز عبور جدید <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" @bind="resetPasswordNewPassword" placeholder="رمز عبور جدید" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">تکرار رمز عبور <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" @bind="resetPasswordConfirmPassword" placeholder="تکرار رمز عبور" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(resetPasswordError))
+                    {
+                        <div class="alert alert-danger">@resetPasswordError</div>
+                    }
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="CloseResetPasswordModal">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button" class="btn-modern btn-primary-modern" @onclick="ConfirmResetPassword" disabled="@isResetPasswordSubmitting">
+                        @if (isResetPasswordSubmitting)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle"></i>
+                        }
+                        بازنشانی
                     </button>
                 </div>
             </div>
@@ -480,24 +580,17 @@
     private List<UserDto> users = new();
     private List<UserDto> filteredUsers = new();
     private List<BranchDto> branches = new();
+    private List<string> roles = new();
 
-    private string _searchTerm = string.Empty;
-    private string searchTerm
-    {
-        get => _searchTerm;
-        set
-        {
-            if (_searchTerm != value)
-            {
-                _searchTerm = value;
-                SearchUsers();
-            }
-        }
-    }
+    private string searchTerm = string.Empty;
+    private string filterRole = "";
+    private string filterStatus = "";
+    private long filterBranchId = 0;
 
-    // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
     private int pageSize = 10;
     private int currentPage = 1;
+    private int totalPages = 1;
+    private int totalCount = 0;
     private string sortColumn = "FullName";
     private bool sortAscending = true;
 
@@ -505,7 +598,6 @@
     {
         get
         {
-            // مرتب‌سازی
             var sorted = filteredUsers;
             switch (sortColumn)
             {
@@ -515,11 +607,14 @@
                 case "UserName":
                     sorted = sortAscending ? filteredUsers.OrderBy(u => u.UserName).ToList() : filteredUsers.OrderByDescending(u => u.UserName).ToList();
                     break;
+                case "Email":
+                    sorted = sortAscending ? filteredUsers.OrderBy(u => u.Email).ToList() : filteredUsers.OrderByDescending(u => u.Email).ToList();
+                    break;
                 case "BranchName":
                     sorted = sortAscending ? filteredUsers.OrderBy(u => u.BranchName).ToList() : filteredUsers.OrderByDescending(u => u.BranchName).ToList();
                     break;
-                case "Role":
-                    sorted = sortAscending ? filteredUsers.OrderBy(u => u.Role).ToList() : filteredUsers.OrderByDescending(u => u.Role).ToList();
+                case "IsActive":
+                    sorted = sortAscending ? filteredUsers.OrderBy(u => u.IsActive).ToList() : filteredUsers.OrderByDescending(u => u.IsActive).ToList();
                     break;
                 case "CreatedAt":
                     sorted = sortAscending ? filteredUsers.OrderBy(u => u.CreatedAt).ToList() : filteredUsers.OrderByDescending(u => u.CreatedAt).ToList();
@@ -529,7 +624,6 @@
                     break;
             }
 
-            // صفحه‌بندی
             if (pageSize == 0)
             {
                 currentPage = 1;
@@ -541,14 +635,19 @@
         }
     }
 
-    private int totalPages => pageSize == 0 ? 1 : (int)Math.Ceiling((double)filteredUsers.Count / pageSize);
-
     private bool showModal = false;
     private bool showConfirmModal = false;
+    private bool showResetPasswordModal = false;
     private bool isEditMode = false;
     private bool isLoading = false;
+    private bool isResetPasswordSubmitting = false;
     private long editId = 0;
     private long confirmId = 0;
+    private long resetPasswordUserId = 0;
+    private string resetPasswordUserName = "";
+    private string resetPasswordNewPassword = "";
+    private string resetPasswordConfirmPassword = "";
+    private string resetPasswordError = "";
     private string confirmMessage = string.Empty;
     private string confirmActionType = string.Empty;
     private List<string> validationErrors = new();
@@ -560,6 +659,7 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadBranches();
+        await LoadRoles();
         await LoadUsers();
     }
 
@@ -576,15 +676,88 @@
         }
     }
 
+    private async Task LoadRoles()
+    {
+        try
+        {
+            roles = await RoleManager.Roles.Select(r => r.Name ?? "").ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری نقش‌ها: {ex.Message}");
+        }
+    }
+
     private async Task LoadUsers()
     {
         try
         {
             isLoading = true;
-            var result = await UserService.GetAllAsync();
-            users = result.ToList();
+            StateHasChanged();
+
+            var query = UserManager.Users.AsQueryable();
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                var term = searchTerm.Trim().ToLower();
+                query = query.Where(u =>
+                    u.UserName != null && u.UserName.ToLower().Contains(term) ||
+                    (u.FullName != null && u.FullName.ToLower().Contains(term)) ||
+                    (u.Email != null && u.Email.ToLower().Contains(term)));
+            }
+
+            if (!string.IsNullOrEmpty(filterRole))
+            {
+                var usersInRole = await UserManager.GetUsersInRoleAsync(filterRole);
+                var userIds = usersInRole.Select(u => u.Id).ToList();
+                query = query.Where(u => userIds.Contains(u.Id));
+            }
+
+            if (!string.IsNullOrEmpty(filterStatus))
+            {
+                var isActive = bool.Parse(filterStatus);
+                query = query.Where(u => u.IsActive == isActive);
+            }
+
+            if (filterBranchId > 0)
+            {
+                query = query.Where(u => u.BranchId == filterBranchId);
+            }
+
+            query = sortAscending
+                ? query.OrderBy(u => EF.Property<object>(u, sortColumn))
+                : query.OrderByDescending(u => EF.Property<object>(u, sortColumn));
+
+            var dbUsers = await query.ToListAsync();
+            totalCount = dbUsers.Count;
+
+            var pagedDbUsers = dbUsers
+                .Skip((currentPage - 1) * (pageSize == 0 ? totalCount : pageSize))
+                .Take(pageSize == 0 ? totalCount : pageSize)
+                .ToList();
+
+            users = new List<UserDto>();
+            foreach (var user in pagedDbUsers)
+            {
+                var userRoles = await UserManager.GetRolesAsync(user);
+                var branchName = branches.FirstOrDefault(b => b.Id == user.BranchId)?.Name ?? "-";
+
+                users.Add(new UserDto
+                {
+                    Id = user.Id,
+                    UserName = user.UserName,
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    BranchId = user.BranchId,
+                    BranchName = branchName,
+                    IsActive = user.IsActive,
+                    CreatedAt = user.CreatedAt,
+                    Roles = userRoles.ToArray()
+                });
+            }
+
             filteredUsers = users;
-            currentPage = 1;
+            totalPages = pageSize > 0 ? (int)Math.Ceiling((double)totalCount / pageSize) : 1;
         }
         catch (Exception ex)
         {
@@ -597,32 +770,20 @@
         }
     }
 
-    private void SearchUsers()
+    private async Task ApplyFilters()
     {
-        if (string.IsNullOrWhiteSpace(_searchTerm))
-        {
-            filteredUsers = users;
-        }
-        else
-        {
-            var term = _searchTerm.Trim().ToLower();
-            filteredUsers = users.Where(u =>
-                u.FullName.ToLower().Contains(term) ||
-                u.UserName.ToLower().Contains(term) ||
-                u.Role.ToLower().Contains(term) ||
-                u.BranchName.ToLower().Contains(term)
-            ).ToList();
-        }
         currentPage = 1;
-        StateHasChanged();
+        await LoadUsers();
     }
 
-    private void ClearSearch()
+    private async Task ResetFilters()
     {
-        _searchTerm = string.Empty;
-        filteredUsers = users;
+        searchTerm = string.Empty;
+        filterRole = "";
+        filterStatus = "";
+        filterBranchId = 0;
         currentPage = 1;
-        StateHasChanged();
+        await LoadUsers();
     }
 
     private void GoToPage(int page)
@@ -630,7 +791,7 @@
         if (page >= 1 && page <= totalPages)
         {
             currentPage = page;
-            StateHasChanged();
+            _ = LoadUsers();
         }
     }
 
@@ -646,12 +807,12 @@
             sortAscending = true;
         }
         currentPage = 1;
-        StateHasChanged();
+        _ = LoadUsers();
     }
 
     private void OpenCreateModal()
     {
-        currentUser = new CreateUserDto();
+        currentUser = new CreateUserDto { BranchId = 0, Role = "Cashier" };
         userNameDisplay = null;
         isEditMode = false;
         editId = 0;
@@ -668,17 +829,20 @@
             isLoading = true;
             StateHasChanged();
 
-            var user = await UserService.GetByIdAsync(id);
+            var user = await UserManager.FindByIdAsync(id.ToString());
             if (user != null)
             {
+                var userRoles = await UserManager.GetRolesAsync(user);
                 userNameDisplay = user.UserName;
                 currentUser = new CreateUserDto
                 {
                     FullName = user.FullName,
                     UserName = user.UserName,
+                    Email = user.Email,
                     BranchId = user.BranchId,
-                    Role = user.Role,
-                    Password = string.Empty
+                    Role = userRoles.FirstOrDefault() ?? "Cashier",
+                    Password = string.Empty,
+                    ConfirmPassword = string.Empty
                 };
 
                 isEditMode = true;
@@ -699,16 +863,95 @@
         }
     }
 
-    private void CloseModal()
+    private async Task ViewUser(long id)
     {
-        showModal = false;
+        try
+        {
+            var user = await UserManager.FindByIdAsync(id.ToString());
+            if (user != null)
+            {
+                // نمایش جزئیات کاربر
+            }
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا: {ex.Message}");
+        }
+    }
+
+    private void CloseModal() => showModal = false;
+    private void CloseConfirmModal() => showConfirmModal = false;
+    private void CloseResetPasswordModal() => showResetPasswordModal = false;
+
+    private void ShowResetPasswordModal(long id)
+    {
+        resetPasswordUserId = id;
+        resetPasswordUserName = users.FirstOrDefault(u => u.Id == id)?.FullName ?? "";
+        resetPasswordNewPassword = "";
+        resetPasswordConfirmPassword = "";
+        resetPasswordError = "";
+        showResetPasswordModal = true;
         StateHasChanged();
     }
 
-    private void CloseConfirmModal()
+    private async Task ConfirmResetPassword()
     {
-        showConfirmModal = false;
-        StateHasChanged();
+        if (string.IsNullOrEmpty(resetPasswordNewPassword))
+        {
+            resetPasswordError = "لطفاً رمز عبور جدید را وارد کنید.";
+            StateHasChanged();
+            return;
+        }
+
+        if (resetPasswordNewPassword.Length < 6)
+        {
+            resetPasswordError = "رمز عبور باید حداقل 6 کاراکتر باشد.";
+            StateHasChanged();
+            return;
+        }
+
+        if (resetPasswordNewPassword != resetPasswordConfirmPassword)
+        {
+            resetPasswordError = "رمز عبور و تکرار آن مطابقت ندارند.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isResetPasswordSubmitting = true;
+            StateHasChanged();
+
+            var user = await UserManager.FindByIdAsync(resetPasswordUserId.ToString());
+            if (user == null)
+            {
+                resetPasswordError = "کاربر یافت نشد";
+                return;
+            }
+
+            var token = await UserManager.GeneratePasswordResetTokenAsync(user);
+            var result = await UserManager.ResetPasswordAsync(user, token, resetPasswordNewPassword);
+
+            if (result.Succeeded)
+            {
+                successMessage = "رمز عبور با موفقیت بازنشانی شد.";
+                showResetPasswordModal = false;
+                await LoadUsers();
+            }
+            else
+            {
+                resetPasswordError = string.Join(" - ", result.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            resetPasswordError = $"خطا: {ex.Message}";
+        }
+        finally
+        {
+            isResetPasswordSubmitting = false;
+            StateHasChanged();
+        }
     }
 
     private async Task SaveUser()
@@ -718,14 +961,30 @@
 
         if (string.IsNullOrWhiteSpace(currentUser.FullName))
             validationErrors.Add("نام کامل الزامی است");
+
+        if (string.IsNullOrWhiteSpace(currentUser.Email))
+            validationErrors.Add("ایمیل الزامی است");
+
         if (!isEditMode && string.IsNullOrWhiteSpace(currentUser.UserName))
             validationErrors.Add("نام کاربری الزامی است");
+
         if (currentUser.BranchId == 0)
             validationErrors.Add("انتخاب شعبه الزامی است");
+
         if (string.IsNullOrWhiteSpace(currentUser.Role))
             validationErrors.Add("انتخاب نقش الزامی است");
-        if (!isEditMode && string.IsNullOrWhiteSpace(currentUser.Password))
-            validationErrors.Add("رمز عبور الزامی است");
+
+        if (!isEditMode)
+        {
+            if (string.IsNullOrWhiteSpace(currentUser.Password))
+                validationErrors.Add("رمز عبور الزامی است");
+
+            if (currentUser.Password != currentUser.ConfirmPassword)
+                validationErrors.Add("رمز عبور و تکرار آن مطابقت ندارند");
+
+            if (currentUser.Password.Length < 6)
+                validationErrors.Add("رمز عبور باید حداقل 6 کاراکتر باشد");
+        }
 
         if (validationErrors.Any())
         {
@@ -740,27 +999,60 @@
 
             if (isEditMode)
             {
-                var updateRequest = new UpdateUserDto
+                var user = await UserManager.FindByIdAsync(editId.ToString());
+                if (user == null)
                 {
-                    FullName = currentUser.FullName,
-                    Role = currentUser.Role,
-                    IsActive = true
-                };
-                await UserService.UpdateAsync(editId, updateRequest);
-                successMessage = "کاربر با موفقیت ویرایش شد";
+                    validationErrors.Add("کاربر یافت نشد");
+                    return;
+                }
+
+                user.FullName = currentUser.FullName;
+                user.BranchId = currentUser.BranchId ?? 1;
+                user.Email = currentUser.Email;
+
+                var currentRoles = await UserManager.GetRolesAsync(user);
+                await UserManager.RemoveFromRolesAsync(user, currentRoles);
+                await UserManager.AddToRoleAsync(user, currentUser.Role);
+
+                var result = await UserManager.UpdateAsync(user);
+                if (result.Succeeded)
+                {
+                    successMessage = "کاربر با موفقیت ویرایش شد";
+                }
+                else
+                {
+                    validationErrors.AddRange(result.Errors.Select(e => e.Description));
+                }
             }
             else
             {
-                await UserService.CreateAsync(currentUser);
-                successMessage = "کاربر با موفقیت ایجاد شد";
+                var user = new ApplicationUser
+                {
+                    UserName = currentUser.UserName,
+                    Email = currentUser.Email,
+                    FullName = currentUser.FullName,
+                    BranchId = currentUser.BranchId ?? 1,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var result = await UserManager.CreateAsync(user, currentUser.Password);
+                if (result.Succeeded)
+                {
+                    await UserManager.AddToRoleAsync(user, currentUser.Role);
+                    successMessage = "کاربر با موفقیت ایجاد شد";
+                }
+                else
+                {
+                    validationErrors.AddRange(result.Errors.Select(e => e.Description));
+                }
             }
 
-            showModal = false;
-            await LoadUsers();
-        }
-        catch (InvalidOperationException ex)
-        {
-            validationErrors.Add(ex.Message);
+            if (string.IsNullOrEmpty(validationErrors.FirstOrDefault()))
+            {
+                showModal = false;
+                await LoadUsers();
+            }
         }
         catch (Exception ex)
         {
@@ -795,37 +1087,29 @@
     {
         try
         {
+            var user = await UserManager.FindByIdAsync(confirmId.ToString());
+            if (user == null)
+            {
+                validationErrors.Add("کاربر یافت نشد");
+                return;
+            }
+
             if (confirmActionType == "deactivate")
-            {
-                var user = await UserService.GetByIdAsync(confirmId);
-                if (user == null) throw new Exception("کاربر یافت نشد");
-
-                var updateDto = new UpdateUserDto
-                {
-                    FullName = user.FullName,
-                    Role = user.Role,
-                    IsActive = false
-                };
-                await UserService.UpdateAsync(confirmId, updateDto);
-                successMessage = "کاربر با موفقیت غیرفعال شد";
-            }
+                user.IsActive = false;
             else if (confirmActionType == "activate")
+                user.IsActive = true;
+
+            var result = await UserManager.UpdateAsync(user);
+            if (result.Succeeded)
             {
-                var user = await UserService.GetByIdAsync(confirmId);
-                if (user == null) throw new Exception("کاربر یافت نشد");
-
-                var updateDto = new UpdateUserDto
-                {
-                    FullName = user.FullName,
-                    Role = user.Role,
-                    IsActive = true
-                };
-                await UserService.UpdateAsync(confirmId, updateDto);
-                successMessage = "کاربر با موفقیت فعال شد";
+                successMessage = $"کاربر با موفقیت {(confirmActionType == "deactivate" ? "غیرفعال" : "فعال")} شد";
+                showConfirmModal = false;
+                await LoadUsers();
             }
-
-            showConfirmModal = false;
-            await LoadUsers();
+            else
+            {
+                validationErrors.AddRange(result.Errors.Select(e => e.Description));
+            }
         }
         catch (Exception ex)
         {
@@ -838,18 +1122,6 @@
         }
     }
 
-    private string GetRoleBadge(string role)
-    {
-        return role?.ToLower() switch
-        {
-            "admin" => "badge-danger",
-            "manager" => "badge-warning",
-            "cashier" => "badge-info",
-            "supervisor" => "badge-secondary",
-            _ => "badge-primary"
-        };
-    }
-
     private string GetRoleName(string role)
     {
         return role?.ToLower() switch
@@ -859,6 +1131,18 @@
             "cashier" => "صندوقدار",
             "supervisor" => "ناظر",
             _ => role ?? "نامشخص"
+        };
+    }
+
+    private string GetRoleBadge(string role)
+    {
+        return role?.ToLower() switch
+        {
+            "admin" => "badge-danger",
+            "manager" => "badge-warning",
+            "cashier" => "badge-info",
+            "supervisor" => "badge-secondary",
+            _ => "badge-primary"
         };
     }
 }

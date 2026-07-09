@@ -1,9 +1,12 @@
-﻿using HawalaExchange.Domain.Entities;
+﻿
+using HawalaExchange.Domain.Entities;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace HawalaExchange.Infrastructure.Data
 {
-    public class ApplicationDbContext : DbContext
+    public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<long>, long>
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
@@ -12,7 +15,6 @@ namespace HawalaExchange.Infrastructure.Data
 
         // ===== DbSets موجود =====
         public DbSet<Branch> Branches { get; set; }
-        public DbSet<User> Users { get; set; }
         public DbSet<Customer> Customers { get; set; }
         public DbSet<Correspondent> Correspondents { get; set; }
         public DbSet<Currency> Currencies { get; set; }
@@ -26,16 +28,11 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<AccountBadehkarLimit> AccountBadehkarLimits { get; set; }
         public DbSet<Document> Documents { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
-
-        // ===== DbSet جدید برای حواله‌ها =====
         public DbSet<Hawala> Hawalas { get; set; }
-
-        // ===== DbSets جدید برای گزارش‌ها =====
         public DbSet<DailyReport> DailyReports { get; set; }
         public DbSet<TransactionReport> TransactionReports { get; set; }
         public DbSet<CommissionReport> CommissionReports { get; set; }
         public DbSet<TrialBalance> TrialBalances { get; set; }
-
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -57,13 +54,83 @@ namespace HawalaExchange.Infrastructure.Data
         }
 
         // ==========================================
+        // تنظیمات جداول Identity (با کلید long)
+        // ==========================================
+        private static void ConfigureIdentityTables(ModelBuilder modelBuilder)
+        {
+            // ✅ IdentityUserLogin - کلید ترکیبی
+            modelBuilder.Entity<IdentityUserLogin<long>>(entity =>
+            {
+                entity.ToTable("UserLogins");
+                entity.HasKey(e => new { e.LoginProvider, e.ProviderKey });
+            });
+
+            // ✅ IdentityUserRole - کلید ترکیبی
+            modelBuilder.Entity<IdentityUserRole<long>>(entity =>
+            {
+                entity.ToTable("UserRoles");
+                entity.HasKey(e => new { e.UserId, e.RoleId });
+            });
+
+            // ✅ IdentityUserToken - کلید ترکیبی
+            modelBuilder.Entity<IdentityUserToken<long>>(entity =>
+            {
+                entity.ToTable("UserTokens");
+                entity.HasKey(e => new { e.UserId, e.LoginProvider, e.Name });
+            });
+
+            // ✅ IdentityUserClaim - کلید اصلی
+            modelBuilder.Entity<IdentityUserClaim<long>>(entity =>
+            {
+                entity.ToTable("UserClaims");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            });
+
+            // ✅ IdentityRoleClaim - کلید اصلی
+            modelBuilder.Entity<IdentityRoleClaim<long>>(entity =>
+            {
+                entity.ToTable("RoleClaims");
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            });
+        }
+
+        // ==========================================
+        // تنظیمات Identity (User و Role)
+        // ==========================================
+        private static void ConfigureIdentity(ModelBuilder modelBuilder)
+        {
+            // تنظیمات ApplicationUser
+            modelBuilder.Entity<ApplicationUser>(entity =>
+            {
+                entity.ToTable("Users");
+                entity.HasIndex(u => u.UserName).IsUnique();
+                entity.Property(u => u.FullName).HasMaxLength(200);
+                entity.Property(u => u.IsActive).HasDefaultValue(true);
+                entity.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+                // رابطه با Branch
+                entity.HasOne(u => u.Branch)
+                    .WithMany(b => b.Users)
+                    .HasForeignKey(u => u.BranchId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // تنظیمات IdentityRole
+            modelBuilder.Entity<IdentityRole<long>>(entity =>
+            {
+                entity.ToTable("Roles");
+                entity.HasIndex(r => r.Name).IsUnique();
+            });
+        }
+
+        // ==========================================
         // ایندکس‌ها
         // ==========================================
         private static void ConfigureIndexes(ModelBuilder modelBuilder)
         {
-            // ایندکس‌های موجود
             modelBuilder.Entity<Branch>().HasIndex(x => x.Code).IsUnique();
-            modelBuilder.Entity<User>().HasIndex(x => x.UserName).IsUnique();
             modelBuilder.Entity<Customer>().HasIndex(x => x.CustomerCode).IsUnique();
             modelBuilder.Entity<Correspondent>().HasIndex(x => x.Code).IsUnique();
             modelBuilder.Entity<Currency>().HasIndex(x => x.Code).IsUnique();
@@ -75,14 +142,9 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<ExchangeRate>().HasIndex(x => new { x.FromCurrencyId, x.ToCurrencyId, x.EffectiveDate });
             modelBuilder.Entity<Document>().HasIndex(x => new { x.EntityType, x.EntityId });
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TableName, x.RecordId });
-
-            // ایندکس جدید برای حواله
-
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.HawalaType, x.Status });
             modelBuilder.Entity<Hawala>().HasIndex(x => x.ReferenceNumber);
             modelBuilder.Entity<Hawala>().HasIndex(x => x.CreatedAt);
-
-            // ایندکس‌های جدید برای گزارش‌ها
             modelBuilder.Entity<DailyReport>().HasIndex(r => new { r.Date, r.BranchId });
             modelBuilder.Entity<TransactionReport>().HasIndex(r => r.TransactionNo);
             modelBuilder.Entity<TransactionReport>().HasIndex(r => r.CreatedAt);
@@ -95,9 +157,7 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureDefaultValues(ModelBuilder modelBuilder)
         {
-            // مقادیر پیش‌فرض موجود
             modelBuilder.Entity<Branch>().Property(x => x.IsArchived).HasDefaultValue(false);
-            modelBuilder.Entity<User>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<Currency>().Property(x => x.DecimalPlaces).HasDefaultValue(2);
             modelBuilder.Entity<Currency>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<Account>().Property(x => x.IsArchived).HasDefaultValue(false);
@@ -105,7 +165,6 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Correspondent>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.IsActive).HasDefaultValue(true);
 
-            // مقادیر پیش‌فرض برای حواله
             modelBuilder.Entity<Hawala>()
                 .Property(x => x.Status)
                 .HasDefaultValue("Pending");
@@ -114,7 +173,6 @@ namespace HawalaExchange.Infrastructure.Data
                 .Property(x => x.CreatedAt)
                 .HasDefaultValueSql("GETUTCDATE()");
 
-            // مقادیر پیش‌فرض برای گزارش‌ها
             modelBuilder.Entity<DailyReport>()
                 .Property(r => r.CreatedAt)
                 .HasDefaultValueSql("GETUTCDATE()");
@@ -137,7 +195,6 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureDecimalPrecision(ModelBuilder modelBuilder)
         {
-            // دقت اعداد موجود
             modelBuilder.Entity<LedgerEntry>().Property(x => x.TalabKar).HasPrecision(18, 4);
             modelBuilder.Entity<LedgerEntry>().Property(x => x.BadehKar).HasPrecision(18, 4);
             modelBuilder.Entity<TransactionDetail>().Property(x => x.FromAmount).HasPrecision(18, 4);
@@ -152,7 +209,6 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Expense>().Property(x => x.Amount).HasPrecision(18, 4);
             modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.BadehkarLimit).HasPrecision(18, 4);
 
-            // دقت اعداد برای حواله
             modelBuilder.Entity<Hawala>()
                 .Property(x => x.FromAmount)
                 .HasPrecision(18, 4);
@@ -173,7 +229,6 @@ namespace HawalaExchange.Infrastructure.Data
                 .Property(x => x.AgentCommissionAmount)
                 .HasPrecision(18, 4);
 
-            // دقت اعداد برای گزارش‌ها
             modelBuilder.Entity<DailyReport>()
                 .Property(r => r.TotalSendAmount).HasPrecision(18, 4);
             modelBuilder.Entity<DailyReport>()
@@ -229,12 +284,18 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureRelationships(ModelBuilder modelBuilder)
         {
-            // --- روابط موجود ---
-            // User <-> Branch
-            modelBuilder.Entity<User>()
-                .HasOne(u => u.Branch)
-                .WithMany(b => b.Users)
-                .HasForeignKey(u => u.BranchId)
+            // Transaction <-> CreatedByUser
+            modelBuilder.Entity<Transaction>()
+                .HasOne(t => t.CreatedByUser)
+                .WithMany(u => u.CreatedTransactions)
+                .HasForeignKey(t => t.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Transaction <-> CancelledByUser
+            modelBuilder.Entity<Transaction>()
+                .HasOne(t => t.CancelledByUser)
+                .WithMany(u => u.CancelledTransactions)
+                .HasForeignKey(t => t.CancelledBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Transaction <-> Branch
@@ -251,42 +312,26 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasForeignKey(t => t.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Transaction <-> CreatedByUser
-            modelBuilder.Entity<Transaction>()
-                .HasOne(t => t.CreatedByUser)
-                .WithMany(u => u.CreatedTransactions)
-                .HasForeignKey(t => t.CreatedBy)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // Transaction <-> CancelledByUser
-            modelBuilder.Entity<Transaction>()
-                .HasOne(t => t.CancelledByUser)
-                .WithMany(u => u.CancelledTransactions)
-                .HasForeignKey(t => t.CancelledBy)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // Transaction <-> ReversedTransaction (self-ref)
+            // Transaction <-> ReversedTransaction
             modelBuilder.Entity<Transaction>()
                 .HasOne(t => t.ReversedTransaction)
                 .WithMany()
                 .HasForeignKey(t => t.ReversedTransactionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // TransactionDetail <-> Transaction
+            // TransactionDetail relationships...
             modelBuilder.Entity<TransactionDetail>()
                 .HasOne(td => td.Transaction)
                 .WithMany(t => t.TransactionDetails)
                 .HasForeignKey(td => td.TransactionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // TransactionDetail <-> Correspondent
             modelBuilder.Entity<TransactionDetail>()
                 .HasOne(td => td.Correspondent)
                 .WithMany(c => c.TransactionDetails)
                 .HasForeignKey(td => td.CorrespondentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // TransactionDetail <-> Currencies
             modelBuilder.Entity<TransactionDetail>()
                 .HasOne(td => td.FromCurrency)
                 .WithMany()
@@ -311,70 +356,64 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasForeignKey(td => td.AgentCommissionCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // LedgerEntry <-> Transaction
+            // LedgerEntry relationships...
             modelBuilder.Entity<LedgerEntry>()
                 .HasOne(le => le.Transaction)
                 .WithMany(t => t.LedgerEntries)
                 .HasForeignKey(le => le.TransactionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // LedgerEntry <-> Account
             modelBuilder.Entity<LedgerEntry>()
                 .HasOne(le => le.Account)
                 .WithMany(a => a.LedgerEntries)
                 .HasForeignKey(le => le.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // LedgerEntry <-> Currency
             modelBuilder.Entity<LedgerEntry>()
                 .HasOne(le => le.Currency)
                 .WithMany(c => c.LedgerEntries)
                 .HasForeignKey(le => le.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Transfer <-> Transaction
+            // Transfer relationships...
             modelBuilder.Entity<Transfer>()
                 .HasOne(t => t.Transaction)
                 .WithMany(tr => tr.Transfers)
                 .HasForeignKey(t => t.TransactionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Transfer <-> FromAccount
             modelBuilder.Entity<Transfer>()
                 .HasOne(t => t.FromAccount)
                 .WithMany(a => a.FromTransfers)
                 .HasForeignKey(t => t.FromAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Transfer <-> ToAccount
             modelBuilder.Entity<Transfer>()
                 .HasOne(t => t.ToAccount)
                 .WithMany(a => a.ToTransfers)
                 .HasForeignKey(t => t.ToAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Transfer <-> Currency
             modelBuilder.Entity<Transfer>()
                 .HasOne(t => t.Currency)
                 .WithMany()
                 .HasForeignKey(t => t.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Expense <-> Transaction
+            // Expense relationships...
             modelBuilder.Entity<Expense>()
                 .HasOne(e => e.Transaction)
                 .WithMany(t => t.Expenses)
                 .HasForeignKey(e => e.TransactionId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Expense <-> Currency
             modelBuilder.Entity<Expense>()
                 .HasOne(e => e.Currency)
                 .WithMany()
                 .HasForeignKey(e => e.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ExchangeRate <-> Currencies
+            // ExchangeRate relationships...
             modelBuilder.Entity<ExchangeRate>()
                 .HasOne(er => er.FromCurrency)
                 .WithMany()
@@ -387,122 +426,106 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasForeignKey(er => er.ToCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ExchangeRate <-> User (CreatedBy)
             modelBuilder.Entity<ExchangeRate>()
                 .HasOne(er => er.CreatedByUser)
-                .WithMany()
+                .WithMany(u => u.ExchangeRates)
                 .HasForeignKey(er => er.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // AccountBadehkarLimit <-> Account
+            // AccountBadehkarLimit relationships...
             modelBuilder.Entity<AccountBadehkarLimit>()
                 .HasOne(abl => abl.Account)
                 .WithMany(a => a.AccountBadehkarLimits)
                 .HasForeignKey(abl => abl.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // AccountBadehkarLimit <-> Currency
             modelBuilder.Entity<AccountBadehkarLimit>()
                 .HasOne(abl => abl.Currency)
                 .WithMany(c => c.AccountBadehkarLimits)
                 .HasForeignKey(abl => abl.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // AccountBadehkarLimit <-> User (CreatedBy)
             modelBuilder.Entity<AccountBadehkarLimit>()
                 .HasOne(abl => abl.CreatedByUser)
-                .WithMany()
+                .WithMany(u => u.AccountLimits)
                 .HasForeignKey(abl => abl.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // AuditLog <-> User
+            // AuditLog <-> ApplicationUser
             modelBuilder.Entity<AuditLog>()
                 .HasOne(al => al.User)
-                .WithMany()
+                .WithMany(u => u.AuditLogs)
                 .HasForeignKey(al => al.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-
-
-            // Hawala <-> Correspondent
+            // Hawala relationships...
             modelBuilder.Entity<Hawala>()
                 .HasOne(h => h.Correspondent)
                 .WithMany()
                 .HasForeignKey(h => h.CorrespondentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Hawala <-> FromCurrency
             modelBuilder.Entity<Hawala>()
                 .HasOne(h => h.FromCurrency)
                 .WithMany()
                 .HasForeignKey(h => h.FromCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Hawala <-> ToCurrency
             modelBuilder.Entity<Hawala>()
                 .HasOne(h => h.ToCurrency)
                 .WithMany()
                 .HasForeignKey(h => h.ToCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Hawala <-> CommissionCurrency
             modelBuilder.Entity<Hawala>()
                 .HasOne(h => h.CommissionCurrency)
                 .WithMany()
                 .HasForeignKey(h => h.CommissionCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Hawala <-> AgentCommissionCurrency
             modelBuilder.Entity<Hawala>()
                 .HasOne(h => h.AgentCommissionCurrency)
                 .WithMany()
                 .HasForeignKey(h => h.AgentCommissionCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Hawala <-> CreatedByUser
             modelBuilder.Entity<Hawala>()
                 .HasOne(h => h.CreatedByUser)
-                .WithMany()
+                .WithMany(u => u.CreatedHawalas)
                 .HasForeignKey(h => h.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Hawala <-> PaidByUser
             modelBuilder.Entity<Hawala>()
                 .HasOne(h => h.PaidByUser)
-                .WithMany()
+                .WithMany(u => u.PaidHawalas)
                 .HasForeignKey(h => h.PaidBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Hawala <-> CancelledByUser
             modelBuilder.Entity<Hawala>()
                 .HasOne(h => h.CancelledByUser)
-                .WithMany()
+                .WithMany(u => u.CancelledHawalas)
                 .HasForeignKey(h => h.CancelledBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // --- روابط جدید برای گزارش‌ها ---
-            // DailyReport <-> Branch
+            // Report relationships...
             modelBuilder.Entity<DailyReport>()
                 .HasOne(r => r.Branch)
                 .WithMany()
                 .HasForeignKey(r => r.BranchId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // TransactionReport <-> Transaction
             modelBuilder.Entity<TransactionReport>()
                 .HasOne(r => r.Transaction)
                 .WithMany()
                 .HasForeignKey(r => r.TransactionId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            // CommissionReport <-> Branch
             modelBuilder.Entity<CommissionReport>()
                 .HasOne(r => r.Branch)
                 .WithMany()
                 .HasForeignKey(r => r.BranchId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // TrialBalance <-> Account
             modelBuilder.Entity<TrialBalance>()
                 .HasOne(r => r.Account)
                 .WithMany()
@@ -515,7 +538,6 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureHawalaEntity(ModelBuilder modelBuilder)
         {
-            // محدودیت‌های چک برای حواله
             modelBuilder.Entity<Hawala>()
                 .HasCheckConstraint("CK_Hawala_FromAmount_Positive", "[FromAmount] > 0");
 
@@ -528,12 +550,10 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Hawala>()
                 .HasCheckConstraint("CK_Hawala_CommissionAmount_NonNegative_IfNotNull", "[CommissionAmount] IS NULL OR [CommissionAmount] >= 0");
 
-            // اعتبارسنجی نوع حواله
             modelBuilder.Entity<Hawala>()
                 .HasCheckConstraint("CK_Hawala_HawalaType_Valid",
                     "[HawalaType] IN ('HawalaSend', 'HawalaReceive', 'HawalaOther')");
 
-            // اعتبارسنجی وضعیت
             modelBuilder.Entity<Hawala>()
                 .HasCheckConstraint("CK_Hawala_Status_Valid",
                     "[Status] IN ('Pending', 'Paid', 'Cancel')");
@@ -544,7 +564,6 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureReportEntities(ModelBuilder modelBuilder)
         {
-            // محدودیت‌های چک برای گزارش روزانه
             modelBuilder.Entity<DailyReport>()
                 .HasCheckConstraint("CK_DailyReport_TotalSendAmount_NonNegative", "[TotalSendAmount] >= 0");
 
@@ -572,20 +591,6 @@ namespace HawalaExchange.Infrastructure.Data
                 }
             );
 
-            modelBuilder.Entity<User>().HasData(
-                new User
-                {
-                    Id = 1,
-                    BranchId = 1,
-                    FullName = "System Admin",
-                    UserName = "admin",
-                    PasswordHash = "CHANGE_THIS_PASSWORD_HASH",
-                    Role = "Admin",
-                    IsActive = true,
-                    CreatedAt = createdAt
-                }
-            );
-
             modelBuilder.Entity<Currency>().HasData(
                 new Currency { Id = 1, Code = "AFN", Name = "Afghani", Symbol = "؋", DecimalPlaces = 2, IsActive = true },
                 new Currency { Id = 2, Code = "USD", Name = "US Dollar", Symbol = "$", DecimalPlaces = 2, IsActive = true },
@@ -596,12 +601,12 @@ namespace HawalaExchange.Infrastructure.Data
             );
 
             modelBuilder.Entity<Account>().HasData(
-                new Account { Id = 1, AccountCode = "1001", AccountName = "صندوق", AccountType = "Cash", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 2, AccountCode = "1101", AccountName = "بانک", AccountType = "Bank", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 3, AccountCode = "3001", AccountName = "درآمد  کمیشن حواله ", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 4, AccountCode = "3002", AccountName = "درآمد تبادله ", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 5, AccountCode = "4001", AccountName = "مصارف دفتر", AccountType = "Expense", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 6, AccountCode = "5001", AccountName = "سرمایه صاحب سهام", AccountType = "Equity", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt }
+                new Account { Id = 1, AccountCode = "1001", AccountName = "Cash", AccountType = "Cash", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 2, AccountCode = "1101", AccountName = "Bank", AccountType = "Bank", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 3, AccountCode = "3001", AccountName = "Hawala Commission Income", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 4, AccountCode = "3002", AccountName = "Exchange Income", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 5, AccountCode = "4001", AccountName = "Office Expense", AccountType = "Expense", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 6, AccountCode = "5001", AccountName = "Owner Capital", AccountType = "Equity", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt }
             );
         }
     }

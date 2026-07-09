@@ -33,6 +33,6 @@ namespace HawalaExchange.Domain.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         [ForeignKey(nameof(UserId))]
-        public virtual User? User { get; set; }
+        public virtual ApplicationUser? User { get; set; }
     }
 }

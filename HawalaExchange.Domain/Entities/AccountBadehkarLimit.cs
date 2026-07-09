@@ -34,6 +34,6 @@ namespace HawalaExchange.Domain.Entities
         public virtual Currency? Currency { get; set; }
 
         [ForeignKey(nameof(CreatedBy))]
-        public virtual User? CreatedByUser { get; set; }
+        public virtual ApplicationUser? CreatedByUser { get; set; }
     }
 }

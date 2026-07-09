@@ -1,0 +1,276 @@
+﻿@page "/register"
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using HawalaExchange.Domain.Entities
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject ILogger<Register> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>ثبت نام</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg modern-card">
+                <div class="card-header bg-success text-white text-center py-3 gradient-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-person-plus me-2"></i>ثبت نام
+                    </h4>
+                    <small class="text-white-50">حواله‌اکس‌چینج</small>
+                </div>
+                <div class="card-body p-4">
+                    <StatusMessage Message="@Message" />
+
+                    <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" role="alert" />
+
+                        <!-- نام کامل -->
+                        <div class="form-floating mb-3">
+                            <InputText @bind-Value="Input.FullName" id="Input.FullName" class="form-control" aria-required="true" placeholder="نام و نام خانوادگی" />
+                            <label for="Input.FullName">نام کامل</label>
+                            <ValidationMessage For="() => Input.FullName" class="text-danger" />
+                        </div>
+
+                        <!-- نام کاربری -->
+                        <div class="form-floating mb-3">
+                            <InputText @bind-Value="Input.UserName" id="Input.UserName" class="form-control" autocomplete="username" aria-required="true" placeholder="نام کاربری" />
+                            <label for="Input.UserName">نام کاربری</label>
+                            <ValidationMessage For="() => Input.UserName" class="text-danger" />
+                        </div>
+
+                        <!-- ایمیل -->
+                        <div class="form-floating mb-3">
+                            <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="email" aria-required="true" placeholder="name@example.com" />
+                            <label for="Input.Email">ایمیل</label>
+                            <ValidationMessage For="() => Input.Email" class="text-danger" />
+                        </div>
+
+                        <!-- رمز عبور -->
+                        <div class="form-floating mb-3">
+                            <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="رمز عبور" />
+                            <label for="Input.Password">رمز عبور</label>
+                            <ValidationMessage For="() => Input.Password" class="text-danger" />
+                        </div>
+
+                        <!-- تکرار رمز عبور -->
+                        <div class="form-floating mb-3">
+                            <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="تکرار رمز عبور" />
+                            <label for="Input.ConfirmPassword">تکرار رمز عبور</label>
+                            <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
+                        </div>
+
+                        <!-- شعبه -->
+                        <div class="form-floating mb-3">
+                            <InputNumber @bind-Value="Input.BranchId" id="Input.BranchId" class="form-control" aria-required="true" placeholder="شناسه شعبه" />
+                            <label for="Input.BranchId">شناسه شعبه</label>
+                            <ValidationMessage For="() => Input.BranchId" class="text-danger" />
+                        </div>
+
+                        <!-- نقش (اختیاری) -->
+                        <div class="form-floating mb-3">
+                            <InputSelect @bind-Value="Input.Role" id="Input.Role" class="form-select">
+                                <option value="Cashier">صندوقدار</option>
+                                <option value="Supervisor">ناظر</option>
+                                <option value="Manager">سرپرست</option>
+                                <option value="Admin">مدیر</option>
+                            </InputSelect>
+                            <label for="Input.Role">نقش</label>
+                            <ValidationMessage For="() => Input.Role" class="text-danger" />
+                        </div>
+
+                        <button type="submit" class="w-100 btn btn-lg btn-success-modern" disabled="@isLoading">
+                            @if (isLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>در حال ثبت نام...</span>
+                            }
+                            else
+                            {
+                                <span><i class="bi bi-person-plus me-2"></i>ثبت نام</span>
+                            }
+                        </button>
+                    </EditForm>
+
+                    <hr class="my-4" />
+
+                    <!-- لینک ورود -->
+                    <div class="text-center">
+                        <p class="text-muted mb-0">
+                            <i class="bi bi-box-arrow-in-right me-1"></i>
+                            قبلاً ثبت نام کرده‌اید؟
+                            <a href="/login" class="fw-bold text-primary text-decoration-none">
+                                وارد شوید
+                                <i class="bi bi-arrow-left-short"></i>
+                            </a>
+                        </p>
+                    </div>
+
+                    <hr class="my-3" />
+
+                    <!-- اطلاعات پیش‌فرض -->
+                    <div class="text-center text-muted small bg-light p-2 rounded">
+                        <i class="bi bi-info-circle me-1"></i>
+                        نام کاربری پیش‌فرض: <strong>admin</strong> | رمز عبور: <strong>Admin@123</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<IdentityError>? identityErrors;
+    private bool isLoading = false;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private string? Message => identityErrors is null ? null : $"خطا: {string.Join(", ", identityErrors.Select(error => error.Description))}";
+
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+    }
+
+    public async Task RegisterUser(EditContext editContext)
+    {
+        if (isLoading) return;
+
+        try
+        {
+            isLoading = true;
+            identityErrors = null;
+            StateHasChanged();
+
+            var user = CreateUser();
+
+            // Set properties
+            user.FullName = Input.FullName;
+            user.BranchId = Input.BranchId > 0 ? Input.BranchId : 1; // Default branch
+            user.IsActive = true;
+            user.CreatedAt = DateTime.UtcNow;
+
+            await UserStore.SetUserNameAsync(user, Input.UserName, CancellationToken.None);
+            var emailStore = GetEmailStore();
+            await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+
+            var result = await UserManager.CreateAsync(user, Input.Password);
+
+            if (!result.Succeeded)
+            {
+                identityErrors = result.Errors;
+                return;
+            }
+
+            Logger.LogInformation("User created a new account with password.");
+
+            // Add to role
+            if (!string.IsNullOrEmpty(Input.Role))
+            {
+                await UserManager.AddToRoleAsync(user, Input.Role);
+            }
+            else
+            {
+                await UserManager.AddToRoleAsync(user, "Cashier");
+            }
+
+            var userId = await UserManager.GetUserIdAsync(user);
+            var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
+            code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+            var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+                NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
+                new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
+
+            await EmailSender.SendConfirmationLinkAsync(user, Input.Email, HtmlEncoder.Default.Encode(callbackUrl));
+
+            if (UserManager.Options.SignIn.RequireConfirmedAccount)
+            {
+                RedirectManager.RedirectTo(
+                    "Account/RegisterConfirmation",
+                    new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+            }
+            else
+            {
+                await SignInManager.SignInAsync(user, isPersistent: false);
+                RedirectManager.RedirectTo(ReturnUrl ?? "/");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Registration error");
+            identityErrors = new[] { new IdentityError { Description = $"خطا در ثبت نام: {ex.Message}" } };
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private ApplicationUser CreateUser()
+    {
+        try
+        {
+            return Activator.CreateInstance<ApplicationUser>();
+        }
+        catch
+        {
+            throw new InvalidOperationException($"Can't create an instance of '{nameof(ApplicationUser)}'. " +
+                $"Ensure that '{nameof(ApplicationUser)}' is not an abstract class and has a parameterless constructor.");
+        }
+    }
+
+    private IUserEmailStore<ApplicationUser> GetEmailStore()
+    {
+        if (!UserManager.SupportsUserEmail)
+        {
+            throw new NotSupportedException("The default UI requires a user store with email support.");
+        }
+        return (IUserEmailStore<ApplicationUser>)UserStore;
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "نام کامل الزامی است")]
+        [Display(Name = "نام کامل")]
+        public string FullName { get; set; } = "";
+
+        [Required(ErrorMessage = "نام کاربری الزامی است")]
+        [Display(Name = "نام کاربری")]
+        public string UserName { get; set; } = "";
+
+        [Required(ErrorMessage = "ایمیل الزامی است")]
+        [EmailAddress(ErrorMessage = "ایمیل معتبر نیست")]
+        [Display(Name = "ایمیل")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "رمز عبور الزامی است")]
+        [StringLength(100, ErrorMessage = "رمز عبور باید حداقل {2} و حداکثر {1} کاراکتر باشد.", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "رمز عبور")]
+        public string Password { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "تکرار رمز عبور")]
+        [Compare("Password", ErrorMessage = "رمز عبور و تکرار آن مطابقت ندارند.")]
+        public string ConfirmPassword { get; set; } = "";
+
+        [Display(Name = "شناسه شعبه")]
+        public long BranchId { get; set; } = 1;
+
+        [Display(Name = "نقش")]
+        public string Role { get; set; } = "Cashier";
+    }
+}

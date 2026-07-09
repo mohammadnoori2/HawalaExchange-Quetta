@@ -2151,6 +2151,111 @@ body {
 }
 
 
+/* =========================================
+   USER INFO CARD - کارت اطلاعات کاربر در منو
+========================================= */
+.user-info-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    margin: 8px 12px;
+    background: rgba(11, 26, 46, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(11, 26, 46, 0.08);
+    transition: all 0.3s ease;
+}
+
+    .user-info-card:hover {
+        background: rgba(11, 26, 46, 0.08);
+    }
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0B1A2E, #1a3d5c);
+    border-radius: 50%;
+    color: #F5D742;
+    font-weight: 700;
+    font-size: 1rem;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.user-details {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.user-name {
+    color: #0B1A2E;
+    font-weight: 600;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-role {
+    color: #667085;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* =========================================
+   NAV LINK LOGOUT/LOGIN - دکمه‌های ورود/خروج
+========================================= */
+.nav-link-logout {
+    color: #dc3545 !important;
+    cursor: pointer;
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: right;
+    padding: 0.7rem 1.2rem;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-radius: 14px;
+    transition: all 0.2s ease;
+    margin: 0.2rem 0.6rem;
+}
+
+    .nav-link-logout:hover {
+        background: rgba(220, 53, 69, 0.1) !important;
+        color: #b02a37 !important;
+        transform: translateX(-4px);
+    }
+
+    .nav-link-logout i {
+        font-size: 1.3rem;
+        width: 1.8rem;
+        text-align: center;
+        color: #dc3545;
+        flex-shrink: 0;
+    }
+
+.nav-link-login {
+    color: #0061f2 !important;
+}
+
+    .nav-link-login:hover {
+        background: rgba(0, 97, 242, 0.1) !important;
+        color: #0050c8 !important;
+    }
+
+    .nav-link-login i {
+        color: #0061f2 !important;
+    }
+
 
 /* Hawala Searchable dropdwon styles */
 .searchable-dropdown {
@@ -2186,3 +2291,4 @@ body {
     .searchable-dropdown-item:last-child {
         border-bottom: none;
     }
+

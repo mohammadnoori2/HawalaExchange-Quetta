@@ -30,7 +30,7 @@ namespace HawalaExchange.Domain.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation Properties
-        public virtual ICollection<User>? Users { get; set; }
+        public virtual ICollection<ApplicationUser>? Users { get; set; }
 
         // ✅ Fixed: Use your own Transaction entity, not System.Transactions.Transaction
         public virtual ICollection<Transaction>? Transactions { get; set; }

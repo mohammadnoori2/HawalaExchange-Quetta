@@ -1,4 +1,14 @@
 ﻿@* NavMenu.razor *@
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using System.Security.Claims
+@using HawalaExchange.Domain.Entities
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject ILogger<NavMenu> Logger
 
 <div class="nav-sidebar">
     <!-- هدر با لوگوی جدید -->
@@ -19,6 +29,44 @@
 
     <div class="nav-scrollable" onclick="document.getElementById('nav-toggle').checked = false;">
         <nav class="nav flex-column">
+            <!-- اطلاعات کاربر جاری -->
+            <AuthorizeView>
+                <Authorized>
+                    <div class="user-info-card">
+                        <div class="user-avatar">
+                            @{
+                                var userName = context.User.Identity?.Name ?? "کاربر";
+                                var initial = userName.Length > 0 ? userName.Substring(0, Math.Min(2, userName.Length)).ToUpper() : "??";
+                                @initial
+                            }
+                        </div>
+                        <div class="user-details">
+                            <span class="user-name">@context.User.Identity?.Name</span>
+                            <span class="user-role">
+                                @{
+                                    var roles = context.User.FindAll(ClaimTypes.Role).Select(c => c.Value);
+                                    @string.Join(", ", roles)
+                                }
+                            </span>
+                        </div>
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <div class="user-info-card">
+                        <div class="user-avatar">
+                            <i class="bi bi-person"></i>
+                        </div>
+                        <div class="user-details">
+                            <span class="user-name">میهمان</span>
+                            <span class="user-role">ثبت نام نشده</span>
+                        </div>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeView>
+
+            <div class="nav-divider"></div>
+
+            <!-- منوهای اصلی -->
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="" Match="NavLinkMatch.All">
                     <span class="bi bi-grid-1x2-fill" aria-hidden="true"></span> داشبورد
@@ -34,7 +82,7 @@
             </div>
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/hawala-transactions">
-                    <span class="bi bi-wallet2"></span> حواله ها
+                    <span class="bi bi-wallet2"></span> حواله‌ها
                 </NavLink>
             </div>
 
@@ -48,11 +96,16 @@
                     <span class="bi bi-shop"></span> شعبه‌ها
                 </NavLink>
             </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/users">
-                    <span class="bi bi-person-badge"></span> کاربران
-                </NavLink>
-            </div>
+
+            <!-- فقط Admin و Manager می‌توانند کاربران را ببینند -->
+            <AuthorizeView Roles="Admin,Manager">
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link-custom" href="/users">
+                        <span class="bi bi-person-badge"></span> کاربران
+                    </NavLink>
+                </div>
+            </AuthorizeView>
+
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/currencies">
                     <span class="bi bi-currency-dollar"></span> اسعار
@@ -73,7 +126,7 @@
             </div>
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/transactions">
-                    <span class="bi bi-arrow-left-right"></span> تراکنش
+                    <span class="bi bi-arrow-left-right"></span> تراکنش‌ها
                 </NavLink>
             </div>
             <div class="nav-item px-3">
@@ -96,7 +149,7 @@
 
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/reports">
-                    <span class="bi bi-pie-chart"></span> گزارش
+                    <span class="bi bi-pie-chart"></span> گزارش‌ها
                 </NavLink>
             </div>
             <div class="nav-item px-3">
@@ -104,11 +157,78 @@
                     <span class="bi bi-lock"></span> محدودیت حساب‌ها
                 </NavLink>
             </div>
+
+            <!-- فقط Admin می‌تواند لاگ‌ها را ببیند -->
+            <AuthorizeView Roles="Admin">
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link-custom" href="/auditlogs">
+                        <span class="bi bi-clock-history"></span> لاگ‌های سیستم
+                    </NavLink>
+                </div>
+            </AuthorizeView>
+
+            <div class="nav-divider"></div>
+
+            <!-- ✅ دکمه خروج با @onclick -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/auditlogs">
-                    <span class="bi bi-clock-history"></span> لاگ‌های سیستم
-                </NavLink>
+                <AuthorizeView>
+                    <Authorized>
+                        <NavLink class="nav-link-custom nav-link-logout" href="/logout">
+                            <span class="bi bi-box-arrow-right"></span> خروج
+                        </NavLink>
+                    </Authorized>
+                    <NotAuthorized>
+                        <NavLink class="nav-link-custom nav-link-login" href="/login">
+                            <span class="bi bi-box-arrow-in-right"></span> ورود
+                        </NavLink>
+                    </NotAuthorized>
+                </AuthorizeView>
             </div>
         </nav>
     </div>
 </div>
+
+@code {
+    private string? currentUrl;
+    private bool isAuthenticated;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+
+        if (AuthenticationState != null)
+        {
+            var authState = await AuthenticationState;
+            isAuthenticated = authState.User?.Identity?.IsAuthenticated ?? false;
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    private async Task HandleLogout()
+    {
+        try
+        {
+            await SignInManager.SignOutAsync();
+            NavigationManager.NavigateTo("/login", true);
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error during logout");
+            NavigationManager.NavigateTo("/login", true);
+        }
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}

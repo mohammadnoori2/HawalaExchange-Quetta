@@ -14,10 +14,10 @@ namespace HawalaSystem.Mappings
             CreateMap<UpdateBranchDto, Branch>();
 
             // ===== User =====
-            CreateMap<User, UserDto>()
+            CreateMap<ApplicationUser, UserDto>()
                 .ForMember(dest => dest.BranchName, opt => opt.MapFrom(src => src.Branch.Name));
-            CreateMap<CreateUserDto, User>();
-            CreateMap<UpdateUserDto, User>();
+            CreateMap<CreateUserDto, ApplicationUser>();
+            CreateMap<UpdateUserDto, ApplicationUser>();
 
             // ===== Customer =====
             CreateMap<Customer, CustomerDto>().ReverseMap();

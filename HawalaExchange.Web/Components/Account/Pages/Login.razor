@@ -1,0 +1,181 @@
+﻿@page "/login"
+@using System.ComponentModel.DataAnnotations
+@using HawalaExchange.Domain.Entities
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject ILogger<Login> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>ورود به سیستم</PageTitle>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg modern-card">
+                <div class="card-header bg-primary text-white text-center py-3 gradient-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>ورود به سیستم
+                    </h4>
+                    <small class="text-white-50">حواله‌اکس‌چینج</small>
+                </div>
+                <div class="card-body p-4">
+                    <StatusMessage Message="@errorMessage" />
+
+                    <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" role="alert" />
+
+                        <div class="form-floating mb-3">
+                            <InputText @bind-Value="Input.UserName" id="Input.UserName" class="form-control" autocomplete="username" aria-required="true" placeholder="نام کاربری" />
+                            <label for="Input.UserName" class="form-label">نام کاربری</label>
+                            <ValidationMessage For="() => Input.UserName" class="text-danger" />
+                        </div>
+
+                        <div class="form-floating mb-3">
+                            <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="رمز عبور" />
+                            <label for="Input.Password" class="form-label">رمز عبور</label>
+                            <ValidationMessage For="() => Input.Password" class="text-danger" />
+                        </div>
+
+                        <div class="checkbox mb-3">
+                            <label class="form-label">
+                                <InputCheckbox @bind-Value="Input.RememberMe" class="form-check-input" />
+                                مرا به خاطر بسپار
+                            </label>
+                        </div>
+
+                        <button type="submit" class="w-100 btn btn-lg btn-primary-modern" disabled="@isLoading">
+                            @if (isLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>در حال ورود...</span>
+                            }
+                            else
+                            {
+                                <span><i class="bi bi-box-arrow-in-right me-2"></i>ورود</span>
+                            }
+                        </button>
+                    </EditForm>
+
+                    <hr class="my-4" />
+
+                    <!-- لینک ثبت نام -->
+                    <div class="text-center">
+                        <p class="text-muted mb-0">
+                            <i class="bi bi-person-plus me-1"></i>
+                            حساب کاربری ندارید؟
+                            <a href="/register" class="fw-bold text-primary text-decoration-none">
+                                ثبت نام کنید
+                                <i class="bi bi-arrow-left-short"></i>
+                            </a>
+                        </p>
+                    </div>
+
+                    <hr class="my-3" />
+
+                    <!-- اطلاعات پیش‌فرض -->
+                    <div class="text-center text-muted small bg-light p-2 rounded">
+                        <i class="bi bi-info-circle me-1"></i>
+                        نام کاربری: <strong>admin</strong> | رمز عبور: <strong>Admin@123</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? errorMessage;
+    private EditContext editContext = default!;
+    private bool isLoading = false;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        editContext = new EditContext(Input);
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+        }
+    }
+
+    public async Task LoginUser()
+    {
+        if (isLoading) return;
+
+        if (!editContext.Validate())
+        {
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            StateHasChanged();
+
+            var result = await SignInManager.PasswordSignInAsync(
+                Input.UserName,
+                Input.Password,
+                Input.RememberMe,
+                lockoutOnFailure: true);
+
+            if (result.Succeeded)
+            {
+                Logger.LogInformation("User logged in.");
+                RedirectManager.RedirectTo(ReturnUrl ?? "/");
+            }
+            else if (result.RequiresTwoFactor)
+            {
+                RedirectManager.RedirectTo(
+                    "Account/LoginWith2fa",
+                    new() { ["returnUrl"] = ReturnUrl, ["rememberMe"] = Input.RememberMe });
+            }
+            else if (result.IsLockedOut)
+            {
+                Logger.LogWarning("User account locked out.");
+                errorMessage = "حساب کاربری شما قفل شده است. لطفاً بعداً تلاش کنید.";
+            }
+            else
+            {
+                errorMessage = "نام کاربری یا رمز عبور اشتباه است.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"خطا در ورود: {ex.Message}";
+            Logger.LogError(ex, "Login error");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "نام کاربری الزامی است")]
+        public string UserName { get; set; } = "";
+
+        [Required(ErrorMessage = "رمز عبور الزامی است")]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = "";
+
+        [Display(Name = "مرا به خاطر بسپار")]
+        public bool RememberMe { get; set; }
+    }
+}

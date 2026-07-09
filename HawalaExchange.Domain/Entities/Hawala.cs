@@ -17,6 +17,12 @@ namespace HawalaExchange.Domain.Entities
         [MaxLength(50)]
         public string HawalaType { get; set; } // HawalaSend, HawalaReceive, HawalaOther
         public long? CorrespondentId { get; set; }
+        [MaxLength(200)]
+        // در Hawala.cs
+        public long? PaymentLocationId { get; set; }
+
+        [ForeignKey(nameof(PaymentLocationId))]
+        public virtual PaymentLocation? PaymentLocation { get; set; }
 
         [MaxLength(200)]
         public string? SenderName { get; set; }
@@ -108,9 +114,6 @@ namespace HawalaExchange.Domain.Entities
         public string? CancelReason { get; set; }
 
         public long? ReversedTransactionId { get; set; }
-
-        [MaxLength(200)]
-       public string? PaymentLocation { get; set; }
 
         [ForeignKey(nameof(CorrespondentId))]
         public virtual Correspondent? Correspondent { get; set; }

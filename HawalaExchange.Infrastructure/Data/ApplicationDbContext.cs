@@ -36,6 +36,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<CommissionReport> CommissionReports { get; set; }
         public DbSet<TrialBalance> TrialBalances { get; set; }
 
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -48,6 +49,11 @@ namespace HawalaExchange.Infrastructure.Data
             ConfigureReportEntities(modelBuilder);
             ConfigureHawalaEntity(modelBuilder);
             SeedData(modelBuilder);
+            modelBuilder.Entity<LedgerEntry>()
+    .HasOne(x => x.Hawala)
+    .WithMany()
+    .HasForeignKey(x => x.HawalaId)
+    .OnDelete(DeleteBehavior.Restrict);
         }
 
         // ==========================================
@@ -71,7 +77,7 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TableName, x.RecordId });
 
             // ایندکس جدید برای حواله
-           
+
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.HawalaType, x.Status });
             modelBuilder.Entity<Hawala>().HasIndex(x => x.ReferenceNumber);
             modelBuilder.Entity<Hawala>().HasIndex(x => x.CreatedAt);
@@ -416,7 +422,7 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasForeignKey(al => al.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            
+
 
             // Hawala <-> Correspondent
             modelBuilder.Entity<Hawala>()

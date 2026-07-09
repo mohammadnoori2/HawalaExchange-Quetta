@@ -12,6 +12,9 @@ namespace HawalaExchange.Domain.Entities
         public long Id { get; set; }
 
         //[Required]
+        public long? HawalaId { get; set; }
+
+        public Hawala? Hawala { get; set; }
         public long? TransactionId { get; set; }
 
         [Required]

@@ -108,17 +108,31 @@ namespace HawalaSystem.Mappings
                .ForMember(dest => dest.AgentCommissionCurrencyCode, opt => opt.MapFrom(src => src.AgentCommissionCurrency != null ? src.AgentCommissionCurrency.Code : null))
                .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser != null ? src.CreatedByUser.FullName : ""))
                .ForMember(dest => dest.HawalaTypeName, opt => opt.Ignore())
-               .ForMember(dest => dest.StatusName, opt => opt.Ignore());
+               .ForMember(dest => dest.StatusName, opt => opt.Ignore())
+               .ForMember(dest => dest.PaymentLocationName, opt => opt.MapFrom(src => src.PaymentLocation != null ? src.PaymentLocation.Name : null))
+               .ForMember(dest => dest.PaymentLocationAddress, opt => opt.MapFrom(src => src.PaymentLocation != null ? src.PaymentLocation.Address : null));
+
 
             // CreateHawalaDto -> Hawala
             CreateMap<CreateHawalaDto, Hawala>()
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
-                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status ?? "Pending"));
+                .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status ?? "Pending"))
+                .ForMember(dest => dest.PaymentLocation, opt => opt.Ignore()); // فقط Id ذخیره می‌شود
+
 
             // UpdateHawalaDto -> Hawala
             CreateMap<UpdateHawalaDto, Hawala>()
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
+
+            // در MappingProfile.cs
+            CreateMap<PaymentLocation, PaymentLocationDto>()
+                .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser != null ? src.CreatedByUser.FullName : null));
+
+            CreateMap<CreatePaymentLocationDto, PaymentLocation>();
+            CreateMap<UpdatePaymentLocationDto, PaymentLocation>();
+
+
         }
     }
-    }
+}

@@ -95,6 +95,7 @@ public partial class Program
         builder.Services.AddScoped<IReportService, ReportService>();
         builder.Services.AddScoped<IAccountBadehkarLimitService, AccountBadehkarLimitService>();
         builder.Services.AddScoped<IHawalaService, HawalaService>();
+        builder.Services.AddScoped<IPaymentLocationService, PaymentLocationService>();
 
         // ============================================================
         // 8. Email Sender

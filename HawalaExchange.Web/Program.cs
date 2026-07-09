@@ -1,14 +1,16 @@
-﻿using HawalaExchange.Application.Interfaces.Services;
+﻿using AutoMapper;
+using HawalaExchange.Application.Interfaces;
+using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using HawalaExchange.Infrastructure.Services;
 using HawalaExchange.Web.Components;
+using HawalaExchange.Web.Components.Account;
 using HawalaSystem.Mappings;
-using Microsoft.EntityFrameworkCore;
-using AutoMapper;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
-using HawalaExchange.Web.Components.Account;
+using Microsoft.EntityFrameworkCore;
 
 public partial class Program
 {
@@ -95,6 +97,7 @@ public partial class Program
         builder.Services.AddScoped<IReportService, ReportService>();
         builder.Services.AddScoped<IAccountBadehkarLimitService, AccountBadehkarLimitService>();
         builder.Services.AddScoped<IHawalaService, HawalaService>();
+        builder.Services.AddScoped<ICapitalInvestmentService, CapitalInvestmentService>();
 
         // ============================================================
         // 8. Email Sender

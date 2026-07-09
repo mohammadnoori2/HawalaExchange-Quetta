@@ -18,6 +18,12 @@ namespace HawalaExchange.Application.DTOs
         public long? FromAccountId { get; set; }
         public string? FromAccountName { get; set; }
         public long? CorrespondentId { get; set; }
+        // در CreateHawalaDto
+        public long? PaymentLocationId { get; set; }
+
+        // در HawalaDto
+        public string? PaymentLocationName { get; set; }
+        public string? PaymentLocationAddress { get; set; }
         public string? CorrespondentName { get; set; }
         public string? SenderName { get; set; }
         public string? SenderFatherName { get; set; }
@@ -70,6 +76,7 @@ namespace HawalaExchange.Application.DTOs
         public long Number { get; set; }
         public string HawalaType { get; set; } = string.Empty;
         public long? CorrespondentId { get; set; }
+        public long? PaymentLocationId { get; set; }
         public long? FromAccountId { get; set; }
         public string? SenderName { get; set; }
         public string? SenderFatherName { get; set; }
@@ -100,6 +107,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class UpdateHawalaDto
     {
+        public long PaymentLocationId { get; set; }
         public long? FromAccountId { get; set; }
         public string? SenderName { get; set; }
         public string? SenderFatherName { get; set; }

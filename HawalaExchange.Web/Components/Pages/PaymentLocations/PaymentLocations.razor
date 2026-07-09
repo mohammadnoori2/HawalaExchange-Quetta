@@ -1,0 +1,388 @@
+﻿@page "/payment-locations"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject IPaymentLocationService PaymentLocationService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<div class="page-wrapper">
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-geo-alt"></i>
+                مدیریت آدرس‌ها (محل‌های پرداخت)
+                <span class="page-subtitle">لیست و مدیریت محل‌های پرداخت</span>
+            </h5>
+        </div>
+        <div class="page-actions">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+                <i class="bi bi-plus-circle"></i> آدرس جدید
+            </button>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i> @paymentLocations.Count
+                </span>
+            </div>
+            <div class="search-modern" style="max-width: 300px;">
+                <span class="search-icon"><i class="bi bi-search"></i></span>
+                <input type="text" class="search-input" placeholder="جستجوی آدرس..." @bind="searchTerm" @bind:event="oninput" />
+            </div>
+        </div>
+
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
+                        <tr>
+                            <th style="width:50px;">#</th>
+                            <th style="min-width:150px;">نام محل</th>
+                            <th style="min-width:250px;">آدرس</th>
+                            <th style="min-width:120px;">تلفن</th>
+                            <th style="min-width:120px;">مسئول</th>
+                            <th style="min-width:100px;">وضعیت</th>
+                            <th style="min-width:150px;">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading)
+                        {
+                            <tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+                        }
+                        else if (!filteredLocations.Any())
+                        {
+                            <tr><td colspan="7" class="text-center py-5"><i class="bi bi-inbox"></i> هیچ آدرسی یافت نشد</td></tr>
+                        }
+                        else
+                        {
+                            int rowIndex = 1;
+                            @foreach (var location in filteredLocations)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td><span class="fw-bold">@location.Name</span></td>
+                                    <td>@location.Address</td>
+                                    <td>@location.Phone</td>
+                                    <td>@location.ContactPerson</td>
+                                    <td>
+                                        <span class="badge-modern @(location.IsActive ? "badge-success" : "badge-danger")">
+                                            @(location.IsActive ? "فعال" : "غیرفعال")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="action-group">
+                                            <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(location.Id)" title="ویرایش">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="action-btn action-btn-toggle" @onclick="() => ToggleActive(location.Id)" title="تغییر وضعیت">
+                                                <i class="bi @(location.IsActive ? "bi-eye-slash" : "bi-eye")"></i>
+                                            </button>
+                                            <button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(location.Id)" title="حذف">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال ایجاد/ویرایش -->
+@if (showModal)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
+        <div class="modal-dialog modal-md modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش آدرس" : "ایجاد آدرس جدید")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
+                </div>
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold">نام محل <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="currentLocation.Name" placeholder="مثال: دفتر مرکزی" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold">آدرس <span class="text-danger">*</span></label>
+                            <textarea class="form-control" @bind="currentLocation.Address" rows="2" placeholder="آدرس کامل"></textarea>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">تلفن</label>
+                            <input type="text" class="form-control" @bind="currentLocation.Phone" placeholder="شماره تلفن" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">مسئول</label>
+                            <input type="text" class="form-control" @bind="currentLocation.ContactPerson" placeholder="نام مسئول" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="isActive" @bind="currentLocation.IsActive" />
+                                <label class="form-check-label" for="isActive">فعال</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-modern btn-light-modern" @onclick="() => CloseModal()"><i class="bi bi-x-circle"></i> انصراف</button>
+                    <button class="btn-modern btn-primary-modern" @onclick="() => SaveLocation()" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+
+                            <i class="bi bi-save"></i>
+                        }
+                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال تأیید حذف -->
+@if (showDeleteModal)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white"><i class="bi bi-exclamation-triangle"></i> تأیید حذف</h5>
+                    <button class="btn-close btn-close-white" @onclick="() => CloseDeleteModal()"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
+                    <p>آیا مطمئن هستید که می‌خواهید این آدرس را حذف کنید؟</p>
+                    <p class="text-muted small">در صورت استفاده در حواله‌ها، حذف امکان‌پذیر نیست.</p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button class="btn-modern btn-light-modern" @onclick="() => CloseDeleteModal()"><i class="bi bi-x-circle"></i> انصراف</button>
+                    <button class="btn-modern btn-danger-modern" @onclick="() => ConfirmDelete()"><i class="bi bi-check-circle"></i> تأیید حذف</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PaymentLocationDto> paymentLocations = new();
+    private List<PaymentLocationDto> filteredLocations = new();
+    private string searchTerm = "";
+    private bool isLoading = false;
+    private bool showModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditMode = false;
+    private long editId = 0;
+    private long deleteId = 0;
+    private List<string> validationErrors = new();
+    private string successMessage = "";
+    private CreatePaymentLocationDto currentLocation = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLocations();
+    }
+
+    private async Task LoadLocations()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await PaymentLocationService.GetAllAsync();
+            paymentLocations = result.ToList();
+            filteredLocations = paymentLocations;
+        }
+        catch { }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ApplySearch()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredLocations = paymentLocations;
+        }
+        else
+        {
+            var term = searchTerm.Trim();
+            filteredLocations = paymentLocations.Where(l =>
+                l.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                l.Address.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (l.Phone != null && l.Phone.Contains(term)) ||
+                (l.ContactPerson != null && l.ContactPerson.Contains(term, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+        }
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        currentLocation = new CreatePaymentLocationDto { IsActive = true };
+        isEditMode = false;
+        editId = 0;
+        validationErrors.Clear();
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            var location = await PaymentLocationService.GetByIdAsync(id);
+            if (location != null)
+            {
+                currentLocation = new CreatePaymentLocationDto
+                {
+                    Name = location.Name,
+                    Address = location.Address,
+                    Phone = location.Phone,
+                    ContactPerson = location.ContactPerson,
+                    IsActive = location.IsActive
+                };
+                isEditMode = true;
+                editId = id;
+                validationErrors.Clear();
+                showModal = true;
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveLocation()
+    {
+        validationErrors.Clear();
+
+        if (string.IsNullOrWhiteSpace(currentLocation.Name))
+            validationErrors.Add("نام محل الزامی است.");
+        if (string.IsNullOrWhiteSpace(currentLocation.Address))
+            validationErrors.Add("آدرس الزامی است.");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            if (isEditMode)
+            {
+                var updateDto = new UpdatePaymentLocationDto
+                {
+                    Name = currentLocation.Name,
+                    Address = currentLocation.Address,
+                    Phone = currentLocation.Phone,
+                    ContactPerson = currentLocation.ContactPerson,
+                    IsActive = currentLocation.IsActive
+                };
+                await PaymentLocationService.UpdateAsync(editId, updateDto);
+            }
+            else
+            {
+                await PaymentLocationService.CreateAsync(currentLocation);
+            }
+
+            showModal = false;
+            await LoadLocations();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleActive(long id)
+    {
+        try
+        {
+            await PaymentLocationService.ToggleActiveAsync(id);
+            await LoadLocations();
+        }
+        catch { }
+    }
+
+    private void ShowDeleteConfirm(long id)
+    {
+        deleteId = id;
+        showDeleteModal = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        try
+        {
+            await PaymentLocationService.DeleteAsync(deleteId);
+            showDeleteModal = false;
+            await LoadLocations();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+}

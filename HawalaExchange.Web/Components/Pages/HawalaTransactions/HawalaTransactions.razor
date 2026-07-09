@@ -1,10 +1,13 @@
 ﻿@page "/hawala-transactions"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
+@using HawalaExchange.Domain.Entities
 @inject IHawalaService HawalaService
 @inject ICorrespondentService CorrespondentService
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
+@inject IPaymentLocationService PaymentLocationService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
@@ -405,11 +408,26 @@
                                 </select>
                             </div>
                             <!-- محل پرداخت -->
+                            <!-- در بخش اطلاعات حواله -->
                             <div class="col-md-4 mb-3">
                                 <label class="form-label fw-bold">
                                     <i class="bi bi-geo-alt text-muted me-1"></i> محل پرداخت
+                                    @if (currentHawala.HawalaType == "HawalaSend")
+                                    {
+                                        <span class="text-danger">*</span>
+                                    }
                                 </label>
-                                <input type="text" class="form-control" @bind="currentHawala.PaymentLocation" placeholder="محل پرداخت" />
+                                <select class="form-select" @bind="currentHawala.PaymentLocationId">
+                                    <option value="">انتخاب محل پرداخت</option>
+                                    @foreach (var location in paymentLocations)
+                                    {
+                                        <option value="@location.Id">@location.Name - @location.Address</option>
+                                    }
+                                </select>
+                                @if (currentHawala.HawalaType == "HawalaSend")
+                                {
+                                    <small class="text-muted">محلی که گیرنده می‌تواند پول را دریافت کند.</small>
+                                }
                             </div>
                         </div>
 
@@ -1034,6 +1052,8 @@
     private List<CorrespondentDto> correspondents = new();
     private List<CurrencyDto> currencies = new();
     private List<AccountDto> accounts = new();
+    private List<PaymentLocationDto> paymentLocations = new();
+
 
     // ===== فیلترها =====
     private string searchTerm = "";
@@ -1111,6 +1131,8 @@
         await LoadLookupData();
         await LoadAccounts();
         await LoadHawalas();
+        await LoadPaymentLocations();
+
     }
 
     private async Task LoadLookupData()
@@ -1184,6 +1206,21 @@
             StateHasChanged();
         }
     }
+
+    // بارگذاری آدرس‌ها
+    private async Task LoadPaymentLocations()
+    {
+        try
+        {
+            var result = await PaymentLocationService.GetActiveAsync();
+            paymentLocations = result.ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری آدرس‌ها: {ex.Message}");
+        }
+    }
+
 
     // ===== متدهای فیلتر و صفحه‌بندی =====
 

@@ -33,6 +33,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<TransactionReport> TransactionReports { get; set; }
         public DbSet<CommissionReport> CommissionReports { get; set; }
         public DbSet<TrialBalance> TrialBalances { get; set; }
+        public DbSet<PaymentLocation> PaymentLocations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

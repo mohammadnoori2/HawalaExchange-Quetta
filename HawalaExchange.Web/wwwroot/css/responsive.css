@@ -491,6 +491,21 @@
         min-width: 650px !important;
         font-size: 0.75rem !important;
     }
+
+    /* ===== اصلاح فیلترها در موبایل ===== */
+    .filter-selector {
+        width: 100% !important;
+    }
+
+        .filter-selector .form-select-sm {
+            width: 100% !important;
+            min-width: unset !important;
+        }
+
+    .page-size-selector {
+        width: 100% !important;
+        justify-content: space-between !important;
+    }
 }
 
 /* =========================================
@@ -554,5 +569,127 @@
 
     .table-card-footer {
         padding: 0.5rem 0.75rem !important;
+    }
+
+    .page-title {
+        font-size: 1.2rem !important;
+    }
+
+    .page-subtitle {
+        font-size: 0.75rem !important;
+    }
+
+    .stat-card .stat-number {
+        font-size: 1rem !important;
+    }
+
+    .stat-card .stat-label {
+        font-size: 0.7rem !important;
+    }
+
+    .badge-modern {
+        font-size: 0.6rem !important;
+        padding: 0.15rem 0.5rem !important;
+    }
+
+    .btn-modern {
+        padding: 0.2rem 0.6rem !important;
+        font-size: 0.75rem !important;
+    }
+
+    .action-btn {
+        width: 22px !important;
+        height: 22px !important;
+    }
+
+        .action-btn i {
+            font-size: 0.65rem !important;
+        }
+}
+
+/* =========================================
+   RESPONSIVE - تبلت (768px تا 1024px)
+========================================= */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .charts-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    .provision-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    .bottom-row {
+        grid-template-columns: 1fr !important;
+    }
+
+    .transaction-stats {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+
+    .currency-rates-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+    }
+
+    .liquidity-items {
+        grid-template-columns: 1fr 1fr !important;
+    }
+
+    .page-header {
+        flex-direction: row !important;
+        align-items: center !important;
+    }
+
+    .search-modern {
+        max-width: 300px !important;
+        min-width: 150px !important;
+    }
+
+    .nav-sidebar {
+        width: 240px !important;
+    }
+
+    .table-modern {
+        font-size: 0.85rem !important;
+    }
+
+        .table-modern thead th,
+        .table-modern tbody td {
+            padding: 0.6rem 0.8rem !important;
+        }
+}
+
+/* =========================================
+   RESPONSIVE - دسکتاپ بزرگ (بالای 1400px)
+========================================= */
+@media (min-width: 1400px) {
+    .container-fluid {
+        max-width: 1400px !important;
+        margin: 0 auto !important;
+    }
+
+    .page-wrapper {
+        padding: 2rem 2.5rem !important;
+    }
+
+    .stat-card .stat-number {
+        font-size: 2.2rem !important;
+    }
+
+    .table-modern {
+        font-size: 1rem !important;
+    }
+
+        .table-modern thead th,
+        .table-modern tbody td {
+            padding: 1rem 1.2rem !important;
+        }
+
+    .search-modern {
+        max-width: 500px !important;
     }
 }

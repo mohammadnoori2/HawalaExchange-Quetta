@@ -16,81 +16,157 @@
 
 <PageTitle>ثبت نام</PageTitle>
 
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card shadow-lg modern-card">
-                <div class="card-header bg-success text-white text-center py-3 gradient-header">
-                    <h4 class="mb-0">
-                        <i class="bi bi-person-plus me-2"></i>ثبت نام
-                    </h4>
-                    <small class="text-white-50">حواله‌اکس‌چینج</small>
-                </div>
-                <div class="card-body p-4">
-                    <StatusMessage Message="@Message" />
+<div class="page-wrapper">
+    <div class="row justify-content-center align-items-center" style="min-height: 80vh;">
+        <div class="col-md-6 col-lg-5 col-xl-4">
+            <div class="modern-card shadow-hover">
+                <!-- هدر کارت با برندینگ -->
+                <div class="card-header text-center py-4" style="background: transparent; border-bottom: 1px solid var(--border-color, #dce3ed);">
+                    <!-- لوگو و برندینگ -->
+                    <div class="d-flex align-items-center justify-content-center gap-3 mb-2">
+                        <div class="logo-icon" style="width: 56px; height: 56px; background: linear-gradient(145deg, #e6f0ff, #d4e6ff); border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #0a6bff; font-size: 32px; box-shadow: 0 6px 14px rgba(0, 80, 200, 0.10); flex-shrink: 0;">
+                            <i class="bi bi-person-plus"></i>
+                        </div>
+                        <div class="brand-wrapper text-end">
+                            <div class="logo-text" style="font-weight: 600; font-size: 1.5rem; letter-spacing: -0.5px; color: #0b2b5c; background: linear-gradient(145deg, #0b2b5c, #1a4b8a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.2;">
+                                حواله‌اکس‌چینج
+                            </div>
+                            <div class="logo-sub" style="font-size: 0.75rem; font-weight: 400; color: #3f6b9c; background: #eaf3ff; padding: 0.15rem 0.8rem; border-radius: 40px; display: inline-block; -webkit-text-fill-color: #1f5080; letter-spacing: 0.3px;">
+                                <i class="bi bi-person-plus me-1"></i>
+                                ثبت نام در سیستم
+                            </div>
+                        </div>
+                    </div>
 
+                    <!-- زیرنویس -->
+                    <div class="text-muted small" style="font-size: 0.8rem; color: var(--text-muted, #667085);">
+                        <i class="bi bi-person-plus me-1"></i>
+                        ایجاد حساب کاربری جدید
+                    </div>
+                </div>
+
+                <!-- بدنه کارت -->
+                <div class="card-body p-4 p-md-5">
+                    <!-- پیام خطا -->
+                    @if (!string.IsNullOrEmpty(Message))
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            @Message
+                            <button type="button" class="btn-close" @onclick="() => { identityErrors = null; StateHasChanged(); }"></button>
+                        </div>
+                    }
+
+                    <!-- فرم ثبت نام -->
                     <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
                         <DataAnnotationsValidator />
                         <ValidationSummary class="text-danger" role="alert" />
 
                         <!-- نام کامل -->
                         <div class="form-floating mb-3">
-                            <InputText @bind-Value="Input.FullName" id="Input.FullName" class="form-control" aria-required="true" placeholder="نام و نام خانوادگی" />
-                            <label for="Input.FullName">نام کامل</label>
+                            <InputText @bind-Value="Input.FullName"
+                                       id="Input.FullName"
+                                       class="form-control"
+                                       aria-required="true"
+                                       placeholder="نام و نام خانوادگی" />
+                            <label for="Input.FullName">
+                                <i class="bi bi-person me-1"></i> نام کامل
+                            </label>
                             <ValidationMessage For="() => Input.FullName" class="text-danger" />
                         </div>
 
                         <!-- نام کاربری -->
                         <div class="form-floating mb-3">
-                            <InputText @bind-Value="Input.UserName" id="Input.UserName" class="form-control" autocomplete="username" aria-required="true" placeholder="نام کاربری" />
-                            <label for="Input.UserName">نام کاربری</label>
+                            <InputText @bind-Value="Input.UserName"
+                                       id="Input.UserName"
+                                       class="form-control"
+                                       autocomplete="username"
+                                       aria-required="true"
+                                       placeholder="نام کاربری" />
+                            <label for="Input.UserName">
+                                <i class="bi bi-person-badge me-1"></i> نام کاربری
+                            </label>
                             <ValidationMessage For="() => Input.UserName" class="text-danger" />
                         </div>
 
                         <!-- ایمیل -->
                         <div class="form-floating mb-3">
-                            <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="email" aria-required="true" placeholder="name@example.com" />
-                            <label for="Input.Email">ایمیل</label>
+                            <InputText @bind-Value="Input.Email"
+                                       id="Input.Email"
+                                       class="form-control"
+                                       autocomplete="email"
+                                       aria-required="true"
+                                       placeholder="name@example.com" />
+                            <label for="Input.Email">
+                                <i class="bi bi-envelope me-1"></i> ایمیل
+                            </label>
                             <ValidationMessage For="() => Input.Email" class="text-danger" />
                         </div>
 
                         <!-- رمز عبور -->
                         <div class="form-floating mb-3">
-                            <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="رمز عبور" />
-                            <label for="Input.Password">رمز عبور</label>
+                            <InputText type="password"
+                                       @bind-Value="Input.Password"
+                                       id="Input.Password"
+                                       class="form-control"
+                                       autocomplete="new-password"
+                                       aria-required="true"
+                                       placeholder="رمز عبور" />
+                            <label for="Input.Password">
+                                <i class="bi bi-lock me-1"></i> رمز عبور
+                            </label>
                             <ValidationMessage For="() => Input.Password" class="text-danger" />
                         </div>
 
                         <!-- تکرار رمز عبور -->
                         <div class="form-floating mb-3">
-                            <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="تکرار رمز عبور" />
-                            <label for="Input.ConfirmPassword">تکرار رمز عبور</label>
+                            <InputText type="password"
+                                       @bind-Value="Input.ConfirmPassword"
+                                       id="Input.ConfirmPassword"
+                                       class="form-control"
+                                       autocomplete="new-password"
+                                       aria-required="true"
+                                       placeholder="تکرار رمز عبور" />
+                            <label for="Input.ConfirmPassword">
+                                <i class="bi bi-lock-fill me-1"></i> تکرار رمز عبور
+                            </label>
                             <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
                         </div>
 
                         <!-- شعبه -->
                         <div class="form-floating mb-3">
-                            <InputNumber @bind-Value="Input.BranchId" id="Input.BranchId" class="form-control" aria-required="true" placeholder="شناسه شعبه" />
-                            <label for="Input.BranchId">شناسه شعبه</label>
+                            <InputNumber @bind-Value="Input.BranchId"
+                                         id="Input.BranchId"
+                                         class="form-control"
+                                         aria-required="true"
+                                         placeholder="شناسه شعبه" />
+                            <label for="Input.BranchId">
+                                <i class="bi bi-building me-1"></i> شناسه شعبه
+                            </label>
                             <ValidationMessage For="() => Input.BranchId" class="text-danger" />
                         </div>
 
-                        <!-- نقش (اختیاری) -->
+                        <!-- نقش -->
                         <div class="form-floating mb-3">
-                            <InputSelect @bind-Value="Input.Role" id="Input.Role" class="form-select">
+                            <InputSelect @bind-Value="Input.Role"
+                                         id="Input.Role"
+                                         class="form-select">
                                 <option value="Cashier">صندوقدار</option>
                                 <option value="Supervisor">ناظر</option>
                                 <option value="Manager">سرپرست</option>
                                 <option value="Admin">مدیر</option>
                             </InputSelect>
-                            <label for="Input.Role">نقش</label>
+                            <label for="Input.Role">
+                                <i class="bi bi-person-gear me-1"></i> نقش
+                            </label>
                             <ValidationMessage For="() => Input.Role" class="text-danger" />
                         </div>
 
-                        <button type="submit" class="w-100 btn btn-lg btn-success-modern" disabled="@isLoading">
+                        <!-- دکمه ثبت نام -->
+                        <button type="submit" class="btn-modern btn-success-modern w-100 py-2" disabled="@isLoading">
                             @if (isLoading)
                             {
-                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                                 <span>در حال ثبت نام...</span>
                             }
                             else
@@ -100,6 +176,7 @@
                         </button>
                     </EditForm>
 
+                    <!-- خط جداکننده -->
                     <hr class="my-4" />
 
                     <!-- لینک ورود -->
@@ -114,12 +191,14 @@
                         </p>
                     </div>
 
-                    <hr class="my-3" />
-
                     <!-- اطلاعات پیش‌فرض -->
-                    <div class="text-center text-muted small bg-light p-2 rounded">
-                        <i class="bi bi-info-circle me-1"></i>
-                        نام کاربری پیش‌فرض: <strong>admin</strong> | رمز عبور: <strong>Admin@123</strong>
+                    <div class="mt-3 p-3 bg-light rounded-3 text-center">
+                        <i class="bi bi-info-circle me-1 text-primary"></i>
+                        <small class="text-muted">
+                            نام کاربری پیش‌فرض: <strong class="text-dark">admin</strong>
+                            <span class="mx-1">|</span>
+                            رمز عبور: <strong class="text-dark">Admin@123</strong>
+                        </small>
                     </div>
                 </div>
             </div>

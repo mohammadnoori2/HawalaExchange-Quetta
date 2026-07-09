@@ -1,6 +1,7 @@
 ﻿@page "/transactions"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
 @inject ITransactionService TransactionService
 @inject IBranchService BranchService
 @inject ICustomerService CustomerService
@@ -8,7 +9,7 @@
 @inject ICorrespondentService CorrespondentService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-
+@attribute [Authorize]
 <div class="page-wrapper">
     <!-- هدر صفحه -->
     <div class="page-header">

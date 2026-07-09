@@ -602,12 +602,12 @@ namespace HawalaExchange.Infrastructure.Data
             );
 
             modelBuilder.Entity<Account>().HasData(
-                new Account { Id = 1, AccountCode = "1001", AccountName = "Cash", AccountType = "Cash", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 2, AccountCode = "1101", AccountName = "Bank", AccountType = "Bank", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 3, AccountCode = "3001", AccountName = "Hawala Commission Income", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 4, AccountCode = "3002", AccountName = "Exchange Income", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 5, AccountCode = "4001", AccountName = "Office Expense", AccountType = "Expense", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 6, AccountCode = "5001", AccountName = "Owner Capital", AccountType = "Equity", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt }
+                new Account { Id = 1, AccountCode = "1001", AccountName = "صندوق", AccountType = "Cash", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 2, AccountCode = "1101", AccountName = "بانک", AccountType = "Bank", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 3, AccountCode = "3001", AccountName = "درآمد کمیسیون حواله", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 4, AccountCode = "3002", AccountName = "درآمد تبادل", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 5, AccountCode = "4001", AccountName = "هزینه دفتر", AccountType = "Expense", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 6, AccountCode = "5001", AccountName = "سرمایه مالک", AccountType = "Equity", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt }
             );
         }
     }

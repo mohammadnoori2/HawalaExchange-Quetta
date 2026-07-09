@@ -1,0 +1,272 @@
+﻿@page "/capital-investment"
+
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces
+@using HawalaExchange.Application.Interfaces.Services
+
+@inject ICapitalInvestmentService CapitalInvestmentService
+@inject ICurrencyService CurrencyService
+@inject IAccountService AccountService
+
+@rendermode InteractiveServer
+
+<div class="page-wrapper" dir="rtl">
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-cash-stack"></i>
+                ثبت سرمایه
+                <span class="page-subtitle">افزودن سرمایه مالک به دفتر کل</span>
+            </h5>
+        </div>
+    </div>
+
+    @if (validationErrors.Any())
+    {
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                @foreach (var error in validationErrors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i>
+            @successMessage
+        </div>
+    }
+
+    <div class="modern-card">
+        <div class="card-header">
+            <h6 class="text-primary">
+                <i class="bi bi-plus-circle"></i>
+                معلومات سرمایه
+            </h6>
+        </div>
+
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">
+                        ارز <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select" @bind="model.CurrencyId">
+                        <option value="0">انتخاب ارز</option>
+                        @foreach (var currency in currencies)
+                        {
+                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">
+                        مبلغ سرمایه <span class="text-danger">*</span>
+                    </label>
+                    <input type="number"
+                           step="0.01"
+                           class="form-control"
+                           @bind="model.Amount"
+                           placeholder="مثلاً 100000" />
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">
+                        حساب دریافت‌کننده <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select" @bind="model.ReceivingAccountId">
+                        <option value="0">انتخاب حساب</option>
+                        @foreach (var account in receivingAccounts)
+                        {
+                            <option value="@account.Id">
+                                @account.AccountName (@account.AccountCode)
+                            </option>
+                        }
+                    </select>
+                    <small class="text-muted">معمولاً Cash یا Bank</small>
+                </div>
+
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">
+                        حساب سرمایه <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select" @bind="model.CapitalAccountId">
+                        <option value="0">انتخاب حساب</option>
+                        @foreach (var account in capitalAccounts)
+                        {
+                            <option value="@account.Id">
+                                @account.AccountName (@account.AccountCode)
+                            </option>
+                        }
+                    </select>
+                    <small class="text-muted">معمولاً Owner Capital</small>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label fw-bold">
+                        تاریخ
+                    </label>
+                    <input type="datetime-local"
+                           class="form-control"
+                           @bind="investmentDateLocal" />
+                </div>
+
+                <div class="col-md-9 mb-3">
+                    <label class="form-label fw-bold">
+                        توضیحات
+                    </label>
+                    <input type="text"
+                           class="form-control"
+                           @bind="model.Description"
+                           placeholder="مثلاً سرمایه ابتدایی مالک" />
+                </div>
+            </div>
+
+            <div class="alert alert-info">
+                <strong>سند حسابداری:</strong>
+                <div class="mt-2">
+                    حساب دریافت‌کننده بدهکار می‌شود و حساب سرمایه بستانکار می‌شود.
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end">
+                <button class="btn-modern btn-light-modern" @onclick="ResetForm">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    پاک کردن
+                </button>
+
+                <button class="btn-modern btn-primary-modern"
+                        @onclick="Save"
+                        disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-save"></i>
+                    }
+                    ثبت سرمایه
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private CreateCapitalInvestmentDto model = new();
+
+    private List<CurrencyDto> currencies = new();
+    private List<AccountDto> accounts = new();
+    private List<AccountDto> receivingAccounts = new();
+    private List<AccountDto> capitalAccounts = new();
+
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+    private bool isLoading = false;
+
+    private DateTime investmentDateLocal = DateTime.Now;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        ResetForm();
+    }
+
+    private async Task LoadData()
+    {
+        currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
+        accounts = (await AccountService.GetAllAsync())
+            .Where(x => !x.IsArchived)
+            .ToList();
+
+        receivingAccounts = accounts
+            .Where(x => x.AccountType == "Cash" || x.AccountType == "Bank")
+            .OrderBy(x => x.AccountCode)
+            .ToList();
+
+        capitalAccounts = accounts
+            .Where(x => x.AccountType == "Equity")
+            .OrderBy(x => x.AccountCode)
+            .ToList();
+    }
+
+    private void ResetForm()
+    {
+        var afn = currencies.FirstOrDefault(x =>
+            x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
+
+        var cash = receivingAccounts.FirstOrDefault(x =>
+            x.AccountType == "Cash");
+
+        var ownerCapital = capitalAccounts.FirstOrDefault(x =>
+            x.AccountCode == "5001" ||
+            x.AccountName.Contains("Capital", StringComparison.OrdinalIgnoreCase) ||
+            x.AccountName.Contains("سرمایه", StringComparison.OrdinalIgnoreCase));
+
+        model = new CreateCapitalInvestmentDto
+        {
+            CurrencyId = afn?.Id ?? 0,
+            ReceivingAccountId = cash?.Id ?? 0,
+            CapitalAccountId = ownerCapital?.Id ?? 0,
+            InvestmentDate = DateTime.UtcNow,
+            Description = "ثبت سرمایه مالک"
+        };
+
+        investmentDateLocal = DateTime.Now;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+    }
+
+    private async Task Save()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        if (model.CurrencyId <= 0)
+            validationErrors.Add("انتخاب ارز الزامی است.");
+
+        if (model.Amount <= 0)
+            validationErrors.Add("مبلغ سرمایه باید بزرگتر از صفر باشد.");
+
+        if (model.ReceivingAccountId <= 0)
+            validationErrors.Add("انتخاب حساب دریافت‌کننده الزامی است.");
+
+        if (model.CapitalAccountId <= 0)
+            validationErrors.Add("انتخاب حساب سرمایه الزامی است.");
+
+        if (model.ReceivingAccountId == model.CapitalAccountId)
+            validationErrors.Add("حساب دریافت‌کننده و حساب سرمایه نمی‌تواند یکی باشد.");
+
+        if (validationErrors.Any())
+            return;
+
+        try
+        {
+            isLoading = true;
+
+            model.InvestmentDate = investmentDateLocal.ToUniversalTime();
+
+            await CapitalInvestmentService.CreateAsync(model);
+
+            successMessage = "سرمایه با موفقیت در دفتر کل ثبت شد.";
+
+            ResetForm();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ثبت سرمایه: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

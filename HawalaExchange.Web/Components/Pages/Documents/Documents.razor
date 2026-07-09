@@ -1,11 +1,13 @@
 ﻿@page "/documents"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @inject IDocumentService DocumentService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
+@attribute [Authorize]
 
 <div class="page-wrapper">
     <!-- هدر صفحه -->

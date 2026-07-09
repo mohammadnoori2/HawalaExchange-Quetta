@@ -1,11 +1,13 @@
 ﻿@page "/account-limits"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
 @inject IAccountBadehkarLimitService AccountLimitService
 @inject IAccountService AccountService
 @inject ICurrencyService CurrencyService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
+@attribute [Authorize]
 
 <div class="page-wrapper">
     <!-- هدر صفحه -->

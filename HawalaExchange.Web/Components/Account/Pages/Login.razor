@@ -1,4 +1,6 @@
-﻿@page "/login"
+﻿@page "/Account/Login"
+@page "/login"
+@layout BlankLayout
 @using System.ComponentModel.DataAnnotations
 @using HawalaExchange.Domain.Entities
 @using Microsoft.AspNetCore.Authentication
@@ -11,76 +13,754 @@
 
 <PageTitle>ورود به سیستم</PageTitle>
 
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card shadow-lg modern-card">
-                <div class="card-header bg-primary text-white text-center py-3 gradient-header">
-                    <h4 class="mb-0">
-                        <i class="bi bi-box-arrow-in-right me-2"></i>ورود به سیستم
-                    </h4>
-                    <small class="text-white-50">حواله‌اکس‌چینج</small>
+<style>
+    /* =========================================
+           LOGIN CONTAINER
+        ========================================= */
+    .login-page {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-color, #f4f7fb);
+        padding: 20px;
+        font-family: 'Segoe UI', 'Vazir', Tahoma, sans-serif;
+        direction: rtl;
+    }
+
+    .login-wrapper {
+        display: flex;
+        width: 100%;
+        max-width: 1100px;
+        min-height: 620px;
+        background: var(--card-bg, #ffffff);
+        border-radius: var(--radius-xl, 24px);
+        box-shadow: var(--shadow-lg, 0 20px 60px rgba(0,0,0,0.08));
+        overflow: hidden;
+        transition: var(--transition, all 0.3s ease);
+    }
+
+    /* =========================================
+           سمت چپ - بخش برندینگ
+        ========================================= */
+    .login-left {
+        flex: 1.1;
+        background: linear-gradient(145deg, #0a1628 0%, #162d50 50%, #1a3d6b 100%);
+        padding: 45px 40px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .login-left::before {
+            content: '';
+            position: absolute;
+            top: -40%;
+            right: -30%;
+            width: 80%;
+            height: 80%;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .login-left::after {
+            content: '';
+            position: absolute;
+            bottom: -30%;
+            left: -20%;
+            width: 60%;
+            height: 60%;
+            background: rgba(255, 255, 255, 0.015);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+    .login-brand {
+        position: relative;
+        z-index: 1;
+    }
+
+    .brand-icon {
+        width: 64px;
+        height: 64px;
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        color: #fff;
+        margin-bottom: 18px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .brand-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 6px;
+        letter-spacing: -0.5px;
+        color: #ffffff;
+    }
+
+    .brand-subtitle {
+        font-size: 0.9rem;
+        opacity: 0.6;
+        font-weight: 300;
+        max-width: 280px;
+        line-height: 1.5;
+    }
+
+    .login-features {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin: 28px 0;
+    }
+
+    .feature-item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 10px 16px;
+        border-radius: var(--radius-sm, 8px);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        transition: var(--transition, all 0.3s ease);
+    }
+
+        .feature-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateX(-4px);
+        }
+
+    .feature-icon {
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        flex-shrink: 0;
+    }
+
+    .feature-text h6 {
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin: 0 0 2px 0;
+    }
+
+    .feature-text p {
+        font-size: 0.65rem;
+        opacity: 0.6;
+        margin: 0;
+    }
+
+    .login-footer {
+        position: relative;
+        z-index: 1;
+        font-size: 0.65rem;
+        opacity: 0.4;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        padding-top: 14px;
+    }
+
+    /* =========================================
+           سمت راست - بخش فرم
+        ========================================= */
+    .login-right {
+        flex: 1;
+        padding: 40px 45px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--card-bg, #ffffff);
+    }
+
+    .login-form-container {
+        width: 100%;
+        max-width: 360px;
+    }
+
+    .form-header {
+        margin-bottom: 24px;
+    }
+
+    .welcome-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--primary-light, #e6f0ff);
+        color: var(--primary-color, #0061f2);
+        padding: 3px 12px;
+        border-radius: 50px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+
+    .form-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--text-color, #1d2939);
+        margin: 0 0 4px 0;
+    }
+
+    .form-subtitle {
+        font-size: 0.85rem;
+        color: var(--text-muted, #667085);
+        margin: 0;
+    }
+
+    /* =========================================
+           فیلدهای فرم
+        ========================================= */
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        font-weight: 500;
+        font-size: 0.8rem;
+        color: var(--text-color, #1d2939);
+        margin-bottom: 4px;
+    }
+
+        .form-label i {
+            color: var(--text-muted, #667085);
+            margin-right: 6px;
+        }
+
+    .input-group-modern {
+        display: flex;
+        align-items: center;
+        background: #f7f8fc;
+        border: 2px solid #e8ecf2;
+        border-radius: var(--radius-sm, 10px);
+        transition: var(--transition, all 0.3s ease);
+        overflow: hidden;
+    }
+
+        .input-group-modern:focus-within {
+            border-color: var(--primary-color, #0061f2);
+            box-shadow: 0 0 0 3px rgba(0, 97, 242, 0.06);
+            background: #fff;
+        }
+
+    .input-icon {
+        padding: 0 12px;
+        color: var(--text-muted, #667085);
+        font-size: 0.95rem;
+        flex-shrink: 0;
+    }
+
+    .form-control-modern {
+        flex: 1;
+        border: none;
+        padding: 11px 12px 11px 0;
+        font-size: 0.85rem;
+        background: transparent;
+        outline: none;
+        color: var(--text-color, #1d2939);
+        width: 100%;
+    }
+
+        .form-control-modern::placeholder {
+            color: #b0baca;
+            font-size: 0.8rem;
+        }
+
+    .toggle-password {
+        border: none;
+        background: transparent;
+        padding: 0 12px;
+        color: var(--text-muted, #667085);
+        cursor: pointer;
+        font-size: 0.95rem;
+        transition: var(--transition, all 0.3s ease);
+    }
+
+        .toggle-password:hover {
+            color: var(--text-color, #1d2939);
+        }
+
+    /* =========================================
+           گزینه‌های فرم - اصلاح شده
+        ========================================= */
+    .form-options {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 14px 0 20px 0;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+        .form-options .form-check {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0;
+        }
+
+        .form-options .form-check-input {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 2px solid #d0d7e2;
+            cursor: pointer;
+            accent-color: var(--primary-color, #0061f2);
+            transition: var(--transition, all 0.3s ease);
+            flex-shrink: 0;
+            margin: 0;
+        }
+
+            .form-options .form-check-input:checked {
+                border-color: var(--primary-color, #0061f2);
+            }
+
+        .form-options .form-check-label {
+            font-size: 0.8rem;
+            color: var(--text-color, #1d2939);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+    .forgot-link {
+        font-size: 0.8rem;
+        color: var(--primary-color, #0061f2);
+        text-decoration: none;
+        font-weight: 500;
+        transition: var(--transition, all 0.3s ease);
+        white-space: nowrap;
+    }
+
+        .forgot-link:hover {
+            text-decoration: underline;
+            color: var(--primary-dark, #0050c8);
+        }
+
+    /* =========================================
+           دکمه ورود
+        ========================================= */
+    .btn-signin {
+        width: 100%;
+        padding: 13px;
+        border: none;
+        border-radius: var(--radius-sm, 10px);
+        background: var(--primary-gradient, linear-gradient(135deg, #0061f2, #0050c8));
+        color: white;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition, all 0.3s ease);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+        .btn-signin:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 97, 242, 0.3);
+        }
+
+        .btn-signin:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-signin:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .btn-signin i {
+            font-size: 1rem;
+        }
+
+    /* =========================================
+           جداکننده
+        ========================================= */
+    .divider {
+        display: flex;
+        align-items: center;
+        margin: 20px 0;
+        gap: 14px;
+    }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-color, #e8ecf2);
+        }
+
+        .divider span {
+            font-size: 0.75rem;
+            color: var(--text-muted, #667085);
+            white-space: nowrap;
+            padding: 0 8px;
+        }
+
+    /* =========================================
+           دکمه‌های اجتماعی
+        ========================================= */
+    .social-buttons {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+
+    .social-btn {
+        flex: 1;
+        padding: 9px;
+        border: 2px solid var(--border-color, #e8ecf2);
+        border-radius: var(--radius-sm, 10px);
+        background: transparent;
+        cursor: pointer;
+        transition: var(--transition, all 0.3s ease);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 0.8rem;
+        color: var(--text-color, #1d2939);
+    }
+
+        .social-btn:hover {
+            border-color: var(--primary-color, #0061f2);
+            background: var(--primary-light, #e6f0ff);
+            transform: translateY(-2px);
+        }
+
+        .social-btn i {
+            font-size: 1.1rem;
+        }
+
+        .social-btn.google i {
+            color: #ea4335;
+        }
+
+        .social-btn.github i {
+            color: #24292e;
+        }
+
+    /* =========================================
+           لینک ثبت نام
+        ========================================= */
+    .register-link {
+        text-align: center;
+        font-size: 0.8rem;
+        color: var(--text-muted, #667085);
+    }
+
+        .register-link a {
+            color: var(--primary-color, #0061f2);
+            text-decoration: none;
+            font-weight: 600;
+            transition: var(--transition, all 0.3s ease);
+        }
+
+            .register-link a:hover {
+                text-decoration: underline;
+                color: var(--primary-dark, #0050c8);
+            }
+
+    /* =========================================
+           RESPONSIVE
+        ========================================= */
+    @@media (max-width: 992px) {
+        .login-wrapper {
+            flex-direction: column;
+            max-width: 480px;
+            min-height: auto;
+        }
+
+        .login-left {
+            padding: 30px 30px 25px;
+            min-height: 240px;
+            justify-content: center;
+        }
+
+        .login-features {
+            display: none;
+        }
+
+        .login-footer {
+            margin-top: 10px;
+        }
+
+        .login-right {
+            padding: 28px 30px 35px;
+        }
+
+        .brand-title {
+            font-size: 1.4rem;
+        }
+
+        .brand-icon {
+            width: 50px;
+            height: 50px;
+            font-size: 24px;
+        }
+
+        .form-title {
+            font-size: 1.4rem;
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .login-page {
+            padding: 10px;
+        }
+
+        .login-left {
+            padding: 20px 18px;
+            min-height: 180px;
+        }
+
+        .login-right {
+            padding: 18px 16px 25px;
+        }
+
+        .form-title {
+            font-size: 1.2rem;
+        }
+
+        .form-subtitle {
+            font-size: 0.75rem;
+        }
+
+        .form-options {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+            .form-options .form-check-label {
+                white-space: normal;
+            }
+
+        .forgot-link {
+            white-space: normal;
+        }
+
+        .social-buttons {
+            flex-direction: column;
+        }
+
+        .login-wrapper {
+            border-radius: var(--radius-md, 16px);
+        }
+
+        .btn-signin {
+            padding: 11px;
+            font-size: 0.85rem;
+        }
+
+        .form-control-modern {
+            padding: 9px 10px 9px 0;
+            font-size: 0.8rem;
+        }
+
+        .input-icon {
+            padding: 0 10px;
+            font-size: 0.85rem;
+        }
+
+        .brand-title {
+            font-size: 1.2rem;
+        }
+
+        .brand-subtitle {
+            font-size: 0.75rem;
+        }
+
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+            font-size: 20px;
+            margin-bottom: 12px;
+        }
+    }
+</style>
+
+<div class="login-page">
+    <div class="login-wrapper">
+        <!-- ========================================= -->
+        <!-- سمت چپ - بخش تصویر و برندینگ -->
+        <!-- ========================================= -->
+        <div class="login-left">
+            <div class="login-brand">
+                <div class="brand-icon">
+                    <i class="bi bi-arrow-left-right"></i>
                 </div>
-                <div class="card-body p-4">
-                    <StatusMessage Message="@errorMessage" />
+                <h1 class="brand-title">حواله‌اکس‌چینج</h1>
+                <p class="brand-subtitle">سیستم مدیریت حواله‌ها و تراکنش‌های ارزی</p>
+            </div>
 
-                    <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary class="text-danger" role="alert" />
+            <div class="login-features">
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="bi bi-shield-check"></i>
+                    </div>
+                    <div class="feature-text">
+                        <h6>امنیت بالا</h6>
+                        <p>سیستم با بالاترین سطح امنیت</p>
+                    </div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div class="feature-text">
+                        <h6>مدیریت لحظه‌ای</h6>
+                        <p>پیگیری و مدیریت تراکنش‌ها در زمان واقعی</p>
+                    </div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">
+                        <i class="bi bi-graph-up-arrow"></i>
+                    </div>
+                    <div class="feature-text">
+                        <h6>گزارش‌گیری پیشرفته</h6>
+                        <p>گزارش‌های دقیق و تحلیلی از عملکرد</p>
+                    </div>
+                </div>
+            </div>
 
-                        <div class="form-floating mb-3">
-                            <InputText @bind-Value="Input.UserName" id="Input.UserName" class="form-control" autocomplete="username" aria-required="true" placeholder="نام کاربری" />
-                            <label for="Input.UserName" class="form-label">نام کاربری</label>
-                            <ValidationMessage For="() => Input.UserName" class="text-danger" />
+            <div class="login-footer">
+                <span>© 2026 حواله‌اکس‌چینج - تمامی حقوق محفوظ است</span>
+            </div>
+        </div>
+
+        <!-- ========================================= -->
+        <!-- سمت راست - بخش فرم -->
+        <!-- ========================================= -->
+        <div class="login-right">
+            <div class="login-form-container">
+                <!-- هدر فرم -->
+                <div class="form-header">
+                    <div class="welcome-badge">
+                        <i class="bi bi-person-check"></i>
+                        خوش آمدید
+                    </div>
+                    <h2 class="form-title">دوباره خوش آمدید!</h2>
+                    <p class="form-subtitle">خوشحالیم که دوباره به ما سر زدید</p>
+                </div>
+
+                <!-- پیام خطا -->
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        @errorMessage
+                        <button type="button" class="btn-close" @onclick="() => { errorMessage = null; StateHasChanged(); }"></button>
+                    </div>
+                }
+
+                <!-- فرم ورود -->
+                <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" role="alert" />
+
+                    <!-- نام کاربری -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="bi bi-person"></i> نام کاربری
+                        </label>
+                        <div class="input-group-modern">
+                            <span class="input-icon"><i class="bi bi-person"></i></span>
+                            <InputText @bind-Value="Input.UserName"
+                                       id="Input.UserName"
+                                       class="form-control-modern"
+                                       autocomplete="username"
+                                       aria-required="true"
+                                       placeholder="نام کاربری خود را وارد کنید" />
                         </div>
+                        <ValidationMessage For="@(() => Input.UserName)" class="text-danger" />
+                    </div>
 
-                        <div class="form-floating mb-3">
-                            <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="رمز عبور" />
-                            <label for="Input.Password" class="form-label">رمز عبور</label>
-                            <ValidationMessage For="() => Input.Password" class="text-danger" />
+                    <!-- رمز عبور -->
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="bi bi-lock"></i> رمز عبور
+                        </label>
+                        <div class="input-group-modern">
+                            <span class="input-icon"><i class="bi bi-lock"></i></span>
+                            <InputText type="@(showPassword ? "text" : "password")"
+                                       @bind-Value="Input.Password"
+                                       id="Input.Password"
+                                       class="form-control-modern"
+                                       autocomplete="current-password"
+                                       aria-required="true"
+                                       placeholder="رمز عبور خود را وارد کنید" />
+                            <button type="button" class="toggle-password" @onclick="TogglePasswordVisibility">
+                                <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
                         </div>
+                        <ValidationMessage For="@(() => Input.Password)" class="text-danger" />
+                    </div>
 
-                        <div class="checkbox mb-3">
-                            <label class="form-label">
-                                <InputCheckbox @bind-Value="Input.RememberMe" class="form-check-input" />
+                    <!-- گزینه‌های پایین فرم -->
+                    <div class="form-options">
+                        <div class="form-check">
+                            <InputCheckbox @bind-Value="Input.RememberMe"
+                                           class="form-check-input"
+                                           id="rememberMe" />
+                            <label class="form-check-label" for="rememberMe">
                                 مرا به خاطر بسپار
                             </label>
                         </div>
-
-                        <button type="submit" class="w-100 btn btn-lg btn-primary-modern" disabled="@isLoading">
-                            @if (isLoading)
-                            {
-                                <span class="spinner-border spinner-border-sm me-2"></span>
-                                <span>در حال ورود...</span>
-                            }
-                            else
-                            {
-                                <span><i class="bi bi-box-arrow-in-right me-2"></i>ورود</span>
-                            }
-                        </button>
-                    </EditForm>
-
-                    <hr class="my-4" />
-
-                    <!-- لینک ثبت نام -->
-                    <div class="text-center">
-                        <p class="text-muted mb-0">
-                            <i class="bi bi-person-plus me-1"></i>
-                            حساب کاربری ندارید؟
-                            <a href="/register" class="fw-bold text-primary text-decoration-none">
-                                ثبت نام کنید
-                                <i class="bi bi-arrow-left-short"></i>
-                            </a>
-                        </p>
+                        <a href="#" class="forgot-link">رمز عبور خود را فراموش کرده‌اید؟</a>
                     </div>
 
-                    <hr class="my-3" />
+                    <!-- دکمه ورود -->
+                    <button type="submit" class="btn-signin" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>در حال ورود...</span>
+                        }
+                        else
+                        {
+                            <span>ورود <i class="bi bi-arrow-left"></i></span>
+                        }
+                    </button>
+                </EditForm>
 
-                    <!-- اطلاعات پیش‌فرض -->
-                    <div class="text-center text-muted small bg-light p-2 rounded">
-                        <i class="bi bi-info-circle me-1"></i>
-                        نام کاربری: <strong>admin</strong> | رمز عبور: <strong>Admin@123</strong>
-                    </div>
+                <!-- خط جداکننده با متن -->
+                <div class="divider">
+                    <span>یا ادامه دهید با</span>
+                </div>
+
+                <!-- دکمه‌های اجتماعی -->
+                <div class="social-buttons">
+                    <button class="social-btn google" @onclick="() => LoginWithGoogle()">
+                        <i class="bi bi-google"></i>
+                        <span>Google</span>
+                    </button>
+                    <button class="social-btn github" @onclick="() => LoginWithGitHub()">
+                        <i class="bi bi-github"></i>
+                        <span>GitHub</span>
+                    </button>
+                </div>
+
+                <!-- لینک ثبت نام -->
+                <div class="register-link">
+                    <span>حساب کاربری ندارید؟</span>
+                    <a href="/register">ثبت نام کنید</a>
                 </div>
             </div>
         </div>
@@ -91,6 +771,7 @@
     private string? errorMessage;
     private EditContext editContext = default!;
     private bool isLoading = false;
+    private bool showPassword = false;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -110,6 +791,12 @@
         {
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
         }
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        showPassword = !showPassword;
+        StateHasChanged();
     }
 
     public async Task LoginUser()
@@ -164,6 +851,16 @@
             isLoading = false;
             StateHasChanged();
         }
+    }
+
+    private async Task LoginWithGoogle()
+    {
+        await Task.CompletedTask;
+    }
+
+    private async Task LoginWithGitHub()
+    {
+        await Task.CompletedTask;
     }
 
     private sealed class InputModel

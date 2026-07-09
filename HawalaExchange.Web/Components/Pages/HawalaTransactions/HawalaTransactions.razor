@@ -1,12 +1,14 @@
 ﻿@page "/hawala-transactions"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
 @inject IHawalaService HawalaService
 @inject ICorrespondentService CorrespondentService
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
+@attribute [Authorize]
 
 <div class="page-wrapper">
     <!-- هدر صفحه -->

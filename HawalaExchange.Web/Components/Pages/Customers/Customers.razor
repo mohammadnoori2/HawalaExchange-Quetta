@@ -217,7 +217,7 @@
                                             </button>
                                             @if (!customer.IsArchived)
                                             {
-                                                <button class="action-btn action-btn-financial" @onclick="() => OpenFinancialModal(customer.Id, customer.FullName)" title="برداشت/پرداخت">
+                                                <button class="action-btn action-btn-financial" @onclick="() => OpenFinancialModal(customer.Id, customer.FullName)" title="برداشت/واریز">
                                                     <i class="bi bi-cash-coin"></i>
                                                 </button>
                                                 <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(customer.Id)" title="ویرایش">
@@ -767,7 +767,7 @@
             <div class="modal-content">
                 <div class="modal-header" style="background: linear-gradient(135deg, #6f42c1, #5a32a3);">
                     <h5 class="modal-title text-white">
-                        <i class="bi bi-cash-coin me-2"></i> برداشت/پرداخت
+                        <i class="bi bi-cash-coin me-2"></i> برداشت/واریز
                         <span class="text-white-50 small">@selectedCustomerForFinancial.FullName</span>
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseFinancialModal()"></button>
@@ -798,7 +798,7 @@
                             <label class="form-label fw-bold">نوع تراکنش <span class="text-danger">*</span></label>
                             <select class="form-select" @bind="financialTransaction.TransactionType">
                                 <option value="Withdraw">برداشت از حساب</option>
-                                <option value="Deposit">پرداخت به حساب</option>
+                                <option value="Deposit">واریز به حساب</option>
                             </select>
                         </div>
                     </div>
@@ -844,7 +844,7 @@
                         <i class="bi bi-info-circle"></i>
                         <strong>برداشت:</strong> از حساب مشتری کم می‌شود و به حساب طرف مقابل اضافه می‌شود.
                         <br />
-                        <strong>پرداخت:</strong> به حساب مشتری اضافه می‌شود و از حساب طرف مقابل کم می‌شود.
+                        <strong>واریز:</strong> به حساب مشتری اضافه می‌شود و از حساب طرف مقابل کم می‌شود.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1458,19 +1458,6 @@
             isFinancialSubmitting = true;
             StateHasChanged();
 
-            // ۱. ایجاد تراکنش از نوع Adjustment با استفاده از TransactionService.CreateAsync
-            var createTransactionDto = new CreateTransactionDto
-            {
-                TransactionType = "Adjustment",
-                BranchId = 1,
-                CustomerId = financialTransaction.CustomerId,
-                CustomerFullName = selectedCustomerForFinancial?.FullName,
-                Remarks = financialTransaction.Description ?? $"{(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "پرداخت")} از/به حساب مشتری",
-                TransactionDetails = new List<CreateTransactionDetailDto>()
-            };
-
-            var transaction = await TransactionService.CreateAsync(createTransactionDto);
-
             // ۲. دریافت حساب مشتری
             var customerAccount = (await AccountService.GetByReferenceAsync("Customer", financialTransaction.CustomerId)).FirstOrDefault();
             if (customerAccount == null)
@@ -1493,38 +1480,39 @@
 
             if (financialTransaction.TransactionType == "Withdraw") // برداشت
             {
-                customerTalabKar = financialTransaction.Amount;
-                oppositeBadehKar = financialTransaction.Amount;
+                customerBadehKar = financialTransaction.Amount;
+                oppositeTalabKar = financialTransaction.Amount;
+               
             }
             else if (financialTransaction.TransactionType == "Deposit") // پرداخت
             {
-                customerBadehKar = financialTransaction.Amount;
-                oppositeTalabKar = financialTransaction.Amount;
+                customerTalabKar = financialTransaction.Amount;
+                oppositeBadehKar = financialTransaction.Amount;
             }
 
             // ورودی مشتری
             await LedgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
             {
-                TransactionId = transaction.Id,
+                TransactionId = null,
                 AccountId = customerAccount.Id,
                 CurrencyId = financialTransaction.CurrencyId,
                 TalabKar = customerTalabKar,
                 BadehKar = customerBadehKar,
-                Description = $"{(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "پرداخت")} از/به حساب مشتری"
+                Description = $"{(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "واریز")} از/به حساب مشتری"
             });
 
             // ورودی طرف مقابل
             await LedgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
             {
-                TransactionId = transaction.Id,
+                TransactionId = null,
                 AccountId = oppositeAccount.Id,
                 CurrencyId = financialTransaction.CurrencyId,
                 TalabKar = oppositeTalabKar,
                 BadehKar = oppositeBadehKar,
-                Description = $"طرف مقابل {(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "پرداخت")} مشتری"
+                Description = $"طرف مقابل {(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "واریز")} مشتری"
             });
 
-            financialSuccessMessage = $"تراکنش با موفقیت ثبت شد. شماره: {transaction.TransactionNo}";
+            financialSuccessMessage = $"تراکنش با موفقیت ثبت شد. ";
             await Task.Delay(1500);
             CloseFinancialModal();
             await LoadCustomers();

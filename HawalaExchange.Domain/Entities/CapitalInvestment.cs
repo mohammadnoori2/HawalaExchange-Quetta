@@ -1,20 +1,18 @@
 ﻿namespace HawalaExchange.Domain.Entities;
 
-public class Expense
+public class CapitalInvestment
 {
     public long Id { get; set; }
-
-    public DateTime ExpenseDate { get; set; }
-
-    public string Title { get; set; } = string.Empty;
 
     public long CurrencyId { get; set; }
 
     public decimal Amount { get; set; }
 
-    public long ExpenseAccountId { get; set; }
+    public long ReceivingAccountId { get; set; }
 
-    public long PaidFromAccountId { get; set; }
+    public long CapitalAccountId { get; set; }
+
+    public DateTime InvestmentDate { get; set; }
 
     public string? Description { get; set; }
 
@@ -30,9 +28,9 @@ public class Expense
 
     public Currency Currency { get; set; } = null!;
 
-    public Account ExpenseAccount { get; set; } = null!;
+    public Account ReceivingAccount { get; set; } = null!;
 
-    public Account PaidFromAccount { get; set; } = null!;
+    public Account CapitalAccount { get; set; } = null!;
 
     public ICollection<LedgerEntry> LedgerEntries { get; set; } = new List<LedgerEntry>();
 }

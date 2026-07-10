@@ -225,8 +225,8 @@ namespace HawalaExchange.Application.Services
             // if branchId, filter by branch – but expense service doesn't have branch filter directly, we can filter via transaction
             if (branchId.HasValue)
             {
-                expenses = expenses.Where(e => e.TransactionId != null)
-                    .Where(e => _context.Transactions.Any(t => t.Id == e.TransactionId && t.BranchId == branchId));
+                expenses = expenses
+                    .Where(e => _context.Transactions.Any(t =>  t.BranchId == branchId));
             }
             return expenses.Sum(e => e.Amount);
         }

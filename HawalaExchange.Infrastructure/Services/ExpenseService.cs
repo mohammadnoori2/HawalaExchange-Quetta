@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
@@ -10,162 +11,352 @@ namespace HawalaExchange.Application.Services
     public class ExpenseService : IExpenseService
     {
         private readonly ApplicationDbContext _context;
-        private readonly ILedgerService _ledgerService;
         private readonly IMapper _mapper;
 
-        public ExpenseService(ApplicationDbContext context, ILedgerService ledgerService, IMapper mapper)
+        public ExpenseService(ApplicationDbContext context, IMapper mapper)
         {
             _context = context;
-            _ledgerService = ledgerService;
             _mapper = mapper;
         }
 
-        // ===== متدهای جدید =====
         public async Task<IEnumerable<ExpenseDto>> GetAllAsync()
         {
-            var expenses = await _context.Expenses
+            return await _context.Expenses
+                .AsNoTracking()
                 .Include(e => e.Currency)
-                .OrderByDescending(e => e.Id)
+                .Include(e => e.ExpenseAccount)
+                .Include(e => e.PaidFromAccount)
+                .Where(e => !e.IsDeleted)
+                .OrderByDescending(e => e.ExpenseDate)
+                .ProjectTo<ExpenseDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
-
-            return _mapper.Map<IEnumerable<ExpenseDto>>(expenses);
         }
 
         public async Task<ExpenseDto?> GetByIdAsync(long id)
         {
-            var expense = await _context.Expenses
+            return await _context.Expenses
+                .AsNoTracking()
                 .Include(e => e.Currency)
-                .FirstOrDefaultAsync(e => e.Id == id);
-
-            return expense == null ? null : _mapper.Map<ExpenseDto>(expense);
+                .Include(e => e.ExpenseAccount)
+                .Include(e => e.PaidFromAccount)
+                .Where(e => e.Id == id && !e.IsDeleted)
+                .ProjectTo<ExpenseDto>(_mapper.ConfigurationProvider)
+                .FirstOrDefaultAsync();
         }
+
         public async Task<ExpenseDto> CreateExpenseAsync(CreateExpenseDto createDto)
         {
-            // اعتبارسنجی اولیه
-            if (createDto.TransactionId == 0)
-                throw new InvalidOperationException("شناسه تراکنش نمی‌تواند صفر باشد. لطفاً یک تراکنش معتبر انتخاب کنید.");
+            ValidateCreateDto(createDto);
 
-            if (createDto.Amount <= 0)
-                throw new InvalidOperationException("مبلغ باید بزرگتر از صفر باشد.");
-
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
-                // 1. ثبت هزینه
+                await ValidateAccountsAsync(
+                    createDto.ExpenseAccountId,
+                    createDto.PaidFromAccountId,
+                    createDto.CurrencyId);
+
                 var expense = _mapper.Map<Expense>(createDto);
-                expense.ExpenseDate = expense.ExpenseDate == DateTime.MinValue ? DateTime.UtcNow : expense.ExpenseDate;
+
+                expense.Title = createDto.Title.Trim();
+                expense.Description = string.IsNullOrWhiteSpace(createDto.Description)
+                    ? createDto.Title.Trim()
+                    : createDto.Description.Trim();
+
+                expense.ExpenseDate = createDto.ExpenseDate == DateTime.MinValue
+                    ? DateTime.UtcNow
+                    : createDto.ExpenseDate;
+
+                expense.CreatedAt = DateTime.UtcNow;
+                expense.CreatedBy = GetCurrentUserId();
+                expense.IsDeleted = false;
 
                 await _context.Expenses.AddAsync(expense);
                 await _context.SaveChangesAsync();
 
-                // 2. دریافت یا ایجاد حساب هزینه بر اساس کد یکتا
-                var expenseAccount = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.AccountCode == "4001" && a.AccountType == "Expense");
+                await CreateLedgerEntriesAsync(expense);
 
-                if (expenseAccount == null)
-                {
-                    expenseAccount = new Account
-                    {
-                        AccountCode = "4001",
-                        AccountName = "General Expenses",
-                        AccountType = "Expense",
-                        IsArchived = false,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    await _context.Accounts.AddAsync(expenseAccount);
-                    await _context.SaveChangesAsync();
-                }
+                await _context.SaveChangesAsync();
 
-                // 3. ثبت ورودی دفتر کل
-                await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
-                {
-                    TransactionId = createDto.TransactionId,
-                    AccountId = expenseAccount.Id,
-                    CurrencyId = createDto.CurrencyId,
-                    TalabKar = 0,
-                    BadehKar = createDto.Amount,
-                    Description = $"Expense: {createDto.Title}"
-                });
+                await dbTransaction.CommitAsync();
 
-                await transaction.CommitAsync();
+                var result = await GetByIdAsync(expense.Id);
 
-                return _mapper.Map<ExpenseDto>(expense);
+                if (result == null)
+                    throw new InvalidOperationException("مصرف ثبت شد، اما در بارگذاری دوباره یافت نشد.");
+
+                return result;
             }
-            catch (DbUpdateException dbEx)
+            catch
             {
-                await transaction.RollbackAsync();
-                var innerMessage = dbEx.InnerException?.Message ?? dbEx.Message;
-                throw new InvalidOperationException($"خطای دیتابیس: {innerMessage}");
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                throw new InvalidOperationException($"خطا: {ex.Message}");
+                await dbTransaction.RollbackAsync();
+                throw;
             }
         }
 
-        public async Task<ExpenseDto> UpdateExpenseAsync(long id, CreateExpenseDto updateDto)
+        public async Task<ExpenseDto> UpdateExpenseAsync(long id, UpdateExpenseDto updateDto)
         {
-            var expense = await _context.Expenses.FindAsync(id);
-            if (expense == null) throw new KeyNotFoundException($"Expense with ID {id} not found.");
-            _mapper.Map(updateDto, expense);
-            await _context.SaveChangesAsync();
-            return _mapper.Map<ExpenseDto>(expense);
+            ValidateUpdateDto(updateDto);
+
+            using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var expense = await _context.Expenses
+                    .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+
+                if (expense == null)
+                    throw new KeyNotFoundException($"مصرف با شناسه {id} یافت نشد.");
+
+                await ValidateAccountsAsync(
+                    updateDto.ExpenseAccountId,
+                    updateDto.PaidFromAccountId,
+                    updateDto.CurrencyId);
+
+                await DeleteLedgerEntriesAsync(expense.Id);
+
+                _mapper.Map(updateDto, expense);
+
+                expense.Title = updateDto.Title.Trim();
+                expense.Description = string.IsNullOrWhiteSpace(updateDto.Description)
+                    ? updateDto.Title.Trim()
+                    : updateDto.Description.Trim();
+
+                expense.ExpenseDate = updateDto.ExpenseDate == DateTime.MinValue
+                    ? DateTime.UtcNow
+                    : updateDto.ExpenseDate;
+
+                expense.ModifiedAt = DateTime.UtcNow;
+                expense.ModifiedBy = GetCurrentUserId();
+
+                await CreateLedgerEntriesAsync(expense);
+
+                await _context.SaveChangesAsync();
+
+                await dbTransaction.CommitAsync();
+
+                var result = await GetByIdAsync(expense.Id);
+
+                if (result == null)
+                    throw new InvalidOperationException("مصرف ویرایش شد، اما در بارگذاری دوباره یافت نشد.");
+
+                return result;
+            }
+            catch
+            {
+                await dbTransaction.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task DeleteExpenseAsync(long id)
         {
-            var expense = await _context.Expenses.FindAsync(id);
-            if (expense == null) throw new KeyNotFoundException($"Expense with ID {id} not found.");
-            _context.Expenses.Remove(expense);
-            await _context.SaveChangesAsync();
-        }
+            using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
-        // ===== متدهای کوئری خاص =====
-        public async Task<IEnumerable<ExpenseDto>> GetExpensesByTransactionAsync(long transactionId)
-        {
-            var expenses = await _context.Expenses
-                .Where(e => e.TransactionId == transactionId)
-                .Include(e => e.Currency)
-                .ToListAsync();
-            return _mapper.Map<IEnumerable<ExpenseDto>>(expenses);
+            try
+            {
+                var expense = await _context.Expenses
+                    .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+
+                if (expense == null)
+                    throw new KeyNotFoundException($"مصرف با شناسه {id} یافت نشد.");
+
+                await DeleteLedgerEntriesAsync(expense.Id);
+
+                expense.IsDeleted = true;
+                expense.ModifiedAt = DateTime.UtcNow;
+                expense.ModifiedBy = GetCurrentUserId();
+
+                await _context.SaveChangesAsync();
+
+                await dbTransaction.CommitAsync();
+            }
+            catch
+            {
+                await dbTransaction.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task<IEnumerable<ExpenseDto>> GetExpensesByDateRangeAsync(DateTime fromDate, DateTime toDate)
         {
-            var expenses = await _context.Expenses
-                .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate)
+            return await _context.Expenses
+                .AsNoTracking()
                 .Include(e => e.Currency)
+                .Include(e => e.ExpenseAccount)
+                .Include(e => e.PaidFromAccount)
+                .Where(e =>
+                    !e.IsDeleted &&
+                    e.ExpenseDate >= fromDate &&
+                    e.ExpenseDate <= toDate)
+                .OrderByDescending(e => e.ExpenseDate)
+                .ProjectTo<ExpenseDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
-            return _mapper.Map<IEnumerable<ExpenseDto>>(expenses);
         }
 
         public async Task<IEnumerable<ExpenseDto>> GetExpensesByCurrencyAsync(long currencyId)
         {
-            var expenses = await _context.Expenses
-                .Where(e => e.CurrencyId == currencyId)
+            return await _context.Expenses
+                .AsNoTracking()
                 .Include(e => e.Currency)
+                .Include(e => e.ExpenseAccount)
+                .Include(e => e.PaidFromAccount)
+                .Where(e => !e.IsDeleted && e.CurrencyId == currencyId)
+                .OrderByDescending(e => e.ExpenseDate)
+                .ProjectTo<ExpenseDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
-            return _mapper.Map<IEnumerable<ExpenseDto>>(expenses);
         }
 
-        public async Task<decimal> GetTotalExpensesByCurrencyAsync(long currencyId, DateTime? fromDate = null, DateTime? toDate = null)
+        public async Task<decimal> GetTotalExpensesByCurrencyAsync(
+            long currencyId,
+            DateTime? fromDate = null,
+            DateTime? toDate = null)
         {
-            var query = _context.Expenses.Where(e => e.CurrencyId == currencyId);
-            if (fromDate.HasValue) query = query.Where(e => e.ExpenseDate >= fromDate.Value);
-            if (toDate.HasValue) query = query.Where(e => e.ExpenseDate <= toDate.Value);
+            var query = _context.Expenses
+                .Where(e => !e.IsDeleted && e.CurrencyId == currencyId);
+
+            if (fromDate.HasValue)
+                query = query.Where(e => e.ExpenseDate >= fromDate.Value);
+
+            if (toDate.HasValue)
+                query = query.Where(e => e.ExpenseDate <= toDate.Value);
+
             return await query.SumAsync(e => e.Amount);
         }
 
-        public async Task<IEnumerable<ExpenseDto>> GetExpensesByBranchAsync(long branchId)
+        private async Task CreateLedgerEntriesAsync(Expense expense)
         {
-            var expenses = await _context.Expenses
-                .Include(e => e.Transaction)
-                .Where(e => e.Transaction != null && e.Transaction.BranchId == branchId)
-                .Include(e => e.Currency)
-                .ToListAsync();
-            return _mapper.Map<IEnumerable<ExpenseDto>>(expenses);
+            var description = string.IsNullOrWhiteSpace(expense.Description)
+                ? $"ثبت مصرف {expense.Title}"
+                : expense.Description;
+
+            var ledgerEntries = new List<LedgerEntry>
+            {
+                new LedgerEntry
+                {
+                    ExpenseId = expense.Id,
+                    CapitalInvestmentId = null,
+                    HawalaId = null,
+                    TransactionId = null,
+
+                    AccountId = expense.ExpenseAccountId,
+                    CurrencyId = expense.CurrencyId,
+
+                    TalabKar = 0,
+                    BadehKar = expense.Amount,
+
+                    Description = $"{description} با شماره {expense.Id}",
+                    CreatedAt = expense.ExpenseDate
+                },
+                new LedgerEntry
+                {
+                    ExpenseId = expense.Id,
+                    CapitalInvestmentId = null,
+                    HawalaId = null,
+                    TransactionId = null,
+
+                    AccountId = expense.PaidFromAccountId,
+                    CurrencyId = expense.CurrencyId,
+
+                    TalabKar = expense.Amount,
+                    BadehKar = 0,
+
+                    Description = $"{description} با شماره {expense.Id}",
+                    CreatedAt = expense.ExpenseDate
+                }
+            };
+
+            await _context.LedgerEntries.AddRangeAsync(ledgerEntries);
         }
+
+        private async Task DeleteLedgerEntriesAsync(long expenseId)
+        {
+            var ledgerEntries = await _context.LedgerEntries
+                .Where(x => x.ExpenseId == expenseId)
+                .ToListAsync();
+
+            if (ledgerEntries.Any())
+            {
+                _context.LedgerEntries.RemoveRange(ledgerEntries);
+            }
+        }
+
+        private async Task ValidateAccountsAsync(
+            long expenseAccountId,
+            long paidFromAccountId,
+            long currencyId)
+        {
+            var currencyExists = await _context.Currencies
+                .AnyAsync(x => x.Id == currencyId && x.IsActive);
+
+            if (!currencyExists)
+                throw new InvalidOperationException("ارز انتخاب‌شده معتبر نیست.");
+
+            var expenseAccount = await _context.Accounts
+                .FirstOrDefaultAsync(x => x.Id == expenseAccountId && !x.IsArchived);
+
+            if (expenseAccount == null)
+                throw new InvalidOperationException("حساب مصرف معتبر نیست.");
+
+            if (expenseAccount.AccountType != "Expense")
+                throw new InvalidOperationException("حساب مصرف باید از نوع Expense باشد.");
+
+            var paidFromAccount = await _context.Accounts
+                .FirstOrDefaultAsync(x => x.Id == paidFromAccountId && !x.IsArchived);
+
+            if (paidFromAccount == null)
+                throw new InvalidOperationException("حساب پرداخت‌کننده معتبر نیست.");
+
+            if (paidFromAccount.AccountType != "Cash" &&
+                paidFromAccount.AccountType != "Bank")
+            {
+                throw new InvalidOperationException("حساب پرداخت‌کننده باید از نوع Cash یا Bank باشد.");
+            }
+        }
+
+        private static void ValidateCreateDto(CreateExpenseDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Title))
+                throw new InvalidOperationException("عنوان مصرف الزامی است.");
+
+            if (dto.CurrencyId <= 0)
+                throw new InvalidOperationException("انتخاب ارز الزامی است.");
+
+            if (dto.Amount <= 0)
+                throw new InvalidOperationException("مبلغ مصرف باید بزرگتر از صفر باشد.");
+
+            if (dto.ExpenseAccountId <= 0)
+                throw new InvalidOperationException("انتخاب حساب مصرف الزامی است.");
+
+            if (dto.PaidFromAccountId <= 0)
+                throw new InvalidOperationException("انتخاب حساب پرداخت‌کننده الزامی است.");
+
+            if (dto.ExpenseAccountId == dto.PaidFromAccountId)
+                throw new InvalidOperationException("حساب مصرف و حساب پرداخت‌کننده نمی‌تواند یکی باشد.");
+        }
+
+        private static void ValidateUpdateDto(UpdateExpenseDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Title))
+                throw new InvalidOperationException("عنوان مصرف الزامی است.");
+
+            if (dto.CurrencyId <= 0)
+                throw new InvalidOperationException("انتخاب ارز الزامی است.");
+
+            if (dto.Amount <= 0)
+                throw new InvalidOperationException("مبلغ مصرف باید بزرگتر از صفر باشد.");
+
+            if (dto.ExpenseAccountId <= 0)
+                throw new InvalidOperationException("انتخاب حساب مصرف الزامی است.");
+
+            if (dto.PaidFromAccountId <= 0)
+                throw new InvalidOperationException("انتخاب حساب پرداخت‌کننده الزامی است.");
+
+            if (dto.ExpenseAccountId == dto.PaidFromAccountId)
+                throw new InvalidOperationException("حساب مصرف و حساب پرداخت‌کننده نمی‌تواند یکی باشد.");
+        }
+
+        private long GetCurrentUserId() => 1;
     }
 }

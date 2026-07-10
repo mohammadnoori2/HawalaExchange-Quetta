@@ -584,7 +584,7 @@ namespace HawalaExchange.Infrastructure.Data
                 {
                     Id = 1,
                     Code = "MAIN",
-                    Name = "Main Branch",
+                    Name = "شعبه اصلی",
                     PhoneNumber = null,
                     Address = "",
                     IsArchived = false,
@@ -593,12 +593,12 @@ namespace HawalaExchange.Infrastructure.Data
             );
 
             modelBuilder.Entity<Currency>().HasData(
-                new Currency { Id = 1, Code = "AFN", Name = "Afghani", Symbol = "؋", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 2, Code = "USD", Name = "US Dollar", Symbol = "$", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 3, Code = "EUR", Name = "Euro", Symbol = "€", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 4, Code = "AED", Name = "UAE Dirham", Symbol = "د.إ", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 5, Code = "IRR", Name = "Iranian Rial", Symbol = "﷼", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 6, Code = "PKR", Name = "Pakistani Rupee", Symbol = "₨", DecimalPlaces = 2, IsActive = true }
+                new Currency { Id = 1, Code = "AFN", Name = "افغانی", Symbol = "؋", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 2, Code = "USD", Name = "دالر امریکایی", Symbol = "$", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 3, Code = "EUR", Name = "یورو", Symbol = "€", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 4, Code = "AED", Name = "درهم عربی", Symbol = "د.إ", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 5, Code = "IRR", Name = "ریال ایرانی", Symbol = "﷼", DecimalPlaces = 2, IsActive = true },
+                new Currency { Id = 6, Code = "PKR", Name = "روپیه پاکستانی", Symbol = "₨", DecimalPlaces = 2, IsActive = true }
             );
 
             modelBuilder.Entity<Account>().HasData(

@@ -377,10 +377,10 @@ namespace HawalaExchange.Infrastructure.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Transfer relationships...
-            modelBuilder.Entity<Transfer>()
-                .HasOne(t => t.Transaction)
-                .WithMany(tr => tr.Transfers)
-                .HasForeignKey(t => t.TransactionId)
+            modelBuilder.Entity<LedgerEntry>()
+                .HasOne(le => le.Transfer)
+                .WithMany(t => t.LedgerEntries)
+                .HasForeignKey(le => le.TransferId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Transfer>()

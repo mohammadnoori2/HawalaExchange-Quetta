@@ -27,9 +27,6 @@ namespace HawalaExchange.Application.Services
 
         public async Task<TransferDto> CreateTransferAsync(CreateTransferDto createDto)
         {
-            if (createDto.TransactionId == 0)
-                throw new InvalidOperationException("شناسه تراکنش معتبر نیست.");
-
             if (createDto.FromAccountId == 0)
                 throw new InvalidOperationException("شناسه حساب مبدأ معتبر نیست.");
 
@@ -50,11 +47,6 @@ namespace HawalaExchange.Application.Services
 
             if (!ValidTransferMethods.Contains(createDto.TransferMethod))
                 throw new InvalidOperationException($"روش انتقال نامعتبر است. مقادیر مجاز: {string.Join(", ", ValidTransferMethods)}");
-
-            // بررسی وجود رکوردها
-            var transactionExists = await _context.Transactions.AnyAsync(t => t.Id == createDto.TransactionId);
-            if (!transactionExists)
-                throw new InvalidOperationException($"تراکنش با شناسه {createDto.TransactionId} وجود ندارد.");
 
             var fromAccountExists = await _context.Accounts.AnyAsync(a => a.Id == createDto.FromAccountId);
             if (!fromAccountExists)
@@ -79,7 +71,7 @@ namespace HawalaExchange.Application.Services
                 // ✅ ثبت ورودی‌های دفتر کل با TransactionId صحیح
                 await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
                 {
-                    TransactionId = createDto.TransactionId,
+                    TransferId = transfer.Id,
                     AccountId = transfer.FromAccountId,
                     CurrencyId = transfer.CurrencyId,
                     TalabKar = transfer.Amount,
@@ -89,7 +81,7 @@ namespace HawalaExchange.Application.Services
 
                 await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
                 {
-                    TransactionId = createDto.TransactionId,
+                    TransferId = transfer.Id,
                     AccountId = transfer.ToAccountId,
                     CurrencyId = transfer.CurrencyId,
                     TalabKar = 0,
@@ -114,19 +106,7 @@ namespace HawalaExchange.Application.Services
             }
         }
 
-        // سایر متدها بدون تغییر ...
-        public async Task<IEnumerable<TransferDto>> GetTransfersByTransactionAsync(long transactionId)
-        {
-            var transfers = await _context.Transfers
-                .Where(t => t.TransactionId == transactionId)
-                .Include(t => t.FromAccount)
-                .Include(t => t.ToAccount)
-                .Include(t => t.Currency)
-                .OrderByDescending(t => t.Id)
-                .ToListAsync();
-
-            return _mapper.Map<IEnumerable<TransferDto>>(transfers);
-        }
+        
 
         public async Task<IEnumerable<TransferDto>> GetTransfersByAccountAsync(long accountId)
         {
@@ -180,10 +160,9 @@ namespace HawalaExchange.Application.Services
         public async Task<IEnumerable<TransferDto>> GetTransfersByDateRangeAsync(DateTime fromDate, DateTime toDate)
         {
             var transfers = await _context.Transfers
-                .Include(t => t.Transaction)
-                .Where(t => t.Transaction != null
-                            && t.Transaction.CreatedAt >= fromDate
-                            && t.Transaction.CreatedAt <= toDate)
+                .Include(t => t.LedgerEntries)
+                .Where(t => t.LedgerEntries != null
+                            && t.LedgerEntries.Any(le => le.CreatedAt >= fromDate && le.CreatedAt <= toDate))
                 .Include(t => t.FromAccount)
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)

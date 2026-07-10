@@ -12,9 +12,6 @@ namespace HawalaExchange.Domain.Entities
         public long Id { get; set; }
 
         [Required]
-        public long TransactionId { get; set; }
-
-        [Required]
         public long FromAccountId { get; set; }
 
         [Required]
@@ -36,10 +33,6 @@ namespace HawalaExchange.Domain.Entities
         [MaxLength(1000)]
         public string? Remarks { get; set; }
 
-        // Navigation Properties
-        [ForeignKey(nameof(TransactionId))]
-        public virtual Transaction? Transaction { get; set; }
-
         [ForeignKey(nameof(FromAccountId))]
         public virtual Account? FromAccount { get; set; }
 
@@ -48,5 +41,7 @@ namespace HawalaExchange.Domain.Entities
 
         [ForeignKey(nameof(CurrencyId))]
         public virtual Currency? Currency { get; set; }
+
+        public virtual ICollection<LedgerEntry>? LedgerEntries { get; set; } = new List<LedgerEntry>();
     }
 }

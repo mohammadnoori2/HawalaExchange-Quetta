@@ -1,12 +1,18 @@
-﻿using HawalaExchange.Application.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Text;
+﻿
+using HawalaExchange.Application.DTOs;
 
 namespace HawalaExchange.Application.Interfaces
 {
     public interface ICapitalInvestmentService
     {
-        Task CreateAsync(CreateCapitalInvestmentDto dto);
+        Task<List<CapitalInvestmentDto>> GetAllAsync();
+
+        Task<CapitalInvestmentDto?> GetByIdAsync(long id);
+
+        Task<long> CreateAsync(CreateCapitalInvestmentDto dto);
+
+        Task UpdateAsync(long id, UpdateCapitalInvestmentDto dto);
+
+        Task DeleteAsync(long id);
     }
 }

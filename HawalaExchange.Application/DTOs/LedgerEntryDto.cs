@@ -30,5 +30,6 @@ namespace HawalaExchange.Application.DTOs
         public decimal TalabKar { get; set; }
         public decimal BadehKar { get; set; }
         public string? Description { get; set; }
+        public long? TransferId { get; set; }
     }
 }

@@ -331,19 +331,7 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-receipt text-muted me-1"></i> تراکنش مرتبط <span class="text-danger">*</span>
-                                    </label>
-                                    <select class="form-select"
-                                            @bind="currentTransfer.TransactionId">
-                                        <option value="0">انتخاب تراکنش</option>
-                                        @foreach (var transaction in transactions)
-                                        {
-                                            <option value="@transaction.Id">@transaction.TransactionNo - @transaction.CustomerFullName</option>
-                                        }
-                                    </select>
-                                </div>
+                                
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-right text-muted me-1"></i> روش انتقال <span class="text-danger">*</span>
@@ -521,18 +509,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="row g-3 mt-1">
-                        <div class="col-md-12">
-                            <div class="info-card">
-                                <span class="info-label">تراکنش مرتبط</span>
-                                <span class="info-value">
-                                    <a href="/transactions/@selectedTransfer.TransactionId" target="_blank" class="text-primary">
-                                        <i class="bi bi-box-arrow-up-right"></i> مشاهده تراکنش
-                                    </a>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                    
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseDetailModal()">
@@ -745,7 +722,6 @@
     {
         currentTransfer = new CreateTransferDto
         {
-            TransactionId = 0,
             FromAccountId = 0,
             ToAccountId = 0,
             CurrencyId = 0,
@@ -771,8 +747,7 @@
         validationErrors.Clear();
         successMessage = string.Empty;
 
-        if (currentTransfer.TransactionId == 0)
-            validationErrors.Add("انتخاب تراکنش الزامی است");
+        
         if (currentTransfer.FromAccountId == 0)
             validationErrors.Add("انتخاب حساب مبدأ الزامی است");
         if (currentTransfer.ToAccountId == 0)

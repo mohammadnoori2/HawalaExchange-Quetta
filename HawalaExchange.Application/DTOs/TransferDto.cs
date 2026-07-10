@@ -7,7 +7,6 @@ namespace HawalaExchange.Application.DTOs
     public class TransferDto
     {
         public long Id { get; set; }
-        public long TransactionId { get; set; }
         public long FromAccountId { get; set; }
         public string FromAccountName { get; set; }
         public long ToAccountId { get; set; }
@@ -22,7 +21,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class CreateTransferDto
     {
-        public long TransactionId { get; set; }
+
         public long FromAccountId { get; set; }
         public long ToAccountId { get; set; }
         public long CurrencyId { get; set; }

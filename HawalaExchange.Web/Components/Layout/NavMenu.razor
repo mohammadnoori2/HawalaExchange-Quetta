@@ -11,7 +11,7 @@
 @inject ILogger<NavMenu> Logger
 
 <div class="nav-sidebar">
-    <!-- هدر با لوگوی جدید -->
+    <!-- هدر با لوگو -->
     <div class="navbar-brand-custom">
         <div class="logo-icon">
             <i class="bi bi-arrow-left-right"></i>
@@ -66,7 +66,7 @@
 
             <div class="nav-divider"></div>
 
-            <!-- منوهای اصلی -->
+            <!-- داشبورد -->
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="" Match="NavLinkMatch.All">
                     <span class="bi bi-grid-1x2-fill" aria-hidden="true"></span> داشبورد
@@ -75,110 +75,121 @@
 
             <div class="nav-divider"></div>
 
+            <!-- حساب‌ها -->
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/accounts">
                     <span class="bi bi-wallet2"></span> حساب‌ها
                 </NavLink>
             </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/ledger">
-                    <span class="bi bi-wallet2"></span> دفتر کل
-                </NavLink>
-            </div>
 
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/hawala-transactions">
-                    <span class="bi bi-wallet2"></span> حواله‌ها
-                </NavLink>
-            </div>
-
+            <!-- مشتری‌ها -->
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/customers">
                     <span class="bi bi-people"></span> مشتری‌ها
                 </NavLink>
             </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/branches">
-                    <span class="bi bi-shop"></span> شعبه‌ها
-                </NavLink>
-            </div>
 
-            <!-- فقط Admin و Manager می‌توانند کاربران را ببینند -->
-            <AuthorizeView Roles="Admin,Manager">
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link-custom" href="/users">
-                        <span class="bi bi-person-badge"></span> کاربران
-                    </NavLink>
-                </div>
-            </AuthorizeView>
-
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/currencies">
-                    <span class="bi bi-currency-dollar"></span> اسعار
-                </NavLink>
-            </div>
+            <!-- نمایندگان -->
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="/correspondents">
                     <span class="bi bi-building"></span> نمایندگان
                 </NavLink>
             </div>
 
-            <div class="nav-divider"></div>
-
+            <!-- حواله‌ها -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/exchangerates">
-                    <span class="bi bi-currency-exchange"></span> نرخ تبادله اسعار
+                <NavLink class="nav-link-custom" href="/hawala-transactions">
+                    <span class="bi bi-arrow-left-right"></span> حواله‌ها
                 </NavLink>
             </div>
-
-            <AuthorizeView Roles="Admin">
-             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/transactions">
-                    <span class="bi bi-arrow-left-right"></span> تراکنش‌ها
-                </NavLink>
-             </div>
-            </AuthorizeView>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/transfers">
-                    <span class="bi bi-send"></span> انتقال‌ها
-                </NavLink>
-            </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="capital-investment">
-                    <i class="bi bi-cash-stack"></i>
-                    ثبت سرمایه
-                </NavLink>
-            </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/expenses">
-                    <span class="bi bi-receipt-cutoff"></span> مصارف
-                </NavLink>
-            </div>
-            <AuthorizeView Roles="Admin">
-              <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/documents">
-                    <span class="bi bi-file-text"></span> اسناد
-                </NavLink>
-               </div>
-             </AuthorizeView>
 
             <div class="nav-divider"></div>
 
-            <AuthorizeView Roles="Admin">
-               <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/reports">
-                    <span class="bi bi-pie-chart"></span> گزارش‌ها
-                </NavLink>
-               </div>
-            </AuthorizeView>
-
+            <!-- ========================================= -->
+            <!-- 📊 حسابداری - منوی تودرتو -->
+            <!-- ========================================= -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/account-limits">
-                    <span class="bi bi-lock"></span> محدودیت حساب‌ها
-                </NavLink>
+                <div class="nav-link-custom nav-link-toggle" onclick="toggleSubMenu('accountingSubMenu', this)">
+                    <span class="bi bi-journal"></span> حسابداری
+                    <span class="toggle-icon">
+                        <i class="bi bi-chevron-down"></i>
+                    </span>
+                </div>
+                <div class="sub-menu" id="accountingSubMenu">
+                    <NavLink class="nav-link-custom sub-link" href="/ledger">
+                        <span class="bi bi-wallet2"></span> دفتر کل
+                    </NavLink>
+                    <NavLink class="nav-link-custom sub-link" href="/transfers">
+                        <span class="bi bi-send"></span> انتقال‌ها
+                    </NavLink>
+                    <NavLink class="nav-link-custom sub-link" href="/capital-investment">
+                        <span class="bi bi-cash-stack"></span> ثبت سرمایه
+                    </NavLink>
+                    <NavLink class="nav-link-custom sub-link" href="/expenses">
+                        <span class="bi bi-receipt-cutoff"></span> مصارف
+                    </NavLink>
+                    <AuthorizeView Roles="Admin">
+                        <NavLink class="nav-link-custom sub-link" href="/transactions">
+                            <span class="bi bi-arrow-left-right"></span> برداشت/پرداخت
+                        </NavLink>
+                    </AuthorizeView>
+                </div>
             </div>
 
-            <!-- فقط Admin می‌تواند لاگ‌ها را ببیند -->
+            <div class="nav-divider"></div>
+
+            <!-- ========================================= -->
+            <!-- ⚙️ تنظیمات سیستم - منوی تودرتو -->
+            <!-- ========================================= -->
+            <div class="nav-item px-3">
+                <div class="nav-link-custom nav-link-toggle" onclick="toggleSubMenu('settingsSubMenu', this)">
+                    <span class="bi bi-gear"></span> تنظیمات سیستم
+                    <span class="toggle-icon">
+                        <i class="bi bi-chevron-down"></i>
+                    </span>
+                </div>
+                <div class="sub-menu" id="settingsSubMenu">
+                    <NavLink class="nav-link-custom sub-link" href="/branches">
+                        <span class="bi bi-shop"></span> شعبه‌ها
+                    </NavLink>
+                    <AuthorizeView Roles="Admin,Manager">
+                        <NavLink class="nav-link-custom sub-link" href="/users">
+                            <span class="bi bi-person-badge"></span> کاربران
+                        </NavLink>
+                    </AuthorizeView>
+                    <NavLink class="nav-link-custom sub-link" href="/currencies">
+                        <span class="bi bi-currency-dollar"></span> اسعار
+                    </NavLink>
+                    <NavLink class="nav-link-custom sub-link" href="/exchangerates">
+                        <span class="bi bi-currency-exchange"></span> نرخ تبادله
+                    </NavLink>
+                    <NavLink class="nav-link-custom sub-link" href="/account-limits">
+                        <span class="bi bi-lock"></span> محدودیت حساب‌ها
+                    </NavLink>
+                </div>
+            </div>
+
+            <div class="nav-divider"></div>
+
+            <!-- گزارش‌ها -->
+            <AuthorizeView Roles="Admin">
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link-custom" href="/reports">
+                        <span class="bi bi-pie-chart"></span> گزارش‌ها
+                    </NavLink>
+                </div>
+            </AuthorizeView>
+
+            <!-- اسناد -->
+            <AuthorizeView Roles="Admin">
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link-custom" href="/documents">
+                        <span class="bi bi-file-text"></span> اسناد
+                    </NavLink>
+                </div>
+            </AuthorizeView>
+
+            <!-- لاگ‌های سیستم -->
             <AuthorizeView Roles="Admin">
                 <div class="nav-item px-3">
                     <NavLink class="nav-link-custom" href="/auditlogs">
@@ -189,7 +200,7 @@
 
             <div class="nav-divider"></div>
 
-            <!-- ✅ دکمه خروج با @onclick -->
+            <!-- خروج / ورود -->
             <div class="nav-item px-3">
                 <AuthorizeView>
                     <Authorized>
@@ -207,6 +218,209 @@
         </nav>
     </div>
 </div>
+
+<script>
+    // تغییر وضعیت منو (برای کلیک)
+    function toggleSubMenu(subMenuId, element) {
+        var subMenu = document.getElementById(subMenuId);
+        if (subMenu) {
+            if (subMenu.classList.contains('open')) {
+                subMenu.classList.remove('open');
+                var toggleIcon = element.querySelector('.toggle-icon');
+                if (toggleIcon) {
+                    toggleIcon.classList.remove('open');
+                }
+                element.classList.remove('active');
+            } else {
+                subMenu.classList.add('open');
+                var toggleIcon = element.querySelector('.toggle-icon');
+                if (toggleIcon) {
+                    toggleIcon.classList.add('open');
+                }
+                element.classList.add('active');
+            }
+        }
+    }
+</script>
+
+<style>
+    /* =========================================
+           استایل‌های منوی تودرتو - هماهنگ با site.css
+        ========================================= */
+
+    /* استایل دکمه منوی تودرتو */
+    .nav-link-toggle {
+        cursor: pointer !important;
+        user-select: none !important;
+        width: 100% !important;
+        text-align: right !important;
+        background: transparent !important;
+        border: none !important;
+        font-family: inherit !important;
+        font-size: 0.95rem !important;
+        font-weight: 450 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 14px !important;
+        padding: 0.7rem 1.2rem !important;
+        margin: 0.2rem 0.6rem !important;
+        border-radius: 14px !important;
+        color: #1e3d66 !important;
+        transition: all 0.2s ease !important;
+        text-decoration: none !important;
+        background-color: transparent !important;
+        white-space: nowrap !important;
+        position: relative !important;
+    }
+
+        .nav-link-toggle:hover {
+            background: #e7f2ff !important;
+            color: #0645b0 !important;
+            transform: translateX(-4px);
+            box-shadow: 0 3px 8px rgba(0, 80, 200, 0.06);
+        }
+
+        .nav-link-toggle.active {
+            background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
+            color: #003d99 !important;
+            font-weight: 600 !important;
+            box-shadow: 0 4px 12px rgba(10, 107, 255, 0.15), inset 0 0 0 2px rgba(10, 107, 255, 0.2) !important;
+            transform: translateX(-2px);
+        }
+
+            .nav-link-toggle.active::before {
+                content: '';
+                position: absolute;
+                right: 0;
+                top: 15%;
+                height: 70%;
+                width: 4px;
+                background: linear-gradient(180deg, #0a6bff, #4a8fff);
+                border-radius: 0 4px 4px 0;
+                box-shadow: 0 0 12px rgba(10, 107, 255, 0.3);
+            }
+
+        .nav-link-toggle i,
+        .nav-link-toggle span[class^="bi-"] {
+            font-size: 1.3rem !important;
+            width: 1.8rem !important;
+            text-align: center !important;
+            color: #5a7fa8 !important;
+            transition: 0.2s !important;
+            flex-shrink: 0 !important;
+        }
+
+        .nav-link-toggle:hover i,
+        .nav-link-toggle:hover span[class^="bi-"] {
+            color: #0a6bff !important;
+        }
+
+        .nav-link-toggle.active i,
+        .nav-link-toggle.active span[class^="bi-"] {
+            color: #0066ff !important;
+            filter: drop-shadow(0 2px 4px rgba(0, 102, 255, 0.2));
+        }
+
+        .nav-link-toggle .toggle-icon {
+            transition: transform 0.3s ease;
+            font-size: 0.8rem;
+            margin-right: auto;
+            margin-left: 8px;
+        }
+
+            .nav-link-toggle .toggle-icon.open {
+                transform: rotate(180deg);
+            }
+
+    /* منوی تودرتو */
+    .sub-menu {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+        opacity: 0;
+        padding-right: 20px;
+        margin-right: 8px;
+        border-right: 2px solid rgba(79, 70, 229, 0.15);
+    }
+
+        .sub-menu.open {
+            max-height: 500px;
+            opacity: 1;
+            padding-top: 6px;
+            padding-bottom: 6px;
+        }
+
+    /* زیرلینک‌های منو - هماهنگ با nav-link-custom */
+    .sub-link {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 6px 12px !important;
+        border-radius: 6px !important;
+        font-size: 0.85rem !important;
+        color: #5a7fa8 !important;
+        text-decoration: none !important;
+        transition: all 0.2s ease !important;
+        margin: 0.1rem 0 !important;
+        background: transparent !important;
+        font-weight: 450 !important;
+    }
+
+        .sub-link:hover {
+            background: #e7f2ff !important;
+            color: #0645b0 !important;
+            transform: translateX(-4px) !important;
+        }
+
+        .sub-link.active {
+            background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
+            color: #003d99 !important;
+            font-weight: 600 !important;
+        }
+
+        .sub-link span {
+            font-size: 0.9rem;
+            min-width: 20px;
+        }
+
+    /* =========================================
+           واکنش‌گرا (Responsive) - هماهنگ با responsive.css
+        ========================================= */
+    @@media (max-width: 768px) {
+        .sub-menu {
+            padding-right: 16px;
+            margin-right: 4px;
+        }
+
+        .sub-link {
+            padding: 8px 12px !important;
+            font-size: 0.85rem !important;
+        }
+
+        .nav-link-toggle {
+            padding: 0.6rem 1rem !important;
+            font-size: 0.95rem !important;
+            margin: 0.1rem 0.2rem !important;
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .sub-menu {
+            padding-right: 12px;
+            margin-right: 2px;
+        }
+
+        .sub-link {
+            padding: 8px 10px !important;
+            font-size: 0.8rem !important;
+        }
+
+        .nav-link-toggle {
+            padding: 0.6rem 0.8rem !important;
+            font-size: 0.9rem !important;
+        }
+    }
+</style>
 
 @code {
     private string? currentUrl;
@@ -231,20 +445,6 @@
     {
         currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
         StateHasChanged();
-    }
-
-    private async Task HandleLogout()
-    {
-        try
-        {
-            await SignInManager.SignOutAsync();
-            NavigationManager.NavigateTo("/login", true);
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogError(ex, "Error during logout");
-            NavigationManager.NavigateTo("/login", true);
-        }
     }
 
     public void Dispose()

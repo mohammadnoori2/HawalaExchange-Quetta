@@ -193,36 +193,41 @@ public class CapitalInvestmentService : ICapitalInvestmentService
         var description = capitalInvestment.Description ?? "ثبت سرمایه مالک";
 
         var ledgerEntries = new List<LedgerEntry>
+    {
+        new LedgerEntry
         {
-            new LedgerEntry
-            {
-                CapitalInvestmentId = capitalInvestment.Id,
+            CapitalInvestmentId = capitalInvestment.Id,
+            HawalaId = null,
 
-                HawalaId = null,
-                AccountId = capitalInvestment.ReceivingAccountId,
-                CurrencyId = capitalInvestment.CurrencyId,
-                TalabKar = 0,
-                BadehKar = capitalInvestment.Amount,
-                Description = description+ "با شماره " + capitalInvestment.Id,
-                CreatedAt = capitalInvestment.InvestmentDate
-            },
-            new LedgerEntry
-            {
-                CapitalInvestmentId = capitalInvestment.Id,
-               
-                HawalaId = null,
-                AccountId = capitalInvestment.CapitalAccountId,
-                CurrencyId = capitalInvestment.CurrencyId,
-                TalabKar = capitalInvestment.Amount,
-                BadehKar = 0,
-                Description = description+ "با شماره " + capitalInvestment.Id,
-                CreatedAt = capitalInvestment.InvestmentDate
-            }
-        };
+            AccountId = capitalInvestment.ReceivingAccountId,
+            CurrencyId = capitalInvestment.CurrencyId,
+
+            // Cash/Bank receives money, so it is badehkar / Debit
+            TalabKar = 0,
+            BadehKar = capitalInvestment.Amount,
+
+            Description = $"{description} با شماره {capitalInvestment.Id}",
+            CreatedAt = capitalInvestment.InvestmentDate
+        },
+        new LedgerEntry
+        {
+            CapitalInvestmentId = capitalInvestment.Id,
+            HawalaId = null,
+
+            AccountId = capitalInvestment.CapitalAccountId,
+            CurrencyId = capitalInvestment.CurrencyId,
+
+            // Owner Capital is source of capital, so it is Talabkar / Credit
+            TalabKar = capitalInvestment.Amount,
+            BadehKar = 0,
+
+            Description = $"{description} با شماره {capitalInvestment.Id}",
+            CreatedAt = capitalInvestment.InvestmentDate
+        }
+    };
 
         await _context.LedgerEntries.AddRangeAsync(ledgerEntries);
     }
-
     private async Task DeleteLedgerEntriesAsync(long capitalInvestmentId)
     {
         var ledgerEntries = await _context.LedgerEntries

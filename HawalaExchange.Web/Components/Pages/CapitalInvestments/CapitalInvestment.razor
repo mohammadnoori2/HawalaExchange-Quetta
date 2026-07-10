@@ -19,9 +19,16 @@
                 <span class="page-subtitle">افزودن سرمایه مالک به دفتر کل</span>
             </h5>
         </div>
+
+        <div class="page-actions">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
+                <i class="bi bi-plus-circle"></i>
+                ثبت سرمایه جدید
+            </button>
+        </div>
     </div>
 
-    @if (validationErrors.Any())
+    @if (validationErrors.Any() && !showModal)
     {
         <div class="alert alert-danger">
             <ul class="mb-0">
@@ -41,192 +48,297 @@
         </div>
     }
 
-    <div class="modern-card">
-        <div class="card-header">
-            <h6 class="text-primary">
-                <i class="bi bi-plus-circle"></i>
-                معلومات سرمایه
-            </h6>
-        </div>
-
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-3 mb-3">
-                    <label class="form-label fw-bold">
-                        ارز <span class="text-danger">*</span>
-                    </label>
-                    <select class="form-select" @bind="model.CurrencyId">
-                        <option value="0">انتخاب ارز</option>
-                        @foreach (var currency in currencies)
-                        {
-                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                        }
-                    </select>
-                </div>
-
-                <div class="col-md-3 mb-3">
-                    <label class="form-label fw-bold">
-                        مبلغ سرمایه <span class="text-danger">*</span>
-                    </label>
-                    <input type="number"
-                           step="0.01"
-                           class="form-control"
-                           @bind="model.Amount"
-                           placeholder="مثلاً 100000" />
-                </div>
-
-                <div class="col-md-3 mb-3">
-                    <label class="form-label fw-bold">
-                        حساب دریافت‌کننده <span class="text-danger">*</span>
-                    </label>
-                    <select class="form-select" @bind="model.ReceivingAccountId">
-                        <option value="0">انتخاب حساب</option>
-                        @foreach (var account in receivingAccounts)
-                        {
-                            <option value="@account.Id">
-                                @account.AccountName (@account.AccountCode)
-                            </option>
-                        }
-                    </select>
-                    <small class="text-muted">معمولاً Cash یا Bank</small>
-                </div>
-
-                <div class="col-md-3 mb-3">
-                    <label class="form-label fw-bold">
-                        حساب سرمایه <span class="text-danger">*</span>
-                    </label>
-                    <select class="form-select" @bind="model.CapitalAccountId">
-                        <option value="0">انتخاب حساب</option>
-                        @foreach (var account in capitalAccounts)
-                        {
-                            <option value="@account.Id">
-                                @account.AccountName (@account.AccountCode)
-                            </option>
-                        }
-                    </select>
-                    <small class="text-muted">معمولاً Owner Capital</small>
-                </div>
+    <div class="table-card mt-4">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <h6 class="mb-0 text-primary">
+                    <i class="bi bi-list-ul"></i>
+                    لیست سرمایه‌های ثبت‌شده
+                </h6>
             </div>
 
-            <div class="row">
-                <div class="col-md-3 mb-3">
-                    <label class="form-label fw-bold">
-                        تاریخ
-                    </label>
-                    <input type="datetime-local"
-                           class="form-control"
-                           @bind="investmentDateLocal" />
-                </div>
-
-                <div class="col-md-9 mb-3">
-                    <label class="form-label fw-bold">
-                        توضیحات
-                    </label>
-                    <input type="text"
-                           class="form-control"
-                           @bind="model.Description"
-                           placeholder="مثلاً سرمایه ابتدایی مالک" />
-                </div>
-            </div>
-
-            <div class="alert alert-info">
-                <strong>سند حسابداری:</strong>
-                <div class="mt-2">
-                    حساب دریافت‌کننده بدهکار می‌شود و حساب سرمایه بستانکار می‌شود.
-                </div>
-            </div>
-
-            <div class="d-flex gap-2 justify-content-end">
-                <button class="btn-modern btn-light-modern" @onclick="ResetForm">
-                    <i class="bi bi-arrow-clockwise"></i>
-                    پاک کردن
-                </button>
-
-                <button class="btn-modern btn-primary-modern"
-                        @onclick="Save"
-                        disabled="@isLoading">
-                    @if (isLoading)
-                    {
-                        <span class="spinner-border spinner-border-sm"></span>
-                    }
-                    else
-                    {
-                        <i class="bi @(isEditMode ? "bi-pencil" : "bi-save")"></i>
-                    }
-                    @(isEditMode ? "ویرایش سرمایه" : "ثبت سرمایه")
-                </button>
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list"></i>
+                    @investments.Count
+                </span>
             </div>
         </div>
-    </div>
-</div>
-<div class="table-card mt-4">
-    <div class="table-card-header">
-        <h6 class="mb-0 text-primary">
-            <i class="bi bi-list-ul"></i>
-            لیست سرمایه‌های ثبت‌شده
-        </h6>
-    </div>
 
-    <div class="table-card-body">
-        <table class="table-modern table-striped-modern">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>تاریخ</th>
-                    <th>ارز</th>
-                    <th>مبلغ</th>
-                    <th>حساب دریافت‌کننده</th>
-                    <th>حساب سرمایه</th>
-                    <th>توضیحات</th>
-                    <th class="text-center">عملیات</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (!investments.Any())
-                {
-                    <tr>
-                        <td colspan="8" class="text-center py-4 text-muted">
-                            هیچ سرمایه‌ای ثبت نشده است.
-                        </td>
-                    </tr>
-                }
-                else
-                {
-                    var index = 1;
-                    @foreach (var item in investments)
-                    {
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
                         <tr>
-                            <td>@index</td>
-                            <td dir="ltr">@item.InvestmentDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
-                            <td>@item.CurrencyCode</td>
-                            <td dir="ltr" class="fw-bold text-primary">@item.Amount.ToString("N2")</td>
-                            <td>@item.ReceivingAccountName</td>
-                            <td>@item.CapitalAccountName</td>
-                            <td>@(item.Description ?? "-")</td>
-                            <td>
-                                <div class="action-group justify-content-center">
-                                    <button class="action-btn action-btn-edit"
-                                            title="ویرایش"
-                                            @onclick="() => EditInvestment(item.Id)">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-
-                                    <button class="action-btn action-btn-delete"
-                                            title="حذف"
-                                            @onclick="() => AskDelete(item.Id)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
+                            <th style="width:60px;">#</th>
+                            <th>تاریخ</th>
+                            <th>ارز</th>
+                            <th>مبلغ</th>
+                            <th>حساب دریافت‌کننده</th>
+                            <th>حساب سرمایه</th>
+                            <th>توضیحات</th>
+                            <th class="text-center" style="width:140px;">عملیات</th>
                         </tr>
+                    </thead>
 
-                        index++;
-                    }
-                }
-            </tbody>
-        </table>
+                    <tbody>
+                        @if (isLoading && !investments.Any())
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                    <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
+                                </td>
+                            </tr>
+                        }
+                        else if (!investments.Any())
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                    هیچ سرمایه‌ای ثبت نشده است.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            var index = 1;
+
+                            @foreach (var item in investments)
+                            {
+                                <tr>
+                                    <td>@index</td>
+
+                                    <td dir="ltr">
+                                        @item.InvestmentDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")
+                                    </td>
+
+                                    <td>
+                                        <span class="badge-modern badge-secondary">
+                                            @item.CurrencyCode
+                                        </span>
+                                    </td>
+
+                                    <td dir="ltr" class="fw-bold text-primary">
+                                        @item.Amount.ToString("N2")
+                                    </td>
+
+                                    <td>
+                                        @item.ReceivingAccountName
+                                    </td>
+
+                                    <td>
+                                        @item.CapitalAccountName
+                                    </td>
+
+                                    <td>
+                                        @(item.Description ?? "-")
+                                    </td>
+
+                                    <td>
+                                        <div class="action-group justify-content-center">
+                                            <button class="action-btn action-btn-edit"
+                                                    title="ویرایش"
+                                                    @onclick="() => EditInvestment(item.Id)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+
+                                            <button class="action-btn action-btn-delete"
+                                                    title="حذف"
+                                                    @onclick="() => AskDelete(item.Id)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                index++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
+
+@if (showModal)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش سرمایه" : "ثبت سرمایه جدید")
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseModal"></button>
+                </div>
+
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <div class="modern-card mb-3">
+                        <div class="card-header">
+                            <h6 class="text-primary">
+                                <i class="bi bi-cash-stack"></i>
+                                معلومات سرمایه
+                            </h6>
+                        </div>
+
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        ارز <span class="text-danger">*</span>
+                                    </label>
+
+                                    <select class="form-select" @bind="model.CurrencyId">
+                                        <option value="0">انتخاب ارز</option>
+
+                                        @foreach (var currency in currencies)
+                                        {
+                                            <option value="@currency.Id">
+                                                @currency.Code - @currency.Name
+                                            </option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        مبلغ سرمایه <span class="text-danger">*</span>
+                                    </label>
+
+                                    <input type="number"
+                                           step="0.01"
+                                           class="form-control"
+                                           @bind="model.Amount"
+                                           placeholder="مثلاً 100000" />
+                                </div>
+
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        حساب دریافت‌کننده <span class="text-danger">*</span>
+                                    </label>
+
+                                    <select class="form-select" @bind="model.ReceivingAccountId">
+                                        <option value="0">انتخاب حساب</option>
+
+                                        @foreach (var account in receivingAccounts)
+                                        {
+                                            <option value="@account.Id">
+                                                @account.AccountName (@account.AccountCode)
+                                            </option>
+                                        }
+                                    </select>
+
+                                    <small class="text-muted">معمولاً Cash یا Bank</small>
+                                </div>
+
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        حساب سرمایه <span class="text-danger">*</span>
+                                    </label>
+
+                                    <select class="form-select" @bind="model.CapitalAccountId">
+                                        <option value="0">انتخاب حساب</option>
+
+                                        @foreach (var account in capitalAccounts)
+                                        {
+                                            <option value="@account.Id">
+                                                @account.AccountName (@account.AccountCode)
+                                            </option>
+                                        }
+                                    </select>
+
+                                    <small class="text-muted">معمولاً Owner Capital</small>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        تاریخ
+                                    </label>
+
+                                    <input type="datetime-local"
+                                           class="form-control"
+                                           @bind="investmentDateLocal" />
+                                </div>
+
+                                <div class="col-md-9 mb-3">
+                                    <label class="form-label fw-bold">
+                                        توضیحات
+                                    </label>
+
+                                    <input type="text"
+                                           class="form-control"
+                                           @bind="model.Description"
+                                           placeholder="مثلاً سرمایه ابتدایی مالک" />
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info mb-0">
+                                <strong>سند حسابداری:</strong>
+
+                                <div class="mt-2">
+                                    حساب دریافت‌کننده بدهکار می‌شود و حساب سرمایه طلبکار می‌شود.
+                                </div>
+
+                             
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn-modern btn-light-modern"
+                            @onclick="CloseModal">
+                        <i class="bi bi-x-circle"></i>
+                        انصراف
+                    </button>
+
+                    <button type="button"
+                            class="btn-modern btn-primary-modern"
+                            @onclick="Save"
+                            disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="bi @(isEditMode ? "bi-pencil" : "bi-save")"></i>
+                        }
+
+                        @(isEditMode ? "ویرایش سرمایه" : "ثبت سرمایه")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @if (showDeleteConfirm)
 {
     <div class="modal show d-block modal-modern"
@@ -240,6 +352,7 @@
                         <i class="bi bi-exclamation-triangle me-2"></i>
                         تأیید حذف
                     </h5>
+
                     <button type="button"
                             class="btn-close btn-close-white"
                             @onclick="CancelDelete"></button>
@@ -247,9 +360,11 @@
 
                 <div class="modal-body text-center py-4">
                     <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
+
                     <p class="fs-5">
                         آیا مطمئن هستید که می‌خواهید این ثبت سرمایه را حذف کنید؟
                     </p>
+
                     <p class="text-muted small">
                         با حذف آن، لیجرهای مربوط به این سرمایه نیز حذف می‌شود.
                     </p>
@@ -265,8 +380,17 @@
 
                     <button type="button"
                             class="btn-modern btn-danger-modern"
-                            @onclick="ConfirmDelete">
-                        <i class="bi bi-trash"></i>
+                            @onclick="ConfirmDelete"
+                            disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-trash"></i>
+                        }
+
                         حذف
                     </button>
                 </div>
@@ -274,6 +398,7 @@
         </div>
     </div>
 }
+
 @code {
     private CreateCapitalInvestmentDto model = new();
 
@@ -281,19 +406,21 @@
     private List<AccountDto> accounts = new();
     private List<AccountDto> receivingAccounts = new();
     private List<AccountDto> capitalAccounts = new();
+    private List<CapitalInvestmentDto> investments = new();
 
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
+
     private bool isLoading = false;
 
-    private DateTime investmentDateLocal = DateTime.Now;
-    private List<CapitalInvestmentDto> investments = new();
-
+    private bool showModal = false;
     private bool isEditMode = false;
     private long editId = 0;
+
     private bool showDeleteConfirm = false;
     private long deleteId = 0;
 
+    private DateTime investmentDateLocal = DateTime.Now;
 
     protected override async Task OnInitializedAsync()
     {
@@ -304,30 +431,59 @@
 
     private async Task LoadData()
     {
-        currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
-        accounts = (await AccountService.GetAllAsync())
-            .Where(x => !x.IsArchived)
-            .ToList();
+        try
+        {
+            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
 
-        receivingAccounts = accounts
-            .Where(x => x.AccountType == "Cash" || x.AccountType == "Bank")
-            .OrderBy(x => x.AccountCode)
-            .ToList();
+            accounts = (await AccountService.GetAllAsync())
+                .Where(x => !x.IsArchived)
+                .ToList();
 
-        capitalAccounts = accounts
-            .Where(x => x.AccountType == "Equity")
-            .OrderBy(x => x.AccountCode)
-            .ToList();
+            receivingAccounts = accounts
+                .Where(x => x.AccountType == "Cash" || x.AccountType == "Bank")
+                .OrderBy(x => x.AccountCode)
+                .ToList();
+
+            capitalAccounts = accounts
+                .Where(x => x.AccountType == "Equity")
+                .OrderBy(x => x.AccountCode)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری اطلاعات اولیه: {ex.Message}");
+        }
     }
 
     private async Task LoadInvestments()
     {
-        investments = await CapitalInvestmentService.GetAllAsync();
+        try
+        {
+            investments = await CapitalInvestmentService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری لیست سرمایه‌ها: {ex.Message}");
+        }
     }
+
+    private void OpenCreateModal()
+    {
+        ResetForm();
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        validationErrors.Clear();
+    }
+
     private void ResetForm()
     {
         isEditMode = false;
         editId = 0;
+
         var afn = currencies.FirstOrDefault(x =>
             x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
 
@@ -350,55 +506,51 @@
 
         investmentDateLocal = DateTime.Now;
         validationErrors.Clear();
-        successMessage = string.Empty;
     }
 
     private async Task EditInvestment(long id)
     {
-        var investment = await CapitalInvestmentService.GetByIdAsync(id);
-
-        if (investment == null)
+        try
         {
-            validationErrors.Add("ثبت سرمایه یافت نشد.");
-            return;
+            validationErrors.Clear();
+            successMessage = string.Empty;
+
+            var investment = await CapitalInvestmentService.GetByIdAsync(id);
+
+            if (investment == null)
+            {
+                validationErrors.Add("ثبت سرمایه یافت نشد.");
+                return;
+            }
+
+            model = new CreateCapitalInvestmentDto
+            {
+                CurrencyId = investment.CurrencyId,
+                Amount = investment.Amount,
+                ReceivingAccountId = investment.ReceivingAccountId,
+                CapitalAccountId = investment.CapitalAccountId,
+                InvestmentDate = investment.InvestmentDate,
+                Description = investment.Description
+            };
+
+            investmentDateLocal = investment.InvestmentDate.ToLocalTime();
+
+            isEditMode = true;
+            editId = id;
+            showModal = true;
         }
-
-        model = new CreateCapitalInvestmentDto
+        catch (Exception ex)
         {
-            CurrencyId = investment.CurrencyId,
-            Amount = investment.Amount,
-            ReceivingAccountId = investment.ReceivingAccountId,
-            CapitalAccountId = investment.CapitalAccountId,
-            InvestmentDate = investment.InvestmentDate,
-            Description = investment.Description
-        };
-
-        investmentDateLocal = investment.InvestmentDate.ToLocalTime();
-
-        isEditMode = true;
-        editId = id;
-        successMessage = string.Empty;
-        validationErrors.Clear();
+            validationErrors.Add($"خطا در بارگذاری سرمایه برای ویرایش: {ex.Message}");
+        }
     }
+
     private async Task Save()
     {
         validationErrors.Clear();
         successMessage = string.Empty;
 
-        if (model.CurrencyId <= 0)
-            validationErrors.Add("انتخاب ارز الزامی است.");
-
-        if (model.Amount <= 0)
-            validationErrors.Add("مبلغ سرمایه باید بزرگتر از صفر باشد.");
-
-        if (model.ReceivingAccountId <= 0)
-            validationErrors.Add("انتخاب حساب دریافت‌کننده الزامی است.");
-
-        if (model.CapitalAccountId <= 0)
-            validationErrors.Add("انتخاب حساب سرمایه الزامی است.");
-
-        if (model.ReceivingAccountId == model.CapitalAccountId)
-            validationErrors.Add("حساب دریافت‌کننده و حساب سرمایه نمی‌تواند یکی باشد.");
+        ValidateForm();
 
         if (validationErrors.Any())
             return;
@@ -406,8 +558,6 @@
         try
         {
             isLoading = true;
-
-            model.InvestmentDate = investmentDateLocal.ToUniversalTime();
 
             model.InvestmentDate = investmentDateLocal.ToUniversalTime();
 
@@ -433,21 +583,44 @@
             }
 
             await LoadInvestments();
+
+            showModal = false;
             ResetForm();
         }
         catch (Exception ex)
         {
-            validationErrors.Add($"خطا در ثبت سرمایه: {ex.Message}");
+            validationErrors.Add($"خطا در ذخیره سرمایه: {ex.Message}");
         }
         finally
         {
             isLoading = false;
         }
     }
+
+    private void ValidateForm()
+    {
+        if (model.CurrencyId <= 0)
+            validationErrors.Add("انتخاب ارز الزامی است.");
+
+        if (model.Amount <= 0)
+            validationErrors.Add("مبلغ سرمایه باید بزرگتر از صفر باشد.");
+
+        if (model.ReceivingAccountId <= 0)
+            validationErrors.Add("انتخاب حساب دریافت‌کننده الزامی است.");
+
+        if (model.CapitalAccountId <= 0)
+            validationErrors.Add("انتخاب حساب سرمایه الزامی است.");
+
+        if (model.ReceivingAccountId == model.CapitalAccountId)
+            validationErrors.Add("حساب دریافت‌کننده و حساب سرمایه نمی‌تواند یکی باشد.");
+    }
+
     private void AskDelete(long id)
     {
         deleteId = id;
         showDeleteConfirm = true;
+        validationErrors.Clear();
+        successMessage = string.Empty;
     }
 
     private void CancelDelete()
@@ -461,10 +634,20 @@
         try
         {
             validationErrors.Clear();
+            successMessage = string.Empty;
+
+            isLoading = true;
 
             await CapitalInvestmentService.DeleteAsync(deleteId);
 
             successMessage = "ثبت سرمایه با موفقیت حذف شد.";
+
+            if (isEditMode && editId == deleteId)
+            {
+                ResetForm();
+                showModal = false;
+            }
+
             showDeleteConfirm = false;
             deleteId = 0;
 
@@ -473,6 +656,10 @@
         catch (Exception ex)
         {
             validationErrors.Add($"خطا در حذف سرمایه: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
         }
     }
 }

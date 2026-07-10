@@ -9,6 +9,7 @@
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject IPaymentLocationService PaymentLocationService
+@inject IWebHostEnvironment WebHostEnvironment
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 @attribute [Authorize]
@@ -493,6 +494,55 @@
                                 <label class="form-label fw-bold">شماره تذکره فرستنده</label>
                                 <input type="text" class="form-control" @bind="currentHawala.SenderTazkiraNumber" placeholder="شماره تذکره" />
                             </div>
+                            <!-- بخش عکس تذکره فرستنده (فقط برای حواله ارسالی) -->
+                            @if (currentHawala.HawalaType == "HawalaSend")
+                            {
+                                <hr />
+                                <h6 class="text-primary mb-3"><i class="bi bi-image"></i> عکس تذکره فرستنده (اختیاری)</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">آپلود عکس تذکره</label>
+                                        <InputFile class="form-control" OnChange="OnSenderTazkiraUpload" accept="image/*" />
+                                        <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر ۱۰ مگابایت)</small>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(currentHawala.TazkiraImagePath))
+                                    {
+                                        <div class="col-md-6 mb-3 d-flex align-items-center gap-2">
+                                            <a href="@currentHawala.TazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i> مشاهده عکس
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="RemoveSenderTazkira">
+                                                <i class="bi bi-trash"></i> حذف
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <!-- بخش عکس تذکره گیرنده (فقط برای حواله دریافتی) -->
+                            @if (currentHawala.HawalaType == "HawalaReceive")
+                            {
+                                <hr />
+                                <h6 class="text-primary mb-3"><i class="bi bi-image"></i> عکس تذکره گیرنده (اختیاری)</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">آپلود عکس تذکره</label>
+                                        <InputFile class="form-control" OnChange="OnReceiverTazkiraUpload" accept="image/*" />
+                                        <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر ۱۰ مگابایت)</small>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(currentHawala.ReceiverTazkiraImagePath))
+                                    {
+                                        <div class="col-md-6 mb-3 d-flex align-items-center gap-2">
+                                            <a href="@currentHawala.ReceiverTazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i> مشاهده عکس
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="RemoveReceiverTazkira">
+                                                <i class="bi bi-trash"></i> حذف
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            }
                             <div class="col-md-8 mb-3">
                                 <label class="form-label fw-bold">آدرس فرستنده</label>
                                 <input type="text" class="form-control" @bind="currentHawala.SenderAddress" placeholder="آدرس" />
@@ -520,6 +570,55 @@
                                 <label class="form-label fw-bold">شماره تذکره گیرنده</label>
                                 <input type="text" class="form-control" @bind="currentHawala.ReceiverTazkiraNumber" placeholder="شماره تذکره" />
                             </div>
+                            <!-- بخش عکس تذکره فرستنده (فقط برای حواله ارسالی) -->
+                            @if (currentHawala.HawalaType == "HawalaSend")
+                            {
+                                <hr />
+                                <h6 class="text-primary mb-3"><i class="bi bi-image"></i> عکس تذکره فرستنده (اختیاری)</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">آپلود عکس تذکره</label>
+                                        <InputFile class="form-control" OnChange="OnSenderTazkiraUpload" accept="image/*" />
+                                        <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر ۱۰ مگابایت)</small>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(currentHawala.TazkiraImagePath))
+                                    {
+                                        <div class="col-md-6 mb-3 d-flex align-items-center gap-2">
+                                            <a href="@currentHawala.TazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i> مشاهده عکس
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="RemoveSenderTazkira">
+                                                <i class="bi bi-trash"></i> حذف
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <!-- بخش عکس تذکره گیرنده (فقط برای حواله دریافتی) -->
+                            @if (currentHawala.HawalaType == "HawalaReceive")
+                            {
+                                <hr />
+                                <h6 class="text-primary mb-3"><i class="bi bi-image"></i> عکس تذکره گیرنده (اختیاری)</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">آپلود عکس تذکره</label>
+                                        <InputFile class="form-control" OnChange="OnReceiverTazkiraUpload" accept="image/*" />
+                                        <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر ۱۰ مگابایت)</small>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(currentHawala.ReceiverTazkiraImagePath))
+                                    {
+                                        <div class="col-md-6 mb-3 d-flex align-items-center gap-2">
+                                            <a href="@currentHawala.ReceiverTazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i> مشاهده عکس
+                                            </a>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="RemoveReceiverTazkira">
+                                                <i class="bi bi-trash"></i> حذف
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            }
                             <div class="col-md-8 mb-3">
                                 <label class="form-label fw-bold">آدرس گیرنده</label>
                                 <input type="text" class="form-control" @bind="currentHawala.ReceiverAddress" placeholder="آدرس" />
@@ -1094,6 +1193,11 @@
     private string successMessage = string.Empty;
     private HawalaDto? selectedHawala = null;
     private CreateHawalaDto currentHawala = new();
+
+    private IBrowserFile? senderTazkiraFile;
+    private IBrowserFile? receiverTazkiraFile;
+    private string? senderTazkiraImagePath; // برای نمایش در ویرایش
+    private string? receiverTazkiraImagePath;
 
     private long afnCurrencyId = 0;
 
@@ -1818,8 +1922,113 @@
                currentHawala.FromCurrencyId == currentHawala.ToCurrencyId;
     }
 
-    
+    private async Task<string?> SaveTazkiraImageAsync(IBrowserFile file)
+    {
+        if (file == null) return null;
 
+        try
+        {
+            // پوشه آپلود
+            var uploadsFolder = Path.Combine(WebHostEnvironment.WebRootPath, "uploads", "tazkira");
+            if (!Directory.Exists(uploadsFolder))
+                Directory.CreateDirectory(uploadsFolder);
 
+            // نام فایل یکتا
+            var fileName = $"{Guid.NewGuid()}_{file.Name}";
+            var filePath = Path.Combine(uploadsFolder, fileName);
+
+            // ذخیره فایل
+            using var stream = new FileStream(filePath, FileMode.Create);
+            await file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(stream);
+
+            // مسیر نسبی برای ذخیره در دیتابیس
+            return $"/uploads/tazkira/{fileName}";
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void DeleteTazkiraImage(string? imagePath)
+    {
+        if (string.IsNullOrEmpty(imagePath)) return;
+
+        try
+        {
+            var fullPath = Path.Combine(WebHostEnvironment.WebRootPath, imagePath.TrimStart('/'));
+            if (File.Exists(fullPath))
+                File.Delete(fullPath);
+        }
+        catch { /* خطا را نادیده بگیر */ }
+    }
+
+    private void RemoveSenderTazkira()
+    {
+        // حذف فایل از دیسک
+        if (!string.IsNullOrEmpty(currentHawala.TazkiraImagePath))
+            DeleteTazkiraImage(currentHawala.TazkiraImagePath);
+
+        // پاک کردن مسیر از DTO
+        currentHawala.TazkiraImagePath = null;
+        senderTazkiraImagePath = null;
+        senderTazkiraFile = null;
+    }
+
+    private void RemoveReceiverTazkira()
+    {
+        if (!string.IsNullOrEmpty(currentHawala.ReceiverTazkiraImagePath))
+            DeleteTazkiraImage(currentHawala.ReceiverTazkiraImagePath);
+
+        currentHawala.ReceiverTazkiraImagePath = null;
+        receiverTazkiraImagePath = null;
+        receiverTazkiraFile = null;
+    }
+
+    private async Task OnSenderTazkiraUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        // حذف فایل قبلی
+        if (!string.IsNullOrEmpty(currentHawala.TazkiraImagePath))
+        {
+            DeleteTazkiraImage(currentHawala.TazkiraImagePath);
+        }
+
+        // ذخیره فایل جدید
+        var path = await SaveTazkiraImageAsync(file);
+        if (path != null)
+        {
+            currentHawala.TazkiraImagePath = path;
+            senderTazkiraFile = file;
+        }
+        else
+        {
+            validationErrors.Add("خطا در آپلود عکس تذکره");
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnReceiverTazkiraUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        if (!string.IsNullOrEmpty(currentHawala.ReceiverTazkiraImagePath))
+            DeleteTazkiraImage(currentHawala.ReceiverTazkiraImagePath);
+
+        var path = await SaveTazkiraImageAsync(file);
+        if (path != null)
+        {
+            currentHawala.ReceiverTazkiraImagePath = path;
+            receiverTazkiraFile = file;
+        }
+        else
+        {
+            validationErrors.Add("خطا در آپلود عکس تذکره گیرنده");
+        }
+        StateHasChanged();
+    }
 
 }

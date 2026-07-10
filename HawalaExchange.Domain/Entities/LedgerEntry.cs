@@ -10,7 +10,7 @@ namespace HawalaExchange.Domain.Entities
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
-
+        public long? TransferId { get; set; }
         //[Required]
         public long? HawalaId { get; set; }
 
@@ -38,6 +38,9 @@ namespace HawalaExchange.Domain.Entities
 
         [ForeignKey(nameof(AccountId))]
         public virtual Account? Account { get; set; }
+
+        [ForeignKey(nameof(TransferId))]
+        public virtual Transfer? Transfer { get; set; }
 
         [ForeignKey(nameof(CurrencyId))]
         public virtual Currency? Currency { get; set; }

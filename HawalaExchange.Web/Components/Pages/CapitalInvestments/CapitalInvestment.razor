@@ -151,15 +151,129 @@
                     }
                     else
                     {
-                        <i class="bi bi-save"></i>
+                        <i class="bi @(isEditMode ? "bi-pencil" : "bi-save")"></i>
                     }
-                    ثبت سرمایه
+                    @(isEditMode ? "ویرایش سرمایه" : "ثبت سرمایه")
                 </button>
             </div>
         </div>
     </div>
 </div>
+<div class="table-card mt-4">
+    <div class="table-card-header">
+        <h6 class="mb-0 text-primary">
+            <i class="bi bi-list-ul"></i>
+            لیست سرمایه‌های ثبت‌شده
+        </h6>
+    </div>
 
+    <div class="table-card-body">
+        <table class="table-modern table-striped-modern">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>تاریخ</th>
+                    <th>ارز</th>
+                    <th>مبلغ</th>
+                    <th>حساب دریافت‌کننده</th>
+                    <th>حساب سرمایه</th>
+                    <th>توضیحات</th>
+                    <th class="text-center">عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!investments.Any())
+                {
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">
+                            هیچ سرمایه‌ای ثبت نشده است.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    var index = 1;
+                    @foreach (var item in investments)
+                    {
+                        <tr>
+                            <td>@index</td>
+                            <td dir="ltr">@item.InvestmentDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                            <td>@item.CurrencyCode</td>
+                            <td dir="ltr" class="fw-bold text-primary">@item.Amount.ToString("N2")</td>
+                            <td>@item.ReceivingAccountName</td>
+                            <td>@item.CapitalAccountName</td>
+                            <td>@(item.Description ?? "-")</td>
+                            <td>
+                                <div class="action-group justify-content-center">
+                                    <button class="action-btn action-btn-edit"
+                                            title="ویرایش"
+                                            @onclick="() => EditInvestment(item.Id)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+
+                                    <button class="action-btn action-btn-delete"
+                                            title="حذف"
+                                            @onclick="() => AskDelete(item.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+
+                        index++;
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+@if (showDeleteConfirm)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        تأیید حذف
+                    </h5>
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CancelDelete"></button>
+                </div>
+
+                <div class="modal-body text-center py-4">
+                    <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
+                    <p class="fs-5">
+                        آیا مطمئن هستید که می‌خواهید این ثبت سرمایه را حذف کنید؟
+                    </p>
+                    <p class="text-muted small">
+                        با حذف آن، لیجرهای مربوط به این سرمایه نیز حذف می‌شود.
+                    </p>
+                </div>
+
+                <div class="modal-footer justify-content-center">
+                    <button type="button"
+                            class="btn-modern btn-light-modern"
+                            @onclick="CancelDelete">
+                        <i class="bi bi-x-circle"></i>
+                        انصراف
+                    </button>
+
+                    <button type="button"
+                            class="btn-modern btn-danger-modern"
+                            @onclick="ConfirmDelete">
+                        <i class="bi bi-trash"></i>
+                        حذف
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 @code {
     private CreateCapitalInvestmentDto model = new();
 
@@ -173,10 +287,18 @@
     private bool isLoading = false;
 
     private DateTime investmentDateLocal = DateTime.Now;
+    private List<CapitalInvestmentDto> investments = new();
+
+    private bool isEditMode = false;
+    private long editId = 0;
+    private bool showDeleteConfirm = false;
+    private long deleteId = 0;
+
 
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
+        await LoadInvestments();
         ResetForm();
     }
 
@@ -198,8 +320,14 @@
             .ToList();
     }
 
+    private async Task LoadInvestments()
+    {
+        investments = await CapitalInvestmentService.GetAllAsync();
+    }
     private void ResetForm()
     {
+        isEditMode = false;
+        editId = 0;
         var afn = currencies.FirstOrDefault(x =>
             x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
 
@@ -225,6 +353,33 @@
         successMessage = string.Empty;
     }
 
+    private async Task EditInvestment(long id)
+    {
+        var investment = await CapitalInvestmentService.GetByIdAsync(id);
+
+        if (investment == null)
+        {
+            validationErrors.Add("ثبت سرمایه یافت نشد.");
+            return;
+        }
+
+        model = new CreateCapitalInvestmentDto
+        {
+            CurrencyId = investment.CurrencyId,
+            Amount = investment.Amount,
+            ReceivingAccountId = investment.ReceivingAccountId,
+            CapitalAccountId = investment.CapitalAccountId,
+            InvestmentDate = investment.InvestmentDate,
+            Description = investment.Description
+        };
+
+        investmentDateLocal = investment.InvestmentDate.ToLocalTime();
+
+        isEditMode = true;
+        editId = id;
+        successMessage = string.Empty;
+        validationErrors.Clear();
+    }
     private async Task Save()
     {
         validationErrors.Clear();
@@ -254,10 +409,30 @@
 
             model.InvestmentDate = investmentDateLocal.ToUniversalTime();
 
-            await CapitalInvestmentService.CreateAsync(model);
+            model.InvestmentDate = investmentDateLocal.ToUniversalTime();
 
-            successMessage = "سرمایه با موفقیت در دفتر کل ثبت شد.";
+            if (isEditMode)
+            {
+                var updateDto = new UpdateCapitalInvestmentDto
+                {
+                    CurrencyId = model.CurrencyId,
+                    Amount = model.Amount,
+                    ReceivingAccountId = model.ReceivingAccountId,
+                    CapitalAccountId = model.CapitalAccountId,
+                    InvestmentDate = model.InvestmentDate,
+                    Description = model.Description
+                };
 
+                await CapitalInvestmentService.UpdateAsync(editId, updateDto);
+                successMessage = "ثبت سرمایه با موفقیت ویرایش شد.";
+            }
+            else
+            {
+                await CapitalInvestmentService.CreateAsync(model);
+                successMessage = "سرمایه با موفقیت در دفتر کل ثبت شد.";
+            }
+
+            await LoadInvestments();
             ResetForm();
         }
         catch (Exception ex)
@@ -267,6 +442,37 @@
         finally
         {
             isLoading = false;
+        }
+    }
+    private void AskDelete(long id)
+    {
+        deleteId = id;
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        deleteId = 0;
+        showDeleteConfirm = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        try
+        {
+            validationErrors.Clear();
+
+            await CapitalInvestmentService.DeleteAsync(deleteId);
+
+            successMessage = "ثبت سرمایه با موفقیت حذف شد.";
+            showDeleteConfirm = false;
+            deleteId = 0;
+
+            await LoadInvestments();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در حذف سرمایه: {ex.Message}");
         }
     }
 }

@@ -160,6 +160,45 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.ReceivingAccount, opt => opt.Ignore())
                 .ForMember(dest => dest.CapitalAccount, opt => opt.Ignore())
                 .ForMember(dest => dest.LedgerEntries, opt => opt.Ignore());
+
+            // ===== AccountMoneyOperation =====
+
+            // ===== AccountMoneyOperation / واریز برداشت =====
+            CreateMap<AccountMoneyOperation, AccountMoneyOperationDto>()
+                .ForMember(dest => dest.AccountName,
+                    opt => opt.MapFrom(src => src.Account != null ? src.Account.AccountName : ""))
+                .ForMember(dest => dest.AccountCode,
+                    opt => opt.MapFrom(src => src.Account != null ? src.Account.AccountCode : ""))
+                .ForMember(dest => dest.CashOrBankAccountName,
+                    opt => opt.MapFrom(src => src.CashOrBankAccount != null ? src.CashOrBankAccount.AccountName : ""))
+                .ForMember(dest => dest.CashOrBankAccountCode,
+                    opt => opt.MapFrom(src => src.CashOrBankAccount != null ? src.CashOrBankAccount.AccountCode : ""))
+                .ForMember(dest => dest.CurrencyCode,
+                    opt => opt.MapFrom(src => src.Currency != null ? src.Currency.Code : ""));
+
+            CreateMap<CreateAccountMoneyOperationDto, AccountMoneyOperation>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.IsDeleted, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
+                .ForMember(dest => dest.ModifiedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.ModifiedBy, opt => opt.Ignore())
+                .ForMember(dest => dest.Account, opt => opt.Ignore())
+                .ForMember(dest => dest.CashOrBankAccount, opt => opt.Ignore())
+                .ForMember(dest => dest.Currency, opt => opt.Ignore())
+                .ForMember(dest => dest.LedgerEntries, opt => opt.Ignore());
+
+            CreateMap<UpdateAccountMoneyOperationDto, AccountMoneyOperation>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.IsDeleted, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
+                .ForMember(dest => dest.ModifiedAt, opt => opt.Ignore())
+                .ForMember(dest => dest.ModifiedBy, opt => opt.Ignore())
+                .ForMember(dest => dest.Account, opt => opt.Ignore())
+                .ForMember(dest => dest.CashOrBankAccount, opt => opt.Ignore())
+                .ForMember(dest => dest.Currency, opt => opt.Ignore())
+                .ForMember(dest => dest.LedgerEntries, opt => opt.Ignore());
             // ===== Hawala =====
             // Hawala -> HawalaDto
             CreateMap<Hawala, HawalaDto>()

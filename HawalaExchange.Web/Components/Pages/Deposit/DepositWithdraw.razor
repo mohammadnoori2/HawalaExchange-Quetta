@@ -1,0 +1,1331 @@
+﻿@page "/deposit-withdraw"
+
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+
+@inject IAccountMoneyOperationService AccountMoneyOperationService
+@inject ICurrencyService CurrencyService
+@inject IAccountService AccountService
+
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<div class="page-wrapper" dir="rtl">
+    <!-- هدر صفحه -->
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-arrow-down-up"></i>
+                واریز / برداشت
+                <span class="page-subtitle">ثبت و مدیریت واریز و برداشت حساب‌ها در دفتر کل</span>
+            </h5>
+        </div>
+
+        <div class="page-actions">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
+                <i class="bi bi-plus-circle"></i>
+                عملیات جدید
+            </button>
+        </div>
+    </div>
+
+    @if (validationErrors.Any() && !showModal)
+    {
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                @foreach (var error in validationErrors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i>
+            @successMessage
+        </div>
+    }
+
+    <!-- کارت آماری -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon primary">
+                        <i class="bi bi-list-ul"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@operations.Count</div>
+                        <div class="stat-label">تعداد کل</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-success">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon success">
+                        <i class="bi bi-arrow-down-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@operations.Count(x => x.OperationType == "Deposit")</div>
+                        <div class="stat-label">واریزها</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-danger">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon danger">
+                        <i class="bi bi-arrow-up-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@operations.Count(x => x.OperationType == "Withdraw")</div>
+                        <div class="stat-label">برداشت‌ها</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-info">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon info">
+                        <i class="bi bi-calendar-check"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@operations.Count(x => x.OperationDate.ToLocalTime().Date == DateTime.Today)</div>
+                        <div class="stat-label">امروز</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- کارت جدول -->
+    <div class="table-card">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <!-- جستجو -->
+                <div class="search-modern">
+                    <span class="search-icon">
+                        <i class="bi bi-search"></i>
+                    </span>
+
+                    <input type="text"
+                           class="search-input"
+                           placeholder="جستجو: حساب، ارز، توضیحات..."
+                           @bind="searchTerm"
+                           @bind:event="oninput" />
+
+                    <button class="search-btn" @onclick="ClearSearch">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- فیلتر نوع عملیات -->
+                <div class="filter-selector">
+                    <select class="form-select form-select-sm"
+                            @bind="filterOperationType"
+                            @bind:event="oninput">
+                        <option value="">همه عملیات</option>
+                        <option value="Deposit">واریز</option>
+                        <option value="Withdraw">برداشت</option>
+                    </select>
+                </div>
+
+                <!-- فیلتر ارز -->
+                <div class="filter-selector">
+                    <select class="form-select form-select-sm"
+                            @bind="filterCurrencyId"
+                            @bind:event="oninput">
+                        <option value="0">همه ارزها</option>
+                        @foreach (var currency in currencies)
+                        {
+                            <option value="@currency.Id">
+                                @currency.Code - @currency.Name
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <!-- تعداد نمایش -->
+                <div class="page-size-selector">
+                    <span class="text-muted small">تعداد نمایش:</span>
+
+                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">همه</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i>
+                    @filteredOperations.Count
+                </span>
+            </div>
+        </div>
+
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">#</th>
+
+                            <th class="sortable-header @(sortColumn == "OperationType" ? "active" : "")"
+                                @onclick="@(() => SortBy("OperationType"))">
+                                نوع
+                                @if (sortColumn == "OperationType")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+
+                            <th class="sortable-header @(sortColumn == "Amount" ? "active" : "")"
+                                @onclick="@(() => SortBy("Amount"))">
+                                مبلغ
+                                @if (sortColumn == "Amount")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+
+                            <th class="sortable-header @(sortColumn == "CurrencyCode" ? "active" : "")"
+                                @onclick="@(() => SortBy("CurrencyCode"))">
+                                ارز
+                                @if (sortColumn == "CurrencyCode")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+
+                            <th class="sortable-header @(sortColumn == "OperationDate" ? "active" : "")"
+                                @onclick="@(() => SortBy("OperationDate"))">
+                                تاریخ
+                                @if (sortColumn == "OperationDate")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+
+                            <th>حساب انتخاب‌شده</th>
+                            <th>حساب صندوق/بانک</th>
+                            <th>توضیحات</th>
+                            <th class="text-center" style="min-width: 160px;">عملیات</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @if (isLoading && !operations.Any())
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-5">
+                                    <div class="loading-state">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">در حال بارگذاری...</span>
+                                        </div>
+                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!pagedOperations.Any())
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <span class="fs-5 text-muted">هیچ عملیات واریز/برداشت یافت نشد</span>
+                                        <p class="text-muted small">برای افزودن عملیات جدید، دکمه "عملیات جدید" را کلیک کنید.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredOperations.Count : pageSize) + 1;
+
+                            @foreach (var item in pagedOperations)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="fw-bold text-muted">@rowIndex</span>
+                                    </td>
+
+                                    <td>
+                                        <span class="badge-modern @GetOperationBadge(item.OperationType)">
+                                            @GetOperationTypeName(item.OperationType)
+                                        </span>
+                                    </td>
+
+                                    <td dir="ltr" class="fw-bold @(item.OperationType == "Deposit" ? "text-success" : "text-danger")">
+                                        @item.Amount.ToString("N2")
+                                    </td>
+
+                                    <td>
+                                        <span class="badge-modern badge-info">
+                                            @item.CurrencyCode
+                                        </span>
+                                    </td>
+
+                                    <td dir="ltr">
+                                        @item.OperationDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")
+                                    </td>
+
+                                    <td>
+                                        <span class="fw-semibold">
+                                            @item.AccountName
+                                        </span>
+                                        <small class="text-muted d-block">
+                                            @item.AccountCode
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        <span class="fw-semibold">
+                                            @item.CashOrBankAccountName
+                                        </span>
+                                        <small class="text-muted d-block">
+                                            @item.CashOrBankAccountCode
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        @(item.Description ?? "-")
+                                    </td>
+
+                                    <td>
+                                        <div class="action-group justify-content-center">
+                                            <button class="action-btn action-btn-view"
+                                                    @onclick="() => ViewOperation(item.Id)"
+                                                    title="مشاهده">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+
+                                            <button class="action-btn action-btn-edit"
+                                                    @onclick="() => OpenEditModal(item.Id)"
+                                                    title="ویرایش">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+
+                                            <button class="action-btn action-btn-delete"
+                                                    @onclick="() => ShowDeleteConfirm(item.Id)"
+                                                    title="حذف">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedOperations.Count</strong>
+                    از <strong>@filteredOperations.Count</strong> عملیات
+                </span>
+
+                @if (totalPages > 1)
+                {
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination-modern">
+                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                <li class="page-item @(i == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(i)">
+                                        @i
+                                    </button>
+                                </li>
+                            }
+
+                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+
+            <div class="table-card-footer-right">
+                <span class="badge-modern badge-success">
+                    <i class="bi bi-arrow-down-circle"></i>
+                    واریز: @operations.Count(x => x.OperationType == "Deposit")
+                </span>
+
+                <span class="badge-modern badge-danger">
+                    <i class="bi bi-arrow-up-circle"></i>
+                    برداشت: @operations.Count(x => x.OperationType == "Withdraw")
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- مودال ایجاد/ویرایش -->
+@if (showModal)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
+                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(isEditMode ? "ویرایش واریز/برداشت" : "ثبت واریز/برداشت جدید")
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseModal"></button>
+                </div>
+
+                <div class="modal-body">
+                    @if (validationErrors.Any())
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <h6 class="alert-heading">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                لطفاً خطاهای زیر را اصلاح کنید:
+                            </h6>
+
+                            <ul class="mb-0">
+                                @foreach (var error in validationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <div class="modern-card mb-4">
+                        <div class="card-header">
+                            <h6 class="text-primary">
+                                <i class="bi bi-arrow-down-up me-2"></i>
+                                اطلاعات عملیات
+                            </h6>
+                        </div>
+
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        نوع عملیات <span class="text-danger">*</span>
+                                    </label>
+
+                                    <select class="form-select" @bind="currentOperation.OperationType">
+                                        <option value="">انتخاب نوع</option>
+                                        <option value="Deposit">واریز</option>
+                                        <option value="Withdraw">برداشت</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        ارز <span class="text-danger">*</span>
+                                    </label>
+
+                                    <select class="form-select" @bind="currentOperation.CurrencyId">
+                                        <option value="0">انتخاب ارز</option>
+                                        @foreach (var currency in currencies)
+                                        {
+                                            <option value="@currency.Id">
+                                                @currency.Code - @currency.Name
+                                            </option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        مبلغ <span class="text-danger">*</span>
+                                    </label>
+
+                                    <input type="number"
+                                           step="0.01"
+                                           class="form-control"
+                                           @bind="currentOperation.Amount"
+                                           placeholder="مثلاً 10000" />
+                                </div>
+
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        تاریخ
+                                    </label>
+
+                                    <input type="datetime-local"
+                                           class="form-control"
+                                           @bind="operationDateLocal" />
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        حساب انتخاب‌شده <span class="text-danger">*</span>
+                                    </label>
+
+                                    <select class="form-select" @bind="currentOperation.AccountId">
+                                        <option value="0">انتخاب حساب</option>
+                                        @foreach (var account in selectableAccounts)
+                                        {
+                                            <option value="@account.Id">
+                                                @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
+                                            </option>
+                                        }
+                                    </select>
+
+                                    <small class="text-muted">
+                                        این حساب می‌تواند مشتری، نماینده، حساب دیگر یا هر حساب غیر صندوق/بانک باشد.
+                                    </small>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        حساب صندوق/بانک <span class="text-danger">*</span>
+                                    </label>
+
+                                    <select class="form-select" @bind="currentOperation.CashOrBankAccountId">
+                                        <option value="0">انتخاب حساب صندوق/بانک</option>
+                                        @foreach (var account in cashBankAccounts)
+                                        {
+                                            <option value="@account.Id">
+                                                @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
+                                            </option>
+                                        }
+                                    </select>
+
+                                    <small class="text-muted">
+                                        معمولاً Cash یا Bank.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label fw-bold">
+                                        توضیحات
+                                    </label>
+
+                                    <textarea class="form-control"
+                                              rows="2"
+                                              @bind="currentOperation.Description"
+                                              placeholder="توضیحات اضافی"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info mb-0">
+                                <strong>سند حسابداری:</strong>
+
+                                @if (currentOperation.OperationType == "Deposit")
+                                {
+                                    <div class="mt-2">
+                                        در واریز: حساب صندوق/بانک بدهکار/طلبکار می‌شود و حساب انتخاب‌شده بستانکار/بدهکار می‌شود.
+                                    </div>
+
+                                    <div class="mt-2" dir="ltr">
+                                        Cash/Bank: TalabKar |
+                                        Selected Account: BadehKar
+                                    </div>
+                                }
+                                else if (currentOperation.OperationType == "Withdraw")
+                                {
+                                    <div class="mt-2">
+                                        در برداشت: حساب انتخاب‌شده بدهکار/طلبکار می‌شود و حساب صندوق/بانک بستانکار/بدهکار می‌شود.
+                                    </div>
+
+                                    <div class="mt-2" dir="ltr">
+                                        Selected Account: TalabKar |
+                                        Cash/Bank: BadehKar
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="mt-2">
+                                        ابتدا نوع عملیات را انتخاب کنید.
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (isEditMode)
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <small>
+                                در حال ویرایش عملیات با شناسه:
+                                <strong>@editId</strong>
+                            </small>
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn-modern btn-light-modern"
+                            @onclick="CloseModal">
+                        <i class="bi bi-x-circle"></i>
+                        انصراف
+                    </button>
+
+                    <button type="button"
+                            class="btn-modern btn-primary-modern"
+                            @onclick="SaveOperation"
+                            disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi @(isEditMode ? "bi-pencil" : "bi-save")"></i>
+                        }
+
+                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال مشاهده جزئیات -->
+@if (showDetailModal && selectedOperation != null)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #0dcaf0, #0a9ec4);">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-info-circle me-2"></i>
+                        جزئیات واریز/برداشت
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseDetailModal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">نوع عملیات</span>
+                                <span class="info-value">
+                                    <span class="badge-modern @GetOperationBadge(selectedOperation.OperationType)">
+                                        @GetOperationTypeName(selectedOperation.OperationType)
+                                    </span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">مبلغ</span>
+                                <span class="info-value fw-bold" dir="ltr">
+                                    @selectedOperation.Amount.ToString("N2")
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">ارز</span>
+                                <span class="info-value">@selectedOperation.CurrencyCode</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">حساب انتخاب‌شده</span>
+                                <span class="info-value">
+                                    @selectedOperation.AccountName
+                                    <small class="text-muted d-block">@selectedOperation.AccountCode</small>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">حساب صندوق/بانک</span>
+                                <span class="info-value">
+                                    @selectedOperation.CashOrBankAccountName
+                                    <small class="text-muted d-block">@selectedOperation.CashOrBankAccountCode</small>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">تاریخ</span>
+                                <span class="info-value" dir="ltr">
+                                    @selectedOperation.OperationDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">توضیحات</span>
+                                <span class="info-value">@(selectedOperation.Description ?? "-")</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3 mb-0">
+                        <strong>لیجر مربوطه:</strong>
+
+                        @if (selectedOperation.OperationType == "Deposit")
+                        {
+                            <div class="mt-2" dir="ltr">
+                                Cash/Bank: TalabKar |
+                                Selected Account: BadehKar
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mt-2" dir="ltr">
+                                Selected Account: TalabKar |
+                                Cash/Bank: BadehKar
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn-modern btn-light-modern"
+                            @onclick="CloseDetailModal">
+                        <i class="bi bi-x-circle"></i>
+                        بستن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال تأیید حذف -->
+@if (showDeleteModal)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        تأیید حذف
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseDeleteModal"></button>
+                </div>
+
+                <div class="modal-body text-center py-4">
+                    <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
+
+                    <p class="fs-5">
+                        آیا مطمئن هستید که می‌خواهید این عملیات را حذف کنید؟
+                    </p>
+
+                    <p class="text-muted small">
+                        با حذف آن، ورودی‌های دفتر کل مربوط به این عملیات نیز حذف می‌شوند.
+                    </p>
+                </div>
+
+                <div class="modal-footer justify-content-center">
+                    <button type="button"
+                            class="btn-modern btn-light-modern"
+                            @onclick="CloseDeleteModal">
+                        <i class="bi bi-x-circle"></i>
+                        انصراف
+                    </button>
+
+                    <button type="button"
+                            class="btn-modern btn-danger-modern"
+                            @onclick="ConfirmDelete"
+                            disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-trash"></i>
+                        }
+
+                        تأیید حذف
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AccountMoneyOperationDto> operations = new();
+    private List<AccountMoneyOperationDto> filteredOperations = new();
+
+    private List<CurrencyDto> currencies = new();
+    private List<AccountDto> accounts = new();
+    private List<AccountDto> selectableAccounts = new();
+    private List<AccountDto> cashBankAccounts = new();
+
+    private string _searchTerm = string.Empty;
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm != value)
+            {
+                _searchTerm = value;
+                SearchOperations();
+            }
+        }
+    }
+
+    private string _filterOperationType = string.Empty;
+    private string filterOperationType
+    {
+        get => _filterOperationType;
+        set
+        {
+            if (_filterOperationType != value)
+            {
+                _filterOperationType = value;
+                SearchOperations();
+            }
+        }
+    }
+
+    private long _filterCurrencyId = 0;
+    private long filterCurrencyId
+    {
+        get => _filterCurrencyId;
+        set
+        {
+            if (_filterCurrencyId != value)
+            {
+                _filterCurrencyId = value;
+                SearchOperations();
+            }
+        }
+    }
+
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string sortColumn = "OperationDate";
+    private bool sortAscending = false;
+
+    private bool showModal = false;
+    private bool showDetailModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditMode = false;
+    private bool isLoading = false;
+
+    private long editId = 0;
+    private long deleteId = 0;
+
+    private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
+
+    private AccountMoneyOperationDto? selectedOperation = null;
+    private CreateAccountMoneyOperationDto currentOperation = new();
+
+    private DateTime operationDateLocal = DateTime.Now;
+
+    private List<AccountMoneyOperationDto> pagedOperations
+    {
+        get
+        {
+            var sorted = filteredOperations;
+
+            switch (sortColumn)
+            {
+                case "OperationType":
+                    sorted = sortAscending
+                        ? filteredOperations.OrderBy(x => x.OperationType).ToList()
+                        : filteredOperations.OrderByDescending(x => x.OperationType).ToList();
+                    break;
+
+                case "Amount":
+                    sorted = sortAscending
+                        ? filteredOperations.OrderBy(x => x.Amount).ToList()
+                        : filteredOperations.OrderByDescending(x => x.Amount).ToList();
+                    break;
+
+                case "CurrencyCode":
+                    sorted = sortAscending
+                        ? filteredOperations.OrderBy(x => x.CurrencyCode).ToList()
+                        : filteredOperations.OrderByDescending(x => x.CurrencyCode).ToList();
+                    break;
+
+                case "OperationDate":
+                    sorted = sortAscending
+                        ? filteredOperations.OrderBy(x => x.OperationDate).ToList()
+                        : filteredOperations.OrderByDescending(x => x.OperationDate).ToList();
+                    break;
+
+                default:
+                    sorted = filteredOperations
+                        .OrderByDescending(x => x.OperationDate)
+                        .ToList();
+                    break;
+            }
+
+            if (pageSize == 0)
+            {
+                currentPage = 1;
+                return sorted;
+            }
+
+            var skip = (currentPage - 1) * pageSize;
+            return sorted.Skip(skip).Take(pageSize).ToList();
+        }
+    }
+
+    private int totalPages =>
+        pageSize == 0
+            ? 1
+            : (int)Math.Ceiling((double)filteredOperations.Count / pageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupData();
+        await LoadOperations();
+    }
+
+    private async Task LoadLookupData()
+    {
+        try
+        {
+            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
+
+            accounts = (await AccountService.GetAllAsync())
+                .Where(x => !x.IsArchived)
+                .ToList();
+
+            cashBankAccounts = accounts
+                .Where(x => x.AccountType == "Cash" || x.AccountType == "Bank")
+                .OrderBy(x => x.AccountCode)
+                .ToList();
+
+            selectableAccounts = accounts
+                .Where(x => x.AccountType != "Cash" && x.AccountType != "Bank")
+                .OrderBy(x => x.AccountCode)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری داده‌های کمکی: {ex.Message}");
+        }
+    }
+
+    private async Task LoadOperations()
+    {
+        try
+        {
+            isLoading = true;
+
+            var result = await AccountMoneyOperationService.GetAllAsync();
+
+            operations = result.ToList();
+            filteredOperations = operations.ToList();
+            currentPage = 1;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری عملیات‌ها: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SearchOperations()
+    {
+        var query = operations.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim().ToLower();
+
+            query = query.Where(x =>
+                (!string.IsNullOrWhiteSpace(x.AccountName) &&
+                 x.AccountName.ToLower().Contains(term)) ||
+
+                (!string.IsNullOrWhiteSpace(x.AccountCode) &&
+                 x.AccountCode.ToLower().Contains(term)) ||
+
+                (!string.IsNullOrWhiteSpace(x.CashOrBankAccountName) &&
+                 x.CashOrBankAccountName.ToLower().Contains(term)) ||
+
+                (!string.IsNullOrWhiteSpace(x.CashOrBankAccountCode) &&
+                 x.CashOrBankAccountCode.ToLower().Contains(term)) ||
+
+                (!string.IsNullOrWhiteSpace(x.CurrencyCode) &&
+                 x.CurrencyCode.ToLower().Contains(term)) ||
+
+                (!string.IsNullOrWhiteSpace(x.Description) &&
+                 x.Description.ToLower().Contains(term))
+            );
+        }
+
+        if (!string.IsNullOrWhiteSpace(_filterOperationType))
+        {
+            query = query.Where(x => x.OperationType == _filterOperationType);
+        }
+
+        if (_filterCurrencyId > 0)
+        {
+            query = query.Where(x => x.CurrencyId == _filterCurrencyId);
+        }
+
+        filteredOperations = query.ToList();
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        _searchTerm = string.Empty;
+        _filterOperationType = string.Empty;
+        _filterCurrencyId = 0;
+        filteredOperations = operations.ToList();
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+        {
+            currentPage = page;
+            StateHasChanged();
+        }
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void OpenCreateModal()
+    {
+        var afn = currencies.FirstOrDefault(x =>
+            x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
+
+        var defaultCash = cashBankAccounts.FirstOrDefault(x =>
+            x.AccountType == "Cash");
+
+        currentOperation = new CreateAccountMoneyOperationDto
+        {
+            OperationType = "Deposit",
+            CurrencyId = afn?.Id ?? 0,
+            CashOrBankAccountId = defaultCash?.Id ?? 0,
+            AccountId = 0,
+            Amount = 0,
+            OperationDate = DateTime.UtcNow,
+            Description = string.Empty
+        };
+
+        operationDateLocal = DateTime.Now;
+
+        isEditMode = false;
+        editId = 0;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showModal = true;
+
+        StateHasChanged();
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var operation = await AccountMoneyOperationService.GetByIdAsync(id);
+
+            if (operation == null)
+            {
+                validationErrors.Add("عملیات یافت نشد.");
+                return;
+            }
+
+            currentOperation = new CreateAccountMoneyOperationDto
+            {
+                OperationType = operation.OperationType,
+                OperationDate = operation.OperationDate,
+                AccountId = operation.AccountId,
+                CashOrBankAccountId = operation.CashOrBankAccountId,
+                CurrencyId = operation.CurrencyId,
+                Amount = operation.Amount,
+                Description = operation.Description
+            };
+
+            operationDateLocal = operation.OperationDate.ToLocalTime();
+
+            isEditMode = true;
+            editId = id;
+            validationErrors.Clear();
+            successMessage = string.Empty;
+            showModal = true;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری عملیات: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        validationErrors.Clear();
+        StateHasChanged();
+    }
+
+    private async Task SaveOperation()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        if (currentOperation.OperationType != "Deposit" &&
+            currentOperation.OperationType != "Withdraw")
+            validationErrors.Add("نوع عملیات باید واریز یا برداشت باشد.");
+
+        if (currentOperation.AccountId <= 0)
+            validationErrors.Add("انتخاب حساب الزامی است.");
+
+        if (currentOperation.CashOrBankAccountId <= 0)
+            validationErrors.Add("انتخاب حساب صندوق/بانک الزامی است.");
+
+        if (currentOperation.AccountId == currentOperation.CashOrBankAccountId)
+            validationErrors.Add("حساب انتخاب‌شده و حساب صندوق/بانک نمی‌تواند یکی باشد.");
+
+        if (currentOperation.CurrencyId <= 0)
+            validationErrors.Add("انتخاب ارز الزامی است.");
+
+        if (currentOperation.Amount <= 0)
+            validationErrors.Add("مبلغ باید بزرگتر از صفر باشد.");
+
+        if (validationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            currentOperation.OperationDate = operationDateLocal.ToUniversalTime();
+
+            if (isEditMode)
+            {
+                var updateDto = new UpdateAccountMoneyOperationDto
+                {
+                    OperationType = currentOperation.OperationType,
+                    OperationDate = currentOperation.OperationDate,
+                    AccountId = currentOperation.AccountId,
+                    CashOrBankAccountId = currentOperation.CashOrBankAccountId,
+                    CurrencyId = currentOperation.CurrencyId,
+                    Amount = currentOperation.Amount,
+                    Description = currentOperation.Description
+                };
+
+                await AccountMoneyOperationService.UpdateAsync(editId, updateDto);
+                successMessage = "عملیات با موفقیت ویرایش شد.";
+            }
+            else
+            {
+                await AccountMoneyOperationService.CreateAsync(currentOperation);
+                successMessage = "عملیات با موفقیت ثبت شد.";
+            }
+
+            showModal = false;
+            await LoadOperations();
+        }
+        catch (InvalidOperationException ex)
+        {
+            validationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ViewOperation(long id)
+    {
+        try
+        {
+            isLoading = true;
+
+            selectedOperation = await AccountMoneyOperationService.GetByIdAsync(id);
+            showDetailModal = true;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری جزئیات: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        selectedOperation = null;
+        StateHasChanged();
+    }
+
+    private void ShowDeleteConfirm(long id)
+    {
+        deleteId = id;
+        showDeleteModal = true;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        deleteId = 0;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        try
+        {
+            isLoading = true;
+
+            await AccountMoneyOperationService.DeleteAsync(deleteId);
+
+            successMessage = "عملیات با موفقیت حذف شد.";
+            showDeleteModal = false;
+            deleteId = 0;
+
+            await LoadOperations();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در حذف: {ex.Message}");
+            showDeleteModal = false;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetOperationTypeName(string operationType)
+    {
+        return operationType switch
+        {
+            "Deposit" => "واریز",
+            "Withdraw" => "برداشت",
+            _ => operationType
+        };
+    }
+
+    private string GetOperationBadge(string operationType)
+    {
+        return operationType switch
+        {
+            "Deposit" => "badge-success",
+            "Withdraw" => "badge-danger",
+            _ => "badge-secondary"
+        };
+    }
+
+    private string GetAccountTypeName(string? type)
+    {
+        return type?.ToLower() switch
+        {
+            "cash" => "نقدی",
+            "bank" => "بانک",
+            "customer" => "مشتری",
+            "correspondent" => "نماینده",
+            "income" => "درآمد",
+            "expense" => "مصرف",
+            "equity" => "سرمایه",
+            _ => type ?? "نامشخص"
+        };
+    }
+}

@@ -18,6 +18,7 @@ namespace HawalaExchange.Domain.Entities
         public long? TransactionId { get; set; }
         public long? CapitalInvestmentId { get; set; }
         public long? ExpenseId { get; set; }
+        public long? AccountMoneyOperationId { get; set; }
 
         [Required]
         public long AccountId { get; set; }
@@ -48,6 +49,7 @@ namespace HawalaExchange.Domain.Entities
         public virtual Currency? Currency { get; set; }
         public CapitalInvestment? CapitalInvestment { get; set; }
         public Expense? Expense { get; set; }
+        public AccountMoneyOperation? AccountMoneyOperation { get; set; }
 
     }
 }

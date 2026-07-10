@@ -100,6 +100,8 @@ public partial class Program
         builder.Services.AddScoped<ICapitalInvestmentService, CapitalInvestmentService>();
         builder.Services.AddScoped<IPaymentLocationService, PaymentLocationService>();
 
+        builder.Services.AddScoped<IAccountMoneyOperationService, AccountMoneyOperationService>();
+
         // ============================================================
         // 8. Email Sender
         // ============================================================

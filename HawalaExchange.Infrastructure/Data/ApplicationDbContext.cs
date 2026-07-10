@@ -36,6 +36,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
 
         public DbSet<CapitalInvestment> CapitalInvestments { get; set; }
+        public DbSet<AccountMoneyOperation> AccountMoneyOperations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -264,6 +265,9 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<TrialBalance>()
                 .Property(r => r.Balance).HasPrecision(18, 4);
             modelBuilder.Entity<CapitalInvestment>()
+    .Property(x => x.Amount)
+    .HasPrecision(18, 4);
+            modelBuilder.Entity<AccountMoneyOperation>()
     .Property(x => x.Amount)
     .HasPrecision(18, 4);
         }
@@ -577,6 +581,31 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasOne(x => x.CapitalInvestment)
                 .WithMany(x => x.LedgerEntries)
                 .HasForeignKey(x => x.CapitalInvestmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // AccountMoneyOperation relationships...
+            modelBuilder.Entity<AccountMoneyOperation>()
+    .HasOne(x => x.Account)
+    .WithMany()
+    .HasForeignKey(x => x.AccountId)
+    .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AccountMoneyOperation>()
+                .HasOne(x => x.CashOrBankAccount)
+                .WithMany()
+                .HasForeignKey(x => x.CashOrBankAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AccountMoneyOperation>()
+                .HasOne(x => x.Currency)
+                .WithMany()
+                .HasForeignKey(x => x.CurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<LedgerEntry>()
+                .HasOne(x => x.AccountMoneyOperation)
+                .WithMany(x => x.LedgerEntries)
+                .HasForeignKey(x => x.AccountMoneyOperationId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
 

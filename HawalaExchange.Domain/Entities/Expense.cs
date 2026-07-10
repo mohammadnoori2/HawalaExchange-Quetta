@@ -1,39 +1,38 @@
-﻿using System;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
+﻿namespace HawalaExchange.Domain.Entities;
 
-namespace HawalaExchange.Domain.Entities
+public class Expense
 {
-    [Table("Expenses")]
-    public class Expense
-    {
-        [Key]
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public long Id { get; set; }
+    public long Id { get; set; }
 
-        [Required]
-        public long TransactionId { get; set; }
+    public DateTime ExpenseDate { get; set; }
 
-        public DateTime ExpenseDate { get; set; } = DateTime.UtcNow;
+    public string Title { get; set; } = string.Empty;
 
-        [Required]
-        [MaxLength(200)]
-        public string Title { get; set; }
+    public long CurrencyId { get; set; }
 
-        [Required]
-        public long CurrencyId { get; set; }
+    public decimal Amount { get; set; }
 
-        [Required]
-        public decimal Amount { get; set; }
+    public long ExpenseAccountId { get; set; }
 
-        [MaxLength(1000)]
-        public string? Description { get; set; }
+    public long PaidFromAccountId { get; set; }
 
-        // Navigation Properties
-        [ForeignKey(nameof(TransactionId))]
-        public virtual Transaction? Transaction { get; set; }
+    public string? Description { get; set; }
 
-        [ForeignKey(nameof(CurrencyId))]
-        public virtual Currency? Currency { get; set; }
-    }
+    public bool IsDeleted { get; set; } = false;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public long CreatedBy { get; set; }
+
+    public DateTime? ModifiedAt { get; set; }
+
+    public long? ModifiedBy { get; set; }
+
+    public Currency Currency { get; set; } = null!;
+
+    public Account ExpenseAccount { get; set; } = null!;
+
+    public Account PaidFromAccount { get; set; } = null!;
+
+    public ICollection<LedgerEntry> LedgerEntries { get; set; } = new List<LedgerEntry>();
 }

@@ -17,8 +17,8 @@ namespace HawalaExchange.Domain.Entities
         public Hawala? Hawala { get; set; }
         public long? TransactionId { get; set; }
         public long? CapitalInvestmentId { get; set; }
+        public long? ExpenseId { get; set; }
 
- 
         [Required]
         public long AccountId { get; set; }
 
@@ -47,6 +47,7 @@ namespace HawalaExchange.Domain.Entities
         [ForeignKey(nameof(CurrencyId))]
         public virtual Currency? Currency { get; set; }
         public CapitalInvestment? CapitalInvestment { get; set; }
+        public Expense? Expense { get; set; }
 
     }
 }

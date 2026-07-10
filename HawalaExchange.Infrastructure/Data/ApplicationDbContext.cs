@@ -408,16 +408,34 @@ namespace HawalaExchange.Infrastructure.Data
 
             // Expense relationships...
             modelBuilder.Entity<Expense>()
-                .HasOne(e => e.Transaction)
-                .WithMany(t => t.Expenses)
-                .HasForeignKey(e => e.TransactionId)
+     .Property(x => x.Amount)
+     .HasPrecision(18, 4);
+
+            modelBuilder.Entity<Expense>()
+                .HasOne(x => x.Currency)
+                .WithMany()
+                .HasForeignKey(x => x.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Expense>()
-                .HasOne(e => e.Currency)
+                .HasOne(x => x.ExpenseAccount)
                 .WithMany()
-                .HasForeignKey(e => e.CurrencyId)
+                .HasForeignKey(x => x.ExpenseAccountId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Expense>()
+                .HasOne(x => x.PaidFromAccount)
+                .WithMany()
+                .HasForeignKey(x => x.PaidFromAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<LedgerEntry>()
+                .HasOne(x => x.Expense)
+                .WithMany(x => x.LedgerEntries)
+                .HasForeignKey(x => x.ExpenseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+       
 
             // ExchangeRate relationships...
             modelBuilder.Entity<ExchangeRate>()

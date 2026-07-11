@@ -15,19 +15,23 @@ namespace HawalaExchange.Application.Services
         private readonly ILedgerService _ledgerService;
         private readonly IAccountService _accountService;
         private readonly IAuditLogService _auditLogService;
+        private readonly IFileService _fileService;
+
 
         public HawalaService(
             ApplicationDbContext context,
             IMapper mapper,
             ILedgerService ledgerService,
             IAccountService accountService,
-            IAuditLogService auditLogService)
+            IAuditLogService auditLogService,
+            IFileService fileService)
         {
             _context = context;
             _mapper = mapper;
             _ledgerService = ledgerService;
             _accountService = accountService;
             _auditLogService = auditLogService;
+            _fileService = fileService;
         }
 
         public async Task<HawalaDto> CreateHawalaAsync(CreateHawalaDto dto)
@@ -275,6 +279,7 @@ namespace HawalaExchange.Application.Services
 
                 // بعد خود حواله حذف شود
                 _context.Hawalas.Remove(hawala);
+                await _fileService.DeleteFileAsync(hawala.ReceiverTazkiraImagePath);
 
                 await _context.SaveChangesAsync();
 

@@ -4,7 +4,7 @@ using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
-
+using HawalaExchange.Infrastructure.Services;
 using HawalaExchange.Web.Components;
 using HawalaExchange.Web.Components.Account;
 using HawalaSystem.Mappings;
@@ -99,6 +99,7 @@ public partial class Program
         builder.Services.AddScoped<IHawalaService, HawalaService>();
         builder.Services.AddScoped<ICapitalInvestmentService, CapitalInvestmentService>();
         builder.Services.AddScoped<IPaymentLocationService, PaymentLocationService>();
+        builder.Services.AddScoped<IFileService, FileService>();
 
         builder.Services.AddScoped<IAccountMoneyOperationService, AccountMoneyOperationService>();
         builder.Services.AddScoped<IMoneyExchangeOperationService, MoneyExchangeOperationService>();

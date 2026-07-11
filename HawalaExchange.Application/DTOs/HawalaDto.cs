@@ -29,11 +29,13 @@ namespace HawalaExchange.Application.DTOs
         public string? SenderFatherName { get; set; }
         public string? SenderPhone { get; set; }
         public string? SenderTazkiraNumber { get; set; }
+        public string? SenderTazkiraImagePath { get; set; }
         public string? SenderAddress { get; set; }
         public string? ReceiverName { get; set; }
         public string? ReceiverFatherName { get; set; }
         public string? ReceiverPhone { get; set; }
         public string? ReceiverTazkiraNumber { get; set; }
+        public string? ReceiverTazkiraImagePath { get; set; }
         public string? ReceiverAddress { get; set; }
         public long FromCurrencyId { get; set; }
         public string FromCurrencyCode { get; set; } = string.Empty;
@@ -64,8 +66,6 @@ namespace HawalaExchange.Application.DTOs
         public DateTime? PaidAt { get; set; }
         public long? PaidBy { get; set; }
         public string? PaymentLocation { get; set; }
-        public string? TazkiraImagePath { get; set; }
-        public string? ReceiverTazkiraImagePath { get; set; }
         public DateTime? CancelledAt { get; set; }
         public long? CancelledBy { get; set; }
         public string? CancelReason { get; set; }
@@ -82,11 +82,13 @@ namespace HawalaExchange.Application.DTOs
         public string? SenderFatherName { get; set; }
         public string? SenderPhone { get; set; }
         public string? SenderTazkiraNumber { get; set; }
+        public string? SenderTazkiraImagePath { get; set; }
         public string? SenderAddress { get; set; }
         public string? ReceiverName { get; set; }
         public string? ReceiverFatherName { get; set; }
         public string? ReceiverPhone { get; set; }
         public string? ReceiverTazkiraNumber { get; set; }
+        public string? ReceiverTazkiraImagePath { get; set; }
         public string? ReceiverAddress { get; set; }
         public long FromCurrencyId { get; set; }
         public decimal FromAmount { get; set; }
@@ -101,8 +103,6 @@ namespace HawalaExchange.Application.DTOs
         public string? Notes { get; set; }
         public string Status { get; set; } = "Pending";
         public string? PaymentLocation { get; set; }
-        public string? TazkiraImagePath { get; set; }
-        public string? ReceiverTazkiraImagePath { get; set; }
     }
 
     public class UpdateHawalaDto
@@ -118,6 +118,7 @@ namespace HawalaExchange.Application.DTOs
         public string? ReceiverFatherName { get; set; }
         public string? ReceiverPhone { get; set; }
         public string? ReceiverTazkiraNumber { get; set; }
+        public string? ReceiverTazkiraImagePath { get; set; }
         public string? ReceiverAddress { get; set; }
         public decimal? ToAmount { get; set; }
         public decimal? ExchangeRate { get; set; }

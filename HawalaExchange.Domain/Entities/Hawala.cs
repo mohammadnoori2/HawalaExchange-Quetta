@@ -30,7 +30,7 @@ namespace HawalaExchange.Domain.Entities
         public string? SenderFatherName { get; set; }
 
         [MaxLength(500)]
-        public string? TazkiraImagePath { get; set; }
+        public string? SenderTazkiraImagePath { get; set; }
 
         [MaxLength(50)]
         public string? SenderPhone { get; set; }

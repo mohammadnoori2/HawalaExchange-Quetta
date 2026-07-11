@@ -1,0 +1,431 @@
+﻿@using System.Globalization
+@using HawalaExchange.Web.Helpers
+
+<div class="persian-date-picker-wrapper" dir="rtl">
+    <div class="input-group">
+        <input type="text"
+               class="@CssClass"
+               value="@displayText"
+               placeholder="@Placeholder"
+               readonly
+               @onclick="ToggleCalendar" />
+
+        <button type="button"
+                class="btn btn-outline-secondary"
+                @onclick="ToggleCalendar">
+            <i class="bi bi-calendar3"></i>
+        </button>
+    </div>
+
+    @if (showCalendar)
+    {
+        <div class="persian-calendar-popup shadow">
+            <div class="calendar-header">
+                <button type="button"
+                        class="btn btn-sm btn-light"
+                        @onclick="PreviousMonth">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+
+                <strong>
+                    @MonthNames[viewMonth - 1] @viewYear
+                </strong>
+
+                <button type="button"
+                        class="btn btn-sm btn-light"
+                        @onclick="NextMonth">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </div>
+
+            <div class="calendar-weekdays">
+                <span>ش</span>
+                <span>ی</span>
+                <span>د</span>
+                <span>س</span>
+                <span>چ</span>
+                <span>پ</span>
+                <span>ج</span>
+            </div>
+
+            <div class="calendar-days">
+                @foreach (var dayInfo in CalendarDays)
+                {
+                    if (dayInfo.Day == 0)
+                    {
+                        <span class="calendar-day empty"></span>
+                    }
+                    else
+                    {
+                        <button type="button"
+                                class="calendar-day @GetDayCss(dayInfo.Day)"
+                                @onclick="() => SelectDay(dayInfo.Day)">
+                            @dayInfo.Day
+                        </button>
+                    }
+                }
+            </div>
+
+            @if (IncludeTime)
+            {
+                <div class="calendar-time border-top pt-2 mt-2">
+                    <label class="small text-muted mb-1 d-block">
+                        انتخاب زمان
+                    </label>
+
+                    <div class="d-flex gap-2 align-items-center">
+                        <select class="form-select form-select-sm"
+                                style="width: 75px;"
+                                @bind="hour12">
+                            @for (var h = 1; h <= 12; h++)
+                            {
+                                <option value="@h">@h.ToString("00")</option>
+                            }
+                        </select>
+
+                        <span>:</span>
+
+                        <select class="form-select form-select-sm"
+                                style="width: 75px;"
+                                @bind="minute">
+                            @for (var m = 0; m <= 59; m++)
+                            {
+                                <option value="@m">@m.ToString("00")</option>
+                            }
+                        </select>
+
+                        <select class="form-select form-select-sm"
+                                style="width: 85px;"
+                                @bind="amPm">
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                        </select>
+                    </div>
+                </div>
+            }
+
+            <div class="calendar-footer">
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        @onclick="SelectToday">
+                    امروز
+                </button>
+
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        @onclick="CloseCalendar">
+                    بستن
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .persian-date-picker-wrapper {
+        position: relative;
+        width: 100%;
+    }
+
+    .persian-calendar-popup {
+        position: absolute;
+        top: 42px;
+        right: 0;
+        width: 310px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 12px;
+        z-index: 9999;
+    }
+
+    .calendar-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+
+    .calendar-weekdays {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        text-align: center;
+        font-weight: 700;
+        color: #6b7280;
+        font-size: 0.8rem;
+        margin-bottom: 6px;
+    }
+
+    .calendar-days {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 5px;
+    }
+
+    .calendar-day {
+        border: 0;
+        border-radius: 8px;
+        padding: 7px 0;
+        background: #f9fafb;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+
+        .calendar-day:hover {
+            background: #e0f2fe;
+        }
+
+        .calendar-day.empty {
+            background: transparent;
+            cursor: default;
+        }
+
+        .calendar-day.selected {
+            background: #2563eb;
+            color: white;
+            font-weight: 700;
+        }
+
+        .calendar-day.today {
+            border: 1px solid #2563eb;
+            font-weight: 700;
+        }
+
+    .calendar-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 12px;
+    }
+</style>
+
+@code {
+    [Parameter] public DateTime Value { get; set; }
+
+    [Parameter] public EventCallback<DateTime> ValueChanged { get; set; }
+
+    [Parameter] public bool IncludeTime { get; set; } = false;
+
+    [Parameter] public string CssClass { get; set; } = "form-control";
+
+    [Parameter] public string Placeholder { get; set; } = "انتخاب تاریخ";
+
+    private readonly PersianCalendar persianCalendar = new();
+
+    private bool showCalendar = false;
+
+    private int viewYear;
+    private int viewMonth;
+
+    private int selectedPersianYear;
+    private int selectedPersianMonth;
+    private int selectedPersianDay;
+
+    private int hour12 = 12;
+    private int minute = 0;
+    private string amPm = "AM";
+
+    private string displayText = string.Empty;
+
+    private static readonly string[] MonthNames =
+    {
+        "حمل",
+        "ثور",
+        "جوزا",
+        "سرطان",
+        "اسد",
+        "سنبله",
+        "میزان",
+        "عقرب",
+        "قوس",
+        "جدی",
+        "دلو",
+        "حوت"
+    };
+
+    private List<PickerDay> CalendarDays => BuildCalendarDays();
+
+    protected override void OnParametersSet()
+    {
+        var date = Value == DateTime.MinValue ? DateTime.Now : Value;
+
+        selectedPersianYear = persianCalendar.GetYear(date);
+        selectedPersianMonth = persianCalendar.GetMonth(date);
+        selectedPersianDay = persianCalendar.GetDayOfMonth(date);
+
+        if (viewYear == 0 || viewMonth == 0)
+        {
+            viewYear = selectedPersianYear;
+            viewMonth = selectedPersianMonth;
+        }
+
+        SetTimeFromValue(date);
+        UpdateDisplayText(date);
+    }
+
+    private void ToggleCalendar()
+    {
+        showCalendar = !showCalendar;
+    }
+
+    private void CloseCalendar()
+    {
+        showCalendar = false;
+    }
+
+    private async Task SelectToday()
+    {
+        var today = DateTime.Now;
+
+        viewYear = persianCalendar.GetYear(today);
+        viewMonth = persianCalendar.GetMonth(today);
+
+        await SelectPersianDate(
+            persianCalendar.GetYear(today),
+            persianCalendar.GetMonth(today),
+            persianCalendar.GetDayOfMonth(today));
+    }
+
+    private async Task SelectDay(int day)
+    {
+        await SelectPersianDate(viewYear, viewMonth, day);
+    }
+
+    private async Task SelectPersianDate(int year, int month, int day)
+    {
+        var hour24 = ConvertTo24Hour(hour12, amPm);
+
+        var selectedDate = persianCalendar.ToDateTime(
+            year,
+            month,
+            day,
+            IncludeTime ? hour24 : 0,
+            IncludeTime ? minute : 0,
+            0,
+            0);
+
+        selectedPersianYear = year;
+        selectedPersianMonth = month;
+        selectedPersianDay = day;
+
+        UpdateDisplayText(selectedDate);
+
+        await ValueChanged.InvokeAsync(selectedDate);
+
+        if (!IncludeTime)
+        {
+            showCalendar = false;
+        }
+    }
+
+    private void PreviousMonth()
+    {
+        viewMonth--;
+
+        if (viewMonth < 1)
+        {
+            viewMonth = 12;
+            viewYear--;
+        }
+    }
+
+    private void NextMonth()
+    {
+        viewMonth++;
+
+        if (viewMonth > 12)
+        {
+            viewMonth = 1;
+            viewYear++;
+        }
+    }
+
+    private List<PickerDay> BuildCalendarDays()
+    {
+        var days = new List<PickerDay>();
+
+        var firstDayOfMonth = persianCalendar.ToDateTime(
+            viewYear,
+            viewMonth,
+            1,
+            0,
+            0,
+            0,
+            0);
+
+        var emptyDays = ((int)firstDayOfMonth.DayOfWeek + 1) % 7;
+
+        for (var i = 0; i < emptyDays; i++)
+        {
+            days.Add(new PickerDay(0));
+        }
+
+        var daysInMonth = persianCalendar.GetDaysInMonth(viewYear, viewMonth);
+
+        for (var day = 1; day <= daysInMonth; day++)
+        {
+            days.Add(new PickerDay(day));
+        }
+
+        return days;
+    }
+
+    private string GetDayCss(int day)
+    {
+        var css = string.Empty;
+
+        if (day == selectedPersianDay &&
+            viewMonth == selectedPersianMonth &&
+            viewYear == selectedPersianYear)
+        {
+            css += " selected";
+        }
+
+        var today = DateTime.Now;
+        var todayYear = persianCalendar.GetYear(today);
+        var todayMonth = persianCalendar.GetMonth(today);
+        var todayDay = persianCalendar.GetDayOfMonth(today);
+
+        if (day == todayDay &&
+            viewMonth == todayMonth &&
+            viewYear == todayYear)
+        {
+            css += " today";
+        }
+
+        return css;
+    }
+
+    private void SetTimeFromValue(DateTime date)
+    {
+        var hour = date.Hour;
+
+        amPm = hour >= 12 ? "PM" : "AM";
+
+        hour12 = hour % 12;
+
+        if (hour12 == 0)
+            hour12 = 12;
+
+        minute = date.Minute;
+    }
+
+    private void UpdateDisplayText(DateTime date)
+    {
+        displayText = IncludeTime
+            ? PersianDateHelper.ToPersianDateTime12(date)
+            : PersianDateHelper.ToPersianDate(date);
+    }
+
+    private static int ConvertTo24Hour(int hour, string period)
+    {
+        if (period == "AM")
+        {
+            return hour == 12 ? 0 : hour;
+        }
+
+        return hour == 12 ? 12 : hour + 12;
+    }
+
+    private record PickerDay(int Day);
+}

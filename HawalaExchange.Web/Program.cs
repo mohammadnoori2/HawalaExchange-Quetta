@@ -103,6 +103,7 @@ public partial class Program
 
         builder.Services.AddScoped<IAccountMoneyOperationService, AccountMoneyOperationService>();
         builder.Services.AddScoped<IMoneyExchangeOperationService, MoneyExchangeOperationService>();
+        builder.Services.AddScoped<IJournalService, JournalService>();
         // ============================================================
         // 8. Email Sender
         // ============================================================

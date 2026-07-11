@@ -101,7 +101,7 @@ public partial class Program
         builder.Services.AddScoped<IPaymentLocationService, PaymentLocationService>();
 
         builder.Services.AddScoped<IAccountMoneyOperationService, AccountMoneyOperationService>();
-
+        builder.Services.AddScoped<IMoneyExchangeOperationService, MoneyExchangeOperationService>();
         // ============================================================
         // 8. Email Sender
         // ============================================================

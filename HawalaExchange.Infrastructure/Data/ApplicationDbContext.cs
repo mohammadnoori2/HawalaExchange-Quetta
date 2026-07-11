@@ -37,6 +37,7 @@ namespace HawalaExchange.Infrastructure.Data
 
         public DbSet<CapitalInvestment> CapitalInvestments { get; set; }
         public DbSet<AccountMoneyOperation> AccountMoneyOperations { get; set; }
+        public DbSet<MoneyExchangeOperation> MoneyExchangeOperations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -265,11 +266,23 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<TrialBalance>()
                 .Property(r => r.Balance).HasPrecision(18, 4);
             modelBuilder.Entity<CapitalInvestment>()
-    .Property(x => x.Amount)
-    .HasPrecision(18, 4);
+                .Property(x => x.Amount)
+                .HasPrecision(18, 4);
             modelBuilder.Entity<AccountMoneyOperation>()
-    .Property(x => x.Amount)
-    .HasPrecision(18, 4);
+                .Property(x => x.Amount)
+                .HasPrecision(18, 4);
+
+            modelBuilder.Entity<MoneyExchangeOperation>()
+                .Property(x => x.FromAmount)
+                .HasPrecision(18, 4);
+
+            modelBuilder.Entity<MoneyExchangeOperation>()
+                .Property(x => x.ToAmount)
+                .HasPrecision(18, 4);
+
+            modelBuilder.Entity<MoneyExchangeOperation>()
+                .Property(x => x.ExchangeRate)
+                .HasPrecision(18, 8);
         }
 
         // ==========================================
@@ -412,8 +425,8 @@ namespace HawalaExchange.Infrastructure.Data
 
             // Expense relationships...
             modelBuilder.Entity<Expense>()
-     .Property(x => x.Amount)
-     .HasPrecision(18, 4);
+                 .Property(x => x.Amount)
+                 .HasPrecision(18, 4);
 
             modelBuilder.Entity<Expense>()
                 .HasOne(x => x.Currency)
@@ -560,10 +573,10 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasForeignKey(r => r.AccountId)
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<CapitalInvestment>()
-    .HasOne(x => x.Currency)
-    .WithMany()
-    .HasForeignKey(x => x.CurrencyId)
-    .OnDelete(DeleteBehavior.Restrict);
+                .HasOne(x => x.Currency)
+                .WithMany()
+                .HasForeignKey(x => x.CurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<CapitalInvestment>()
                 .HasOne(x => x.ReceivingAccount)
@@ -585,10 +598,10 @@ namespace HawalaExchange.Infrastructure.Data
 
             // AccountMoneyOperation relationships...
             modelBuilder.Entity<AccountMoneyOperation>()
-    .HasOne(x => x.Account)
-    .WithMany()
-    .HasForeignKey(x => x.AccountId)
-    .OnDelete(DeleteBehavior.Restrict);
+                .HasOne(x => x.Account)
+                .WithMany()
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<AccountMoneyOperation>()
                 .HasOne(x => x.CashOrBankAccount)
@@ -607,6 +620,37 @@ namespace HawalaExchange.Infrastructure.Data
                 .WithMany(x => x.LedgerEntries)
                 .HasForeignKey(x => x.AccountMoneyOperationId)
                 .OnDelete(DeleteBehavior.Restrict);
+            // MoneyExchangeOperation relationships...
+            modelBuilder.Entity<MoneyExchangeOperation>()
+    .HasOne(x => x.FromAccount)
+    .WithMany()
+    .HasForeignKey(x => x.FromAccountId)
+    .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MoneyExchangeOperation>()
+                .HasOne(x => x.ToAccount)
+                .WithMany()
+                .HasForeignKey(x => x.ToAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MoneyExchangeOperation>()
+                .HasOne(x => x.FromCurrency)
+                .WithMany()
+                .HasForeignKey(x => x.FromCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MoneyExchangeOperation>()
+                .HasOne(x => x.ToCurrency)
+                .WithMany()
+                .HasForeignKey(x => x.ToCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<LedgerEntry>()
+                .HasOne(x => x.MoneyExchangeOperation)
+                .WithMany(x => x.LedgerEntries)
+                .HasForeignKey(x => x.MoneyExchangeOperationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
         }
 
         // ==========================================

@@ -1,0 +1,230 @@
+﻿@using HawalaExchange.Application.DTOs
+
+<div class="operation-dropdown" @onclick:stopPropagation="true">
+    <button type="button"
+            class="operation-dot-btn"
+            title="عملیات"
+            @onclick="Toggle">
+        <i class="bi bi-three-dots-vertical"></i>
+    </button>
+
+    @if (isOpen)
+    {
+        <div class="operation-menu" dir="rtl">
+            <button type="button" class="operation-menu-item" @onclick="ViewAsync">
+                <i class="bi bi-eye text-info"></i>
+                مشاهده
+            </button>
+
+            <button type="button" class="operation-menu-item" @onclick="ReceiptAsync">
+                <i class="bi bi-receipt text-primary"></i>
+                رسید حواله
+            </button>
+
+            <button type="button" class="operation-menu-item" @onclick="CopyAsync">
+                <i class="bi bi-clipboard text-secondary"></i>
+                کاپی معلومات
+            </button>
+
+            <button type="button" class="operation-menu-item" @onclick="WhatsAppAsync">
+                <i class="bi bi-whatsapp text-success"></i>
+                ارسال واتساپ
+            </button>
+
+            <button type="button" class="operation-menu-item" @onclick="TelegramAsync">
+                <i class="bi bi-telegram text-primary"></i>
+                ارسال تلگرام
+            </button>
+
+            @if (ShowEdit && Hawala.Status != "Paid" && Hawala.Status != "Cancel")
+            {
+                <div class="operation-menu-divider"></div>
+
+                <button type="button" class="operation-menu-item" @onclick="EditAsync">
+                    <i class="bi bi-pencil text-warning"></i>
+                    ویرایش
+                </button>
+            }
+
+            @if (ShowPay && Hawala.Status == "Pending" && Hawala.HawalaType == "HawalaReceive")
+            {
+                <button type="button" class="operation-menu-item" @onclick="PayAsync">
+                    <i class="bi bi-check-circle text-success"></i>
+                    پرداخت حواله
+                </button>
+            }
+
+            @if (ShowCancel && Hawala.Status == "Pending")
+            {
+                <button type="button" class="operation-menu-item" @onclick="CancelAsync">
+                    <i class="bi bi-x-circle text-danger"></i>
+                    لغو حواله
+                </button>
+            }
+
+            @if (ShowDelete && Hawala.Status != "Paid")
+            {
+                <div class="operation-menu-divider"></div>
+
+                <button type="button" class="operation-menu-item operation-menu-danger" @onclick="DeleteAsync">
+                    <i class="bi bi-trash"></i>
+                    حذف
+                </button>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .operation-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+
+    .operation-dot-btn {
+        width: 34px;
+        height: 34px;
+        border: none;
+        border-radius: 10px;
+        background: #f3f4f6;
+        color: #374151;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+        .operation-dot-btn:hover {
+            background: #e5e7eb;
+            color: #111827;
+        }
+
+    .operation-menu {
+        position: absolute;
+        top: 40px;
+        left: 0;
+        min-width: 200px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        box-shadow: 0 14px 35px rgba(15, 23, 42, 0.16);
+        padding: 8px;
+        z-index: 9999;
+        text-align: right;
+    }
+
+    .operation-menu-item {
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: #374151;
+        padding: 9px 10px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 14px;
+        text-align: right;
+        transition: all 0.15s ease;
+    }
+
+        .operation-menu-item:hover {
+            background: #f3f4f6;
+            color: #111827;
+        }
+
+    .operation-menu-divider {
+        height: 1px;
+        background: #e5e7eb;
+        margin: 6px 0;
+    }
+
+    .operation-menu-danger {
+        color: #dc2626;
+    }
+
+        .operation-menu-danger:hover {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+</style>
+
+@code {
+    [Parameter] public HawalaDto Hawala { get; set; } = new();
+
+    [Parameter] public bool ShowEdit { get; set; } = false;
+    [Parameter] public bool ShowPay { get; set; } = true;
+    [Parameter] public bool ShowCancel { get; set; } = true;
+    [Parameter] public bool ShowDelete { get; set; } = true;
+
+    [Parameter] public EventCallback<long> OnView { get; set; }
+    [Parameter] public EventCallback<long> OnReceipt { get; set; }
+    [Parameter] public EventCallback<long> OnCopy { get; set; }
+    [Parameter] public EventCallback<long> OnWhatsApp { get; set; }
+    [Parameter] public EventCallback<long> OnTelegram { get; set; }
+    [Parameter] public EventCallback<long> OnEdit { get; set; }
+    [Parameter] public EventCallback<HawalaDto> OnPay { get; set; }
+    [Parameter] public EventCallback<long> OnCancel { get; set; }
+    [Parameter] public EventCallback<long> OnDelete { get; set; }
+
+    private bool isOpen = false;
+
+    private void Toggle()
+    {
+        isOpen = !isOpen;
+    }
+
+    private async Task ViewAsync()
+    {
+        isOpen = false;
+        await OnView.InvokeAsync(Hawala.Id);
+    }
+
+    private async Task ReceiptAsync()
+    {
+        isOpen = false;
+        await OnReceipt.InvokeAsync(Hawala.Id);
+    }
+
+    private async Task CopyAsync()
+    {
+        isOpen = false;
+        await OnCopy.InvokeAsync(Hawala.Id);
+    }
+
+    private async Task WhatsAppAsync()
+    {
+        isOpen = false;
+        await OnWhatsApp.InvokeAsync(Hawala.Id);
+    }
+
+    private async Task TelegramAsync()
+    {
+        isOpen = false;
+        await OnTelegram.InvokeAsync(Hawala.Id);
+    }
+
+    private async Task EditAsync()
+    {
+        isOpen = false;
+        await OnEdit.InvokeAsync(Hawala.Id);
+    }
+
+    private async Task PayAsync()
+    {
+        isOpen = false;
+        await OnPay.InvokeAsync(Hawala);
+    }
+
+    private async Task CancelAsync()
+    {
+        isOpen = false;
+        await OnCancel.InvokeAsync(Hawala.Id);
+    }
+
+    private async Task DeleteAsync()
+    {
+        isOpen = false;
+        await OnDelete.InvokeAsync(Hawala.Id);
+    }
+}

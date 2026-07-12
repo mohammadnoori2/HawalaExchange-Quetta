@@ -2,10 +2,16 @@
 
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Components.Shared
 @using HawalaExchange.Web.Helpers
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
 
 @inject IHawalaService HawalaService
+@inject IAccountService AccountService
+@inject ICompanySettingService CompanySettingService
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
 
 @rendermode InteractiveServer
 @attribute [Authorize]
@@ -37,6 +43,14 @@
                     <li>@error</li>
                 }
             </ul>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i>
+            @successMessage
         </div>
     }
 
@@ -100,7 +114,11 @@
 
     <div class="row g-3 mb-4 align-items-end">
         <div class="col-md-4">
-            <label class="form-label fw-bold">جستجو</label>
+            <label class="form-label fw-bold">
+                <i class="bi bi-search text-muted me-1"></i>
+                جستجو
+            </label>
+
             <input class="form-control"
                    placeholder="نمبر، فرستنده، گیرنده، مرجع..."
                    @bind="searchTerm"
@@ -108,8 +126,12 @@
         </div>
 
         <div class="col-md-3">
-            <label class="form-label fw-bold">وضعیت</label>
-            <select class="form-select" @bind="filterStatus" @bind:event="oninput">
+            <label class="form-label fw-bold">
+                <i class="bi bi-circle text-muted me-1"></i>
+                وضعیت
+            </label>
+
+            <select class="form-select" @bind="filterStatus">
                 <option value="">همه</option>
                 <option value="Pending">در انتظار</option>
                 <option value="Paid">پرداخت شده</option>
@@ -119,24 +141,35 @@
 
         <div class="col-md-2">
             <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilter">
+                <i class="bi bi-search"></i>
                 فیلتر
             </button>
         </div>
 
         <div class="col-md-2">
             <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilter">
+                <i class="bi bi-arrow-clockwise"></i>
                 بازنشانی
             </button>
         </div>
     </div>
 
     <div class="table-card">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-list-ul"></i>
+                    @filteredHawalas.Count
+                </span>
+            </div>
+        </div>
+
         <div class="table-card-body">
             <div class="table-scroll-wrapper">
                 <table class="table-modern table-striped-modern">
                     <thead>
                         <tr>
-                            <th>#</th>
+                            <th style="width:50px;">#</th>
                             <th>نمبر</th>
                             <th>فرستنده</th>
                             <th>گیرنده</th>
@@ -145,6 +178,7 @@
                             <th>کارمزد</th>
                             <th>وضعیت</th>
                             <th>تاریخ</th>
+                            <th class="text-center" style="width:80px;">عملیات</th>
                         </tr>
                     </thead>
 
@@ -152,30 +186,37 @@
                         @if (isLoading)
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="10" class="text-center py-5">
                                     <div class="spinner-border text-primary"></div>
+                                    <p class="text-muted mt-2">در حال بارگذاری...</p>
                                 </td>
                             </tr>
                         }
-                        else if (!filteredHawalas.Any())
+                        else if (!pagedHawalas.Any())
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="10" class="text-center py-5">
                                     هیچ حواله دریافتی یافت نشد.
                                 </td>
                             </tr>
                         }
                         else
                         {
-                            var rowIndex = 1;
+                            var rowIndex = (currentPage - 1) * pageSize + 1;
 
-                            @foreach (var hawala in filteredHawalas)
+                            @foreach (var hawala in pagedHawalas)
                             {
                                 <tr>
                                     <td>@rowIndex</td>
-                                    <td><strong>@hawala.Number</strong></td>
+
+                                    <td>
+                                        <strong>@hawala.Number</strong>
+                                    </td>
+
                                     <td>@(hawala.SenderName ?? "-")</td>
+
                                     <td>@(hawala.ReceiverName ?? "-")</td>
+
                                     <td>@(hawala.CorrespondentName ?? "-")</td>
 
                                     <td dir="ltr" class="fw-bold text-primary">
@@ -196,6 +237,22 @@
                                     <td dir="ltr">
                                         @PersianDateHelper.ToPersianDateTime12(hawala.CreatedAt)
                                     </td>
+
+                                    <td class="text-center operation-cell">
+                                        <HawalaOperationMenu Hawala="hawala"
+                                                             ShowEdit="false"
+                                                             ShowPay="true"
+                                                             ShowCancel="true"
+                                                             ShowDelete="true"
+                                                             OnView="ViewHawala"
+                                                             OnReceipt="OpenReceipt"
+                                                             OnCopy="CopyHawalaInfo"
+                                                             OnWhatsApp="ShareHawalaWhatsApp"
+                                                             OnTelegram="ShareHawalaTelegram"
+                                                             OnPay="OpenPayFromMenu"
+                                                             OnCancel="ShowCancelConfirm"
+                                                             OnDelete="ShowDeleteConfirm" />
+                                    </td>
                                 </tr>
 
                                 rowIndex++;
@@ -205,23 +262,480 @@
                 </table>
             </div>
         </div>
+
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedHawalas.Count</strong>
+                    از <strong>@filteredHawalas.Count</strong>
+                </span>
+            </div>
+
+            <div class="table-card-footer-right">
+                @if (totalPages > 1)
+                {
+                    <ul class="pagination-modern">
+                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
+                                <i class="bi bi-chevron-right"></i>
+                            </button>
+                        </li>
+
+                        @for (var i = 1; i <= totalPages; i++)
+                        {
+                            var pageNumber = i;
+
+                            <li class="page-item @(pageNumber == currentPage ? "active" : "")">
+                                <button class="page-link" @onclick="() => GoToPage(pageNumber)">
+                                    @pageNumber
+                                </button>
+                            </li>
+                        }
+
+                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                            <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                        </li>
+                    </ul>
+                }
+            </div>
+        </div>
     </div>
 </div>
+
+@if (showPayModal)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-check-circle me-2"></i>
+                        پرداخت حواله دریافتی
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="ClosePayModal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        پرداخت حواله نمبر:
+                        <strong>@payHawalaNumber</strong>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            حساب پرداخت‌کننده <span class="text-danger">*</span>
+                        </label>
+
+                        <select class="form-select" @bind="selectedPaymentAccountId">
+                            <option value="0">انتخاب حساب پرداخت‌کننده</option>
+
+                            @foreach (var account in paymentAccounts)
+                            {
+                                <option value="@account.Id">
+                                    @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
+                                </option>
+                            }
+                        </select>
+
+                        <small class="text-muted">
+                            حساب انتخاب‌شده در لیجر طلبکار می‌شود.
+                        </small>
+                    </div>
+
+                    <div class="alert alert-warning mb-0">
+                        <strong>سند حسابداری:</strong>
+                        <div class="mt-2" dir="ltr">
+                            Pending Hawala Account: BadehKar |
+                            Selected Payment Account: TalabKar
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-modern btn-light-modern" @onclick="ClosePayModal">
+                        انصراف
+                    </button>
+
+                    <button class="btn-modern btn-primary-modern"
+                            @onclick="ConfirmPay"
+                            disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle"></i>
+                        }
+
+                        تأیید پرداخت
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDetailModal && selectedHawala != null)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #0dcaf0, #0a9ec4);">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-info-circle me-2"></i>
+                        جزئیات حواله دریافتی
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseDetailModal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">نمبر</span>
+                                <span class="info-value fw-bold">@selectedHawala.Number</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">وضعیت</span>
+                                <span class="info-value">@selectedHawala.StatusName</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">تاریخ</span>
+                                <span class="info-value" dir="ltr">
+                                    @PersianDateHelper.ToPersianDateTime12(selectedHawala.CreatedAt)
+                                </span>
+                            </div>
+                        </div>
+
+                        @if (selectedHawala.PaidAt.HasValue)
+                        {
+                            <div class="col-md-4">
+                                <div class="info-card">
+                                    <span class="info-label">تاریخ پرداخت</span>
+                                    <span class="info-value" dir="ltr">
+                                        @PersianDateHelper.ToPersianDateTime12(selectedHawala.PaidAt.Value)
+                                    </span>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">فرستنده</span>
+                                <span class="info-value">@(selectedHawala.SenderName ?? "-")</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">گیرنده</span>
+                                <span class="info-value">@(selectedHawala.ReceiverName ?? "-")</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">نماینده</span>
+                                <span class="info-value">@(selectedHawala.CorrespondentName ?? "-")</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">محل پرداخت</span>
+                                <span class="info-value">@GetPaymentLocation(selectedHawala)</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">مبلغ</span>
+                                <span class="info-value text-primary fw-bold" dir="ltr">
+                                    @selectedHawala.FromAmount.ToString("N2") @selectedHawala.FromCurrencyCode
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">مبلغ دریافتی/پرداختی</span>
+                                <span class="info-value text-success fw-bold" dir="ltr">
+                                    @(selectedHawala.ToAmount?.ToString("N2") ?? "-") @selectedHawala.ToCurrencyCode
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">کارمزد</span>
+                                <span class="info-value" dir="ltr">
+                                    @(selectedHawala.CommissionAmount?.ToString("N2") ?? "-")
+                                    @selectedHawala.CommissionCurrencyCode
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">کارمزد نماینده</span>
+                                <span class="info-value" dir="ltr">
+                                    @(selectedHawala.AgentCommissionAmount?.ToString("N2") ?? "-")
+                                    @selectedHawala.AgentCommissionCurrencyCode
+                                </span>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(selectedHawala.Notes))
+                        {
+                            <div class="col-12">
+                                <div class="info-card">
+                                    <span class="info-label">یادداشت</span>
+                                    <span class="info-value">@selectedHawala.Notes</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-modern btn-light-modern" @onclick="CloseDetailModal">
+                        بستن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showReceiptModal && receiptHawala != null)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-receipt me-2"></i>
+                        رسید حواله
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseReceipt"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="hawalaReceiptPrintArea">
+                        <HawalaReceipt Hawala="receiptHawala"
+                                       Company="companySetting" />
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-modern btn-light-modern" @onclick="CloseReceipt">
+                        بستن
+                    </button>
+
+                    <button class="btn-modern btn-secondary-modern" @onclick="() => CopyHawalaInfo(receiptHawala.Id)">
+                        <i class="bi bi-clipboard"></i>
+                        کاپی
+                    </button>
+
+                    <button class="btn-modern btn-success-modern" @onclick="() => ShareHawalaWhatsApp(receiptHawala.Id)">
+                        <i class="bi bi-whatsapp"></i>
+                        واتساپ
+                    </button>
+
+                    <button class="btn-modern btn-primary-modern" @onclick="() => ShareHawalaTelegram(receiptHawala.Id)">
+                        <i class="bi bi-telegram"></i>
+                        تلگرام
+                    </button>
+
+                    <button class="btn-modern btn-primary-modern" @onclick="PrintReceipt">
+                        <i class="bi bi-printer"></i>
+                        چاپ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showCancelModal)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        لغو حواله
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseCancelModal"></button>
+                </div>
+
+                <div class="modal-body">
+                    <p>دلیل لغو حواله را وارد کنید:</p>
+
+                    <textarea class="form-control"
+                              rows="3"
+                              @bind="cancelReason"
+                              placeholder="دلیل لغو..."></textarea>
+                </div>
+
+                <div class="modal-footer justify-content-center">
+                    <button class="btn-modern btn-light-modern" @onclick="CloseCancelModal">
+                        انصراف
+                    </button>
+
+                    <button class="btn-modern btn-danger-modern" @onclick="ConfirmCancel">
+                        تأیید لغو
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeleteModal)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-trash me-2"></i>
+                        حذف حواله
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseDeleteModal"></button>
+                </div>
+
+                <div class="modal-body text-center py-4">
+                    <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
+                    <p class="fs-5">آیا مطمئن هستید که می‌خواهید این حواله را حذف کنید؟</p>
+                    <p class="text-muted small">این عملیات غیرقابل بازگشت است.</p>
+                </div>
+
+                <div class="modal-footer justify-content-center">
+                    <button class="btn-modern btn-light-modern" @onclick="CloseDeleteModal">
+                        انصراف
+                    </button>
+
+                    <button class="btn-modern btn-danger-modern" @onclick="ConfirmDelete">
+                        تأیید حذف
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private List<HawalaDto> hawalas = new();
     private List<HawalaDto> filteredHawalas = new();
+    private List<AccountDto> accounts = new();
+
+    private HawalaDto? selectedHawala;
+    private HawalaDto? receiptHawala;
+    private CompanySettingDto companySetting = new();
 
     private List<string> validationErrors = new();
+    private string successMessage = string.Empty;
 
     private bool isLoading = false;
+    private bool showPayModal = false;
+    private bool showDetailModal = false;
+    private bool showReceiptModal = false;
+    private bool showCancelModal = false;
+    private bool showDeleteModal = false;
+
+    private long payHawalaId = 0;
+    private long payHawalaNumber = 0;
+    private long selectedPaymentAccountId = 0;
+
+    private long cancelId = 0;
+    private long deleteId = 0;
+    private string cancelReason = string.Empty;
 
     private string searchTerm = string.Empty;
     private string filterStatus = string.Empty;
 
+    private int pageSize = 10;
+    private int currentPage = 1;
+
+    private List<HawalaDto> pagedHawalas =>
+        filteredHawalas
+            .OrderByDescending(x => x.CreatedAt)
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+    private int totalPages =>
+        filteredHawalas.Count == 0
+            ? 1
+            : (int)Math.Ceiling((double)filteredHawalas.Count / pageSize);
+
+    private List<AccountDto> paymentAccounts =>
+        accounts
+            .Where(IsPaymentAccount)
+            .OrderBy(x => x.AccountCode)
+            .ToList();
+
     protected override async Task OnInitializedAsync()
     {
+        await LoadAccounts();
         await LoadData();
+    }
+
+    private async Task LoadAccounts()
+    {
+        try
+        {
+            var result = await AccountService.GetAllAsync();
+
+            accounts = result
+                .Where(x => !x.IsArchived)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری حساب‌ها: {ex.Message}");
+        }
     }
 
     private async Task LoadData()
@@ -230,6 +744,7 @@
         {
             isLoading = true;
             validationErrors.Clear();
+            successMessage = string.Empty;
 
             var filter = new HawalaFilterDto
             {
@@ -246,6 +761,8 @@
             hawalas = result.Items.ToList();
 
             SearchLocal();
+
+            currentPage = 1;
         }
         catch (Exception ex)
         {
@@ -254,6 +771,7 @@
         finally
         {
             isLoading = false;
+            StateHasChanged();
         }
     }
 
@@ -276,16 +794,336 @@
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-            var term = searchTerm.Trim().ToLower();
+            var term = searchTerm.Trim();
 
             query = query.Where(x =>
-                x.Number.ToString().Contains(term) ||
-                (!string.IsNullOrWhiteSpace(x.SenderName) && x.SenderName.ToLower().Contains(term)) ||
-                (!string.IsNullOrWhiteSpace(x.ReceiverName) && x.ReceiverName.ToLower().Contains(term)) ||
-                (!string.IsNullOrWhiteSpace(x.ReferenceNumber) && x.ReferenceNumber.ToLower().Contains(term)));
+                x.Number.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(x.SenderName) && x.SenderName.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(x.ReceiverName) && x.ReceiverName.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(x.ReferenceNumber) && x.ReferenceNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(x.CorrespondentName) && x.CorrespondentName.Contains(term, StringComparison.OrdinalIgnoreCase)));
         }
 
         filteredHawalas = query.ToList();
+        currentPage = 1;
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+            currentPage = page;
+    }
+
+    private async Task ViewHawala(long id)
+    {
+        try
+        {
+            selectedHawala = await HawalaService.GetHawalaByIdAsync(id);
+            showDetailModal = true;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در مشاهده حواله: {ex.Message}");
+        }
+    }
+
+    private void CloseDetailModal()
+    {
+        selectedHawala = null;
+        showDetailModal = false;
+    }
+
+    private void OpenPayFromMenu(HawalaDto hawala)
+    {
+        OpenPayModal(hawala.Id, hawala.Number);
+    }
+
+    private void OpenPayModal(long hawalaId, long hawalaNumber)
+    {
+        payHawalaId = hawalaId;
+        payHawalaNumber = hawalaNumber;
+        selectedPaymentAccountId = 0;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showPayModal = true;
+    }
+
+    private void ClosePayModal()
+    {
+        showPayModal = false;
+        payHawalaId = 0;
+        payHawalaNumber = 0;
+        selectedPaymentAccountId = 0;
+    }
+
+    private async Task ConfirmPay()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        if (selectedPaymentAccountId <= 0)
+        {
+            validationErrors.Add("انتخاب حساب پرداخت‌کننده الزامی است.");
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+
+            await HawalaService.MarkAsPaidAsync(payHawalaId, selectedPaymentAccountId);
+
+            successMessage = "حواله با موفقیت پرداخت شد.";
+
+            ClosePayModal();
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در پرداخت حواله: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenReceipt(long hawalaId)
+    {
+        try
+        {
+            validationErrors.Clear();
+
+            var hawala = await HawalaService.GetHawalaByIdAsync(hawalaId);
+
+            if (hawala == null)
+            {
+                validationErrors.Add("حواله یافت نشد.");
+                return;
+            }
+
+            receiptHawala = hawala;
+            companySetting = await CompanySettingService.GetAsync();
+
+            showReceiptModal = true;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در نمایش رسید: {ex.Message}");
+        }
+    }
+
+    private void CloseReceipt()
+    {
+        showReceiptModal = false;
+        receiptHawala = null;
+    }
+
+    private async Task PrintReceipt()
+    {
+        await JS.InvokeVoidAsync("hawalaTools.printReceipt");
+    }
+
+    private async Task CopyHawalaInfo(long hawalaId)
+    {
+        try
+        {
+            validationErrors.Clear();
+            successMessage = string.Empty;
+
+            var hawala = await HawalaService.GetHawalaByIdAsync(hawalaId);
+
+            if (hawala == null)
+            {
+                validationErrors.Add("حواله یافت نشد.");
+                return;
+            }
+
+            var company = await CompanySettingService.GetAsync();
+
+            var text = HawalaShareHelper.BuildText(hawala, company);
+
+            var copied = await JS.InvokeAsync<bool>("hawalaTools.copyToClipboard", text);
+
+            successMessage = copied
+                ? "معلومات حواله کاپی شد."
+                : "کاپی موفق نشد.";
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در کاپی معلومات حواله: {ex.Message}");
+        }
+    }
+
+    private async Task ShareHawalaWhatsApp(long hawalaId)
+    {
+        try
+        {
+            var hawala = await HawalaService.GetHawalaByIdAsync(hawalaId);
+
+            if (hawala == null)
+            {
+                validationErrors.Add("حواله یافت نشد.");
+                return;
+            }
+
+            var company = await CompanySettingService.GetAsync();
+
+            var text = HawalaShareHelper.BuildText(hawala, company);
+
+            var url = "https://wa.me/?text=" + Uri.EscapeDataString(text);
+
+            await JS.InvokeVoidAsync("hawalaTools.openShareUrl", url);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ارسال واتساپ: {ex.Message}");
+        }
+    }
+
+    private async Task ShareHawalaTelegram(long hawalaId)
+    {
+        try
+        {
+            var hawala = await HawalaService.GetHawalaByIdAsync(hawalaId);
+
+            if (hawala == null)
+            {
+                validationErrors.Add("حواله یافت نشد.");
+                return;
+            }
+
+            var company = await CompanySettingService.GetAsync();
+
+            var text = HawalaShareHelper.BuildText(hawala, company);
+
+            var receiptUrl = NavigationManager.BaseUri.TrimEnd('/');
+
+            var telegramAppUrl =
+                "tg://msg_url" +
+                "?url=" + Uri.EscapeDataString(receiptUrl) +
+                "&text=" + Uri.EscapeDataString(text);
+
+            await JS.InvokeVoidAsync("hawalaTools.openTelegramApp", telegramAppUrl);
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در ارسال تلگرام: {ex.Message}");
+        }
+    }
+
+    private void ShowCancelConfirm(long id)
+    {
+        cancelId = id;
+        cancelReason = string.Empty;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showCancelModal = true;
+    }
+
+    private void CloseCancelModal()
+    {
+        showCancelModal = false;
+        cancelId = 0;
+        cancelReason = string.Empty;
+    }
+
+    private async Task ConfirmCancel()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(cancelReason))
+        {
+            validationErrors.Add("دلیل لغو حواله الزامی است.");
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+
+            await HawalaService.CancelHawalaAsync(cancelId, cancelReason);
+
+            successMessage = "حواله با موفقیت لغو شد.";
+
+            CloseCancelModal();
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در لغو حواله: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowDeleteConfirm(long id)
+    {
+        deleteId = id;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        showDeleteModal = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        deleteId = 0;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        validationErrors.Clear();
+        successMessage = string.Empty;
+
+        try
+        {
+            isLoading = true;
+
+            await HawalaService.DeleteHawalaAsync(deleteId);
+
+            successMessage = "حواله با موفقیت حذف شد.";
+
+            CloseDeleteModal();
+
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در حذف حواله: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool IsPaymentAccount(AccountDto account)
+    {
+        return string.Equals(account.AccountType, "Cash", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(account.AccountType, "Bank", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(account.AccountType, "Customer", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetAccountTypeName(string? type)
+    {
+        return type?.ToLower() switch
+        {
+            "cash" => "نقدی",
+            "bank" => "بانک",
+            "customer" => "مشتری",
+            "correspondent" => "نماینده",
+            "income" => "درآمد",
+            "expense" => "مصرف",
+            "equity" => "سرمایه",
+            "pendinghawala" => "حواله‌های اجرا نشده",
+            _ => type ?? "نامشخص"
+        };
     }
 
     private string GetStatusBadge(string status)
@@ -297,5 +1135,13 @@
             "Cancel" => "badge-danger",
             _ => "badge-secondary"
         };
+    }
+
+    private string GetPaymentLocation(HawalaDto hawala)
+    {
+        return hawala.PaymentLocationName
+               ?? hawala.PaymentLocationAddress
+               ?? hawala.PaymentLocation
+               ?? "-";
     }
 }

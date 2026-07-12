@@ -107,7 +107,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class UpdateHawalaDto
     {
-        public long PaymentLocationId { get; set; }
+        public long? PaymentLocationId { get; set; }
         public long? FromAccountId { get; set; }
         public string? SenderName { get; set; }
         public string? SenderFatherName { get; set; }
@@ -129,6 +129,7 @@ namespace HawalaExchange.Application.DTOs
         public string? ReferenceNumber { get; set; }
         public string? Notes { get; set; }
         public string? PaymentLocation { get; set; }
+       
     }
 
     public class HawalaFilterDto

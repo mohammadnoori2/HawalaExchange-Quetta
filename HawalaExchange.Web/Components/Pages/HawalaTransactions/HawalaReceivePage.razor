@@ -1,0 +1,301 @@
+﻿@page "/hawala-receive"
+
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Helpers
+@using Microsoft.AspNetCore.Authorization
+
+@inject IHawalaService HawalaService
+
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<div class="page-wrapper" dir="rtl">
+    <div class="page-header">
+        <div>
+            <h5 class="page-title">
+                <i class="bi bi-download"></i>
+                حواله‌های دریافتی
+                <span class="page-subtitle">تمام حواله‌های دریافتی، پرداخت‌شده، اجرا نشده و لغو شده</span>
+            </h5>
+        </div>
+
+        <div class="page-actions">
+            <button class="btn-modern btn-light-modern btn-rounded" @onclick="LoadData">
+                <i class="bi bi-arrow-clockwise"></i>
+                تازه‌سازی
+            </button>
+        </div>
+    </div>
+
+    @if (validationErrors.Any())
+    {
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                @foreach (var error in validationErrors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon info">
+                        <i class="bi bi-download"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@hawalas.Count</div>
+                        <div class="stat-label">کل دریافتی</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-warning">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon warning">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@hawalas.Count(x => x.Status == "Pending")</div>
+                        <div class="stat-label">در انتظار</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-success">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon success">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@hawalas.Count(x => x.Status == "Paid")</div>
+                        <div class="stat-label">پرداخت شده</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-danger">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon danger">
+                        <i class="bi bi-x-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-number">@hawalas.Count(x => x.Status == "Cancel")</div>
+                        <div class="stat-label">لغو شده</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label fw-bold">جستجو</label>
+            <input class="form-control"
+                   placeholder="نمبر، فرستنده، گیرنده، مرجع..."
+                   @bind="searchTerm"
+                   @bind:event="oninput" />
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label fw-bold">وضعیت</label>
+            <select class="form-select" @bind="filterStatus" @bind:event="oninput">
+                <option value="">همه</option>
+                <option value="Pending">در انتظار</option>
+                <option value="Paid">پرداخت شده</option>
+                <option value="Cancel">لغو شده</option>
+            </select>
+        </div>
+
+        <div class="col-md-2">
+            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilter">
+                فیلتر
+            </button>
+        </div>
+
+        <div class="col-md-2">
+            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilter">
+                بازنشانی
+            </button>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>نمبر</th>
+                            <th>فرستنده</th>
+                            <th>گیرنده</th>
+                            <th>نماینده</th>
+                            <th>مبلغ</th>
+                            <th>کارمزد</th>
+                            <th>وضعیت</th>
+                            <th>تاریخ</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @if (isLoading)
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-5">
+                                    <div class="spinner-border text-primary"></div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!filteredHawalas.Any())
+                        {
+                            <tr>
+                                <td colspan="9" class="text-center py-5">
+                                    هیچ حواله دریافتی یافت نشد.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            var rowIndex = 1;
+
+                            @foreach (var hawala in filteredHawalas)
+                            {
+                                <tr>
+                                    <td>@rowIndex</td>
+                                    <td><strong>@hawala.Number</strong></td>
+                                    <td>@(hawala.SenderName ?? "-")</td>
+                                    <td>@(hawala.ReceiverName ?? "-")</td>
+                                    <td>@(hawala.CorrespondentName ?? "-")</td>
+
+                                    <td dir="ltr" class="fw-bold text-primary">
+                                        @hawala.FromAmount.ToString("N2") @hawala.FromCurrencyCode
+                                    </td>
+
+                                    <td dir="ltr">
+                                        @(hawala.CommissionAmount?.ToString("N2") ?? "-")
+                                        @hawala.CommissionCurrencyCode
+                                    </td>
+
+                                    <td>
+                                        <span class="badge-modern @GetStatusBadge(hawala.Status)">
+                                            @hawala.StatusName
+                                        </span>
+                                    </td>
+
+                                    <td dir="ltr">
+                                        @PersianDateHelper.ToPersianDateTime12(hawala.CreatedAt)
+                                    </td>
+                                </tr>
+
+                                rowIndex++;
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<HawalaDto> hawalas = new();
+    private List<HawalaDto> filteredHawalas = new();
+
+    private List<string> validationErrors = new();
+
+    private bool isLoading = false;
+
+    private string searchTerm = string.Empty;
+    private string filterStatus = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            validationErrors.Clear();
+
+            var filter = new HawalaFilterDto
+            {
+                HawalaType = "HawalaReceive",
+                Status = string.IsNullOrWhiteSpace(filterStatus) ? null : filterStatus,
+                PageNumber = 1,
+                PageSize = int.MaxValue,
+                SortColumn = "CreatedAt",
+                SortDirection = "desc"
+            };
+
+            var result = await HawalaService.GetHawalasAsync(filter);
+
+            hawalas = result.Items.ToList();
+
+            SearchLocal();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری حواله‌های دریافتی: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ApplyFilter()
+    {
+        await LoadData();
+    }
+
+    private async Task ResetFilter()
+    {
+        searchTerm = string.Empty;
+        filterStatus = string.Empty;
+
+        await LoadData();
+    }
+
+    private void SearchLocal()
+    {
+        var query = hawalas.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.Trim().ToLower();
+
+            query = query.Where(x =>
+                x.Number.ToString().Contains(term) ||
+                (!string.IsNullOrWhiteSpace(x.SenderName) && x.SenderName.ToLower().Contains(term)) ||
+                (!string.IsNullOrWhiteSpace(x.ReceiverName) && x.ReceiverName.ToLower().Contains(term)) ||
+                (!string.IsNullOrWhiteSpace(x.ReferenceNumber) && x.ReferenceNumber.ToLower().Contains(term)));
+        }
+
+        filteredHawalas = query.ToList();
+    }
+
+    private string GetStatusBadge(string status)
+    {
+        return status switch
+        {
+            "Pending" => "badge-warning",
+            "Paid" => "badge-success",
+            "Cancel" => "badge-danger",
+            _ => "badge-secondary"
+        };
+    }
+}

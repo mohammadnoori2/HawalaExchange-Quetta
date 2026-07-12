@@ -125,6 +125,7 @@
                     .Include(h => h.ToCurrency)
                     .Include(h => h.CommissionCurrency)
                     .Include(h => h.AgentCommissionCurrency)
+                    .Include(h => h.PaymentLocation)
                     .FirstOrDefaultAsync(h => h.Id == id);
 
                 return hawala == null ? null : _mapper.Map<HawalaDto>(hawala);

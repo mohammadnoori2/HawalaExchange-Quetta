@@ -8,18 +8,20 @@
                value="@displayText"
                placeholder="@Placeholder"
                readonly
-               @onclick="ToggleCalendar" />
+               @onclick="OpenCalendar" />
 
         <button type="button"
                 class="btn btn-outline-secondary"
-                @onclick="ToggleCalendar">
+                @onclick="OpenCalendar">
             <i class="bi bi-calendar3"></i>
         </button>
     </div>
 
     @if (showCalendar)
     {
-        <div class="persian-calendar-popup shadow">
+        <div class="persian-calendar-backdrop" @onclick="CloseCalendar"></div>
+
+        <div class="persian-calendar-modal shadow-lg" dir="rtl">
             <div class="calendar-header">
                 <button type="button"
                         class="btn btn-sm btn-light"
@@ -68,15 +70,16 @@
 
             @if (IncludeTime)
             {
-                <div class="calendar-time border-top pt-2 mt-2">
-                    <label class="small text-muted mb-1 d-block">
+                <div class="calendar-time border-top pt-2 mt-3">
+                    <label class="small text-muted mb-2 d-block">
                         انتخاب زمان
                     </label>
 
-                    <div class="d-flex gap-2 align-items-center">
+                    <div class="d-flex gap-2 align-items-center justify-content-center">
                         <select class="form-select form-select-sm"
                                 style="width: 75px;"
-                                @bind="hour12">
+                                value="@hour12"
+                                @onchange="OnHourChanged">
                             @for (var h = 1; h <= 12; h++)
                             {
                                 <option value="@h">@h.ToString("00")</option>
@@ -87,7 +90,8 @@
 
                         <select class="form-select form-select-sm"
                                 style="width: 75px;"
-                                @bind="minute">
+                                value="@minute"
+                                @onchange="OnMinuteChanged">
                             @for (var m = 0; m <= 59; m++)
                             {
                                 <option value="@m">@m.ToString("00")</option>
@@ -96,7 +100,8 @@
 
                         <select class="form-select form-select-sm"
                                 style="width: 85px;"
-                                @bind="amPm">
+                                value="@amPm"
+                                @onchange="OnAmPmChanged">
                             <option value="AM">AM</option>
                             <option value="PM">PM</option>
                         </select>
@@ -112,9 +117,9 @@
                 </button>
 
                 <button type="button"
-                        class="btn btn-sm btn-outline-secondary"
+                        class="btn btn-sm btn-primary"
                         @onclick="CloseCalendar">
-                    بستن
+                    تأیید
                 </button>
             </div>
         </div>
@@ -127,23 +132,33 @@
         width: 100%;
     }
 
-    .persian-calendar-popup {
-        position: absolute;
-        top: 42px;
-        right: 0;
-        width: 310px;
+    .persian-calendar-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.15);
+        z-index: 99998;
+    }
+
+    .persian-calendar-modal {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: min(360px, calc(100vw - 24px));
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
         background: #fff;
         border: 1px solid #e5e7eb;
-        border-radius: 14px;
-        padding: 12px;
-        z-index: 9999;
+        border-radius: 16px;
+        padding: 14px;
+        z-index: 99999;
     }
 
     .calendar-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
 
     .calendar-weekdays {
@@ -165,10 +180,11 @@
     .calendar-day {
         border: 0;
         border-radius: 8px;
-        padding: 7px 0;
+        padding: 8px 0;
         background: #f9fafb;
         cursor: pointer;
         font-size: 0.9rem;
+        min-height: 36px;
     }
 
         .calendar-day:hover {
@@ -191,11 +207,28 @@
             font-weight: 700;
         }
 
+    .calendar-time {
+        background: #f9fafb;
+        border-radius: 10px;
+        padding: 10px;
+    }
+
     .calendar-footer {
         display: flex;
         justify-content: space-between;
         gap: 8px;
         margin-top: 12px;
+    }
+
+    @@media (max-width: 576px) {
+        .persian-calendar-modal
+
+    {
+        top: 12px;
+        transform: translateX(-50%);
+        max-height: calc(100vh - 24px);
+    }
+
     }
 </style>
 
@@ -263,9 +296,9 @@
         UpdateDisplayText(date);
     }
 
-    private void ToggleCalendar()
+    private void OpenCalendar()
     {
-        showCalendar = !showCalendar;
+        showCalendar = true;
     }
 
     private void CloseCalendar()
@@ -280,6 +313,8 @@
         viewYear = persianCalendar.GetYear(today);
         viewMonth = persianCalendar.GetMonth(today);
 
+        SetTimeFromValue(today);
+
         await SelectPersianDate(
             persianCalendar.GetYear(today),
             persianCalendar.GetMonth(today),
@@ -289,20 +324,16 @@
     private async Task SelectDay(int day)
     {
         await SelectPersianDate(viewYear, viewMonth, day);
+
+        if (!IncludeTime)
+        {
+            showCalendar = false;
+        }
     }
 
     private async Task SelectPersianDate(int year, int month, int day)
     {
-        var hour24 = ConvertTo24Hour(hour12, amPm);
-
-        var selectedDate = persianCalendar.ToDateTime(
-            year,
-            month,
-            day,
-            IncludeTime ? hour24 : 0,
-            IncludeTime ? minute : 0,
-            0,
-            0);
+        var selectedDate = BuildSelectedDate(year, month, day);
 
         selectedPersianYear = year;
         selectedPersianMonth = month;
@@ -311,11 +342,6 @@
         UpdateDisplayText(selectedDate);
 
         await ValueChanged.InvokeAsync(selectedDate);
-
-        if (!IncludeTime)
-        {
-            showCalendar = false;
-        }
     }
 
     private void PreviousMonth()
@@ -408,6 +434,68 @@
             hour12 = 12;
 
         minute = date.Minute;
+    }
+
+    private DateTime BuildSelectedDate(int year, int month, int day)
+    {
+        var hour24 = ConvertTo24Hour(hour12, amPm);
+
+        return persianCalendar.ToDateTime(
+            year,
+            month,
+            day,
+            IncludeTime ? hour24 : 0,
+            IncludeTime ? minute : 0,
+            0,
+            0);
+    }
+
+    private async Task UpdateSelectedDateWithTime()
+    {
+        if (selectedPersianYear <= 0 ||
+            selectedPersianMonth <= 0 ||
+            selectedPersianDay <= 0)
+        {
+            return;
+        }
+
+        var selectedDate = BuildSelectedDate(
+            selectedPersianYear,
+            selectedPersianMonth,
+            selectedPersianDay);
+
+        UpdateDisplayText(selectedDate);
+
+        await ValueChanged.InvokeAsync(selectedDate);
+    }
+
+    private async Task OnHourChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+        {
+            hour12 = value;
+            await UpdateSelectedDateWithTime();
+        }
+    }
+
+    private async Task OnMinuteChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value))
+        {
+            minute = value;
+            await UpdateSelectedDateWithTime();
+        }
+    }
+
+    private async Task OnAmPmChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+
+        if (value == "AM" || value == "PM")
+        {
+            amPm = value;
+            await UpdateSelectedDateWithTime();
+        }
     }
 
     private void UpdateDisplayText(DateTime date)

@@ -272,8 +272,8 @@
                                         </span>
                                     </td>
 
-                                    <td dir="ltr" class="fw-bold @(item.OperationType == "Deposit" ? "text-success" : "text-danger")">
-                                        @item.Amount.ToString("N2")
+                                    <td dir="ltr">
+                                        @PersianDateHelper.ToPersianDateTime12(item.OperationDate)
                                     </td>
 
                                     <td>
@@ -480,12 +480,12 @@
 
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
-                                        تاریخ
+                                        تاریخ و زمان
                                     </label>
 
-                                    <input type="datetime-local"
-                                           class="form-control"
-                                           @bind="operationDateLocal" />
+                                    <PersianDatePicker @bind-Value="operationDateLocal"
+                                                       IncludeTime="true"
+                                                       Placeholder="انتخاب تاریخ شمسی" />
                                 </div>
                             </div>
 
@@ -550,7 +550,7 @@
                                 @if (currentOperation.OperationType == "Deposit")
                                 {
                                     <div class="mt-2">
-                                        در واریز: حساب صندوق/بانک بدهکار/طلبکار می‌شود و حساب انتخاب‌شده بستانکار/بدهکار می‌شود.
+                                        در واریز: حساب صندوق/بانک بدهکار می‌شود و حساب انتخاب‌شده طلبکار می‌شود.
                                     </div>
 
                                     <div class="mt-2" dir="ltr">
@@ -561,13 +561,10 @@
                                 else if (currentOperation.OperationType == "Withdraw")
                                 {
                                     <div class="mt-2">
-                                        در برداشت: حساب انتخاب‌شده بدهکار/طلبکار می‌شود و حساب صندوق/بانک بستانکار/بدهکار می‌شود.
+                                        در برداشت: حساب انتخاب‌شده بدهکار می‌شود و حساب صندوق/بانک طلبکار می‌شود.
                                     </div>
 
-                                    <div class="mt-2" dir="ltr">
-                                        Selected Account: TalabKar |
-                                        Cash/Bank: BadehKar
-                                    </div>
+                                   
                                 }
                                 else
                                 {
@@ -697,7 +694,7 @@
                             <div class="info-card">
                                 <span class="info-label">تاریخ</span>
                                 <span class="info-value" dir="ltr">
-                                    @selectedOperation.OperationDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")
+                                    @PersianDateHelper.ToPersianDateTime12(selectedOperation.OperationDate)
                                 </span>
                             </div>
                         </div>

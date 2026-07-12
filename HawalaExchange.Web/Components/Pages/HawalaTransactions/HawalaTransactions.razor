@@ -225,7 +225,7 @@
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
-                            <th class="text-center" style="min-width:160px;">عملیات</th>
+                            <th class="text-center" style="width:80px;">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -278,57 +278,98 @@
                                         </span>
                                     </td>
                                     <td dir="ltr">@hawala.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
-                                    <td>
-                                        <div class="action-group justify-content-center">
-                                            <button class="action-btn action-btn-view" @onclick="() => ViewHawala(hawala.Id)" title="مشاهده">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="action-btn action-btn-info"
-                                                    @onclick="() => OpenReceipt(hawala.Id)"
-                                                    title="رسید حواله">
-                                                <i class="bi bi-receipt"></i>
+                                    <td class="text-center operation-cell">
+                                        <div class="operation-dropdown" @onclick:stopPropagation="true">
+                                            <button type="button"
+                                                    class="operation-dot-btn"
+                                                    title="عملیات"
+                                                    @onclick="() => ToggleOperationMenu(hawala.Id)">
+                                                <i class="bi bi-three-dots-vertical"></i>
                                             </button>
 
-                                            <button class="action-btn action-btn-secondary"
-                                                    @onclick="() => CopyHawalaInfo(hawala.Id)"
-                                                    title="کاپی معلومات حواله">
-                                                <i class="bi bi-clipboard"></i>
-                                            </button>
-
-                                            <button class="action-btn action-btn-success"
-                                                    @onclick="() => ShareHawalaWhatsApp(hawala.Id)"
-                                                    title="ارسال واتساپ">
-                                                <i class="bi bi-whatsapp"></i>
-                                            </button>
-
-                                            <button class="action-btn action-btn-primary"
-                                                    @onclick="() => ShareHawalaTelegram(hawala.Id)"
-                                                    title="ارسال تلگرام">
-                                                <i class="bi bi-telegram"></i>
-                                            </button>
-                                            @if (hawala.Status != "Paid" && hawala.Status != "Cancel")
+                                            @if (openOperationMenuHawalaId == hawala.Id)
                                             {
-                                                <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(hawala.Id)" title="ویرایش">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                @if (hawala.Status == "Pending" && hawala.HawalaType == "HawalaReceive")
-                                                {
-                                                    <button class="action-btn action-btn-success"
-                                                            @onclick="() => OpenPayModal(hawala.Id, hawala.Number)"
-                                                            title="پرداخت حواله">
-                                                        <i class="bi bi-check-circle"></i>
+                                                <div class="operation-menu" dir="rtl">
+                                                    <button type="button"
+                                                            class="operation-menu-item"
+                                                            @onclick="async () => { CloseOperationMenu(); await ViewHawala(hawala.Id); }">
+                                                        <i class="bi bi-eye text-info"></i>
+                                                        مشاهده
                                                     </button>
-                                                }
+
+                                                    <button type="button"
+                                                            class="operation-menu-item"
+                                                            @onclick="async () => { CloseOperationMenu(); await OpenReceipt(hawala.Id); }">
+                                                        <i class="bi bi-receipt text-primary"></i>
+                                                        رسید حواله
+                                                    </button>
+
+                                                    <button type="button"
+                                                            class="operation-menu-item"
+                                                            @onclick="async () => { CloseOperationMenu(); await CopyHawalaInfo(hawala.Id); }">
+                                                        <i class="bi bi-clipboard text-secondary"></i>
+                                                        کاپی معلومات
+                                                    </button>
+
+                                                    <button type="button"
+                                                            class="operation-menu-item"
+                                                            @onclick="async () => { CloseOperationMenu(); await ShareHawalaWhatsApp(hawala.Id); }">
+                                                        <i class="bi bi-whatsapp text-success"></i>
+                                                        ارسال واتساپ
+                                                    </button>
+
+                                                    <button type="button"
+                                                            class="operation-menu-item"
+                                                            @onclick="async () => { CloseOperationMenu(); await ShareHawalaTelegram(hawala.Id); }">
+                                                        <i class="bi bi-telegram text-primary"></i>
+                                                        ارسال تلگرام
+                                                    </button>
+
+                                                    @if (hawala.Status != "Paid" && hawala.Status != "Cancel")
+                                                    {
+                                                        <div class="operation-menu-divider"></div>
+
+                                                        <button type="button"
+                                                                class="operation-menu-item"
+                                                                @onclick="async () => { CloseOperationMenu(); await OpenEditModal(hawala.Id); }">
+                                                            <i class="bi bi-pencil text-warning"></i>
+                                                            ویرایش
+                                                        </button>
+                                                    }
+
+                                                    @if (hawala.Status == "Pending" && hawala.HawalaType == "HawalaReceive")
+                                                    {
+                                                        <button type="button"
+                                                                class="operation-menu-item"
+                                                                @onclick="() => { CloseOperationMenu(); OpenPayModal(hawala.Id, hawala.Number); }">
+                                                            <i class="bi bi-check-circle text-success"></i>
+                                                            پرداخت حواله
+                                                        </button>
+                                                    }
+
+                                                    @if (hawala.Status == "Pending")
+                                                    {
+                                                        <button type="button"
+                                                                class="operation-menu-item"
+                                                                @onclick="() => { CloseOperationMenu(); ShowCancelConfirm(hawala.Id); }">
+                                                            <i class="bi bi-x-circle text-danger"></i>
+                                                            لغو حواله
+                                                        </button>
+                                                    }
+
+                                                    @if (hawala.Status != "Paid")
+                                                    {
+                                                        <div class="operation-menu-divider"></div>
+
+                                                        <button type="button"
+                                                                class="operation-menu-item operation-menu-danger"
+                                                                @onclick="() => { CloseOperationMenu(); ShowDeleteConfirm(hawala.Id); }">
+                                                            <i class="bi bi-trash"></i>
+                                                            حذف
+                                                        </button>
+                                                    }
+                                                </div>
                                             }
-                                            @if (hawala.Status != "Cancel")
-                                            {
-                                                <button class="action-btn action-btn-danger" @onclick="() => ShowCancelConfirm(hawala.Id)" title="لغو">
-                                                    <i class="bi bi-x-circle"></i>
-                                                </button>
-                                            }
-                                            <button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(hawala.Id)" title="حذف">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -1378,6 +1419,20 @@
     private bool showReceiptModal = false;
     private HawalaDto? receiptHawala = null;
     private CompanySettingDto companySetting = new();
+    private long? openOperationMenuHawalaId = null;
+
+    private void ToggleOperationMenu(long hawalaId)
+    {
+        openOperationMenuHawalaId =
+            openOperationMenuHawalaId == hawalaId
+                ? null
+                : hawalaId;
+    }
+
+    private void CloseOperationMenu()
+    {
+        openOperationMenuHawalaId = null;
+    }
 
     private async Task OpenReceipt(long hawalaId)
     {

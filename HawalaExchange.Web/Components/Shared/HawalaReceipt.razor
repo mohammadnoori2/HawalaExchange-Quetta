@@ -1,0 +1,299 @@
+﻿@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Web.Helpers
+
+<div class="hawala-receipt" dir="rtl">
+    <div class="receipt-header">
+        <div class="receipt-company">
+            @if (!string.IsNullOrWhiteSpace(Company.LogoPath))
+            {
+                <img src="@Company.LogoPath" class="receipt-logo" />
+            }
+
+            <div>
+                <h4>@GetCompanyName()</h4>
+
+                @if (!string.IsNullOrWhiteSpace(Company.Address))
+                {
+                    <div class="receipt-muted">@Company.Address</div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(Company.PhoneNumber))
+                {
+                    <div class="receipt-muted">شماره تماس: @Company.PhoneNumber</div>
+                }
+            </div>
+        </div>
+
+        <div class="receipt-title-box">
+            <h5>@GetReceiptTitle()</h5>
+            <div>نمبر: <strong>@Hawala.Number</strong></div>
+            <div dir="ltr">@PersianDateHelper.ToPersianDateTime12(Hawala.CreatedAt)</div>
+        </div>
+    </div>
+
+    <hr />
+
+    <div class="receipt-status-row">
+        <div>
+            <strong>وضعیت:</strong>
+            @Hawala.StatusName
+        </div>
+
+        <div>
+            <strong>نماینده:</strong>
+            @(Hawala.CorrespondentName ?? "-")
+        </div>
+
+        <div>
+            <strong>شماره مرجع:</strong>
+            @(Hawala.ReferenceNumber ?? "-")
+        </div>
+    </div>
+
+    <div class="receipt-section">
+        <h6>معلومات فرستنده</h6>
+
+        <div class="receipt-grid">
+            <div><strong>نام:</strong> @(Hawala.SenderName ?? "-")</div>
+            <div><strong>نام پدر:</strong> @(Hawala.SenderFatherName ?? "-")</div>
+            <div><strong>تلفن:</strong> @(Hawala.SenderPhone ?? "-")</div>
+            <div><strong>شماره تذکره:</strong> @(Hawala.SenderTazkiraNumber ?? "-")</div>
+            <div class="receipt-full"><strong>آدرس:</strong> @(Hawala.SenderAddress ?? "-")</div>
+        </div>
+    </div>
+
+    <div class="receipt-section">
+        <h6>معلومات گیرنده</h6>
+
+        <div class="receipt-grid">
+            <div><strong>نام:</strong> @(Hawala.ReceiverName ?? "-")</div>
+            <div><strong>نام پدر:</strong> @(Hawala.ReceiverFatherName ?? "-")</div>
+            <div><strong>تلفن:</strong> @(Hawala.ReceiverPhone ?? "-")</div>
+            <div><strong>شماره تذکره:</strong> @(Hawala.ReceiverTazkiraNumber ?? "-")</div>
+            <div class="receipt-full"><strong>آدرس:</strong> @(Hawala.ReceiverAddress ?? "-")</div>
+        </div>
+    </div>
+
+    <div class="receipt-section">
+        <h6>معلومات حواله</h6>
+
+        <div class="receipt-grid">
+            <div>
+                <strong>مبلغ حواله:</strong>
+                <span dir="ltr">@Hawala.FromAmount.ToString("N2") @Hawala.FromCurrencyCode</span>
+            </div>
+
+            <div>
+                <strong>مبلغ دریافتی/پرداختی:</strong>
+                <span dir="ltr">@(Hawala.ToAmount?.ToString("N2") ?? "-") @Hawala.ToCurrencyCode</span>
+            </div>
+
+            <div>
+                <strong>نرخ تبدیل:</strong>
+                @(Hawala.ExchangeRate?.ToString("N4") ?? "-")
+            </div>
+
+            <div>
+                <strong>کارمزد:</strong>
+                @(Hawala.CommissionAmount?.ToString("N2") ?? "-") @Hawala.CommissionCurrencyCode
+            </div>
+
+            <div>
+                <strong>کارمزد نماینده:</strong>
+                @(Hawala.AgentCommissionAmount?.ToString("N2") ?? "-") @Hawala.AgentCommissionCurrencyCode
+            </div>
+
+            <div>
+                <strong>محل پرداخت:</strong>
+                @GetPaymentLocation()
+            </div>
+        </div>
+    </div>
+
+    @if (Hawala.PaidAt.HasValue)
+    {
+        <div class="receipt-section">
+            <strong>تاریخ پرداخت:</strong>
+            <span dir="ltr">@PersianDateHelper.ToPersianDateTime12(Hawala.PaidAt.Value)</span>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Hawala.Notes))
+    {
+        <div class="receipt-section">
+            <strong>یادداشت:</strong>
+            <div>@Hawala.Notes</div>
+        </div>
+    }
+
+    <div class="receipt-signatures">
+        <div>امضای مشتری</div>
+        <div>امضای مسئول</div>
+    </div>
+
+    <div class="receipt-footer">
+        @(string.IsNullOrWhiteSpace(Company.FooterNote) ? "تشکر از اعتماد شما" : Company.FooterNote)
+    </div>
+</div>
+
+<style>
+    .hawala-receipt {
+        background: #fff;
+        color: #111827;
+        padding: 22px;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        font-size: 14px;
+    }
+
+    .receipt-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 20px;
+    }
+
+    .receipt-company {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .receipt-logo {
+        width: 76px;
+        height: 76px;
+        object-fit: contain;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 5px;
+    }
+
+    .receipt-muted {
+        color: #6b7280;
+        font-size: 13px;
+    }
+
+    .receipt-title-box {
+        text-align: center;
+        border: 1px solid #d1d5db;
+        border-radius: 12px;
+        padding: 10px 18px;
+        min-width: 210px;
+    }
+
+        .receipt-title-box h5 {
+            margin-bottom: 8px;
+            color: #2563eb;
+            font-weight: 700;
+        }
+
+    .receipt-status-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .receipt-section {
+        margin-top: 16px;
+    }
+
+        .receipt-section h6 {
+            color: #2563eb;
+            font-weight: 700;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+        }
+
+    .receipt-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px 18px;
+    }
+
+    .receipt-full {
+        grid-column: 1 / -1;
+    }
+
+    .receipt-signatures {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 50px;
+        padding: 0 40px;
+    }
+
+        .receipt-signatures div {
+            width: 180px;
+            border-top: 1px solid #111827;
+            text-align: center;
+            padding-top: 7px;
+        }
+
+    .receipt-footer {
+        text-align: center;
+        color: #6b7280;
+        margin-top: 22px;
+        font-size: 13px;
+    }
+
+    @@media print {
+        body * {
+            visibility: hidden !important;
+        }
+
+        #hawalaReceiptPrintArea,
+        #hawalaReceiptPrintArea * {
+            visibility: visible !important;
+        }
+
+        #hawalaReceiptPrintArea {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+        }
+
+        .modal-header,
+        .modal-footer {
+            display: none !important;
+        }
+
+        .hawala-receipt {
+            border: none;
+            border-radius: 0;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public HawalaDto Hawala { get; set; } = new();
+
+    [Parameter] public CompanySettingDto Company { get; set; } = new();
+
+    private string GetCompanyName()
+    {
+        return string.IsNullOrWhiteSpace(Company.CompanyName)
+            ? "نام شرکت"
+            : Company.CompanyName;
+    }
+
+    private string GetReceiptTitle()
+    {
+        return Hawala.HawalaType switch
+        {
+            "HawalaSend" => "رسید حواله ارسالی",
+            "HawalaReceive" => "رسید حواله دریافتی",
+            "HawalaOther" => "رسید حواله متفرقه",
+            _ => "رسید حواله"
+        };
+    }
+
+    private string GetPaymentLocation()
+    {
+        return Hawala.PaymentLocationName
+               ?? Hawala.PaymentLocationAddress
+               ?? Hawala.PaymentLocation
+               ?? "-";
+    }
+}

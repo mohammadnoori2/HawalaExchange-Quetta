@@ -236,7 +236,7 @@
                                     </td>
 
                                     <td dir="ltr">
-                                        @item.ExchangeDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")
+                                        @PersianDateHelper.ToPersianDateTime12(item.ExchangeDate)
                                     </td>
 
                                     <td>
@@ -425,10 +425,11 @@
                                 </div>
 
                                 <div class="col-md-4">
-                                    <label class="form-label fw-bold">تاریخ تبدیل</label>
-                                    <input type="datetime-local"
-                                           class="form-control"
-                                           @bind="exchangeDateLocal" />
+                                    <label class="form-label fw-bold">تاریخ و زمان تبدیل</label>
+
+                                    <PersianDatePicker @bind-Value="exchangeDateLocal"
+                                                       IncludeTime="true"
+                                                       Placeholder="انتخاب تاریخ شمسی" />
                                 </div>
 
                                 <div class="col-md-4">
@@ -692,7 +693,7 @@
                             <div class="info-card">
                                 <span class="info-label">تاریخ</span>
                                 <span class="info-value" dir="ltr">
-                                    @selectedExchange.ExchangeDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")
+                                    @PersianDateHelper.ToPersianDateTime12(selectedExchange.ExchangeDate)
                                 </span>
                             </div>
                         </div>

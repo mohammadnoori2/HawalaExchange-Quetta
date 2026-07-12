@@ -270,7 +270,7 @@
                                     </td>
 
                                     <td dir="ltr">
-                                        @expense.ExpenseDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")
+                                        @PersianDateHelper.ToPersianDateTime12(expense.ExpenseDate)
                                     </td>
 
                                     <td>
@@ -460,12 +460,12 @@
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-calendar-date text-muted me-1"></i>
-                                        تاریخ مصرف
+                                        تاریخ و زمان مصرف
                                     </label>
 
-                                    <input type="datetime-local"
-                                           class="form-control"
-                                           @bind="expenseDateLocal" />
+                                    <PersianDatePicker @bind-Value="expenseDateLocal"
+                                                       IncludeTime="true"
+                                                       Placeholder="انتخاب تاریخ شمسی" />
                                 </div>
                             </div>
 
@@ -631,7 +631,7 @@
                             <div class="info-card">
                                 <span class="info-label">تاریخ</span>
                                 <span class="info-value" dir="ltr">
-                                    @selectedExpense.ExpenseDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")
+                                    @PersianDateHelper.ToPersianDateTime12(selectedExpense.ExpenseDate)
                                 </span>
                             </div>
                         </div>
@@ -668,9 +668,9 @@
 
                     <div class="alert alert-info mt-3 mb-0">
                         <strong>لیجر مربوطه:</strong>
-                        <div class="mt-2" dir="ltr">
-                            Expense Account: TalabKar |
-                            Cash/Bank Account: BadehKar
+                        <div class="mt-2" >
+                            حساب صندوق/بانک: طلبکار
+                            حساب مصرف: بدهکار
                         </div>
                     </div>
                 </div>

@@ -38,7 +38,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<CapitalInvestment> CapitalInvestments { get; set; }
         public DbSet<AccountMoneyOperation> AccountMoneyOperations { get; set; }
         public DbSet<MoneyExchangeOperation> MoneyExchangeOperations { get; set; }
-
+        public DbSet<CompanySetting> CompanySettings { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -52,10 +52,34 @@ namespace HawalaExchange.Infrastructure.Data
             ConfigureHawalaEntity(modelBuilder);
             SeedData(modelBuilder);
             modelBuilder.Entity<LedgerEntry>()
-    .HasOne(x => x.Hawala)
-    .WithMany()
-    .HasForeignKey(x => x.HawalaId)
-    .OnDelete(DeleteBehavior.Restrict);
+                .HasOne(x => x.Hawala)
+                .WithMany()
+                .HasForeignKey(x => x.HawalaId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<CompanySetting>(entity =>
+            {
+                entity.Property(x => x.CompanyName)
+                    .HasMaxLength(200)
+                    .IsRequired();
+
+                entity.Property(x => x.LogoPath)
+                    .HasMaxLength(500);
+
+                entity.Property(x => x.PhoneNumber)
+                    .HasMaxLength(50);
+
+                entity.Property(x => x.WhatsAppNumber)
+                    .HasMaxLength(50);
+
+                entity.Property(x => x.TelegramUserName)
+                    .HasMaxLength(100);
+
+                entity.Property(x => x.Address)
+                    .HasMaxLength(500);
+
+                entity.Property(x => x.FooterNote)
+                    .HasMaxLength(1000);
+            });
         }
 
         // ==========================================

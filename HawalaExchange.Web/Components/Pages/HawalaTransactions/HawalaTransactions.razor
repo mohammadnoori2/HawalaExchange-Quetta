@@ -1235,7 +1235,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">محل پرداخت</span>
-                                <span class="info-value">@(selectedHawala.PaymentLocation ?? "-")</span>
+                                <span class="info-value">@GetPaymentLocation(selectedHawala)</span>
                             </div>
                         </div>
                         @if (selectedHawala.PaidAt.HasValue)
@@ -1467,10 +1467,9 @@
         receiptHawala = null;
         StateHasChanged();
     }
-
     private async Task PrintReceipt()
     {
-        await JS.InvokeVoidAsync("hawalaTools.printReceipt");
+        await JS.InvokeVoidAsync("hawalaTools.printElement", "hawalaReceiptPrintArea", 80);
     }
 
     private async Task CopyHawalaInfo(long hawalaId)
@@ -2347,6 +2346,22 @@
         currentHawala.ReceiverTazkiraImagePath = null;
         receiverTazkiraImagePath = null;
         receiverTazkiraFile = null;
+    }
+    private string GetPaymentLocation(HawalaDto hawala)
+    {
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationName) &&
+            !string.IsNullOrWhiteSpace(hawala.PaymentLocationAddress))
+        {
+            return $"{hawala.PaymentLocationName} - {hawala.PaymentLocationAddress}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationName))
+            return hawala.PaymentLocationName;
+
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationAddress))
+            return hawala.PaymentLocationAddress;
+
+        return "-";
     }
 
     private async Task OnSenderTazkiraUpload(InputFileChangeEventArgs e)

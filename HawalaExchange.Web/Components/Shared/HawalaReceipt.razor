@@ -237,33 +237,7 @@
         font-size: 13px;
     }
 
-    @@media print {
-        body * {
-            visibility: hidden !important;
-        }
-
-        #hawalaReceiptPrintArea,
-        #hawalaReceiptPrintArea * {
-            visibility: visible !important;
-        }
-
-        #hawalaReceiptPrintArea {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100%;
-        }
-
-        .modal-header,
-        .modal-footer {
-            display: none !important;
-        }
-
-        .hawala-receipt {
-            border: none;
-            border-radius: 0;
-        }
-    }
+    
 </style>
 
 @code {
@@ -291,9 +265,18 @@
 
     private string GetPaymentLocation()
     {
-        return Hawala.PaymentLocationName
-               ?? Hawala.PaymentLocationAddress
-               ?? Hawala.PaymentLocation
-               ?? "-";
+        if (!string.IsNullOrWhiteSpace(Hawala.PaymentLocationName) &&
+            !string.IsNullOrWhiteSpace(Hawala.PaymentLocationAddress))
+        {
+            return $"{Hawala.PaymentLocationName} - {Hawala.PaymentLocationAddress}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(Hawala.PaymentLocationName))
+            return Hawala.PaymentLocationName;
+
+        if (!string.IsNullOrWhiteSpace(Hawala.PaymentLocationAddress))
+            return Hawala.PaymentLocationAddress;
+
+        return "-";
     }
 }

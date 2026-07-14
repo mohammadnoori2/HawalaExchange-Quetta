@@ -2,6 +2,7 @@
 @using Microsoft.JSInterop
 @using HawalaExchange.Web.Helpers
 @using HawalaExchange.Web.Components.Shared
+@using HawalaExchange.Web.Components.Shared.Modals
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
@@ -277,7 +278,7 @@
                                             @hawala.StatusName
                                         </span>
                                     </td>
-                                    <td dir="ltr">@hawala.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(hawala.CreatedAt)</td>
                                     <td class="text-center operation-cell">
                                         <div class="operation-dropdown" @onclick:stopPropagation="true">
                                             <button type="button"
@@ -414,6 +415,7 @@
     </div>
 </div>
 
+<!-- ===== مودال رسید حواله ===== -->
 @if (showReceiptModal && receiptHawala != null)
 {
     <div class="modal show d-block modal-modern"
@@ -480,6 +482,8 @@
         </div>
     </div>
 }
+
+<!-- ===== مودال پرداخت حواله ===== -->
 @if (showPayModal)
 {
     <div class="modal show d-block modal-modern"
@@ -564,520 +568,17 @@
         </div>
     </div>
 }
-<!-- ============================================================ -->
-<!-- مودال ایجاد/ویرایش حواله (اصلاح‌شده) -->
-<!-- ============================================================ -->
-@if (showModal)
-{
-    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header gradient">
-                    <h5 class="modal-title text-white">
-                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
-                        @(isEditMode ? "ویرایش حواله" : "ایجاد حواله جدید")
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
-                </div>
-                <div class="modal-body">
-                    @if (validationErrors.Any())
-                    {
-                        <div class="alert alert-danger alert-dismissible fade show">
-                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
-                            <ul class="mb-0">
-                                @foreach (var error in validationErrors)
-                                {
-                                    <li>@error</li>
-                                }
-                            </ul>
-                        </div>
-                    }
 
-                    @if (!string.IsNullOrEmpty(successMessage))
-                    {
-                        <div class="alert alert-success alert-dismissible fade show">
-                            <i class="bi bi-check-circle me-2"></i> @successMessage
-                        </div>
-                    }
+<!-- ===== کامپوننت مودال ایجاد/ویرایش حواله ===== -->
+<CreateHawalaModal IsVisible="@showModal"
+                   IsVisibleChanged="@((bool value) => { showModal = value; StateHasChanged(); })"
+                   IsEditMode="@isEditMode"
+                   EditId="@editId"
+                   EditData="@editHawalaData"
+                   OnSaveSuccess="@OnHawalaSaved"
+                   OnEditSuccess="@OnHawalaEdited" />
 
-                    <!-- اطلاعات حواله -->
-                    <div class="modern-card mb-4">
-                        <div class="card-header">
-                            <h6 class="text-primary"><i class="bi bi-arrow-left-right me-2"></i> اطلاعات حواله</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <!-- نوع حواله -->
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">نوع حواله <span class="text-danger">*</span></label>
-                                    <select class="form-select"
-                                            value="@currentHawala.HawalaType"
-                                            @onchange="(ChangeEventArgs e) => { currentHawala.HawalaType = e.Value?.ToString() ?? string.Empty; OnHawalaTypeChanged(e); }">
-                                        <option value="">انتخاب نوع</option>
-                                        <option value="HawalaSend">حواله ارسال</option>
-                                        <option value="HawalaReceive">حواله دریافت</option>
-                                        <option value="HawalaOther">حواله متفرقه</option>
-                                    </select>
-                                </div>
-                                <!-- نماینده (اصلاح‌شده: بدون @bind، استفاده از value و @onchange) -->
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold"> نماینده <span class="text-danger">*</span></label>
-                                    <select class="form-select"
-                                            value="@currentHawala.CorrespondentId"
-                                            @onchange="(ChangeEventArgs e) => {
-                                            currentHawala.CorrespondentId = long.TryParse(e.Value?.ToString(), out long id) ? id : null;
-                                            OnCorrespondentChanged(e);
-                                        }">
-                                    <option value="">انتخاب نماینده</option>
-                                    @foreach (var correspondent in correspondents)
-                                    {
-                                        <option value="@correspondent.Id">@correspondent.Name (@correspondent.Code)</option>
-                                    }
-                                </select>
-                            </div>
-                            <!-- محل پرداخت -->
-                            <!-- در بخش اطلاعات حواله -->
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-geo-alt text-muted me-1"></i> محل پرداخت
-                                    @if (currentHawala.HawalaType == "HawalaSend")
-                                    {
-                                        <span class="text-danger">*</span>
-                                    }
-                                </label>
-                                <select class="form-select" @bind="currentHawala.PaymentLocationId">
-                                    <option value="">انتخاب محل پرداخت</option>
-                                    @foreach (var location in paymentLocations)
-                                    {
-                                        <option value="@location.Id">@location.Name - @location.Address</option>
-                                    }
-                                </select>
-                                @if (currentHawala.HawalaType == "HawalaSend")
-                                {
-                                    <small class="text-muted">محلی که گیرنده می‌تواند پول را دریافت کند.</small>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <!-- وضعیت -->
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-person text-muted me-1"></i> وضعیت
-                                </label>
-                                <select class="form-select" @bind="currentHawala.Status">
-                                    <option value="Pending">در انتظار</option>
-                                    <option value="Paid">پرداخت شده</option>
-                                </select>
-                            </div>
-                            <!-- شماره مرجع -->
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-hash text-muted me-1"></i> شماره مرجع
-                                </label>
-                                <input type="text" class="form-control" @bind="currentHawala.ReferenceNumber" placeholder="شماره مرجع" />
-                            </div>
-                            <!-- ===== فیلد شماره (نمبر) اصلاح‌شده با long? ===== -->
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-hash text-muted me-1"></i> نمبر حواله
-
-                                </label>
-                                @if (isEditMode)
-                                {
-                                    <!-- در حالت ویرایش: غیرفعال و فقط نمایشی -->
-                                    <input type="number" class="form-control bg-light" value="@currentHawala.Number" />
-                                    <small class="text-muted">شماره قابل ویرایش نیست</small>
-                                }
-                                else
-                                {
-                                    <!-- در حالت ایجاد: قابل ویرایش، با مقدار پیش‌نمایش -->
-                                    <input type="number" class="form-control" @bind="currentHawala.Number" />
-
-                                }
-                            </div>
-                        </div>
-
-                        <hr />
-                        <h6 class="text-primary mb-3"><i class="bi bi-person"></i> اطلاعات فرستنده</h6>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">نام فرستنده</label>
-                                <input type="text" class="form-control" @bind="currentHawala.SenderName" placeholder="نام فرستنده" />
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">نام پدر فرستنده</label>
-                                <input type="text" class="form-control" @bind="currentHawala.SenderFatherName" placeholder="نام پدر" />
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">تلفن فرستنده</label>
-                                <input type="text" class="form-control" @bind="currentHawala.SenderPhone" placeholder="تلفن" />
-                            </div>
-                        </div>
-                        <div class="row">
-                            <!-- ستون اول: شماره تذکره -->
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-card-text text-muted me-1"></i> شماره تذکره فرستنده
-                                </label>
-                                <input type="text" class="form-control" @bind="currentHawala.SenderTazkiraNumber" placeholder="شماره تذکره" />
-                            </div>
-
-                            <!-- ستون دوم: آپلود عکس تذکره -->
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-image text-muted me-1"></i> عکس تذکره فرستنده (اختیاری)
-                                </label>
-                                <div class="d-flex align-items-center gap-2 flex-wrap">
-                                    <InputFile class="form-control" style="flex:1;" OnChange="OnSenderTazkiraUpload" accept="image/*" />
-                                    @if (!string.IsNullOrEmpty(currentHawala.SenderTazkiraImagePath))
-                                    {
-                                        <a href="@currentHawala.SenderTazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="RemoveSenderTazkira">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    }
-                                </div>
-                                <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر ۱۰ مگابایت)</small>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">آدرس گیرنده</label>
-                                <input type="text" class="form-control" @bind="currentHawala.ReceiverAddress" placeholder="آدرس" />
-                            </div>
-                        </div>
-
-                        <hr />
-                        <h6 class="text-primary mb-3"><i class="bi bi-person"></i> اطلاعات گیرنده</h6>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">نام گیرنده</label>
-                                <input type="text" class="form-control" @bind="currentHawala.ReceiverName" placeholder="نام گیرنده" />
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">نام پدر گیرنده</label>
-                                <input type="text" class="form-control" @bind="currentHawala.ReceiverFatherName" placeholder="نام پدر" />
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">تلفن گیرنده</label>
-                                <input type="text" class="form-control" @bind="currentHawala.ReceiverPhone" placeholder="تلفن" />
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-card-text text-muted me-1"></i> شماره تذکره گیرنده
-                                </label>
-                                <input type="text" class="form-control" @bind="currentHawala.ReceiverTazkiraNumber" placeholder="شماره تذکره" />
-                            </div>
-
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-image text-muted me-1"></i> عکس تذکره گیرنده (اختیاری)
-                                </label>
-                                <div class="d-flex align-items-center gap-2 flex-wrap">
-                                    <InputFile class="form-control" style="flex:1;" OnChange="OnReceiverTazkiraUpload" accept="image/*" />
-                                    @if (!string.IsNullOrEmpty(currentHawala.ReceiverTazkiraImagePath))
-                                    {
-                                        <a href="@currentHawala.ReceiverTazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="RemoveReceiverTazkira">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    }
-                                </div>
-                                <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر ۱۰ مگابایت)</small>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label class="form-label fw-bold">آدرس گیرنده</label>
-                                <input type="text" class="form-control" @bind="currentHawala.ReceiverAddress" placeholder="آدرس" />
-                            </div>
-                        </div>
-
-                        <hr />
-                        <h6 class="text-primary mb-3"><i class="bi bi-currency-exchange"></i> اطلاعات مالی</h6>
-                        <div class="row">
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-arrow-right text-muted me-1"></i> نوع ارز ارسالی <span class="text-danger">*</span>
-                                </label>
-                                <select class="form-select"
-                                        value="@currentHawala.FromCurrencyId"
-                                        @onchange="OnFromCurrencyChanged">
-                                    <option value="0">انتخاب ارز</option>
-                                    @foreach (var currency in currencies)
-                                    {
-                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-12 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-calculator text-muted me-1"></i> روش محاسبه
-                                    </label>
-
-                                    <div class="d-flex gap-4 flex-wrap">
-                                        <div class="form-check">
-                                            <input class="form-check-input"
-                                                   type="radio"
-                                                   name="calculationMode"
-                                                   id="calcByRate"
-                                                   value="RateToAmount"
-                                                   checked="@(calculationMode == "RateToAmount")"
-                                                   @onchange="OnCalculationModeChanged" />
-                                            <label class="form-check-label" for="calcByRate">
-                                                نرخ را وارد می‌کنم، مبلغ مقصد محاسبه شود
-                                            </label>
-                                        </div>
-
-                                        <div class="form-check">
-                                            <input class="form-check-input"
-                                                   type="radio"
-                                                   name="calculationMode"
-                                                   id="calcByAmount"
-                                                   value="AmountToRate"
-                                                   checked="@(calculationMode == "AmountToRate")"
-                                                   @onchange="OnCalculationModeChanged" />
-                                            <label class="form-check-label" for="calcByAmount">
-                                                مبلغ مقصد را وارد می‌کنم، نرخ محاسبه شود
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ حواله <span class="text-danger">*</span>
-                                </label>
-                                <input type="number"
-                                       step="0.01"
-                                       class="form-control"
-                                       value="@currentHawala.FromAmount"
-                                       @oninput="OnFromAmountChanged"
-                                       placeholder="مبلغ" />
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-arrow-left text-muted me-1"></i> نوع ارز دریافتی <span class="text-danger">*</span>
-                                </label>
-                                <select class="form-select"
-                                        value="@currentHawala.ToCurrencyId"
-                                        @onchange="OnToCurrencyChanged">
-                                    <option value="0">انتخاب ارز</option>
-                                    @foreach (var currency in currencies)
-                                    {
-                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ دریافتی
-                                </label>
-                                <input type="number"
-                                       step="0.01"
-                                       class="form-control"
-                                       value="@currentHawala.ToAmount"
-                                       @oninput="OnToAmountChanged"
-                                       disabled="@(calculationMode == "RateToAmount" || AreCurrenciesSame())"
-                                       placeholder="مبلغ مقصد" />
-                                @if (AreCurrenciesSame())
-                                {
-                                    <small class="text-muted text-success">ارزها یکسان هستند، مبلغ برابر با مبلغ حواله است</small>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-arrow-left-right text-muted me-1"></i> نرخ تبدیل
-                                </label>
-                                <input type="number"
-                                       step="0.0001"
-                                       class="form-control"
-                                       value="@currentHawala.ExchangeRate"
-                                       @oninput="OnExchangeRateChanged"
-                                       disabled="@(calculationMode == "AmountToRate" || AreCurrenciesSame())"
-                                       placeholder="نرخ تبدیل" />
-                                @if (AreCurrenciesSame())
-                                {
-                                    <small class="text-muted text-success">ارزها یکسان هستند، نرخ برابر ۱ است</small>
-                                }
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-percent text-muted me-1"></i> کارمزد
-                                </label>
-                                <input type="number" step="0.01" class="form-control" @bind="currentHawala.CommissionAmount" placeholder="کارمزد" />
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-coin text-muted me-1"></i> ارز کارمزد
-                                </label>
-                                <select class="form-select" @bind="currentHawala.CommissionCurrencyId">
-                                    <option value="0">انتخاب ارز</option>
-                                    @foreach (var currency in currencies)
-                                    {
-                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="col-md-3 mb-3">
-                                <label class="form-label fw-bold">
-                                    <i class="bi bi-percent text-muted me-1"></i> کارمزد نماینده
-                                </label>
-                                <input type="number" step="0.01" class="form-control" @bind="currentHawala.AgentCommissionAmount" placeholder="کارمزد نماینده" />
-                            </div>
-                        </div>
-
-                        <!-- انتخاب حساب مبدأ (فقط برای حواله ارسالی) -->
-                        @if (currentHawala.HawalaType == "HawalaSend")
-                        {
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-wallet2 text-muted me-1"></i> حساب مبدأ (بدهکار) <span class="text-danger">*</span>
-                                    </label>
-                                    <div class="searchable-dropdown">
-                                        <div class="searchable-dropdown-input"
-                                             @onclick="() => showFromAccountDropdown = true">
-                                            <input type="text"
-                                                   class="form-control"
-                                                   placeholder="جستجوی حساب مبدأ..."
-                                                   value="@GetSelectedFromAccountText()"
-                                                   @oninput="OnFromAccountSearchChanged"
-                                                   @onfocus="() => showFromAccountDropdown = true" />
-                                        </div>
-
-                                        @if (showFromAccountDropdown)
-                                        {
-                                            <div class="searchable-dropdown-menu">
-                                                @if (!FilteredFromAccounts.Any())
-                                                {
-                                                    <div class="searchable-dropdown-item text-muted">
-                                                        حسابی یافت نشد
-                                                    </div>
-                                                }
-                                                else
-                                                {
-                                                    @foreach (var account in FilteredFromAccounts.Take(30))
-                                                    {
-                                                        <div class="searchable-dropdown-item"
-                                                             @onclick="() => SelectFromAccount(account)">
-                                                            <div class="fw-bold">
-                                                                @account.AccountName
-                                                            </div>
-                                                            <small class="text-muted">
-                                                                @account.AccountCode - @GetAccountTypeName(account.AccountType)
-                                                            </small>
-                                                        </div>
-                                                    }
-                                                }
-                                            </div>
-                                        }
-                                    </div>
-                                    <small class="text-muted">این حساب به مبلغ حواله و کارمزد بدهکار می‌شود.</small>
-                                </div>
-                            </div>
-                        }
-
-                        <!-- انتخاب حساب پرداخت‌کننده (فقط برای حواله دریافتی) -->
-                        @if (currentHawala.HawalaType == "HawalaReceive" && currentHawala.Status == "Paid")
-                        {
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-wallet2 text-muted me-1"></i> حساب پرداخت‌کننده  <span class="text-danger">*</span>
-                                    </label>
-                                    <div class="searchable-dropdown">
-                                        <div class="searchable-dropdown-input"
-                                             @onclick="() => showFromAccountDropdown = true">
-                                            <input type="text"
-                                                   class="form-control"
-                                                   placeholder="جستجوی حساب مبدأ..."
-                                                   value="@GetSelectedFromAccountText()"
-                                                   @oninput="OnFromAccountSearchChanged"
-                                                   @onfocus="() => showFromAccountDropdown = true" />
-                                        </div>
-
-                                        @if (showFromAccountDropdown)
-                                        {
-                                            <div class="searchable-dropdown-menu">
-                                                @if (!FilteredFromAccounts.Any())
-                                                {
-                                                    <div class="searchable-dropdown-item text-muted">
-                                                        حسابی یافت نشد
-                                                    </div>
-                                                }
-                                                else
-                                                {
-                                                    @foreach (var account in FilteredFromAccounts.Take(30))
-                                                    {
-                                                        <div class="searchable-dropdown-item"
-                                                             @onclick="() => SelectFromAccount(account)">
-                                                            <div class="fw-bold">
-                                                                @account.AccountName
-                                                            </div>
-                                                            <small class="text-muted">
-                                                                @account.AccountCode - @GetAccountTypeName(account.AccountType)
-                                                            </small>
-                                                        </div>
-                                                    }
-                                                }
-                                            </div>
-                                        }
-                                    </div>
-                                    <small class="text-muted">این حساب به مبلغ حواله بدهکار می‌شود.</small>
-                                </div>
-                            </div>
-                        }
-
-                        <!-- یادداشت‌ها -->
-                        <div class="row">
-                            <div class="col-md-12 mb-3">
-                                <label class="form-label fw-bold"><i class="bi bi-chat text-muted me-1"></i> یادداشت‌ها</label>
-                                <textarea class="form-control" @bind="currentHawala.Notes" rows="2" placeholder="یادداشت‌های اضافی"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                @if (isEditMode)
-                {
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
-                        <small>در حال ویرایش حواله با شناسه: <strong>@editId</strong></small>
-                    </div>
-                }
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
-                    <i class="bi bi-x-circle"></i> انصراف
-                </button>
-                <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveHawala()" disabled="@isLoading">
-                    @if (isLoading)
-                    {
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    }
-                    else
-                    {
-                        <i class="bi bi-save"></i>
-                    }
-                    @(isEditMode ? "به‌روزرسانی" : "ایجاد")
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-    }
-
-<!-- ============================================================ -->
-<!-- مودال نمایش جزئیات حواله -->
-<!-- ============================================================ -->
+<!-- ===== مودال نمایش جزئیات حواله ===== -->
 @if (showDetailModal && selectedHawala != null)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
@@ -1223,7 +724,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">تاریخ ایجاد</span>
-                                <span class="info-value" dir="ltr">@selectedHawala.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDateTime12(selectedHawala.CreatedAt)</span>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -1235,7 +736,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">محل پرداخت</span>
-                                <span class="info-value">@(selectedHawala.PaymentLocation ?? "-")</span>
+                                <span class="info-value">@GetPaymentLocation(selectedHawala)</span>
                             </div>
                         </div>
                         @if (selectedHawala.PaidAt.HasValue)
@@ -1243,7 +744,7 @@
                             <div class="col-md-4">
                                 <div class="info-card">
                                     <span class="info-label">تاریخ پرداخت</span>
-                                    <span class="info-value" dir="ltr">@selectedHawala.PaidAt.Value.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                    <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDateTime12(selectedHawala.PaidAt.Value)</span>
                                 </div>
                             </div>
                         }
@@ -1259,7 +760,7 @@
     </div>
 }
 
-<!-- مودال تأیید لغو -->
+<!-- ===== مودال تأیید لغو ===== -->
 @if (showCancelModal)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
@@ -1288,7 +789,7 @@
     </div>
 }
 
-<!-- مودال تأیید حذف -->
+<!-- ===== مودال تأیید حذف ===== -->
 @if (showDeleteModal)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
@@ -1326,7 +827,6 @@
     private List<AccountDto> accounts = new();
     private List<PaymentLocationDto> paymentLocations = new();
 
-
     // ===== فیلترها =====
     private string searchTerm = "";
     private string filterHawalaType = "";
@@ -1348,14 +848,17 @@
     private int pendingCount = 0;
     private int paidCount = 0;
 
-    // ===== مودال‌ها =====
+    // ===== متغیرهای مودال ایجاد/ویرایش =====
     private bool showModal = false;
+    private bool isEditMode = false;
+    private long editId = 0;
+    private CreateHawalaDto? editHawalaData = null;
+
+    // ===== متغیرهای سایر مودال‌ها =====
     private bool showDetailModal = false;
     private bool showCancelModal = false;
     private bool showDeleteModal = false;
-    private bool isEditMode = false;
     private bool isLoading = false;
-    private long editId = 0;
     private long cancelId = 0;
     private long deleteId = 0;
     private string cancelReason = "";
@@ -1363,44 +866,8 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
     private HawalaDto? selectedHawala = null;
-    private CreateHawalaDto currentHawala = new();
-
-    private IBrowserFile? senderTazkiraFile;
-    private IBrowserFile? receiverTazkiraFile;
-    private string? senderTazkiraImagePath; // برای نمایش در ویرایش
-    private string? receiverTazkiraImagePath;
 
     private long afnCurrencyId = 0;
-
-    private string calculationMode = "RateToAmount";
-    // RateToAmount = کاربر نرخ را وارد می‌کند، مبلغ مقصد محاسبه می‌شود
-    // AmountToRate = کاربر مبلغ مقصد را وارد می‌کند، نرخ محاسبه می‌شود
-
-    private string fromAccountSearchText = "";
-    private bool showFromAccountDropdown = false;
-
-    private IEnumerable<AccountDto> FilteredFromAccounts =>
-        string.IsNullOrWhiteSpace(fromAccountSearchText)
-            ? accounts
-            : accounts.Where(a =>
-                (!string.IsNullOrWhiteSpace(a.AccountName) &&
-                 a.AccountName.Contains(fromAccountSearchText, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(a.AccountCode) &&
-                 a.AccountCode.Contains(fromAccountSearchText, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(a.AccountType) &&
-                 GetAccountTypeName(a.AccountType).Contains(fromAccountSearchText, StringComparison.OrdinalIgnoreCase)));
-
-
-    private string accountSearchText = "";
-
-    private IEnumerable<AccountDto> FilteredAccounts =>
-        string.IsNullOrWhiteSpace(accountSearchText)
-            ? accounts
-            : accounts.Where(a =>
-                (a.AccountName != null && a.AccountName.Contains(accountSearchText, StringComparison.OrdinalIgnoreCase)) ||
-                (a.AccountCode != null && a.AccountCode.Contains(accountSearchText, StringComparison.OrdinalIgnoreCase)) ||
-                (a.AccountType != null && a.AccountType.Contains(accountSearchText, StringComparison.OrdinalIgnoreCase)));
-
 
     private bool showPayModal = false;
     private long payHawalaId = 0;
@@ -1421,6 +888,41 @@
     private CompanySettingDto companySetting = new();
     private long? openOperationMenuHawalaId = null;
 
+    // ===== متدهای کمکی برای نمایش =====
+
+    private string GetPaymentLocation(HawalaDto hawala)
+    {
+        // بررسی PaymentLocationName
+        if (!string.IsNullOrEmpty(hawala.PaymentLocationName))
+            return hawala.PaymentLocationName;
+
+        // بررسی PaymentLocationAddress
+        if (!string.IsNullOrEmpty(hawala.PaymentLocationAddress))
+            return hawala.PaymentLocationAddress;
+
+        // بررسی PaymentLocation (اگر شیء است و Name دارد)
+        if (hawala.PaymentLocation != null)
+        {
+            // اگر PaymentLocation یک شیء با پراپرتی Name است
+            var location = hawala.PaymentLocation as dynamic;
+            try
+            {
+                var name = location?.Name?.ToString();
+                if (!string.IsNullOrEmpty(name))
+                    return name;
+            }
+            catch { }
+
+            // اگر خودش string است
+            if (hawala.PaymentLocation is string str && !string.IsNullOrEmpty(str))
+                return str;
+        }
+
+        return "-";
+    }
+
+    // ===== متدهای منوی عملیات =====
+
     private void ToggleOperationMenu(long hawalaId)
     {
         openOperationMenuHawalaId =
@@ -1433,6 +935,8 @@
     {
         openOperationMenuHawalaId = null;
     }
+
+    // ===== متدهای رسید =====
 
     private async Task OpenReceipt(long hawalaId)
     {
@@ -1548,8 +1052,6 @@
 
             var text = HawalaShareHelper.BuildText(hawala, company);
 
-            // Telegram native app deep link.
-            // This should open Telegram Desktop/App if installed.
             var receiptUrl = NavigationManager.BaseUri.TrimEnd('/');
 
             var telegramAppUrl =
@@ -1564,6 +1066,7 @@
             validationErrors.Add($"خطا در باز کردن تلگرام: {ex.Message}");
         }
     }
+
     // ===== متدهای بارگذاری =====
 
     protected override async Task OnInitializedAsync()
@@ -1572,7 +1075,6 @@
         await LoadAccounts();
         await LoadHawalas();
         await LoadPaymentLocations();
-
     }
 
     private async Task LoadLookupData()
@@ -1587,7 +1089,6 @@
         catch (Exception ex)
         {
             validationErrors.Add($"خطا در بارگذاری اطلاعات: {ex.Message}");
-
         }
     }
 
@@ -1647,7 +1148,6 @@
         }
     }
 
-    // بارگذاری آدرس‌ها
     private async Task LoadPaymentLocations()
     {
         try
@@ -1660,7 +1160,6 @@
             validationErrors.Add($"خطا در بارگذاری آدرس‌ها: {ex.Message}");
         }
     }
-
 
     // ===== متدهای فیلتر و صفحه‌بندی =====
 
@@ -1704,28 +1203,13 @@
         _ = LoadHawalas();
     }
 
-    // ===== متدهای مودال =====
+    // ===== متدهای مودال ایجاد/ویرایش =====
 
     private void OpenCreateModal()
     {
-        currentHawala = new CreateHawalaDto
-        {
-            Status = "Pending",
-            FromCurrencyId = afnCurrencyId,
-            ToCurrencyId = afnCurrencyId,
-            CommissionCurrencyId = afnCurrencyId,
-            AgentCommissionCurrencyId = afnCurrencyId,
-            HawalaType = "",
-            Number = 0
-        };
-
-        calculationMode = "RateToAmount";
-        fromAccountSearchText = "";
-        showFromAccountDropdown = false;
         isEditMode = false;
         editId = 0;
-        validationErrors.Clear();
-        successMessage = string.Empty;
+        editHawalaData = null;
         showModal = true;
         StateHasChanged();
     }
@@ -1740,7 +1224,7 @@
             var hawala = await HawalaService.GetHawalaByIdAsync(id);
             if (hawala != null)
             {
-                currentHawala = new CreateHawalaDto
+                editHawalaData = new CreateHawalaDto
                 {
                     Number = hawala.Number,
                     HawalaType = hawala.HawalaType,
@@ -1775,9 +1259,8 @@
 
                 isEditMode = true;
                 editId = id;
-                validationErrors.Clear();
-                successMessage = string.Empty;
                 showModal = true;
+                StateHasChanged();
             }
         }
         catch (Exception ex)
@@ -1791,6 +1274,20 @@
         }
     }
 
+    private async Task OnHawalaSaved(CreateHawalaDto newHawala)
+    {
+        await LoadHawalas();
+        StateHasChanged();
+    }
+
+    private async Task OnHawalaEdited(long id)
+    {
+        await LoadHawalas();
+        StateHasChanged();
+    }
+
+    // ===== متدهای سایر مودال‌ها =====
+
     private async Task ViewHawala(long id)
     {
         try
@@ -1803,12 +1300,6 @@
         {
             validationErrors.Add($"خطا در بارگذاری جزئیات: {ex.Message}");
         }
-    }
-
-    private void CloseModal()
-    {
-        showModal = false;
-        StateHasChanged();
     }
 
     private void CloseDetailModal()
@@ -1906,6 +1397,7 @@
             StateHasChanged();
         }
     }
+
     private async Task ConfirmCancel()
     {
         try
@@ -1933,96 +1425,6 @@
         }
     }
 
-    private async Task SaveHawala()
-    {
-        validationErrors.Clear();
-        successMessage = string.Empty;
-
-        // اعتبارسنجی
-        if (string.IsNullOrEmpty(currentHawala.HawalaType))
-            validationErrors.Add("نوع حواله الزامی است.");
-        if (currentHawala.FromCurrencyId == 0)
-            validationErrors.Add("انتخاب ارز مبدأ الزامی است.");
-        if (currentHawala.FromAmount <= 0)
-            validationErrors.Add("مبلغ باید بزرگتر از صفر باشد.");
-        if (currentHawala.ToCurrencyId == 0)
-            validationErrors.Add("انتخاب ارز مقصد الزامی است.");
-        if (currentHawala.HawalaType == "HawalaSend" && currentHawala.CorrespondentId == null)
-            validationErrors.Add("برای حواله ارسال، انتخاب نماینده مقصد الزامی است.");
-        if (currentHawala.HawalaType == "HawalaReceive" && currentHawala.CorrespondentId == null)
-            validationErrors.Add("برای حواله دریافت، انتخاب نماینده فرستنده الزامی است.");
-        if (currentHawala.HawalaType == "HawalaSend" && currentHawala.FromAccountId == null)
-            validationErrors.Add("برای حواله ارسال، انتخاب حساب مبدأ الزامی است.");
-
-        if (currentHawala.HawalaType == "HawalaReceive" &&
-            currentHawala.Status == "Paid" &&
-            currentHawala.FromAccountId == null)
-        {
-            validationErrors.Add("برای پرداخت حواله دریافت، انتخاب حساب پرداخت‌کننده الزامی است.");
-        }
-        if (currentHawala.HawalaType == "HawalaReceive" && (currentHawala.Number <= 0))
-            validationErrors.Add("برای حواله آمد، شماره (نمبر) الزامی است.");
-        if (currentHawala.Number <= 0)
-            validationErrors.Add("نمبر حواله الزامی است");
-        if (validationErrors.Any())
-        {
-            StateHasChanged();
-            return;
-        }
-
-        try
-        {
-            isLoading = true;
-            StateHasChanged();
-
-            if (isEditMode)
-            {
-                var updateDto = new UpdateHawalaDto
-                {
-                    FromAccountId = currentHawala.FromAccountId,
-                    SenderName = currentHawala.SenderName,
-                    SenderFatherName = currentHawala.SenderFatherName,
-                    SenderPhone = currentHawala.SenderPhone,
-                    SenderTazkiraNumber = currentHawala.SenderTazkiraNumber,
-                    SenderAddress = currentHawala.SenderAddress,
-                    ReceiverName = currentHawala.ReceiverName,
-                    ReceiverFatherName = currentHawala.ReceiverFatherName,
-                    ReceiverPhone = currentHawala.ReceiverPhone,
-                    ReceiverTazkiraNumber = currentHawala.ReceiverTazkiraNumber,
-                    ReceiverAddress = currentHawala.ReceiverAddress,
-                    ToAmount = currentHawala.ToAmount,
-                    ExchangeRate = currentHawala.ExchangeRate,
-                    CommissionAmount = currentHawala.CommissionAmount,
-                    CommissionCurrencyId = currentHawala.CommissionCurrencyId,
-                    AgentCommissionAmount = currentHawala.AgentCommissionAmount,
-                    AgentCommissionCurrencyId = currentHawala.AgentCommissionCurrencyId,
-                    ReferenceNumber = currentHawala.ReferenceNumber,
-                    Notes = currentHawala.Notes,
-                    PaymentLocationId = currentHawala.PaymentLocationId
-                };
-                await HawalaService.UpdateHawalaAsync(editId, updateDto);
-                successMessage = "حواله با موفقیت ویرایش شد.";
-            }
-            else
-            {
-                await HawalaService.CreateHawalaAsync(currentHawala);
-                successMessage = "حواله با موفقیت ایجاد شد.";
-            }
-
-            showModal = false;
-            await LoadHawalas();
-        }
-        catch (Exception ex)
-        {
-            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
-        }
-        finally
-        {
-            isLoading = false;
-            StateHasChanged();
-        }
-    }
-
     private async Task ConfirmDelete()
     {
         try
@@ -2040,49 +1442,6 @@
         finally
         {
             StateHasChanged();
-        }
-    }
-
-    // ===== رویدادهای تغییر نوع و نماینده =====
-
-    private async Task OnHawalaTypeChanged(ChangeEventArgs e)
-    {
-        currentHawala.HawalaType = e?.Value?.ToString() ?? string.Empty;
-
-        // ریست شماره برای همه انواع
-        currentHawala.Number = 0;
-
-        await GetSuggestedNumber();
-        StateHasChanged();
-    }
-
-    private async Task OnCorrespondentChanged(ChangeEventArgs e)
-    {
-        await GetSuggestedNumber();
-        StateHasChanged();
-    }
-
-    private async Task GetSuggestedNumber()
-    {
-        // شرط اصلی: نماینده انتخاب شده باشه + نوع حواله انتخاب شده باشه
-        if (currentHawala.CorrespondentId.HasValue &&
-            !string.IsNullOrEmpty(currentHawala.HawalaType))
-        {
-            try
-            {
-                var nextNumber = await HawalaService.GetNextNumberAsync(
-                    currentHawala.CorrespondentId.Value,
-                    currentHawala.HawalaType);
-
-                currentHawala.Number = nextNumber > 0 ? nextNumber : 1;
-
-                StateHasChanged();   // خیلی مهم
-            }
-            catch (Exception ex)
-            {
-                validationErrors.Add($"خطا در دریافت شماره پیشنهادی: {ex.Message}");
-                currentHawala.Number = 0;
-            }
         }
     }
 
@@ -2124,275 +1483,4 @@
             _ => type ?? "نامشخص"
         };
     }
-
-    private void OnCalculationModeChanged(ChangeEventArgs e)
-    {
-        calculationMode = e.Value?.ToString() ?? "RateToAmount";
-
-        CalculateFinancialValues();
-    }
-
-    private void OnFromAmountChanged(ChangeEventArgs e)
-    {
-        if (decimal.TryParse(e.Value?.ToString(), out var amount))
-        {
-            currentHawala.FromAmount = amount;
-        }
-        else
-        {
-            currentHawala.FromAmount = 0;
-        }
-
-        // اگر ارزها یکسان باشند، مبلغ دریافتی را برابر مبلغ حواله قرار بده
-        if (AreCurrenciesSame())
-        {
-            currentHawala.ToAmount = currentHawala.FromAmount;
-            currentHawala.ExchangeRate = 1;
-        }
-        else
-        {
-            CalculateFinancialValues();
-        }
-    }
-
-    private void OnExchangeRateChanged(ChangeEventArgs e)
-    {
-        if (decimal.TryParse(e.Value?.ToString(), out var rate))
-        {
-            currentHawala.ExchangeRate = rate;
-        }
-        else
-        {
-            currentHawala.ExchangeRate = null;
-        }
-
-        // اگر ارزها یکسان هستند، نرخ را روی ۱ قفل کن و اجازه تغییر نده
-        if (AreCurrenciesSame())
-        {
-            currentHawala.ExchangeRate = 1;
-            currentHawala.ToAmount = currentHawala.FromAmount;
-        }
-        else
-        {
-            CalculateFinancialValues();
-        }
-    }
-
-    private void OnToAmountChanged(ChangeEventArgs e)
-    {
-        if (decimal.TryParse(e.Value?.ToString(), out var amount))
-        {
-            currentHawala.ToAmount = amount;
-        }
-        else
-        {
-            currentHawala.ToAmount = null;
-        }
-
-        // اگر ارزها یکسان هستند، مبلغ دریافتی را برابر مبلغ حواله قرار بده
-        if (AreCurrenciesSame())
-        {
-            currentHawala.ToAmount = currentHawala.FromAmount;
-            currentHawala.ExchangeRate = 1;
-        }
-        else
-        {
-            CalculateFinancialValues();
-        }
-    }
-
-    private void CalculateFinancialValues()
-    {
-        // اگر ارز مبدأ و مقصد یکسان باشند، نرخ = ۱ و مبلغ دریافتی = مبلغ حواله
-        if (AreCurrenciesSame())
-        {
-            currentHawala.ExchangeRate = 1;
-            currentHawala.ToAmount = currentHawala.FromAmount;
-            return;
-        }
-
-        // در غیر این صورت، محاسبه معمولی
-        if (currentHawala.FromAmount <= 0)
-            return;
-
-        if (calculationMode == "RateToAmount")
-        {
-            if (currentHawala.ExchangeRate.HasValue &&
-                currentHawala.ExchangeRate.Value > 0)
-            {
-                currentHawala.ToAmount =
-                    Math.Round(currentHawala.FromAmount * currentHawala.ExchangeRate.Value, 2);
-            }
-        }
-        else if (calculationMode == "AmountToRate")
-        {
-            if (currentHawala.ToAmount.HasValue &&
-                currentHawala.ToAmount.Value > 0)
-            {
-                currentHawala.ExchangeRate =
-                    Math.Round(currentHawala.ToAmount.Value / currentHawala.FromAmount, 4);
-            }
-        }
-    }
-    private void OnFromCurrencyChanged(ChangeEventArgs e)
-    {
-        currentHawala.FromCurrencyId =
-            long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-
-        // اگر ارزها یکسان شدند، مقادیر را تنظیم کن
-        if (AreCurrenciesSame())
-        {
-            currentHawala.ExchangeRate = 1;
-            currentHawala.ToAmount = currentHawala.FromAmount;
-        }
-        else
-        {
-            // در غیر این صورت محاسبه معمولی
-            CalculateFinancialValues();
-        }
-    }
-
-    private void OnToCurrencyChanged(ChangeEventArgs e)
-    {
-        currentHawala.ToCurrencyId =
-            long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-
-        // اگر ارزها یکسان شدند، مقادیر را تنظیم کن
-        if (AreCurrenciesSame())
-        {
-            currentHawala.ExchangeRate = 1;
-            currentHawala.ToAmount = currentHawala.FromAmount;
-        }
-        else
-        {
-            CalculateFinancialValues();
-        }
-    }
-    private void OnFromAccountSearchChanged(ChangeEventArgs e)
-    {
-        fromAccountSearchText = e.Value?.ToString() ?? "";
-        currentHawala.FromAccountId = null;
-        showFromAccountDropdown = true;
-    }
-
-    private void SelectFromAccount(AccountDto account)
-    {
-        currentHawala.FromAccountId = account.Id;
-        fromAccountSearchText = "";
-        showFromAccountDropdown = false;
-    }
-
-    private string GetSelectedFromAccountText()
-    {
-        if (!string.IsNullOrWhiteSpace(fromAccountSearchText))
-            return fromAccountSearchText;
-
-        if (!currentHawala.FromAccountId.HasValue)
-            return string.Empty;
-
-        var account = accounts.FirstOrDefault(x => x.Id == currentHawala.FromAccountId.Value);
-
-        if (account == null)
-            return string.Empty;
-
-        return $"{account.AccountName} ({account.AccountCode} - {GetAccountTypeName(account.AccountType)})";
-    }
-
-
-    private bool AreCurrenciesSame()
-    {
-        return currentHawala.FromCurrencyId > 0 &&
-               currentHawala.ToCurrencyId > 0 &&
-               currentHawala.FromCurrencyId == currentHawala.ToCurrencyId;
-    }
-
-    private async Task<string?> SaveTazkiraImageAsync(IBrowserFile file)
-    {
-        if (file == null) return null;
-        try
-        {
-            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
-            var result = await FileService.UploadFileAsync(stream, file.Name, "tazkira");
-            return result.Success ? result.FilePath : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private void DeleteTazkiraImage(string? imagePath)
-    {
-        if (!string.IsNullOrEmpty(imagePath))
-            _ = FileService.DeleteFileAsync(imagePath);
-    }
-
-    private void RemoveSenderTazkira()
-    {
-        // حذف فایل از دیسک
-        if (!string.IsNullOrEmpty(currentHawala.SenderTazkiraImagePath))
-            DeleteTazkiraImage(currentHawala.SenderTazkiraImagePath);
-
-        // پاک کردن مسیر از DTO
-        currentHawala.SenderTazkiraImagePath = null;
-        senderTazkiraImagePath = null;
-        senderTazkiraFile = null;
-    }
-
-    private void RemoveReceiverTazkira()
-    {
-        if (!string.IsNullOrEmpty(currentHawala.ReceiverTazkiraImagePath))
-            DeleteTazkiraImage(currentHawala.ReceiverTazkiraImagePath);
-
-        currentHawala.ReceiverTazkiraImagePath = null;
-        receiverTazkiraImagePath = null;
-        receiverTazkiraFile = null;
-    }
-
-    private async Task OnSenderTazkiraUpload(InputFileChangeEventArgs e)
-    {
-        var file = e.File;
-        if (file == null) return;
-
-        // حذف فایل قبلی
-        if (!string.IsNullOrEmpty(currentHawala.SenderTazkiraImagePath))
-        {
-            DeleteTazkiraImage(currentHawala.SenderTazkiraImagePath);
-        }
-
-        // ذخیره فایل جدید
-        var path = await SaveTazkiraImageAsync(file);
-        if (path != null)
-        {
-            currentHawala.SenderTazkiraImagePath = path;
-            senderTazkiraFile = file;
-        }
-        else
-        {
-            validationErrors.Add("خطا در آپلود عکس تذکره");
-        }
-        StateHasChanged();
-    }
-
-    private async Task OnReceiverTazkiraUpload(InputFileChangeEventArgs e)
-    {
-        var file = e.File;
-        if (file == null) return;
-
-        if (!string.IsNullOrEmpty(currentHawala.ReceiverTazkiraImagePath))
-            DeleteTazkiraImage(currentHawala.ReceiverTazkiraImagePath);
-
-        var path = await SaveTazkiraImageAsync(file);
-        if (path != null)
-        {
-            currentHawala.ReceiverTazkiraImagePath = path;
-            receiverTazkiraFile = file;
-        }
-        else
-        {
-            validationErrors.Add("خطا در آپلود عکس تذکره گیرنده");
-        }
-        StateHasChanged();
-    }
-
 }

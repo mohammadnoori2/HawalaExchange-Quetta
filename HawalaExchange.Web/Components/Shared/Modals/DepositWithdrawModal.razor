@@ -1,0 +1,518 @@
+﻿@* Components/Shared/Modals/DepositWithdrawModal.razor *@
+@using System.Globalization
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Helpers
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject IAccountMoneyOperationService AccountMoneyOperationService
+@inject ICurrencyService CurrencyService
+@inject IAccountService AccountService
+
+@if (IsVisible)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
+                        <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(IsEditMode ? "ویرایش واریز/برداشت" : "ثبت واریز/برداشت جدید")
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            @onclick="CloseModal"></button>
+                </div>
+
+                <div class="modal-body">
+                    @if (ValidationErrors.Any())
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <h6 class="alert-heading">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                لطفاً خطاهای زیر را اصلاح کنید:
+                            </h6>
+
+                            <ul class="mb-0">
+                                @foreach (var error in ValidationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(SuccessMessage))
+                    {
+                        <div class="alert alert-success alert-dismissible fade show">
+                            <i class="bi bi-check-circle me-2"></i>
+                            @SuccessMessage
+                        </div>
+                    }
+
+                    @if (IsDataLoading)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">در حال بارگذاری...</span>
+                            </div>
+                            <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="modern-card mb-4">
+                            <div class="card-header">
+                                <h6 class="text-primary">
+                                    <i class="bi bi-arrow-down-up me-2"></i>
+                                    اطلاعات عملیات
+                                </h6>
+                            </div>
+
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">
+                                            نوع عملیات <span class="text-danger">*</span>
+                                        </label>
+
+                                        <select class="form-select" @bind="CurrentOperation.OperationType">
+                                            <option value="">انتخاب نوع</option>
+                                            <option value="Deposit">واریز</option>
+                                            <option value="Withdraw">برداشت</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">
+                                            ارز <span class="text-danger">*</span>
+                                        </label>
+
+                                        <select class="form-select" @bind="CurrentOperation.CurrencyId">
+                                            <option value="0">انتخاب ارز</option>
+                                            @if (CurrenciesList != null && CurrenciesList.Any())
+                                            {
+                                                @foreach (var currency in CurrenciesList)
+                                                {
+                                                    <option value="@currency.Id">
+                                                        @currency.Code - @currency.Name
+                                                    </option>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <option value="0" disabled>هیچ ارزی یافت نشد</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">
+                                            مبلغ <span class="text-danger">*</span>
+                                        </label>
+
+                                        <input type="number"
+                                               step="0.01"
+                                               class="form-control"
+                                               @bind="CurrentOperation.Amount"
+                                               placeholder="مثلاً 10000" />
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">
+                                            تاریخ و زمان
+                                        </label>
+
+                                        <PersianDatePicker @bind-Value="OperationDateLocal"
+                                                           IncludeTime="true"
+                                                           Placeholder="انتخاب تاریخ شمسی" />
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">
+                                            توضیحات
+                                        </label>
+
+                                        <input type="text"
+                                               class="form-control"
+                                               @bind="CurrentOperation.Description"
+                                               placeholder="توضیحات اضافی" />
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">
+                                            حساب انتخاب‌شده <span class="text-danger">*</span>
+                                        </label>
+
+                                        <select class="form-select" @bind="CurrentOperation.AccountId">
+                                            <option value="0">انتخاب حساب</option>
+                                            @if (SelectableAccounts != null && SelectableAccounts.Any())
+                                            {
+                                                @foreach (var account in SelectableAccounts)
+                                                {
+                                                    <option value="@account.Id">
+                                                        @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
+                                                    </option>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <option value="0" disabled>هیچ حسابی یافت نشد</option>
+                                            }
+                                        </select>
+
+                                        <small class="text-muted">
+                                            این حساب می‌تواند مشتری، نماینده، حساب دیگر یا هر حساب غیر صندوق/بانک باشد.
+                                        </small>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">
+                                            حساب صندوق/بانک <span class="text-danger">*</span>
+                                        </label>
+
+                                        <select class="form-select" @bind="CurrentOperation.CashOrBankAccountId">
+                                            <option value="0">انتخاب حساب صندوق/بانک</option>
+                                            @if (CashBankAccounts != null && CashBankAccounts.Any())
+                                            {
+                                                @foreach (var account in CashBankAccounts)
+                                                {
+                                                    <option value="@account.Id">
+                                                        @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
+                                                    </option>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <option value="0" disabled>هیچ حسابی یافت نشد</option>
+                                            }
+                                        </select>
+
+                                        <small class="text-muted">
+                                            معمولاً Cash یا Bank.
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="alert alert-info mb-0">
+                                    <strong>سند حسابداری:</strong>
+
+                                    @if (CurrentOperation.OperationType == "Deposit")
+                                    {
+                                        <div class="mt-2">
+                                            در واریز: حساب صندوق/بانک بدهکار می‌شود و حساب انتخاب‌شده طلبکار می‌شود.
+                                        </div>
+
+                                        <div class="mt-2" dir="ltr">
+                                            Cash/Bank: TalabKar |
+                                            Selected Account: BadehKar
+                                        </div>
+                                    }
+                                    else if (CurrentOperation.OperationType == "Withdraw")
+                                    {
+                                        <div class="mt-2">
+                                            در برداشت: حساب انتخاب‌شده بدهکار می‌شود و حساب صندوق/بانک طلبکار می‌شود.
+                                        </div>
+
+                                        <div class="mt-2" dir="ltr">
+                                            Selected Account: TalabKar |
+                                            Cash/Bank: BadehKar
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="mt-2">
+                                            ابتدا نوع عملیات را انتخاب کنید.
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (IsEditMode)
+                        {
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i>
+                                <small>
+                                    در حال ویرایش عملیات با شناسه:
+                                    <strong>@EditId</strong>
+                                </small>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button"
+                            class="btn-modern btn-light-modern"
+                            @onclick="CloseModal">
+                        <i class="bi bi-x-circle"></i>
+                        انصراف
+                    </button>
+
+                    <button type="button"
+                            class="btn-modern btn-primary-modern"
+                            @onclick="SaveOperation"
+                            disabled="@IsLoading">
+                        @if (IsLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi @(IsEditMode ? "bi-pencil" : "bi-save")"></i>
+                        }
+
+                        @(IsEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // ===== پارامترها =====
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public bool IsEditMode { get; set; } = false;
+    [Parameter] public long EditId { get; set; } = 0;
+    [Parameter] public CreateAccountMoneyOperationDto? EditData { get; set; }
+    [Parameter] public EventCallback<CreateAccountMoneyOperationDto> OnSaveSuccess { get; set; }
+    [Parameter] public EventCallback<long> OnEditSuccess { get; set; }
+
+    // ===== متغیرها =====
+    private CreateAccountMoneyOperationDto CurrentOperation { get; set; } = new();
+    private List<CurrencyDto> CurrenciesList { get; set; } = new();
+    private List<AccountDto> AccountsList { get; set; } = new();
+    private List<AccountDto> SelectableAccounts { get; set; } = new();
+    private List<AccountDto> CashBankAccounts { get; set; } = new();
+
+    private List<string> ValidationErrors { get; set; } = new();
+    private string SuccessMessage { get; set; } = string.Empty;
+    private bool IsLoading { get; set; } = false;
+    private bool IsDataLoading { get; set; } = true;
+
+    private DateTime OperationDateLocal { get; set; } = DateTime.Now;
+
+    // ===== متدهای چرخه حیات =====
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLookupData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible)
+        {
+            // اگر داده‌ها خالی هستند، دوباره بارگذاری کن
+            if (!CurrenciesList.Any() || !AccountsList.Any())
+            {
+                await LoadLookupData();
+            }
+
+            if (IsEditMode && EditData != null)
+            {
+                CurrentOperation = new CreateAccountMoneyOperationDto
+                {
+                    OperationType = EditData.OperationType,
+                    OperationDate = EditData.OperationDate,
+                    AccountId = EditData.AccountId,
+                    CashOrBankAccountId = EditData.CashOrBankAccountId,
+                    CurrencyId = EditData.CurrencyId,
+                    Amount = EditData.Amount,
+                    Description = EditData.Description
+                };
+
+                OperationDateLocal = EditData.OperationDate.ToLocalTime();
+            }
+            else if (!IsEditMode)
+            {
+                ResetOperation();
+            }
+
+            ValidationErrors.Clear();
+            SuccessMessage = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    // ===== متدهای بارگذاری =====
+
+    private async Task LoadLookupData()
+    {
+        try
+        {
+            IsDataLoading = true;
+            StateHasChanged();
+
+            CurrenciesList = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
+
+            AccountsList = (await AccountService.GetAllAsync())
+                .Where(x => !x.IsArchived)
+                .ToList();
+
+            CashBankAccounts = AccountsList
+                .Where(x => x.AccountType == "Cash" || x.AccountType == "Bank")
+                .OrderBy(x => x.AccountCode)
+                .ToList();
+
+            SelectableAccounts = AccountsList
+                .Where(x => x.AccountType != "Cash" && x.AccountType != "Bank")
+                .OrderBy(x => x.AccountCode)
+                .ToList();
+
+            IsDataLoading = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            IsDataLoading = false;
+            ValidationErrors.Add($"خطا در بارگذاری داده‌های کمکی: {ex.Message}");
+            StateHasChanged();
+        }
+    }
+
+    // ===== متدهای اصلی =====
+
+    private void ResetOperation()
+    {
+        var afn = CurrenciesList.FirstOrDefault(x =>
+            x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
+
+        var defaultCash = CashBankAccounts.FirstOrDefault(x =>
+            x.AccountType == "Cash");
+
+        CurrentOperation = new CreateAccountMoneyOperationDto
+        {
+            OperationType = "Deposit",
+            CurrencyId = afn?.Id ?? 0,
+            CashOrBankAccountId = defaultCash?.Id ?? 0,
+            AccountId = 0,
+            Amount = 0,
+            OperationDate = DateTime.UtcNow,
+            Description = string.Empty
+        };
+
+        OperationDateLocal = DateTime.Now;
+    }
+
+    private async Task CloseModal()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+        ValidationErrors.Clear();
+        SuccessMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task SaveOperation()
+    {
+        ValidationErrors.Clear();
+        SuccessMessage = string.Empty;
+
+        ValidateForm();
+
+        if (ValidationErrors.Any())
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            IsLoading = true;
+            StateHasChanged();
+
+            CurrentOperation.OperationDate = OperationDateLocal.ToUniversalTime();
+
+            if (IsEditMode)
+            {
+                var updateDto = new UpdateAccountMoneyOperationDto
+                {
+                    OperationType = CurrentOperation.OperationType,
+                    OperationDate = CurrentOperation.OperationDate,
+                    AccountId = CurrentOperation.AccountId,
+                    CashOrBankAccountId = CurrentOperation.CashOrBankAccountId,
+                    CurrencyId = CurrentOperation.CurrencyId,
+                    Amount = CurrentOperation.Amount,
+                    Description = CurrentOperation.Description
+                };
+
+                await AccountMoneyOperationService.UpdateAsync(EditId, updateDto);
+                SuccessMessage = "عملیات با موفقیت ویرایش شد.";
+                await OnEditSuccess.InvokeAsync(EditId);
+            }
+            else
+            {
+                await AccountMoneyOperationService.CreateAsync(CurrentOperation);
+                SuccessMessage = "عملیات با موفقیت ثبت شد.";
+                await OnSaveSuccess.InvokeAsync(CurrentOperation);
+            }
+
+            await Task.Delay(1500);
+            await CloseModal();
+        }
+        catch (InvalidOperationException ex)
+        {
+            ValidationErrors.Add(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ValidateForm()
+    {
+        if (CurrentOperation.OperationType != "Deposit" &&
+            CurrentOperation.OperationType != "Withdraw")
+            ValidationErrors.Add("نوع عملیات باید واریز یا برداشت باشد.");
+
+        if (CurrentOperation.AccountId <= 0)
+            ValidationErrors.Add("انتخاب حساب الزامی است.");
+
+        if (CurrentOperation.CashOrBankAccountId <= 0)
+            ValidationErrors.Add("انتخاب حساب صندوق/بانک الزامی است.");
+
+        if (CurrentOperation.AccountId == CurrentOperation.CashOrBankAccountId)
+            ValidationErrors.Add("حساب انتخاب‌شده و حساب صندوق/بانک نمی‌تواند یکی باشد.");
+
+        if (CurrentOperation.CurrencyId <= 0)
+            ValidationErrors.Add("انتخاب ارز الزامی است.");
+
+        if (CurrentOperation.Amount <= 0)
+            ValidationErrors.Add("مبلغ باید بزرگتر از صفر باشد.");
+    }
+
+    // ===== توابع کمکی =====
+
+    private string GetAccountTypeName(string? type)
+    {
+        return type?.ToLower() switch
+        {
+            "cash" => "نقدی",
+            "bank" => "بانک",
+            "customer" => "مشتری",
+            "correspondent" => "نماینده",
+            "income" => "درآمد",
+            "expense" => "مصرف",
+            "equity" => "سرمایه",
+            _ => type ?? "نامشخص"
+        };
+    }
+}

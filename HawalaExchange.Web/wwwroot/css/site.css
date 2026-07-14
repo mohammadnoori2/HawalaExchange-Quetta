@@ -2430,3 +2430,79 @@ body {
         background: #fee2e2;
         color: #b91c1c;
     }
+
+
+/* ================================================================
+   Quick Links - استایل ساده با متن سیاه
+   ================================================================ */
+.quick-links {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.quick-link-btn {
+    border: none;
+    background: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #212529;
+    padding: 6px 15px;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+    .quick-link-btn:hover {
+        color: #0d6efd;
+        transform: translateY(-1px);
+    }
+
+    .quick-link-btn:active {
+        transform: translateY(0px);
+    }
+
+    /* حذف کامل آیکون‌ها */
+    .quick-link-btn i {
+        display: none !important;
+    }
+
+    /* ===== لینک‌های دارای خط زیر ===== */
+    .quick-link-btn::after {
+        content: '';
+        display: block;
+        width: 0;
+        height: 2px;
+        background: #0d6efd;
+        transition: width 0.3s ease;
+        margin-top: 2px;
+    }
+
+    .quick-link-btn:hover::after {
+        width: 100%;
+    }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+    .quick-links {
+        gap: 12px;
+    }
+
+    .quick-link-btn {
+        font-size: 12px;
+        padding: 3px 2px;
+    }
+}
+
+@media (max-width: 576px) {
+    .quick-links {
+        gap: 8px;
+    }
+
+    .quick-link-btn {
+        font-size: 11px;
+        padding: 2px 2px;
+    }
+}

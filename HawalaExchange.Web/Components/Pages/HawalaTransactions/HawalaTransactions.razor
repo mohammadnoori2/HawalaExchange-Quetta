@@ -971,10 +971,9 @@
         receiptHawala = null;
         StateHasChanged();
     }
-
     private async Task PrintReceipt()
     {
-        await JS.InvokeVoidAsync("hawalaTools.printReceipt");
+        await JS.InvokeVoidAsync("hawalaTools.printElement", "hawalaReceiptPrintArea", 80);
     }
 
     private async Task CopyHawalaInfo(long hawalaId)
@@ -1483,4 +1482,291 @@
             _ => type ?? "نامشخص"
         };
     }
+
+    private void OnCalculationModeChanged(ChangeEventArgs e)
+    {
+        calculationMode = e.Value?.ToString() ?? "RateToAmount";
+
+        CalculateFinancialValues();
+    }
+
+    private void OnFromAmountChanged(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var amount))
+        {
+            currentHawala.FromAmount = amount;
+        }
+        else
+        {
+            currentHawala.FromAmount = 0;
+        }
+
+        // اگر ارزها یکسان باشند، مبلغ دریافتی را برابر مبلغ حواله قرار بده
+        if (AreCurrenciesSame())
+        {
+            currentHawala.ToAmount = currentHawala.FromAmount;
+            currentHawala.ExchangeRate = 1;
+        }
+        else
+        {
+            CalculateFinancialValues();
+        }
+    }
+
+    private void OnExchangeRateChanged(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var rate))
+        {
+            currentHawala.ExchangeRate = rate;
+        }
+        else
+        {
+            currentHawala.ExchangeRate = null;
+        }
+
+        // اگر ارزها یکسان هستند، نرخ را روی ۱ قفل کن و اجازه تغییر نده
+        if (AreCurrenciesSame())
+        {
+            currentHawala.ExchangeRate = 1;
+            currentHawala.ToAmount = currentHawala.FromAmount;
+        }
+        else
+        {
+            CalculateFinancialValues();
+        }
+    }
+
+    private void OnToAmountChanged(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var amount))
+        {
+            currentHawala.ToAmount = amount;
+        }
+        else
+        {
+            currentHawala.ToAmount = null;
+        }
+
+        // اگر ارزها یکسان هستند، مبلغ دریافتی را برابر مبلغ حواله قرار بده
+        if (AreCurrenciesSame())
+        {
+            currentHawala.ToAmount = currentHawala.FromAmount;
+            currentHawala.ExchangeRate = 1;
+        }
+        else
+        {
+            CalculateFinancialValues();
+        }
+    }
+
+    private void CalculateFinancialValues()
+    {
+        // اگر ارز مبدأ و مقصد یکسان باشند، نرخ = ۱ و مبلغ دریافتی = مبلغ حواله
+        if (AreCurrenciesSame())
+        {
+            currentHawala.ExchangeRate = 1;
+            currentHawala.ToAmount = currentHawala.FromAmount;
+            return;
+        }
+
+        // در غیر این صورت، محاسبه معمولی
+        if (currentHawala.FromAmount <= 0)
+            return;
+
+        if (calculationMode == "RateToAmount")
+        {
+            if (currentHawala.ExchangeRate.HasValue &&
+                currentHawala.ExchangeRate.Value > 0)
+            {
+                currentHawala.ToAmount =
+                    Math.Round(currentHawala.FromAmount * currentHawala.ExchangeRate.Value, 2);
+            }
+        }
+        else if (calculationMode == "AmountToRate")
+        {
+            if (currentHawala.ToAmount.HasValue &&
+                currentHawala.ToAmount.Value > 0)
+            {
+                currentHawala.ExchangeRate =
+                    Math.Round(currentHawala.ToAmount.Value / currentHawala.FromAmount, 4);
+            }
+        }
+    }
+    private void OnFromCurrencyChanged(ChangeEventArgs e)
+    {
+        currentHawala.FromCurrencyId =
+            long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+        // اگر ارزها یکسان شدند، مقادیر را تنظیم کن
+        if (AreCurrenciesSame())
+        {
+            currentHawala.ExchangeRate = 1;
+            currentHawala.ToAmount = currentHawala.FromAmount;
+        }
+        else
+        {
+            // در غیر این صورت محاسبه معمولی
+            CalculateFinancialValues();
+        }
+    }
+
+    private void OnToCurrencyChanged(ChangeEventArgs e)
+    {
+        currentHawala.ToCurrencyId =
+            long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+
+        // اگر ارزها یکسان شدند، مقادیر را تنظیم کن
+        if (AreCurrenciesSame())
+        {
+            currentHawala.ExchangeRate = 1;
+            currentHawala.ToAmount = currentHawala.FromAmount;
+        }
+        else
+        {
+            CalculateFinancialValues();
+        }
+    }
+    private void OnFromAccountSearchChanged(ChangeEventArgs e)
+    {
+        fromAccountSearchText = e.Value?.ToString() ?? "";
+        currentHawala.FromAccountId = null;
+        showFromAccountDropdown = true;
+    }
+
+    private void SelectFromAccount(AccountDto account)
+    {
+        currentHawala.FromAccountId = account.Id;
+        fromAccountSearchText = "";
+        showFromAccountDropdown = false;
+    }
+
+    private string GetSelectedFromAccountText()
+    {
+        if (!string.IsNullOrWhiteSpace(fromAccountSearchText))
+            return fromAccountSearchText;
+
+        if (!currentHawala.FromAccountId.HasValue)
+            return string.Empty;
+
+        var account = accounts.FirstOrDefault(x => x.Id == currentHawala.FromAccountId.Value);
+
+        if (account == null)
+            return string.Empty;
+
+        return $"{account.AccountName} ({account.AccountCode} - {GetAccountTypeName(account.AccountType)})";
+    }
+
+
+    private bool AreCurrenciesSame()
+    {
+        return currentHawala.FromCurrencyId > 0 &&
+               currentHawala.ToCurrencyId > 0 &&
+               currentHawala.FromCurrencyId == currentHawala.ToCurrencyId;
+    }
+
+    private async Task<string?> SaveTazkiraImageAsync(IBrowserFile file)
+    {
+        if (file == null) return null;
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            var result = await FileService.UploadFileAsync(stream, file.Name, "tazkira");
+            return result.Success ? result.FilePath : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void DeleteTazkiraImage(string? imagePath)
+    {
+        if (!string.IsNullOrEmpty(imagePath))
+            _ = FileService.DeleteFileAsync(imagePath);
+    }
+
+    private void RemoveSenderTazkira()
+    {
+        // حذف فایل از دیسک
+        if (!string.IsNullOrEmpty(currentHawala.SenderTazkiraImagePath))
+            DeleteTazkiraImage(currentHawala.SenderTazkiraImagePath);
+
+        // پاک کردن مسیر از DTO
+        currentHawala.SenderTazkiraImagePath = null;
+        senderTazkiraImagePath = null;
+        senderTazkiraFile = null;
+    }
+
+    private void RemoveReceiverTazkira()
+    {
+        if (!string.IsNullOrEmpty(currentHawala.ReceiverTazkiraImagePath))
+            DeleteTazkiraImage(currentHawala.ReceiverTazkiraImagePath);
+
+        currentHawala.ReceiverTazkiraImagePath = null;
+        receiverTazkiraImagePath = null;
+        receiverTazkiraFile = null;
+    }
+    private string GetPaymentLocation(HawalaDto hawala)
+    {
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationName) &&
+            !string.IsNullOrWhiteSpace(hawala.PaymentLocationAddress))
+        {
+            return $"{hawala.PaymentLocationName} - {hawala.PaymentLocationAddress}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationName))
+            return hawala.PaymentLocationName;
+
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationAddress))
+            return hawala.PaymentLocationAddress;
+
+        return "-";
+    }
+
+    private async Task OnSenderTazkiraUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        // حذف فایل قبلی
+        if (!string.IsNullOrEmpty(currentHawala.SenderTazkiraImagePath))
+        {
+            DeleteTazkiraImage(currentHawala.SenderTazkiraImagePath);
+        }
+
+        // ذخیره فایل جدید
+        var path = await SaveTazkiraImageAsync(file);
+        if (path != null)
+        {
+            currentHawala.SenderTazkiraImagePath = path;
+            senderTazkiraFile = file;
+        }
+        else
+        {
+            validationErrors.Add("خطا در آپلود عکس تذکره");
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnReceiverTazkiraUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        if (!string.IsNullOrEmpty(currentHawala.ReceiverTazkiraImagePath))
+            DeleteTazkiraImage(currentHawala.ReceiverTazkiraImagePath);
+
+        var path = await SaveTazkiraImageAsync(file);
+        if (path != null)
+        {
+            currentHawala.ReceiverTazkiraImagePath = path;
+            receiverTazkiraFile = file;
+        }
+        else
+        {
+            validationErrors.Add("خطا در آپلود عکس تذکره گیرنده");
+        }
+        StateHasChanged();
+    }
+
 }

@@ -2,12 +2,16 @@
 
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Components.Shared
+@using HawalaExchange.Web.Components.Shared.Modals
+@using HawalaExchange.Web.Helpers
 @using Microsoft.AspNetCore.Authorization
 @using System.Globalization
 
 @inject IMoneyExchangeOperationService MoneyExchangeOperationService
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
+@inject NavigationManager NavigationManager
 
 @rendermode InteractiveServer
 @attribute [Authorize]
@@ -352,273 +356,16 @@
     </div>
 </div>
 
-@if (showModal)
-{
-    <div class="modal show d-block modal-modern"
-         tabindex="-1"
-         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
-         dir="rtl">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header gradient">
-                    <h5 class="modal-title text-white">
-                        <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
-                        @(isEditMode ? "ویرایش تبدیل پول" : "ثبت تبدیل پول جدید")
-                    </h5>
+<!-- ===== کامپوننت مودال تبدیل پول ===== -->
+<MoneyExchangeModal IsVisible="@showModal"
+                    IsVisibleChanged="@((bool value) => { showModal = value; StateHasChanged(); })"
+                    IsEditMode="@isEditMode"
+                    EditId="@editId"
+                    EditData="@editExchangeData"
+                    OnSaveSuccess="@OnExchangeSaved"
+                    OnEditSuccess="@OnExchangeEdited" />
 
-                    <button type="button"
-                            class="btn-close btn-close-white"
-                            @onclick="CloseModal"></button>
-                </div>
-
-                <div class="modal-body">
-                    @if (validationErrors.Any())
-                    {
-                        <div class="alert alert-danger alert-dismissible fade show">
-                            <h6 class="alert-heading">
-                                <i class="bi bi-exclamation-triangle me-2"></i>
-                                لطفاً خطاهای زیر را اصلاح کنید:
-                            </h6>
-
-                            <ul class="mb-0">
-                                @foreach (var error in validationErrors)
-                                {
-                                    <li>@error</li>
-                                }
-                            </ul>
-                        </div>
-                    }
-
-                    <div class="modern-card mb-4">
-                        <div class="card-header">
-                            <h6 class="text-primary">
-                                <i class="bi bi-currency-exchange me-2"></i>
-                                اطلاعات تبدیل
-                            </h6>
-                        </div>
-
-                        <div class="card-body">
-                            <div class="row mb-3">
-                                <div class="col-md-4">
-                                    <label class="form-label fw-bold">روش محاسبه</label>
-                                    <div class="d-flex gap-3">
-                                        <label class="form-check-label">
-                                            <input type="radio"
-                                                   class="form-check-input"
-                                                   name="calcMode"
-                                                   value="RateToAmount"
-                                                   checked="@(calculationMode == "RateToAmount")"
-                                                   @onchange='() => ChangeCalculationMode("RateToAmount")' />
-                                            نرخ → مبلغ دریافتی
-                                        </label>
-
-                                        <label class="form-check-label">
-                                            <input type="radio"
-                                                   class="form-check-input"
-                                                   name="calcMode"
-                                                   value="AmountToRate"
-                                                   checked='@(calculationMode == "AmountToRate")'
-                                                   @onchange='() => ChangeCalculationMode(" AmountToRate")' />
-                                            مبلغ دریافتی → نرخ
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-4">
-                                    <label class="form-label fw-bold">تاریخ و زمان تبدیل</label>
-
-                                    <PersianDatePicker @bind-Value="exchangeDateLocal"
-                                                       IncludeTime="true"
-                                                       Placeholder="انتخاب تاریخ شمسی" />
-                                </div>
-
-                                <div class="col-md-4">
-                                    <label class="form-label fw-bold">توضیحات</label>
-                                    <input type="text"
-                                           class="form-control"
-                                           @bind="currentExchange.Description"
-                                           placeholder="مثلاً تبدیل افغانی به دالر" />
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="border rounded p-3 h-100">
-                                        <h6 class="text-danger mb-3">
-                                            <i class="bi bi-arrow-up-circle"></i>
-                                            بخش پرداختی
-                                        </h6>
-
-                                        <div class="mb-3">
-                                            <label class="form-label fw-bold">
-                                                حساب پرداخت‌کننده <span class="text-danger">*</span>
-                                            </label>
-
-                                            <select class="form-select" @bind="currentExchange.FromAccountId">
-                                                <option value="0">انتخاب حساب</option>
-                                                @foreach (var account in accounts)
-                                                {
-                                                    <option value="@account.Id">
-                                                        @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
-                                                    </option>
-                                                }
-                                            </select>
-                                        </div>
-
-                                        <div class="mb-3">
-                                            <label class="form-label fw-bold">
-                                                ارز پرداختی <span class="text-danger">*</span>
-                                            </label>
-
-                                            <select class="form-select" @bind="currentExchange.FromCurrencyId">
-                                                <option value="0">انتخاب ارز</option>
-                                                @foreach (var currency in currencies)
-                                                {
-                                                    <option value="@currency.Id">
-                                                        @currency.Code - @currency.Name
-                                                    </option>
-                                                }
-                                            </select>
-                                        </div>
-
-                                        <div class="mb-0">
-                                            <label class="form-label fw-bold">
-                                                مبلغ پرداختی <span class="text-danger">*</span>
-                                            </label>
-
-                                            <input type="number"
-                                                   step="0.01"
-                                                   class="form-control"
-                                                   value="@currentExchange.FromAmount"
-                                                   @oninput="OnFromAmountChanged"
-                                                   placeholder="مثلاً 7000" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <div class="border rounded p-3 h-100">
-                                        <h6 class="text-success mb-3">
-                                            <i class="bi bi-arrow-down-circle"></i>
-                                            بخش دریافتی
-                                        </h6>
-
-                                        <div class="mb-3">
-                                            <label class="form-label fw-bold">
-                                                حساب دریافت‌کننده <span class="text-danger">*</span>
-                                            </label>
-
-                                            <select class="form-select" @bind="currentExchange.ToAccountId">
-                                                <option value="0">انتخاب حساب</option>
-                                                @foreach (var account in accounts)
-                                                {
-                                                    <option value="@account.Id">
-                                                        @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
-                                                    </option>
-                                                }
-                                            </select>
-                                        </div>
-
-                                        <div class="mb-3">
-                                            <label class="form-label fw-bold">
-                                                ارز دریافتی <span class="text-danger">*</span>
-                                            </label>
-
-                                            <select class="form-select" @bind="currentExchange.ToCurrencyId">
-                                                <option value="0">انتخاب ارز</option>
-                                                @foreach (var currency in currencies)
-                                                {
-                                                    <option value="@currency.Id">
-                                                        @currency.Code - @currency.Name
-                                                    </option>
-                                                }
-                                            </select>
-                                        </div>
-
-                                        <div class="mb-0">
-                                            <label class="form-label fw-bold">
-                                                مبلغ دریافتی <span class="text-danger">*</span>
-                                            </label>
-
-                                            <input type="number"
-                                                   step="0.01"
-                                                   class="form-control"
-                                                   value="@currentExchange.ToAmount"
-                                                   @oninput="OnToAmountChanged"
-                                                   placeholder="مثلاً 100" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row mt-3">
-                                <div class="col-md-4">
-                                    <label class="form-label fw-bold">
-                                        نرخ تبدیل <span class="text-danger">*</span>
-                                    </label>
-
-                                    <input type="number"
-                                           step="0.0001"
-                                           class="form-control"
-                                           value="@currentExchange.ExchangeRate"
-                                           @oninput="OnExchangeRateChanged"
-                                           placeholder="مثلاً 70" />
-                                </div>
-
-                                <div class="col-md-8">
-                                    <div class="alert alert-info mb-0 mt-md-4">
-                                        <strong>سند حسابداری:</strong>
-                                        <div class="mt-2">
-                                            حساب دریافت‌کننده بدهکار می‌شود و حساب پرداخت‌کننده طلبکار می‌شود.
-                                        </div>
-                                       
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    @if (isEditMode)
-                    {
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i>
-                            <small>
-                                در حال ویرایش تبدیل با شناسه:
-                                <strong>@editId</strong>
-                            </small>
-                        </div>
-                    }
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button"
-                            class="btn-modern btn-light-modern"
-                            @onclick="CloseModal">
-                        <i class="bi bi-x-circle"></i>
-                        انصراف
-                    </button>
-
-                    <button type="button"
-                            class="btn-modern btn-primary-modern"
-                            @onclick="SaveExchange"
-                            disabled="@isLoading">
-                        @if (isLoading)
-                        {
-                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        }
-                        else
-                        {
-                            <i class="bi @(isEditMode ? "bi-pencil" : "bi-save")"></i>
-                        }
-
-                        @(isEditMode ? "به‌روزرسانی" : "ایجاد")
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
+<!-- ===== مودال نمایش جزئیات ===== -->
 @if (showDetailModal && selectedExchange != null)
 {
     <div class="modal show d-block modal-modern"
@@ -721,6 +468,7 @@
     </div>
 }
 
+<!-- ===== مودال تأیید حذف ===== -->
 @if (showDeleteModal)
 {
     <div class="modal show d-block modal-modern"
@@ -821,24 +569,22 @@
     private string sortColumn = "ExchangeDate";
     private bool sortAscending = false;
 
+    // ===== متغیرهای مودال =====
     private bool showModal = false;
+    private bool isEditMode = false;
+    private long editId = 0;
+    private CreateMoneyExchangeOperationDto? editExchangeData = null;
+
+    // ===== متغیرهای سایر مودال‌ها =====
     private bool showDetailModal = false;
     private bool showDeleteModal = false;
-    private bool isEditMode = false;
     private bool isLoading = false;
-
-    private long editId = 0;
     private long deleteId = 0;
 
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
 
     private MoneyExchangeOperationDto? selectedExchange = null;
-    private CreateMoneyExchangeOperationDto currentExchange = new();
-
-    private DateTime exchangeDateLocal = DateTime.Now;
-
-    private string calculationMode = "RateToAmount";
 
     private List<MoneyExchangeOperationDto> pagedExchanges
     {
@@ -894,7 +640,6 @@
         try
         {
             currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
-
             accounts = (await AccountService.GetAllAsync())
                 .Where(x => !x.IsArchived)
                 .OrderBy(x => x.AccountCode)
@@ -1007,39 +752,14 @@
         StateHasChanged();
     }
 
+    // ===== متدهای مودال ایجاد/ویرایش =====
+
     private void OpenCreateModal()
     {
-        var afn = currencies.FirstOrDefault(x =>
-            x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
-
-        var usd = currencies.FirstOrDefault(x =>
-            x.Code.Equals("USD", StringComparison.OrdinalIgnoreCase));
-
-        var cash = accounts.FirstOrDefault(x =>
-            x.AccountType == "Cash");
-
-        currentExchange = new CreateMoneyExchangeOperationDto
-        {
-            FromAccountId = cash?.Id ?? 0,
-            ToAccountId = cash?.Id ?? 0,
-            FromCurrencyId = afn?.Id ?? 0,
-            ToCurrencyId = usd?.Id ?? 0,
-            FromAmount = 0,
-            ToAmount = 0,
-            ExchangeRate = 0,
-            ExchangeDate = DateTime.UtcNow,
-            Description = "ثبت تبدیل پول"
-        };
-
-        exchangeDateLocal = DateTime.Now;
-        calculationMode = "RateToAmount";
-
         isEditMode = false;
         editId = 0;
-        validationErrors.Clear();
-        successMessage = string.Empty;
+        editExchangeData = null;
         showModal = true;
-
         StateHasChanged();
     }
 
@@ -1058,7 +778,7 @@
                 return;
             }
 
-            currentExchange = new CreateMoneyExchangeOperationDto
+            editExchangeData = new CreateMoneyExchangeOperationDto
             {
                 ExchangeDate = exchange.ExchangeDate,
                 FromAccountId = exchange.FromAccountId,
@@ -1071,13 +791,8 @@
                 Description = exchange.Description
             };
 
-            exchangeDateLocal = exchange.ExchangeDate.ToLocalTime();
-            calculationMode = "RateToAmount";
-
             isEditMode = true;
             editId = id;
-            validationErrors.Clear();
-            successMessage = string.Empty;
             showModal = true;
         }
         catch (Exception ex)
@@ -1091,101 +806,19 @@
         }
     }
 
-    private void CloseModal()
+    private async Task OnExchangeSaved(CreateMoneyExchangeOperationDto newExchange)
     {
-        showModal = false;
-        validationErrors.Clear();
+        await LoadExchanges();
         StateHasChanged();
     }
 
-    private async Task SaveExchange()
+    private async Task OnExchangeEdited(long id)
     {
-        validationErrors.Clear();
-        successMessage = string.Empty;
-
-        ValidateForm();
-
-        if (validationErrors.Any())
-        {
-            StateHasChanged();
-            return;
-        }
-
-        try
-        {
-            isLoading = true;
-            StateHasChanged();
-
-            currentExchange.ExchangeDate = exchangeDateLocal.ToUniversalTime();
-
-            if (isEditMode)
-            {
-                var updateDto = new UpdateMoneyExchangeOperationDto
-                {
-                    ExchangeDate = currentExchange.ExchangeDate,
-                    FromAccountId = currentExchange.FromAccountId,
-                    FromCurrencyId = currentExchange.FromCurrencyId,
-                    FromAmount = currentExchange.FromAmount,
-                    ToAccountId = currentExchange.ToAccountId,
-                    ToCurrencyId = currentExchange.ToCurrencyId,
-                    ToAmount = currentExchange.ToAmount,
-                    ExchangeRate = currentExchange.ExchangeRate,
-                    Description = currentExchange.Description
-                };
-
-                await MoneyExchangeOperationService.UpdateAsync(editId, updateDto);
-                successMessage = "تبدیل پول با موفقیت ویرایش شد.";
-            }
-            else
-            {
-                await MoneyExchangeOperationService.CreateAsync(currentExchange);
-                successMessage = "تبدیل پول با موفقیت ثبت شد.";
-            }
-
-            showModal = false;
-            await LoadExchanges();
-        }
-        catch (InvalidOperationException ex)
-        {
-            validationErrors.Add(ex.Message);
-        }
-        catch (Exception ex)
-        {
-            validationErrors.Add($"خطا در ذخیره‌سازی: {ex.Message}");
-        }
-        finally
-        {
-            isLoading = false;
-            StateHasChanged();
-        }
+        await LoadExchanges();
+        StateHasChanged();
     }
 
-    private void ValidateForm()
-    {
-        if (currentExchange.FromAccountId <= 0)
-            validationErrors.Add("انتخاب حساب پرداخت‌کننده الزامی است.");
-
-        if (currentExchange.ToAccountId <= 0)
-            validationErrors.Add("انتخاب حساب دریافت‌کننده الزامی است.");
-
-        if (currentExchange.FromCurrencyId <= 0)
-            validationErrors.Add("انتخاب ارز پرداختی الزامی است.");
-
-        if (currentExchange.ToCurrencyId <= 0)
-            validationErrors.Add("انتخاب ارز دریافتی الزامی است.");
-
-        if (currentExchange.FromCurrencyId == currentExchange.ToCurrencyId)
-            validationErrors.Add("ارز پرداختی و ارز دریافتی نباید یکی باشد.");
-
-        if (currentExchange.FromAmount <= 0)
-            validationErrors.Add("مبلغ پرداختی باید بزرگتر از صفر باشد.");
-
-        if (currentExchange.ToAmount <= 0)
-            validationErrors.Add("مبلغ دریافتی باید بزرگتر از صفر باشد.");
-
-        if (currentExchange.ExchangeRate <= 0)
-            validationErrors.Add("نرخ تبدیل باید بزرگتر از صفر باشد.");
-    }
+    // ===== متدهای سایر مودال‌ها =====
 
     private async Task ViewExchange(long id)
     {
@@ -1254,76 +887,6 @@
             isLoading = false;
             StateHasChanged();
         }
-    }
-
-    private void ChangeCalculationMode(string mode)
-    {
-        calculationMode = mode;
-        CalculateValues();
-    }
-
-    private void OnFromAmountChanged(ChangeEventArgs e)
-    {
-        currentExchange.FromAmount = ParseDecimal(e.Value);
-        CalculateValues();
-    }
-
-    private void OnToAmountChanged(ChangeEventArgs e)
-    {
-        currentExchange.ToAmount = ParseDecimal(e.Value);
-        CalculateValues();
-    }
-
-    private void OnExchangeRateChanged(ChangeEventArgs e)
-    {
-        currentExchange.ExchangeRate = ParseDecimal(e.Value);
-        CalculateValues();
-    }
-
-    private void CalculateValues()
-    {
-        if (currentExchange.FromAmount <= 0)
-            return;
-
-        if (calculationMode == "RateToAmount")
-        {
-            if (currentExchange.ExchangeRate > 0)
-            {
-                currentExchange.ToAmount = Math.Round(
-                    currentExchange.FromAmount / currentExchange.ExchangeRate,
-                    4);
-            }
-        }
-        else if (calculationMode == "AmountToRate")
-        {
-            if (currentExchange.ToAmount > 0)
-            {
-                currentExchange.ExchangeRate = Math.Round(
-                    currentExchange.FromAmount / currentExchange.ToAmount,
-                    8);
-            }
-        }
-    }
-
-    private static decimal ParseDecimal(object? value)
-    {
-        var text = value?.ToString();
-
-        if (string.IsNullOrWhiteSpace(text))
-            return 0;
-
-        text = text.Replace(",", ".");
-
-        if (decimal.TryParse(
-                text,
-                NumberStyles.Any,
-                CultureInfo.InvariantCulture,
-                out var result))
-        {
-            return result;
-        }
-
-        return 0;
     }
 
     private string GetAccountTypeName(string? type)

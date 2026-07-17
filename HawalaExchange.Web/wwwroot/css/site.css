@@ -219,11 +219,11 @@ body {
 ========================================= */
 .stat-card {
     background: var(--card-bg);
-    border-radius: var(--radius-md);
-    padding: 1.2rem 1.5rem;
+    border-radius: var(--radius-sm);
+    padding: 0.3rem 0.5rem;
     box-shadow: var(--shadow-sm);
     transition: var(--transition);
-    border-right: 4px solid var(--primary-color);
+    border-right: 3px solid var(--primary-color);
 }
 
     .stat-card:hover {
@@ -2430,3 +2430,57 @@ body {
         background: #fee2e2;
         color: #b91c1c;
     }
+
+
+/* ================================================================
+   Quick Links - استایل ساده با متن سیاه
+   ================================================================ */
+.quick-links {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.quick-link-btn {
+    border: none;
+    background: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #212529;
+    padding: 6px 15px;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+    .quick-link-btn:hover {
+        color: #0d6efd;
+        transform: translateY(-1px);
+    }
+
+    .quick-link-btn:active {
+        transform: translateY(0px);
+    }
+
+    /* حذف کامل آیکون‌ها */
+    .quick-link-btn i {
+        display: none !important;
+    }
+
+    /* ===== لینک‌های دارای خط زیر ===== */
+    .quick-link-btn::after {
+        content: '';
+        display: block;
+        width: 0;
+        height: 2px;
+        background: #0d6efd;
+        transition: width 0.3s ease;
+        margin-top: 2px;
+    }
+
+    .quick-link-btn:hover::after {
+        width: 100%;
+    }
+

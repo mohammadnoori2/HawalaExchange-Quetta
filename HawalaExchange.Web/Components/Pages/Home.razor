@@ -4,6 +4,8 @@
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.JSInterop
+@using HawalaExchange.Web.Components.Shared.Modals
+@using HawalaExchange.Web.Helpers
 @inject ITransactionService TransactionService
 @inject ICustomerService CustomerService
 @inject IBranchService BranchService
@@ -25,7 +27,26 @@
             <span class="time-label">زمان آخرین معامله:</span>
             <span class="time-value">@lastTransactionTime</span>
         </div>
+
+        <!-- Quick Links -->
+        <div class="quick-links">
+            <button class="quick-link-btn quick-link-hawala" @onclick="OpenHawalaModal">
+                ثبت حواله
+            </button>
+            <button class="quick-link-btn quick-link-exchange" @onclick="OpenExchangeModal">
+                تبدیل پول
+            </button>
+            <button class="quick-link-btn quick-link-deposit" @onclick="OpenDepositWithdrawModal">
+                واریز/برداشت
+            </button>
+            <button class="quick-link-btn quick-link-pending" @onclick="NavigateToPendingHawalas">
+                اجرای حواله 
+            </button>
+        </div>
+
         <div class="header-center">
+            
+            <!-- انتخاب واحد پول -->
             <div class="currency-selector">
                 <select @onchange="OnCurrencyChanged" value="@selectedCurrency">
                     @foreach (var cur in availableCurrencies)
@@ -35,6 +56,9 @@
                 </select>
             </div>
         </div>
+
+        
+
         <div class="header-right">
             <span class="badge-live">نرخ لحظه‌ای ارز</span>
         </div>
@@ -204,6 +228,24 @@
     </div>
 </div>
 
+<!-- ===== کامپوننت مودال ایجاد حواله ===== -->
+<CreateHawalaModal IsVisible="@showHawalaModal"
+                   IsVisibleChanged="@((bool value) => { showHawalaModal = value; StateHasChanged(); })"
+                   IsEditMode="false"
+                   OnSaveSuccess="@OnHawalaSaved" />
+
+<!-- ===== کامپوننت مودال تبدیل پول ===== -->
+<MoneyExchangeModal IsVisible="@showExchangeModal"
+                    IsVisibleChanged="@((bool value) => { showExchangeModal = value; StateHasChanged(); })"
+                    IsEditMode="false"
+                    OnSaveSuccess="@OnExchangeSaved" />
+
+<!-- ===== کامپوننت مودال واریز/برداشت ===== -->
+<DepositWithdrawModal IsVisible="@showDepositWithdrawModal"
+                      IsVisibleChanged="@((bool value) => { showDepositWithdrawModal = value; StateHasChanged(); })"
+                      IsEditMode="false"
+                      OnSaveSuccess="@OnDepositWithdrawSaved" />
+
 @code {
     // ===== متغیرها =====
     private string lastTransactionTime = "--:--:--";
@@ -250,6 +292,11 @@
     private bool isDataLoaded = false;
     private bool chartsRendered = false;
 
+    // ===== متغیرهای مودال‌ها =====
+    private bool showHawalaModal = false;
+    private bool showExchangeModal = false;
+    private bool showDepositWithdrawModal = false;
+
     [Inject]
     private IJSRuntime JSRuntime { get; set; } = default!;
 
@@ -267,6 +314,56 @@
             await RenderCharts();
             chartsRendered = true;
         }
+    }
+
+    // ===== متدهای ناوبری =====
+
+    private void NavigateToPendingHawalas()
+    {
+        NavigationManager.NavigateTo("/hawala-pending");
+    }
+
+    // ===== متدهای باز کردن مودال‌ها =====
+
+    private void OpenHawalaModal()
+    {
+        showHawalaModal = true;
+        StateHasChanged();
+    }
+
+    private void OpenExchangeModal()
+    {
+        showExchangeModal = true;
+        StateHasChanged();
+    }
+
+    private void OpenDepositWithdrawModal()
+    {
+        showDepositWithdrawModal = true;
+        StateHasChanged();
+    }
+
+    // ===== متدهای رویدادهای مودال‌ها =====
+
+    private async Task OnHawalaSaved(CreateHawalaDto newHawala)
+    {
+        // به‌روزرسانی داده‌های داشبورد پس از ثبت حواله
+        await LoadDashboardData();
+        StateHasChanged();
+    }
+
+    private async Task OnExchangeSaved(CreateMoneyExchangeOperationDto newExchange)
+    {
+        // به‌روزرسانی داده‌های داشبورد پس از ثبت تبدیل پول
+        await LoadDashboardData();
+        StateHasChanged();
+    }
+
+    private async Task OnDepositWithdrawSaved(CreateAccountMoneyOperationDto newOperation)
+    {
+        // به‌روزرسانی داده‌های داشبورد پس از ثبت واریز/برداشت
+        await LoadDashboardData();
+        StateHasChanged();
     }
 
     // ===== متدهای بارگذاری =====
@@ -288,7 +385,7 @@
                 var last = allTransactions.MaxBy(t => t.CreatedAt);
                 if (last != null)
                 {
-                    lastTransactionTime = last.CreatedAt.ToLocalTime().ToString("HH:mm:ss");
+                    lastTransactionTime = PersianDateHelper.ToPersianDateTime12(last.CreatedAt);
                 }
             }
         }

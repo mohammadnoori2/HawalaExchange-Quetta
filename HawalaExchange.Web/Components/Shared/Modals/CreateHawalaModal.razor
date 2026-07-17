@@ -894,6 +894,8 @@
         StateHasChanged();
     }
 
+    // ===== متدهای چاپ =====
+
     private async Task PrintReceiptWithHeader()
     {
         if (CreatedHawala == null)
@@ -904,7 +906,6 @@
 
         try
         {
-            // استفاده از hawalaTools برای چاپ
             var htmlContent = GenerateReceiptHtml(CreatedHawala, true);
             await JS.InvokeVoidAsync("hawalaTools.printHtml", htmlContent);
         }

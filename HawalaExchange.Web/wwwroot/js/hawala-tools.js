@@ -1,4 +1,5 @@
-﻿window.hawalaTools = {
+﻿// ===== فقط یک بار تعریف کنید =====
+window.hawalaTools = {
     copyToClipboard: async function (text) {
         try {
             if (navigator.clipboard && window.isSecureContext) {
@@ -34,6 +35,20 @@
         window.location.href = url;
     },
 
+    printReceipt: function () {
+        window.print();
+    },
+
+    printHtml: function (htmlContent) {
+        var printWindow = window.open('', '_blank', 'width=600,height=800,scrollbars=yes');
+        if (printWindow) {
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+        } else {
+            alert('لطفاً باز کردن پنجره جدید را مجاز کنید');
+        }
+    },
+
     printElement: function (elementId, paperWidthMm) {
         const element = document.getElementById(elementId);
 
@@ -45,12 +60,7 @@
         const width = paperWidthMm || 80;
         const contentWidth = width === 58 ? 48 : 72;
 
-        // Clone the receipt area
         const clonedElement = element.cloneNode(true);
-
-        // Very important:
-        // Remove component <style> tags from copied HTML.
-        // Old @media print CSS can hide the receipt and create blank PDF.
         clonedElement.querySelectorAll("style").forEach(style => style.remove());
 
         const receiptHtml = clonedElement.innerHTML;
@@ -284,61 +294,4 @@
 
         printWindow.document.close();
     }
-};
-window.hawalaTools.openTelegramApp = function (url) {
-    window.location.href = url;
-};
-
-window.hawalaTools = {
-    copyToClipboard: async function (text) {
-        try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(text);
-                return true;
-            }
-
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            textArea.style.position = "fixed";
-            textArea.style.left = "-9999px";
-            textArea.style.top = "-9999px";
-
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-
-            const result = document.execCommand("copy");
-
-            document.body.removeChild(textArea);
-
-            return result;
-        } catch {
-            return false;
-        }
-    },
-
-    openShareUrl: function (url) {
-        window.open(url, "_blank");
-    },
-
-    printReceipt: function () {
-        window.print();
-    },
-
-    // ===== متد جدید برای چاپ HTML =====
-    printHtml: function (htmlContent) {
-        var printWindow = window.open('', '_blank', 'width=600,height=800,scrollbars=yes');
-        if (printWindow) {
-            printWindow.document.write(htmlContent);
-            printWindow.document.close();
-        } else {
-            alert('لطفاً باز کردن پنجره جدید را مجاز کنید');
-        }
-    }
-};
-
-window.hawalaTools = window.hawalaTools || {};
-
-window.hawalaTools.openTelegramApp = function (url) {
-    window.location.href = url;
 };

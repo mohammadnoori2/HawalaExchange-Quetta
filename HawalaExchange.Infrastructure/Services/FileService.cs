@@ -61,6 +61,10 @@ namespace HawalaExchange.Infrastructure.Services
         {
             try
             {
+                // ===== بررسی null بودن =====
+                if (string.IsNullOrWhiteSpace(filePath))
+                    return true;
+
                 var fullPath = MapPath(filePath);
                 if (File.Exists(fullPath))
                 {
@@ -76,6 +80,9 @@ namespace HawalaExchange.Infrastructure.Services
 
         public async Task<byte[]?> GetFileBytesAsync(string filePath)
         {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return null;
+
             var fullPath = MapPath(filePath);
             if (!File.Exists(fullPath)) return null;
             return await File.ReadAllBytesAsync(fullPath);
@@ -89,6 +96,9 @@ namespace HawalaExchange.Infrastructure.Services
 
         public async Task<bool> FileExistsAsync(string filePath)
         {
+            if (string.IsNullOrWhiteSpace(filePath))
+                return await Task.FromResult(false);
+
             var fullPath = MapPath(filePath);
             return await Task.FromResult(File.Exists(fullPath));
         }
@@ -116,6 +126,9 @@ namespace HawalaExchange.Infrastructure.Services
 
         private string MapPath(string relativePath)
         {
+            if (string.IsNullOrWhiteSpace(relativePath))
+                return string.Empty;
+
             return Path.Combine(_env.WebRootPath, relativePath.Replace('/', '\\'));
         }
 

@@ -1,0 +1,340 @@
+﻿@* Components/Shared/Modals/AccountDetailsModal.razor *@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject ILedgerService LedgerService
+
+@if (IsVisible && Account != null)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #0dcaf0, #0a9ec4);">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-wallet2 me-2"></i> جزئیات حساب
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (ValidationErrors.Any())
+                    {
+                        <div class="alert alert-danger">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> خطاها:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in ValidationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <!-- اطلاعات خلاصه حساب -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3 col-6">
+                            <div class="info-card">
+                                <span class="info-label">کد حساب</span>
+                                <span class="info-value">@Account.AccountCode</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="info-card">
+                                <span class="info-label">نام حساب</span>
+                                <span class="info-value">@Account.AccountName</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="info-card">
+                                <span class="info-label">نوع حساب</span>
+                                <span class="info-value">@GetAccountTypeName(Account.AccountType)</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="info-card">
+                                <span class="info-label">وضعیت</span>
+                                <span class="info-value">
+                                    @if (Account.IsArchived)
+                                    {
+                                        <span class="badge-modern badge-archived">بایگانی شده</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-modern badge-active">فعال</span>
+                                    }
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="info-card">
+                                <span class="info-label">نوع مرجع</span>
+                                <span class="info-value">@(string.IsNullOrEmpty(Account.ReferenceType) ? "—" : GetReferenceTypeName(Account.ReferenceType))</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="info-card">
+                                <span class="info-label">شناسه مرجع</span>
+                                <span class="info-value">@(Account.ReferenceId?.ToString() ?? "—")</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="info-card">
+                                <span class="info-label">سری کد</span>
+                                <span class="info-value">
+                                    @{
+                                        var prefix = Account.AccountCode.Length > 0 ? Account.AccountCode[0].ToString() : "";
+                                    }
+                                    <span class="badge-modern badge-info">سری @prefix</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="info-card">
+                                <span class="info-label">تاریخ ایجاد</span>
+                                <span class="info-value" dir="ltr">@Account.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- جمع‌بندی موجودی -->
+                    <div class="modern-card mb-4">
+                        <div class="card-header" style="background: linear-gradient(135deg, #28a745, #1a7a3a);">
+                            <h6 class="text-white">
+                                <i class="bi bi-calculator me-2"></i> جمع‌بندی موجودی به تفکیک ارز
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            @if (IsBalanceLoading)
+                            {
+                                <div class="text-center py-3">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </div>
+                            }
+                            else if (BalanceSummary.Any())
+                            {
+                                <div class="table-scroll-wrapper">
+                                    <table class="table-modern">
+                                        <thead>
+                                            <tr>
+                                                <th>واحد پولی</th>
+                                                <th>وضعیت</th>
+                                                <th>مقدار</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var item in BalanceSummary)
+                                            {
+                                                var status = item.Balance > 0 ? "طلبکار" : (item.Balance < 0 ? "بدهکار" : "تسویه");
+                                                var badgeClass = item.Balance > 0 ? "badge-success" : (item.Balance < 0 ? "badge-danger" : "badge-secondary");
+                                                <tr>
+                                                    <td><strong>@item.CurrencyCode</strong></td>
+                                                    <td>
+                                                        <span class="badge-modern @badgeClass">@status</span>
+                                                    </td>
+                                                    <td class="fw-bold fs-5 @(item.Balance != 0 ? (item.Balance > 0 ? "text-success" : "text-danger") : "text-muted")">
+                                                        @Math.Abs(item.Balance).ToString("N2")
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="empty-state py-3">
+                                    <i class="bi bi-inbox"></i>
+                                    <span class="text-muted">هیچ تراکنشی برای این حساب یافت نشد</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- لیست تراکنش‌های دفتر کل -->
+                    <div class="modern-card">
+                        <div class="card-header" style="background: linear-gradient(135deg, #6c757d, #5a6268);">
+                            <h6 class="text-white">
+                                <i class="bi bi-list-ul me-2"></i> لیست تراکنش‌های دفتر کل
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            @if (IsLedgerLoading)
+                            {
+                                <div class="text-center py-3">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">در حال بارگذاری...</span>
+                                    </div>
+                                </div>
+                            }
+                            else if (LedgerEntries.Any())
+                            {
+                                <div class="table-scroll-wrapper">
+                                    <table class="table-modern table-striped-modern">
+                                        <thead>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>تاریخ</th>
+                                                <th>شماره تراکنش</th>
+                                                <th>نوع تراکنش</th>
+                                                <th>واحد پولی</th>
+                                                <th>طلبکار</th>
+                                                <th>بدهکار</th>
+                                                <th>توضیحات</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var entry in LedgerEntries)
+                                            {
+                                                <tr>
+                                                    <td>@entry.Id</td>
+                                                    <td dir="ltr">@entry.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                                    <td>@entry.TransactionNo</td>
+                                                    <td>
+                                                        <span class="badge-modern @GetTransactionTypeBadge(entry.TransactionType)">
+                                                            @GetTransactionTypeName(entry.TransactionType)
+                                                        </span>
+                                                    </td>
+                                                    <td><span class="badge-modern badge-info">@entry.CurrencyCode</span></td>
+                                                    <td class="text-success fw-bold">@(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")</td>
+                                                    <td class="text-danger fw-bold">@(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")</td>
+                                                    <td>@entry.Description</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="empty-state py-3">
+                                    <i class="bi bi-journal"></i>
+                                    <span class="text-muted">هیچ تراکنشی برای این حساب ثبت نشده است</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="Close">
+                        <i class="bi bi-x-circle"></i> بستن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // ===== پارامترها =====
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public AccountDto? Account { get; set; }
+
+    // ===== متغیرها =====
+    private List<string> ValidationErrors { get; set; } = new();
+    private bool IsBalanceLoading { get; set; } = false;
+    private bool IsLedgerLoading { get; set; } = false;
+    private List<BalanceDto> BalanceSummary { get; set; } = new();
+    private List<LedgerEntryDto> LedgerEntries { get; set; } = new();
+
+    // ===== متدها =====
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && Account != null)
+        {
+            await LoadAccountData(Account.Id);
+        }
+    }
+
+    private async Task LoadAccountData(long accountId)
+    {
+        try
+        {
+            IsBalanceLoading = true;
+            IsLedgerLoading = true;
+            ValidationErrors.Clear();
+            StateHasChanged();
+
+            var balanceResult = await LedgerService.GetAccountBalancesAsync(accountId);
+            BalanceSummary = balanceResult.ToList();
+
+            var ledgerResult = await LedgerService.GetEntriesByAccountAsync(accountId);
+            LedgerEntries = ledgerResult.ToList();
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add($"خطا در بارگذاری داده‌های حساب: {ex.Message}");
+        }
+        finally
+        {
+            IsBalanceLoading = false;
+            IsLedgerLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Close()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+        StateHasChanged();
+    }
+
+    // ===== توابع کمکی =====
+
+    private string GetAccountTypeName(string type)
+    {
+        return type?.ToLower() switch
+        {
+            "cash" => "نقدی",
+            "bank" => "بانکی",
+            "customer" => "مشتری",
+            "correspondent" => "نماینده",
+            "income" => "درآمد",
+            "expense" => "هزینه",
+            "equity" => "سرمایه",
+            _ => type ?? "نامشخص"
+        };
+    }
+
+    private string GetReferenceTypeName(string type)
+    {
+        return type?.ToLower() switch
+        {
+            "customer" => "مشتری",
+            "correspondent" => "نماینده",
+            _ => type ?? "نامشخص"
+        };
+    }
+
+    private string GetTransactionTypeBadge(string type)
+    {
+        return type?.ToLower() switch
+        {
+            "exchange" => "badge-primary",
+            "hawalasend" => "badge-info",
+            "hawalareceive" => "badge-success",
+            "transfer" => "badge-warning",
+            "expense" => "badge-danger",
+            "adjustment" => "badge-secondary",
+            "openingbalance" => "badge-dark",
+            _ => "badge-light"
+        };
+    }
+
+    private string GetTransactionTypeName(string type)
+    {
+        return type?.ToLower() switch
+        {
+            "exchange" => "تبدیل ارز",
+            "hawalasend" => "حواله فرستاده",
+            "hawalareceive" => "حواله دریافت",
+            "transfer" => "انتقال",
+            "expense" => "هزینه",
+            "adjustment" => "تعدیل",
+            "openingbalance" => "موجودی اولیه",
+            _ => type ?? "نامشخص"
+        };
+    }
+}

@@ -4,6 +4,7 @@
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Components.Forms
 @using HawalaExchange.Web.Helpers
+@using HawalaExchange.Web.Components.Shared.Modals
 
 @inject IHawalaService HawalaService
 @inject ICorrespondentService CorrespondentService
@@ -593,7 +594,7 @@
                                             if (account != null)
                                             {
                                                 <a href="javascript:void(0)"
-                                                   @onclick="() => OpenAccount(account.Id)"
+                                                   @onclick="() => OpenAccountDetails(account.Id)"
                                                    style="text-decoration: none; color: #0d6efd; cursor: pointer;">
                                                     @correspondent.Name
                                                     <i class="bi bi-box-arrow-up-right small"></i>
@@ -658,10 +659,7 @@
                                 <span class="fw-semibold">
                                     @if (!string.IsNullOrEmpty(CreatedHawala.SenderName))
                                     {
-                                        <a href="/customers" target="_blank" style="text-decoration: none; color: #0d6efd;">
-                                            @CreatedHawala.SenderName
-                                            <i class="bi bi-box-arrow-up-right small"></i>
-                                        </a>
+                                        <span>@CreatedHawala.SenderName</span>
                                     }
                                     else
                                     {
@@ -674,10 +672,7 @@
                                 <span class="fw-semibold">
                                     @if (!string.IsNullOrEmpty(CreatedHawala.ReceiverName))
                                     {
-                                        <a href="/customers" target="_blank" style="text-decoration: none; color: #0d6efd;">
-                                            @CreatedHawala.ReceiverName
-                                            <i class="bi bi-box-arrow-up-right small"></i>
-                                        </a>
+                                        <span>@CreatedHawala.ReceiverName</span>
                                     }
                                     else
                                     {
@@ -728,6 +723,20 @@
     </div>
 }
 
+<!-- ===== کامپوننت مودال جزییات حساب ===== -->
+<AccountDetailsModal 
+    IsVisible="@showAccountDetailsModal"
+    IsVisibleChanged="@((bool value) => { 
+        showAccountDetailsModal = value; 
+        if (!value && CreatedHawala != null)
+        {
+            ShowSuccessModal = true;
+        }
+        StateHasChanged(); 
+    })"
+    Account="@selectedAccountForDetails"
+/>
+
 @code {
     // ===== پارامترها =====
     [Parameter] public bool IsVisible { get; set; }
@@ -756,6 +765,10 @@
     private bool ShowSuccessModal { get; set; } = false;
     private CreateHawalaDto? CreatedHawala { get; set; }
 
+    // ===== متغیرهای مودال جزییات حساب =====
+    private bool showAccountDetailsModal = false;
+    private AccountDto? selectedAccountForDetails = null;
+
     // ===== جستجوی حساب =====
     private string fromAccountSearchText = "";
     private bool showFromAccountDropdown = false;
@@ -780,10 +793,23 @@
         await LoadLookupData();
     }
 
-    private void OpenAccount(long accountId)
+    // ===== متد باز کردن جزییات حساب =====
+    private void OpenAccountDetails(long accountId)
     {
-        // با forceLoad=true صفحه رفرش می‌شود و پارامتر view پردازش می‌شود
-        NavigationManager.NavigateTo($"/accounts?view={accountId}", forceLoad: true);
+        // ===== بستن مودال موفقیت =====
+        ShowSuccessModal = false;
+        
+        selectedAccountForDetails = AccountsList.FirstOrDefault(a => a.Id == accountId);
+        if (selectedAccountForDetails != null)
+        {
+            showAccountDetailsModal = true;
+            StateHasChanged();
+        }
+        else
+        {
+            // اگر حساب پیدا نشد، به صفحه Accounts هدایت کن
+            NavigationManager.NavigateTo($"/accounts?view={accountId}", forceLoad: true);
+        }
     }
 
     protected override async Task OnParametersSetAsync()

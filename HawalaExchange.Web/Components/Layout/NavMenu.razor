@@ -11,18 +11,11 @@
 @inject ILogger<NavMenu> Logger
 
 <div class="nav-sidebar">
-    <!-- هدر با لوگو -->
+    <!-- هدر با لوگوی تصویری -->
     <div class="navbar-brand-custom">
-        <div class="logo-icon">
-            <i class="bi bi-arrow-left-right"></i>
+        <div class="logo-wrapper">
+            <img src="/images/logo.png" alt="Kabul Code Lab" class="logo-image" />
         </div>
-        <div class="brand-wrapper">
-            <span class="logo-text">صرافی حواله</span>
-            <span class="logo-sub">Exchange & Transfer</span>
-        </div>
-        <label for="nav-toggle" class="navbar-toggler-custom" role="button" aria-label="toggle menu">
-            <i class="bi bi-list"></i>
-        </label>
     </div>
 
     <input type="checkbox" id="nav-toggle" title="منوی ناوبری" class="navbar-toggler" />
@@ -237,7 +230,7 @@
                                 </div>
                             </div>
                             <div class="user-dropdown-divider"></div>
-                            <!-- گزینه خروج - حذف تغییر رمز عبور -->
+                            <!-- گزینه خروج -->
                             <NavLink class="user-dropdown-item user-dropdown-logout" href="/logout">
                                 <span class="bi bi-box-arrow-right"></span> خروج
                             </NavLink>
@@ -255,7 +248,6 @@
         </nav>
     </div>
 </div>
-
 <script>
     // تغییر وضعیت منو (برای کلیک)
     function toggleSubMenu(subMenuId, element) {
@@ -317,8 +309,8 @@
 
 <style>
     /* =========================================
-               استایل‌های منوی تودرتو - هماهنگ با site.css
-            ========================================= */
+                   استایل‌های منوی تودرتو - هماهنگ با site.css
+                ========================================= */
 
     /* استایل دکمه منوی تودرتو */
     .nav-link-toggle {
@@ -456,8 +448,8 @@
         }
 
     /* =========================================
-               استایل‌های Dropdown کاربر
-            ========================================= */
+                   استایل‌های Dropdown کاربر
+                ========================================= */
     .user-dropdown-container {
         position: relative;
         margin: 0.5rem 0.6rem;
@@ -658,8 +650,8 @@
         }
 
     /* =========================================
-               واکنش‌گرا (Responsive) - هماهنگ با responsive.css
-            ========================================= */
+                   واکنش‌گرا (Responsive) - هماهنگ با responsive.css
+                ========================================= */
     @@media (max-width: 768px) {
         .sub-menu {
             padding-right: 16px;

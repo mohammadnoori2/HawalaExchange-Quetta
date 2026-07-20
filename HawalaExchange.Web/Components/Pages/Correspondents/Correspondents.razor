@@ -5,6 +5,7 @@
 @inject ICorrespondentService CorrespondentService
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
+@inject IHawalaService HawalaService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 @attribute [Authorize]
@@ -223,6 +224,9 @@
                                     </td>
                                     <td>
                                         <div class="action-group justify-content-center">
+                                            <button class="action-btn action-btn-view" @onclick="() => OpenRangeModal(correspondent)" title="نمایش محدوده حواله‌ها">
+                                                <i class="bi bi-card-list"></i>
+                                            </button>
                                             @if (!correspondent.IsArchived)
                                             {
                                                 <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(correspondent.Id)" title="ویرایش">
@@ -339,22 +343,17 @@
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-hash text-muted me-1"></i> کد نماینده <span class="text-danger">*</span>
-                                    </label>
-                                    @if (isEditMode)
-                                    {
+                                @if (isEditMode)
+                                {
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-hash text-muted me-1"></i> کد نماینده
+                                        </label>
                                         <input type="text" class="form-control bg-light" value="@correspondentCodeDisplay" disabled readonly />
                                         <small class="text-muted">کد نماینده قابل ویرایش نیست</small>
-                                    }
-                                    else
-                                    {
-                                        <input type="text" class="form-control"
-                                               @bind="currentCorrespondent.Code" placeholder="مثال: AG-001" />
-                                    }
-                                </div>
-                                <div class="col-md-6 mb-3">
+                                    </div>
+                                }
+                                <div class="@(isEditMode ? "col-md-6 mb-3" : "col-md-12 mb-3")">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-person text-muted me-1"></i> نام نماینده <span class="text-danger">*</span>
                                     </label>
@@ -560,6 +559,179 @@
     </div>
 }
 
+<!-- مودال گزارش محدوده حواله‌های نمایندگی -->
+@if (showRangeModal && selectedRangeCorrespondent != null)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header modal-header-primary">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-card-list me-2"></i>
+                        محدوده حواله‌های @selectedRangeCorrespondent.Name
+                        <small class="ms-2">(@selectedRangeCorrespondent.Code)</small>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseRangeModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(rangeError))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>@rangeError
+                        </div>
+                    }
+
+                    <div class="modern-card mb-4">
+                        <div class="card-body">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">نوع حواله</label>
+                                    <select class="form-select" @bind="rangeFilter.HawalaType">
+                                        <option value="HawalaSend">حواله ارسالی</option>
+                                        <option value="HawalaReceive">حواله دریافتی</option>
+                                        <option value="HawalaOther">حواله متفرقه</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">نوع محدوده</label>
+                                    <select class="form-select" @bind="rangeFilter.RangeType">
+                                        <option value="Number">بر اساس شماره حواله</option>
+                                        <option value="Date">بر اساس تاریخ حواله</option>
+                                    </select>
+                                </div>
+
+                                @if (rangeFilter.RangeType == "Number")
+                                {
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold">شماره شروع</label>
+                                        <input type="number" min="1" class="form-control" @bind="rangeFilter.StartNumber" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold">شماره ختم</label>
+                                        <input type="number" min="1" class="form-control" @bind="rangeFilter.EndNumber" />
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold">تاریخ شروع</label>
+                                        <PersianDatePicker @bind-Value="rangeStartDate" IncludeTime="false" Placeholder="تاریخ شروع" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label fw-bold">تاریخ ختم</label>
+                                        <PersianDatePicker @bind-Value="rangeEndDate" IncludeTime="false" Placeholder="تاریخ ختم" />
+                                    </div>
+                                }
+
+                                <div class="col-md-2">
+                                    <button class="btn-modern btn-primary-modern w-100" @onclick="LoadRangeReport" disabled="@rangeLoading">
+                                        @if (rangeLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-search"></i>
+                                        }
+                                        نمایش
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (rangeResult != null)
+                    {
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">تعداد حواله‌ها: <span class="badge bg-primary">@rangeResult.Hawalas.Count</span></h6>
+                        </div>
+
+                        <div class="table-responsive mb-4">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>شماره حواله</th>
+                                        <th>تاریخ</th>
+                                        <th>نام کامل فرستنده</th>
+                                        <th>نام کامل گیرنده</th>
+                                        <th>مقدار حواله</th>
+                                        <th>ارز حواله</th>
+                                        <th>کارمزد</th>
+                                        <th>ارز کارمزد</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (rangeResult.Hawalas.Count == 0)
+                                    {
+                                        <tr><td colspan="9" class="text-center text-muted py-4">در این محدوده حواله‌ای یافت نشد.</td></tr>
+                                    }
+                                    else
+                                    {
+                                        var reportIndex = 1;
+                                        @foreach (var hawala in rangeResult.Hawalas)
+                                        {
+                                            <tr>
+                                                <td>@reportIndex</td>
+                                                <td class="fw-bold">@hawala.Number</td>
+                                                <td dir="ltr">@PersianDateHelper.ToPersianDate(hawala.CreatedAt)</td>
+                                                <td>@GetFullName(hawala.SenderName, hawala.SenderFatherName)</td>
+                                                <td>@GetFullName(hawala.ReceiverName, hawala.ReceiverFatherName)</td>
+                                                <td class="fw-bold" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount)</td>
+                                                <td>@hawala.FromCurrencyCode</td>
+                                                <td dir="ltr">@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")</td>
+                                                <td>@(hawala.CommissionCurrencyCode ?? "-")</td>
+                                            </tr>
+                                            reportIndex++;
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h6 class="fw-bold mb-3"><i class="bi bi-calculator me-2"></i>خلاصه لیجر در محدوده</h6>
+                        <div class="table-responsive">
+                            <table class="table table-bordered align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>ارز</th>
+                                        <th>مجموع بدهکار</th>
+                                        <th>مجموع طلبکار</th>
+                                        <th>بیلانس محدوده</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (rangeResult.Summaries.Count == 0)
+                                    {
+                                        <tr><td colspan="4" class="text-center text-muted">برای این محدوده رکورد لیجر نمایندگی وجود ندارد.</td></tr>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var summary in rangeResult.Summaries)
+                                        {
+                                            <tr>
+                                                <td class="fw-bold">@summary.CurrencyCode</td>
+                                                <td class="text-danger fw-bold" dir="ltr">@MoneyFormatHelper.Format(summary.TotalDebit)</td>
+                                                <td class="text-success fw-bold" dir="ltr">@MoneyFormatHelper.Format(summary.TotalCredit)</td>
+                                                <td class="fw-bold @(summary.Balance < 0 ? "text-danger" : "text-primary")" dir="ltr">@MoneyFormatHelper.Format(summary.Balance)</td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="CloseRangeModal">
+                        <i class="bi bi-x-circle"></i> بستن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 <!-- مودال تأیید بایگانی/خروج از بایگانی -->
 @if (showConfirmModal)
 {
@@ -656,6 +828,7 @@
     // ===== وضعیت‌های مودال =====
     private bool showModal = false;
     private bool showConfirmModal = false;
+    private bool showRangeModal = false;
     private bool isEditMode = false;
     private bool isLoading = false;
     private long editId = 0;
@@ -665,6 +838,13 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
     private string? correspondentCodeDisplay;
+    private bool rangeLoading = false;
+    private string rangeError = string.Empty;
+    private CorrespondentDto? selectedRangeCorrespondent;
+    private CorrespondentHawalaRangeFilterDto rangeFilter = new();
+    private CorrespondentHawalaRangeResultDto? rangeResult;
+    private DateTime rangeStartDate = DateTime.Today.AddMonths(-1);
+    private DateTime rangeEndDate = DateTime.Today;
 
     private CreateCorrespondentDto currentCorrespondent = new();
 
@@ -850,7 +1030,6 @@
                 correspondentCodeDisplay = correspondent.Code;
                 currentCorrespondent = new CreateCorrespondentDto
                 {
-                    Code = correspondent.Code,
                     Name = correspondent.Name,
                     Country = correspondent.Country,
                     City = correspondent.City,
@@ -891,14 +1070,77 @@
         StateHasChanged();
     }
 
+    private void OpenRangeModal(CorrespondentDto correspondent)
+    {
+        selectedRangeCorrespondent = correspondent;
+        rangeFilter = new CorrespondentHawalaRangeFilterDto
+        {
+            CorrespondentId = correspondent.Id,
+            HawalaType = "HawalaSend",
+            RangeType = "Number"
+        };
+        rangeStartDate = DateTime.Today.AddMonths(-1);
+        rangeEndDate = DateTime.Today;
+        rangeResult = null;
+        rangeError = string.Empty;
+        showRangeModal = true;
+    }
+
+    private void CloseRangeModal()
+    {
+        showRangeModal = false;
+        selectedRangeCorrespondent = null;
+        rangeResult = null;
+        rangeError = string.Empty;
+    }
+
+    private async Task LoadRangeReport()
+    {
+        rangeError = string.Empty;
+        rangeResult = null;
+
+        if (rangeFilter.RangeType == "Date")
+        {
+            rangeFilter.StartDate = rangeStartDate;
+            rangeFilter.EndDate = rangeEndDate;
+            rangeFilter.StartNumber = null;
+            rangeFilter.EndNumber = null;
+        }
+        else
+        {
+            rangeFilter.StartDate = null;
+            rangeFilter.EndDate = null;
+        }
+
+        try
+        {
+            rangeLoading = true;
+            rangeResult = await HawalaService.GetCorrespondentRangeAsync(rangeFilter);
+        }
+        catch (Exception ex)
+        {
+            rangeError = ex.Message;
+        }
+        finally
+        {
+            rangeLoading = false;
+        }
+    }
+
+    private static string GetFullName(string? name, string? fatherName)
+    {
+        var parts = new[] { name?.Trim(), fatherName?.Trim() }
+            .Where(part => !string.IsNullOrWhiteSpace(part));
+        var fullName = string.Join(" ", parts);
+        return string.IsNullOrWhiteSpace(fullName) ? "-" : fullName;
+    }
+
     // ===== ذخیره‌سازی =====
     private async Task SaveCorrespondent()
     {
         validationErrors.Clear();
         successMessage = string.Empty;
 
-        if (!isEditMode && string.IsNullOrWhiteSpace(currentCorrespondent.Code))
-            validationErrors.Add("کد نماینده الزامی است");
         if (string.IsNullOrWhiteSpace(currentCorrespondent.Name))
             validationErrors.Add("نام نماینده الزامی است");
         if (hasInitialBalance && !initialBalances.Any())
@@ -919,7 +1161,7 @@
             {
                 var updateRequest = new UpdateCorrespondentDto
                 {
-                    Code = currentCorrespondent.Code,
+                    Code = correspondentCodeDisplay ?? string.Empty,
                     Name = currentCorrespondent.Name,
                     Country = currentCorrespondent.Country,
                     City = currentCorrespondent.City,

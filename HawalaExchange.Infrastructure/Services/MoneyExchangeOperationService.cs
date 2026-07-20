@@ -200,8 +200,8 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
                 AccountId = exchange.ToAccountId,
                 CurrencyId = exchange.ToCurrencyId,
 
-                TalabKar = 0,
-                BadehKar = exchange.ToAmount,
+                TalabKar = exchange.ToAmount,
+                BadehKar = 0,
 
                 Description = description,
                 CreatedAt = exchange.ExchangeDate
@@ -217,8 +217,8 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
                 AccountId = exchange.FromAccountId,
                 CurrencyId = exchange.FromCurrencyId,
 
-                TalabKar = exchange.FromAmount,
-                BadehKar = 0,
+                TalabKar = 0,
+                BadehKar = exchange.FromAmount,
 
                 Description = description,
                 CreatedAt = exchange.ExchangeDate

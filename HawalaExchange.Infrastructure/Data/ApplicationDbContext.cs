@@ -172,6 +172,13 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Document>().HasIndex(x => new { x.EntityType, x.EntityId });
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TableName, x.RecordId });
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.HawalaType, x.Status });
+            modelBuilder.Entity<Hawala>()
+                .HasIndex(x => new { x.CorrespondentId, x.HawalaType, x.Number })
+                .IsUnique();
+            modelBuilder.Entity<Hawala>()
+                .HasIndex(x => x.SourceHawalaId)
+                .IsUnique()
+                .HasFilter("[SourceHawalaId] IS NOT NULL");
             modelBuilder.Entity<Hawala>().HasIndex(x => x.ReferenceNumber);
             modelBuilder.Entity<Hawala>().HasIndex(x => x.CreatedAt);
             modelBuilder.Entity<DailyReport>().HasIndex(r => new { r.Date, r.BranchId });
@@ -564,6 +571,18 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasOne(h => h.PaidByUser)
                 .WithMany(u => u.PaidHawalas)
                 .HasForeignKey(h => h.PaidBy)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Hawala>()
+                .HasOne(h => h.PaidFromAccount)
+                .WithMany()
+                .HasForeignKey(h => h.PaidFromAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Hawala>()
+                .HasOne(h => h.SourceHawala)
+                .WithOne()
+                .HasForeignKey<Hawala>(h => h.SourceHawalaId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Hawala>()

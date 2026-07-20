@@ -1025,7 +1025,8 @@
     {
         return string.Equals(account.AccountType, "Cash", StringComparison.OrdinalIgnoreCase)
             || string.Equals(account.AccountType, "Bank", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(account.AccountType, "Customer", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(account.AccountType, "Customer", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(account.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase);
     }
 
     private string GetAccountTypeName(string? type)

@@ -212,7 +212,7 @@
                         @if (isLoading && users == null)
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status">
                                             <span class="visually-hidden">در حال بارگذاری...</span>
@@ -225,7 +225,7 @@
                         else if (!pagedUsers.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ کاربری یافت نشد</span>
@@ -354,7 +354,7 @@
     </div>
 </div>
 
-<!-- مودال‌ها -->
+<!-- مودال ایجاد/ویرایش کاربر -->
 @if (showModal)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
@@ -383,8 +383,9 @@
 
                     @if (!string.IsNullOrEmpty(successMessage))
                     {
-                        <div class="alert alert-success">
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
                             <i class="bi bi-check-circle me-2"></i> @successMessage
+                            <button type="button" class="btn-close" @onclick="ClearSuccessMessage"></button>
                         </div>
                     }
 
@@ -529,7 +530,7 @@
     </div>
 }
 
-<!-- مودال بازنشانی رمز -->
+<!-- مودال بازنشانی رمز با تأیید رمز قبلی -->
 @if (showResetPasswordModal)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
@@ -542,18 +543,52 @@
                     <button type="button" class="btn-close btn-close-white" @onclick="CloseResetPasswordModal"></button>
                 </div>
                 <div class="modal-body">
-                    <p>رمز عبور جدید برای کاربر <strong>@resetPasswordUserName</strong> را وارد کنید:</p>
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle me-2"></i>
+                        کاربر: <strong>@resetPasswordUserName</strong>
+                    </div>
+
+                    <!-- رمز عبور فعلی - کاربر باید وارد کند -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">رمز عبور فعلی <span class="text-danger">*</span></label>
+                        <input type="password"
+                               class="form-control @(resetPasswordAttempted && string.IsNullOrEmpty(resetPasswordCurrentPassword) ? "is-invalid" : "")"
+                               @bind="resetPasswordCurrentPassword"
+                               @bind:event="oninput"
+                               placeholder="رمز عبور فعلی را وارد کنید"
+                               autocomplete="new-password" />
+                        @if (resetPasswordAttempted && string.IsNullOrEmpty(resetPasswordCurrentPassword))
+                        {
+                            <div class="invalid-feedback">لطفاً رمز عبور فعلی را وارد کنید</div>
+                        }
+                    </div>
+
+                    <hr />
+
+                    <!-- رمز عبور جدید -->
                     <div class="mb-3">
                         <label class="form-label fw-bold">رمز عبور جدید <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" @bind="resetPasswordNewPassword" placeholder="رمز عبور جدید" />
+                        <input type="password" class="form-control" @bind="resetPasswordNewPassword" placeholder="رمز عبور جدید" autocomplete="new-password" />
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">تکرار رمز عبور <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" @bind="resetPasswordConfirmPassword" placeholder="تکرار رمز عبور" />
+                        <input type="password" class="form-control" @bind="resetPasswordConfirmPassword" placeholder="تکرار رمز عبور" autocomplete="new-password" />
                     </div>
+
+                    <!-- نمایش پیام‌های موفقیت و خطا -->
+                    @if (!string.IsNullOrEmpty(resetPasswordSuccess))
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <i class="bi bi-check-circle me-2"></i> @resetPasswordSuccess
+                            <button type="button" class="btn-close" @onclick="ClearResetPasswordSuccess"></button>
+                        </div>
+                    }
                     @if (!string.IsNullOrEmpty(resetPasswordError))
                     {
-                        <div class="alert alert-danger">@resetPasswordError</div>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i> @resetPasswordError
+                            <button type="button" class="btn-close" @onclick="ClearResetPasswordError"></button>
+                        </div>
                     }
                 </div>
                 <div class="modal-footer justify-content-center">
@@ -570,6 +605,89 @@
                             <i class="bi bi-check-circle"></i>
                         }
                         بازنشانی
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- مودال مشاهده کاربر -->
+@if (showViewModal)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #0d6efd, #0a58ca);">
+                    <h5 class="modal-title text-white">
+                        <i class="bi bi-person-badge me-2"></i> اطلاعات کاربر
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseViewModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (viewUser != null)
+                    {
+                        <div class="text-center mb-4">
+                            <div class="avatar avatar-lg avatar-primary mx-auto" style="width: 80px; height: 80px; font-size: 32px;">
+                                @viewUser.FullName?.Substring(0, Math.Min(2, viewUser.FullName?.Length ?? 0)).ToUpper()
+                            </div>
+                            <h5 class="mt-2">@viewUser.FullName</h5>
+                            <span class="badge-modern @GetRoleBadge(viewUser.Roles.FirstOrDefault() ?? "")">
+                                @GetRoleName(viewUser.Roles.FirstOrDefault() ?? "")
+                            </span>
+                        </div>
+                        <hr />
+                        <div class="row">
+                            <div class="col-6 mb-2">
+                                <small class="text-muted">نام کاربری</small>
+                                <div><strong>@viewUser.UserName</strong></div>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <small class="text-muted">ایمیل</small>
+                                <div><strong>@viewUser.Email</strong></div>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <small class="text-muted">شعبه</small>
+                                <div><strong>@(viewUser.BranchName ?? "-")</strong></div>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <small class="text-muted">وضعیت</small>
+                                <div>
+                                    @if (viewUser.IsActive)
+                                    {
+                                        <span class="badge-modern badge-active">
+                                            <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> فعال
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-modern badge-archived">
+                                            <i class="bi bi-slash-circle"></i> غیرفعال
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-12 mb-2">
+                                <small class="text-muted">نقش‌ها</small>
+                                <div>
+                                    @foreach (var role in viewUser.Roles)
+                                    {
+                                        <span class="badge-modern @GetRoleBadge(role) me-1">
+                                            @GetRoleName(role)
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <small class="text-muted">تاریخ ایجاد</small>
+                                <div><strong dir="ltr">@viewUser.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</strong></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="CloseViewModal">
+                        <i class="bi bi-x-circle"></i> بستن
                     </button>
                 </div>
             </div>
@@ -639,6 +757,7 @@
     private bool showModal = false;
     private bool showConfirmModal = false;
     private bool showResetPasswordModal = false;
+    private bool showViewModal = false;
     private bool isEditMode = false;
     private bool isLoading = false;
     private bool isResetPasswordSubmitting = false;
@@ -646,14 +765,18 @@
     private long confirmId = 0;
     private long resetPasswordUserId = 0;
     private string resetPasswordUserName = "";
+    private string resetPasswordCurrentPassword = "";
     private string resetPasswordNewPassword = "";
     private string resetPasswordConfirmPassword = "";
     private string resetPasswordError = "";
+    private string resetPasswordSuccess = "";
+    private bool resetPasswordAttempted = false;
     private string confirmMessage = string.Empty;
     private string confirmActionType = string.Empty;
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
     private string? userNameDisplay;
+    private UserDto? viewUser = null;
 
     private CreateUserDto currentUser = new();
 
@@ -737,13 +860,13 @@
                 .Take(pageSize == 0 ? totalCount : pageSize)
                 .ToList();
 
-            users = new List<UserDto>();
+            var newUsers = new List<UserDto>();
             foreach (var user in pagedDbUsers)
             {
                 var userRoles = await UserManager.GetRolesAsync(user);
                 var branchName = branches.FirstOrDefault(b => b.Id == user.BranchId)?.Name ?? "-";
 
-                users.Add(new UserDto
+                newUsers.Add(new UserDto
                 {
                     Id = user.Id,
                     UserName = user.UserName,
@@ -757,8 +880,14 @@
                 });
             }
 
-            filteredUsers = users;
+            users = newUsers;
+            filteredUsers = newUsers;
             totalPages = pageSize > 0 ? (int)Math.Ceiling((double)totalCount / pageSize) : 1;
+
+            if (currentPage > totalPages && totalPages > 0)
+            {
+                currentPage = totalPages;
+            }
         }
         catch (Exception ex)
         {
@@ -871,33 +1000,115 @@
             var user = await UserManager.FindByIdAsync(id.ToString());
             if (user != null)
             {
-                // نمایش جزئیات کاربر
+                var userRoles = await UserManager.GetRolesAsync(user);
+                var branchName = branches.FirstOrDefault(b => b.Id == user.BranchId)?.Name ?? "-";
+
+                viewUser = new UserDto
+                {
+                    Id = user.Id,
+                    UserName = user.UserName,
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    BranchId = user.BranchId,
+                    BranchName = branchName,
+                    IsActive = user.IsActive,
+                    CreatedAt = user.CreatedAt,
+                    Roles = userRoles.ToArray()
+                };
+
+                showViewModal = true;
+                StateHasChanged();
             }
         }
         catch (Exception ex)
         {
-            validationErrors.Add($"خطا: {ex.Message}");
+            validationErrors.Add($"خطا در نمایش کاربر: {ex.Message}");
         }
     }
 
-    private void CloseModal() => showModal = false;
-    private void CloseConfirmModal() => showConfirmModal = false;
-    private void CloseResetPasswordModal() => showResetPasswordModal = false;
+    private void CloseViewModal()
+    {
+        showViewModal = false;
+        viewUser = null;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        validationErrors.Clear();
+        successMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private void ClearSuccessMessage()
+    {
+        successMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private void CloseResetPasswordModal()
+    {
+        showResetPasswordModal = false;
+        resetPasswordCurrentPassword = "";
+        resetPasswordNewPassword = "";
+        resetPasswordConfirmPassword = "";
+        resetPasswordError = "";
+        resetPasswordSuccess = "";
+        resetPasswordAttempted = false;
+        StateHasChanged();
+    }
+
+    private void ClearResetPasswordSuccess()
+    {
+        resetPasswordSuccess = string.Empty;
+        StateHasChanged();
+    }
+
+    private void ClearResetPasswordError()
+    {
+        resetPasswordError = string.Empty;
+        StateHasChanged();
+    }
 
     private void ShowResetPasswordModal(long id)
     {
         resetPasswordUserId = id;
         resetPasswordUserName = users.FirstOrDefault(u => u.Id == id)?.FullName ?? "";
+
+        // اطمینان از خالی بودن همه فیلدها
+        resetPasswordCurrentPassword = "";
         resetPasswordNewPassword = "";
         resetPasswordConfirmPassword = "";
         resetPasswordError = "";
+        resetPasswordSuccess = "";
+        resetPasswordAttempted = false;
+
         showResetPasswordModal = true;
         StateHasChanged();
     }
 
     private async Task ConfirmResetPassword()
     {
-        if (string.IsNullOrEmpty(resetPasswordNewPassword))
+        resetPasswordError = "";
+        resetPasswordSuccess = "";
+        resetPasswordAttempted = true;
+
+        // اعتبارسنجی رمز عبور فعلی
+        if (string.IsNullOrWhiteSpace(resetPasswordCurrentPassword))
+        {
+            resetPasswordError = "لطفاً رمز عبور فعلی را وارد کنید.";
+            StateHasChanged();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(resetPasswordNewPassword))
         {
             resetPasswordError = "لطفاً رمز عبور جدید را وارد کنید.";
             StateHasChanged();
@@ -906,14 +1117,21 @@
 
         if (resetPasswordNewPassword.Length < 6)
         {
-            resetPasswordError = "رمز عبور باید حداقل 6 کاراکتر باشد.";
+            resetPasswordError = "رمز عبور جدید باید حداقل 6 کاراکتر باشد.";
             StateHasChanged();
             return;
         }
 
         if (resetPasswordNewPassword != resetPasswordConfirmPassword)
         {
-            resetPasswordError = "رمز عبور و تکرار آن مطابقت ندارند.";
+            resetPasswordError = "رمز عبور جدید و تکرار آن مطابقت ندارند.";
+            StateHasChanged();
+            return;
+        }
+
+        if (resetPasswordNewPassword == resetPasswordCurrentPassword)
+        {
+            resetPasswordError = "رمز عبور جدید نمی‌تواند با رمز عبور فعلی یکسان باشد.";
             StateHasChanged();
             return;
         }
@@ -930,23 +1148,51 @@
                 return;
             }
 
+            // بررسی رمز عبور فعلی
+            var passwordVerificationResult = await UserManager.CheckPasswordAsync(user, resetPasswordCurrentPassword);
+
+            if (!passwordVerificationResult)
+            {
+                resetPasswordError = "❌ رمز عبور فعلی اشتباه است. لطفاً دوباره تلاش کنید.";
+                resetPasswordCurrentPassword = "";
+                resetPasswordAttempted = false;
+                StateHasChanged();
+                return;
+            }
+
+            // بازنشانی رمز عبور
             var token = await UserManager.GeneratePasswordResetTokenAsync(user);
             var result = await UserManager.ResetPasswordAsync(user, token, resetPasswordNewPassword);
 
             if (result.Succeeded)
             {
-                successMessage = "رمز عبور با موفقیت بازنشانی شد.";
-                showResetPasswordModal = false;
+                resetPasswordSuccess = "✅ رمز عبور با موفقیت بازنشانی شد.";
+                resetPasswordError = "";
+
+                resetPasswordCurrentPassword = "";
+                resetPasswordNewPassword = "";
+                resetPasswordConfirmPassword = "";
+                resetPasswordAttempted = false;
+
+                // به‌روزرسانی لیست کاربران
                 await LoadUsers();
+
+                await Task.Delay(2000);
+                showResetPasswordModal = false;
+                StateHasChanged();
             }
             else
             {
-                resetPasswordError = string.Join(" - ", result.Errors.Select(e => e.Description));
+                resetPasswordError = $"❌ خطا در بازنشانی: {string.Join(" - ", result.Errors.Select(e => e.Description))}";
+                resetPasswordCurrentPassword = "";
+                resetPasswordAttempted = false;
             }
         }
         catch (Exception ex)
         {
-            resetPasswordError = $"خطا: {ex.Message}";
+            resetPasswordError = $"❌ خطا در بازنشانی رمز عبور: {ex.Message}";
+            resetPasswordCurrentPassword = "";
+            resetPasswordAttempted = false;
         }
         finally
         {
@@ -1018,7 +1264,9 @@
                 var result = await UserManager.UpdateAsync(user);
                 if (result.Succeeded)
                 {
-                    successMessage = "کاربر با موفقیت ویرایش شد";
+                    successMessage = "✅ کاربر با موفقیت ویرایش شد";
+                    showModal = false;
+                    await LoadUsers();
                 }
                 else
                 {
@@ -1041,18 +1289,14 @@
                 if (result.Succeeded)
                 {
                     await UserManager.AddToRoleAsync(user, currentUser.Role);
-                    successMessage = "کاربر با موفقیت ایجاد شد";
+                    successMessage = "✅ کاربر با موفقیت ایجاد شد";
+                    showModal = false;
+                    await LoadUsers();
                 }
                 else
                 {
                     validationErrors.AddRange(result.Errors.Select(e => e.Description));
                 }
-            }
-
-            if (string.IsNullOrEmpty(validationErrors.FirstOrDefault()))
-            {
-                showModal = false;
-                await LoadUsers();
             }
         }
         catch (Exception ex)
@@ -1103,7 +1347,8 @@
             var result = await UserManager.UpdateAsync(user);
             if (result.Succeeded)
             {
-                successMessage = $"کاربر با موفقیت {(confirmActionType == "deactivate" ? "غیرفعال" : "فعال")} شد";
+                var actionText = confirmActionType == "deactivate" ? "غیرفعال" : "فعال";
+                successMessage = $"✅ کاربر با موفقیت {actionText} شد";
                 showConfirmModal = false;
                 await LoadUsers();
             }

@@ -879,7 +879,8 @@
             .Where(x =>
                 x.AccountType == "Cash" ||
                 x.AccountType == "Bank" ||
-                x.AccountType == "Customer")
+                x.AccountType == "Customer" ||
+                x.AccountType == "Correspondent")
             .OrderBy(x => x.AccountCode)
             .ToList();
 

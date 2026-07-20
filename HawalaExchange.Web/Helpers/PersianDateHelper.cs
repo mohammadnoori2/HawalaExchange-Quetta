@@ -82,7 +82,7 @@ public static class PersianDateHelper
 
         var sections = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        if (sections.Length == 0)
+        if (sections.Length is 0 or > 2)
             return false;
 
         var datePart = sections[0];
@@ -105,13 +105,14 @@ public static class PersianDateHelper
         var hour = 0;
         var minute = 0;
 
-        var timeParts = timePart.Split(':', StringSplitOptions.RemoveEmptyEntries);
+        var timeParts = timePart.Split(':');
 
-        if (timeParts.Length >= 1)
-            int.TryParse(timeParts[0], out hour);
+        if (timeParts.Length is 0 or > 2 ||
+            !int.TryParse(timeParts[0], out hour))
+            return false;
 
-        if (timeParts.Length >= 2)
-            int.TryParse(timeParts[1], out minute);
+        if (timeParts.Length == 2 && !int.TryParse(timeParts[1], out minute))
+            return false;
 
         try
         {

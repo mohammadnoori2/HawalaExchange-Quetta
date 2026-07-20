@@ -19,11 +19,20 @@ namespace HawalaExchange.Domain.Entities
         [MaxLength(200)]
         public string FullName { get; set; }
 
+        [MaxLength(200)]
+        public string? FatherName { get; set; }
+
         [MaxLength(50)]
         public string? PhoneNumber { get; set; }
 
         [MaxLength(100)]
         public string? TazkiraNumber { get; set; }
+
+        [MaxLength(500)]
+        public string? PhotoPath { get; set; }
+
+        [MaxLength(500)]
+        public string? TazkiraImagePath { get; set; }
 
         [MaxLength(500)]
         public string? Address { get; set; }

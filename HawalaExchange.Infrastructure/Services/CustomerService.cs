@@ -115,12 +115,18 @@ namespace HawalaExchange.Application.Services
                 // ۱. ایجاد مشتری با استفاده از متد پایه
                 var customerDto = await base.CreateAsync(createDto);
 
-                // ۲. ایجاد حساب مرتبط با مشتری
-                var accountDto = await CreateCustomerAccountAsync(customerDto.Id, customerDto.FullName);
+                AccountDto? accountDto = null;
+                if (createDto.OpenAccount)
+                {
+                    accountDto = await CreateCustomerAccountAsync(customerDto.Id, customerDto.FullName);
+                }
 
                 // ۳. ثبت موجودی اولیه (در صورت وجود)
                 if (createDto.HasInitialBalance && createDto.InitialBalances != null && createDto.InitialBalances.Any())
                 {
+                    if (accountDto == null)
+                        throw new InvalidOperationException("برای ثبت موجودی اولیه، گزینه افتتاح حساب را انتخاب کنید.");
+
                     await CreateInitialBalancesAsync(
                         accountDto.Id,
                         createDto.InitialBalances,

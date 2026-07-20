@@ -176,12 +176,10 @@
                                                     مبلغ پرداختی <span class="text-danger">*</span>
                                                 </label>
 
-                                                <input type="number"
-                                                       step="0.01"
-                                                       class="form-control"
-                                                       value="@CurrentExchange.FromAmount"
-                                                       @oninput="OnFromAmountChanged"
-                                                       placeholder="مثلاً 7000" />
+                                                <MoneyInput class="form-control"
+                                                            Value="CurrentExchange.FromAmount"
+                                                            ValueChanged="OnFromAmountChanged"
+                                                            placeholder="مثلاً 7,000" />
                                             </div>
                                         </div>
                                     </div>
@@ -244,12 +242,10 @@
                                                     مبلغ دریافتی <span class="text-danger">*</span>
                                                 </label>
 
-                                                <input type="number"
-                                                       step="0.01"
-                                                       class="form-control"
-                                                       value="@CurrentExchange.ToAmount"
-                                                       @oninput="OnToAmountChanged"
-                                                       placeholder="مثلاً 100" />
+                                                <MoneyInput class="form-control"
+                                                            Value="CurrentExchange.ToAmount"
+                                                            ValueChanged="OnToAmountChanged"
+                                                            placeholder="مثلاً 100" />
                                             </div>
                                         </div>
                                     </div>
@@ -261,12 +257,11 @@
                                             نرخ تبدیل <span class="text-danger">*</span>
                                         </label>
 
-                                        <input type="number"
-                                               step="0.0001"
-                                               class="form-control"
-                                               value="@CurrentExchange.ExchangeRate"
-                                               @oninput="OnExchangeRateChanged"
-                                               placeholder="مثلاً 70" />
+                                        <MoneyInput DecimalPlaces="4"
+                                                    class="form-control"
+                                                    Value="CurrentExchange.ExchangeRate"
+                                                    ValueChanged="OnExchangeRateChanged"
+                                                    placeholder="مثلاً 70" />
                                     </div>
 
                                     <div class="col-md-8">
@@ -556,23 +551,23 @@
         StateHasChanged();
     }
 
-    private void OnFromAmountChanged(ChangeEventArgs e)
+    private void OnFromAmountChanged(decimal amount)
     {
-        CurrentExchange.FromAmount = ParseDecimal(e.Value);
+        CurrentExchange.FromAmount = amount;
         CalculateValues();
         StateHasChanged();
     }
 
-    private void OnToAmountChanged(ChangeEventArgs e)
+    private void OnToAmountChanged(decimal amount)
     {
-        CurrentExchange.ToAmount = ParseDecimal(e.Value);
+        CurrentExchange.ToAmount = amount;
         CalculateValues();
         StateHasChanged();
     }
 
-    private void OnExchangeRateChanged(ChangeEventArgs e)
+    private void OnExchangeRateChanged(decimal rate)
     {
-        CurrentExchange.ExchangeRate = ParseDecimal(e.Value);
+        CurrentExchange.ExchangeRate = rate;
         CalculateValues();
         StateHasChanged();
     }

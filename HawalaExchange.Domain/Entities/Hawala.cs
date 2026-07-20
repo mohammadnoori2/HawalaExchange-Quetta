@@ -106,6 +106,12 @@ namespace HawalaExchange.Domain.Entities
 
         public long? PaidBy { get; set; }
 
+        public long? PaidFromAccountId { get; set; }
+
+        public long? SourceHawalaId { get; set; }
+
+        public bool IsSystemGenerated { get; set; }
+
         public DateTime? CancelledAt { get; set; }
 
         public long? CancelledBy { get; set; }
@@ -135,6 +141,12 @@ namespace HawalaExchange.Domain.Entities
 
         [ForeignKey(nameof(PaidBy))]
         public virtual ApplicationUser? PaidByUser { get; set; }
+
+        [ForeignKey(nameof(PaidFromAccountId))]
+        public virtual Account? PaidFromAccount { get; set; }
+
+        [ForeignKey(nameof(SourceHawalaId))]
+        public virtual Hawala? SourceHawala { get; set; }
 
         [ForeignKey(nameof(CancelledBy))]
         public virtual ApplicationUser? CancelledByUser { get; set; }

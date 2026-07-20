@@ -23,12 +23,11 @@
     private void HandleFocus()
     {
         focused = true;
-        displayValue = Value?.ToString("0.############################", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
     }
 
     private async Task HandleInput(ChangeEventArgs args)
     {
-        displayValue = args.Value?.ToString() ?? string.Empty;
+        displayValue = MoneyFormatHelper.FormatWhileTyping(args.Value?.ToString(), DecimalPlaces);
         if (string.IsNullOrWhiteSpace(displayValue))
             await ValueChanged.InvokeAsync(null);
         else if (MoneyFormatHelper.TryParse(displayValue, out var value))

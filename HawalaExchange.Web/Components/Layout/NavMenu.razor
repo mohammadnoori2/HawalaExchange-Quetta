@@ -29,43 +29,6 @@
 
     <div class="nav-scrollable" onclick="document.getElementById('nav-toggle').checked = false;">
         <nav class="nav flex-column">
-            <!-- اطلاعات کاربر جاری -->
-            <AuthorizeView>
-                <Authorized>
-                    <div class="user-info-card">
-                        <div class="user-avatar">
-                            @{
-                                var userName = context.User.Identity?.Name ?? "کاربر";
-                                var initial = userName.Length > 0 ? userName.Substring(0, Math.Min(2, userName.Length)).ToUpper() : "??";
-                                @initial
-                            }
-                        </div>
-                        <div class="user-details">
-                            <span class="user-name">@context.User.Identity?.Name</span>
-                            <span class="user-role">
-                                @{
-                                    var roles = context.User.FindAll(ClaimTypes.Role).Select(c => c.Value);
-                                    @string.Join(", ", roles)
-                                }
-                            </span>
-                        </div>
-                    </div>
-                </Authorized>
-                <NotAuthorized>
-                    <div class="user-info-card">
-                        <div class="user-avatar">
-                            <i class="bi bi-person"></i>
-                        </div>
-                        <div class="user-details">
-                            <span class="user-name">میهمان</span>
-                            <span class="user-role">ثبت نام نشده</span>
-                        </div>
-                    </div>
-                </NotAuthorized>
-            </AuthorizeView>
-
-            <div class="nav-divider"></div>
-
             <!-- داشبورد -->
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="" Match="NavLinkMatch.All">
@@ -114,7 +77,7 @@
                     <i class="bi bi-download"></i>
                     حواله‌های دریافتی
                 </NavLink>
-            </div>  
+            </div>
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="money-exchange">
                     <i class="bi bi-currency-exchange"></i>
@@ -234,21 +197,61 @@
 
             <div class="nav-divider"></div>
 
-            <!-- خروج / ورود -->
-            <div class="nav-item px-3">
-                <AuthorizeView>
-                    <Authorized>
-                        <NavLink class="nav-link-custom nav-link-logout" href="/logout">
-                            <span class="bi bi-box-arrow-right"></span> خروج
-                        </NavLink>
-                    </Authorized>
-                    <NotAuthorized>
+            <!-- اطلاعات کاربر جاری با منوی dropdown در انتهای منو -->
+            <AuthorizeView>
+                <Authorized>
+                    <div class="user-dropdown-container">
+                        <div class="user-info-card" onclick="toggleUserDropdown()">
+                            <div class="user-avatar">
+                                @{
+                                    var userName = context.User.Identity?.Name ?? "کاربر";
+                                    var initial = userName.Length > 0 ? userName.Substring(0, Math.Min(2, userName.Length)).ToUpper() : "??";
+                                    @initial
+                                }
+                            </div>
+                            <div class="user-details">
+                                <span class="user-name">@context.User.Identity?.Name</span>
+                                <span class="user-role">
+                                    @{
+                                        var roles = context.User.FindAll(ClaimTypes.Role).Select(c => c.Value);
+                                        @string.Join(", ", roles)
+                                    }
+                                </span>
+                            </div>
+                            <span class="dropdown-arrow bi bi-chevron-down"></span>
+                        </div>
+
+                        <!-- منوی dropdown کاربر -->
+                        <div class="user-dropdown-menu" id="userDropdownMenu">
+                            <div class="user-dropdown-header">
+                                <div class="user-dropdown-avatar">
+                                    @{
+                                        var userName2 = context.User.Identity?.Name ?? "کاربر";
+                                        var initial2 = userName2.Length > 0 ? userName2.Substring(0, Math.Min(2, userName2.Length)).ToUpper() : "??";
+                                        @initial2
+                                    }
+                                </div>
+                                <div class="user-dropdown-info">
+                                    <span class="user-dropdown-name">@context.User.Identity?.Name</span>
+                                    <span class="user-dropdown-email">@context.User.FindFirst(ClaimTypes.Email)?.Value</span>
+                                </div>
+                            </div>
+                            <div class="user-dropdown-divider"></div>
+                            <!-- گزینه خروج - حذف تغییر رمز عبور -->
+                            <NavLink class="user-dropdown-item user-dropdown-logout" href="/logout">
+                                <span class="bi bi-box-arrow-right"></span> خروج
+                            </NavLink>
+                        </div>
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <div class="nav-item px-3">
                         <NavLink class="nav-link-custom nav-link-login" href="/login">
                             <span class="bi bi-box-arrow-in-right"></span> ورود
                         </NavLink>
-                    </NotAuthorized>
-                </AuthorizeView>
-            </div>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeView>
         </nav>
     </div>
 </div>
@@ -275,6 +278,41 @@
             }
         }
     }
+
+    // تغییر وضعیت منوی کاربر
+    function toggleUserDropdown() {
+        var dropdown = document.getElementById('userDropdownMenu');
+        var arrow = document.querySelector('.dropdown-arrow');
+        if (dropdown) {
+            if (dropdown.classList.contains('open')) {
+                dropdown.classList.remove('open');
+                if (arrow) arrow.classList.remove('open');
+            } else {
+                dropdown.classList.add('open');
+                if (arrow) arrow.classList.add('open');
+                // بستن منوی قبلی باز شده
+                var allSubMenus = document.querySelectorAll('.sub-menu');
+                allSubMenus.forEach(function(menu) {
+                    if (menu.id !== 'userDropdownMenu') {
+                        menu.classList.remove('open');
+                    }
+                });
+            }
+        }
+    }
+
+    // بستن منو با کلیک خارج از آن
+    document.addEventListener('click', function(event) {
+        var container = document.querySelector('.user-dropdown-container');
+        if (container && !container.contains(event.target)) {
+            var dropdown = document.getElementById('userDropdownMenu');
+            var arrow = document.querySelector('.dropdown-arrow');
+            if (dropdown && dropdown.classList.contains('open')) {
+                dropdown.classList.remove('open');
+                if (arrow) arrow.classList.remove('open');
+            }
+        }
+    });
 </script>
 
 <style>
@@ -418,6 +456,208 @@
         }
 
     /* =========================================
+               استایل‌های Dropdown کاربر
+            ========================================= */
+    .user-dropdown-container {
+        position: relative;
+        margin: 0.5rem 0.6rem;
+    }
+
+    .user-info-card {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 0.7rem 1rem !important;
+        background: linear-gradient(145deg, #f8faff, #eef5ff) !important;
+        border-radius: 16px !important;
+        cursor: pointer !important;
+        transition: all 0.3s ease !important;
+        border: 1px solid rgba(10, 107, 255, 0.08) !important;
+        box-shadow: 0 2px 8px rgba(0, 40, 100, 0.05) !important;
+        position: relative;
+    }
+
+        .user-info-card:hover {
+            background: linear-gradient(145deg, #f0f6ff, #e3edff) !important;
+            border-color: rgba(10, 107, 255, 0.2) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 80, 200, 0.1) !important;
+        }
+
+    .user-avatar {
+        width: 42px !important;
+        height: 42px !important;
+        border-radius: 50% !important;
+        background: linear-gradient(135deg, #0a6bff, #4a8fff) !important;
+        color: white !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-weight: bold !important;
+        font-size: 1.1rem !important;
+        flex-shrink: 0 !important;
+        box-shadow: 0 2px 8px rgba(10, 107, 255, 0.3) !important;
+    }
+
+    .user-details {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 !important;
+        min-width: 0 !important;
+    }
+
+    .user-name {
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        color: #1a2d4a !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
+    .user-role {
+        font-size: 0.7rem !important;
+        color: #5a7fa8 !important;
+        font-weight: 400 !important;
+    }
+
+    .dropdown-arrow {
+        font-size: 0.8rem !important;
+        color: #5a7fa8 !important;
+        transition: transform 0.3s ease !important;
+        margin-right: 4px;
+        flex-shrink: 0;
+    }
+
+        .dropdown-arrow.open {
+            transform: rotate(180deg);
+        }
+
+    /* منوی dropdown کاربر */
+    .user-dropdown-menu {
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        background: white !important;
+        border-radius: 16px !important;
+        box-shadow: 0 8px 32px rgba(0, 40, 100, 0.15) !important;
+        border: 1px solid rgba(10, 107, 255, 0.08) !important;
+        padding: 0.5rem 0 !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        transform: translateY(8px) scale(0.98) !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        z-index: 1000 !important;
+        min-width: 200px !important;
+        overflow: hidden !important;
+    }
+
+        .user-dropdown-menu.open {
+            opacity: 1 !important;
+            visibility: visible !important;
+            transform: translateY(0) scale(1) !important;
+        }
+
+    .user-dropdown-header {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 0.8rem 1rem 0.6rem 1rem !important;
+        border-bottom: 1px solid #f0f4fa !important;
+    }
+
+    .user-dropdown-avatar {
+        width: 40px !important;
+        height: 40px !important;
+        border-radius: 50% !important;
+        background: linear-gradient(135deg, #0a6bff, #4a8fff) !important;
+        color: white !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-weight: bold !important;
+        font-size: 1rem !important;
+        flex-shrink: 0 !important;
+    }
+
+    .user-dropdown-info {
+        display: flex !important;
+        flex-direction: column !important;
+        flex: 1 !important;
+        min-width: 0 !important;
+    }
+
+    .user-dropdown-name {
+        font-weight: 600 !important;
+        font-size: 0.9rem !important;
+        color: #1a2d4a !important;
+    }
+
+    .user-dropdown-email {
+        font-size: 0.75rem !important;
+        color: #7a94b5 !important;
+        word-break: break-all !important;
+    }
+
+    .user-dropdown-divider {
+        height: 1px !important;
+        background: #f0f4fa !important;
+        margin: 0.2rem 0.8rem !important;
+    }
+
+    .user-dropdown-item {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 0.6rem 1rem !important;
+        color: #1e3d66 !important;
+        text-decoration: none !important;
+        transition: all 0.2s ease !important;
+        font-size: 0.9rem !important;
+        font-weight: 450 !important;
+        cursor: pointer !important;
+        margin: 0.1rem 0.4rem !important;
+        border-radius: 10px !important;
+    }
+
+        .user-dropdown-item:hover {
+            background: #f0f6ff !important;
+            color: #0a6bff !important;
+        }
+
+        .user-dropdown-item span {
+            font-size: 1.1rem !important;
+        }
+
+    .user-dropdown-logout {
+        color: #dc3545 !important;
+    }
+
+        .user-dropdown-logout:hover {
+            background: #fff0f0 !important;
+            color: #c82333 !important;
+        }
+
+        .user-dropdown-logout span {
+            color: #dc3545 !important;
+        }
+
+        .user-dropdown-logout:hover span {
+            color: #c82333 !important;
+        }
+
+    /* استایل ورود برای کاربر مهمان */
+    .nav-link-login {
+        color: #0a6bff !important;
+    }
+
+        .nav-link-login:hover {
+            background: #f0f6ff !important;
+            color: #0645b0 !important;
+        }
+
+    /* =========================================
                واکنش‌گرا (Responsive) - هماهنگ با responsive.css
             ========================================= */
     @@media (max-width: 768px) {
@@ -436,6 +676,21 @@
             font-size: 0.95rem !important;
             margin: 0.1rem 0.2rem !important;
         }
+
+        .user-dropdown-menu {
+            position: fixed !important;
+            top: auto !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            border-radius: 20px 20px 0 0 !important;
+            transform: translateY(100%) !important;
+            max-height: 80vh !important;
+        }
+
+            .user-dropdown-menu.open {
+                transform: translateY(0) !important;
+            }
     }
 
     @@media (max-width: 576px) {

@@ -276,12 +276,10 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ حواله <span class="text-danger">*</span>
                                     </label>
-                                    <input type="number"
-                                           step="0.01"
-                                           class="form-control"
-                                           value="@CurrentHawala.FromAmount"
-                                           @oninput="OnFromAmountChanged"
-                                           placeholder="مبلغ" />
+                                    <MoneyInput class="form-control"
+                                                Value="CurrentHawala.FromAmount"
+                                                ValueChanged="OnFromAmountChanged"
+                                                placeholder="مبلغ" />
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
@@ -304,13 +302,11 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ دریافتی
                                     </label>
-                                    <input type="number"
-                                           step="0.01"
-                                           class="form-control"
-                                           value="@CurrentHawala.ToAmount"
-                                           @oninput="OnToAmountChanged"
-                                           disabled="@(CalculationMode == "RateToAmount" || AreCurrenciesSame())"
-                                           placeholder="مبلغ مقصد" />
+                                    <NullableMoneyInput class="form-control"
+                                                        Value="CurrentHawala.ToAmount"
+                                                        ValueChanged="OnToAmountChanged"
+                                                        disabled="@(CalculationMode == "RateToAmount" || AreCurrenciesSame())"
+                                                        placeholder="مبلغ مقصد" />
                                     @if (AreCurrenciesSame())
                                     {
                                         <small class="text-muted text-success">ارزها یکسان هستند، مبلغ برابر با مبلغ حواله است</small>
@@ -356,13 +352,12 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-left-right text-muted me-1"></i> نرخ تبدیل
                                     </label>
-                                    <input type="number"
-                                           step="0.0001"
-                                           class="form-control"
-                                           value="@CurrentHawala.ExchangeRate"
-                                           @oninput="OnExchangeRateChanged"
-                                           disabled="@(CalculationMode == "AmountToRate" || AreCurrenciesSame())"
-                                           placeholder="نرخ تبدیل" />
+                                    <NullableMoneyInput DecimalPlaces="4"
+                                                        class="form-control"
+                                                        Value="CurrentHawala.ExchangeRate"
+                                                        ValueChanged="OnExchangeRateChanged"
+                                                        disabled="@(CalculationMode == "AmountToRate" || AreCurrenciesSame())"
+                                                        placeholder="نرخ تبدیل" />
                                     @if (AreCurrenciesSame())
                                     {
                                         <small class="text-muted text-success">ارزها یکسان هستند، نرخ برابر ۱ است</small>
@@ -372,7 +367,7 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-cash-stack text-muted me-1"></i> کارمزد
                                     </label>
-                                    <input type="number" step="0.01" class="form-control" @bind="CurrentHawala.CommissionAmount" placeholder="کارمزد" />
+                                    <NullableMoneyInput class="form-control" @bind-Value="CurrentHawala.CommissionAmount" placeholder="کارمزد" />
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
@@ -393,7 +388,7 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-cash-stack text-muted me-1"></i> کارمزد نماینده
                                     </label>
-                                    <input type="number" step="0.01" class="form-control" @bind="CurrentHawala.AgentCommissionAmount" placeholder="کارمزد نماینده" />
+                                    <NullableMoneyInput class="form-control" @bind-Value="CurrentHawala.AgentCommissionAmount" placeholder="کارمزد نماینده" />
                                 </div>
                             </div>
 
@@ -1529,16 +1524,9 @@
         CalculateFinancialValues();
     }
 
-    private void OnFromAmountChanged(ChangeEventArgs e)
+    private void OnFromAmountChanged(decimal amount)
     {
-        if (decimal.TryParse(e.Value?.ToString(), out var amount))
-        {
-            CurrentHawala.FromAmount = amount;
-        }
-        else
-        {
-            CurrentHawala.FromAmount = 0;
-        }
+        CurrentHawala.FromAmount = amount;
 
         if (AreCurrenciesSame())
         {
@@ -1551,16 +1539,9 @@
         }
     }
 
-    private void OnExchangeRateChanged(ChangeEventArgs e)
+    private void OnExchangeRateChanged(decimal? rate)
     {
-        if (decimal.TryParse(e.Value?.ToString(), out var rate))
-        {
-            CurrentHawala.ExchangeRate = rate;
-        }
-        else
-        {
-            CurrentHawala.ExchangeRate = null;
-        }
+        CurrentHawala.ExchangeRate = rate;
 
         if (AreCurrenciesSame())
         {
@@ -1573,16 +1554,9 @@
         }
     }
 
-    private void OnToAmountChanged(ChangeEventArgs e)
+    private void OnToAmountChanged(decimal? amount)
     {
-        if (decimal.TryParse(e.Value?.ToString(), out var amount))
-        {
-            CurrentHawala.ToAmount = amount;
-        }
-        else
-        {
-            CurrentHawala.ToAmount = null;
-        }
+        CurrentHawala.ToAmount = amount;
 
         if (AreCurrenciesSame())
         {

@@ -450,11 +450,9 @@
                                         مبلغ <span class="text-danger">*</span>
                                     </label>
 
-                                    <input type="number"
-                                           step="0.01"
-                                           class="form-control"
-                                           @bind="currentExpense.Amount"
-                                           placeholder="مثلاً 5000" />
+                                    <MoneyInput class="form-control"
+                                                @bind-Value="currentExpense.Amount"
+                                                placeholder="مثلاً 5,000" />
                                 </div>
 
                                 <div class="col-md-3 mb-3">

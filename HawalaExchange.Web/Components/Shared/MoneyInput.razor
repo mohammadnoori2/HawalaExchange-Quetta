@@ -1,0 +1,51 @@
+@using HawalaExchange.Web.Helpers
+
+<input type="text" value="@displayValue" inputmode="decimal" dir="ltr"
+       @onfocus="HandleFocus" @oninput="HandleInput" @onblur="HandleBlur"
+       @attributes="AdditionalAttributes" />
+
+@code {
+    [Parameter] public decimal Value { get; set; }
+    [Parameter] public EventCallback<decimal> ValueChanged { get; set; }
+    [Parameter] public int DecimalPlaces { get; set; } = 2;
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string displayValue = string.Empty;
+    private bool focused;
+
+    protected override void OnParametersSet()
+    {
+        if (!focused)
+            displayValue = MoneyFormatHelper.Format(Value, DecimalPlaces);
+    }
+
+    private void HandleFocus()
+    {
+        focused = true;
+        displayValue = Value == 0
+            ? string.Empty
+            : Value.ToString("0.############################", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private async Task HandleInput(ChangeEventArgs args)
+    {
+        displayValue = args.Value?.ToString() ?? string.Empty;
+        if (MoneyFormatHelper.TryParse(displayValue, out var value))
+            await ValueChanged.InvokeAsync(value);
+    }
+
+    private async Task HandleBlur()
+    {
+        focused = false;
+        if (MoneyFormatHelper.TryParse(displayValue, out var value))
+        {
+            await ValueChanged.InvokeAsync(value);
+            displayValue = MoneyFormatHelper.Format(value, DecimalPlaces);
+        }
+        else
+        {
+            displayValue = MoneyFormatHelper.Format(Value, DecimalPlaces);
+        }
+    }
+}

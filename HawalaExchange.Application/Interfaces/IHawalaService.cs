@@ -12,6 +12,7 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<HawalaStatisticsDto> GetStatisticsAsync();
        
         Task<HawalaDto> MarkAsPaidAsync(long id, long paidFromAccountId);
+        Task<HawalaDto> MarkAsPaidAsync(long id, PayHawalaDto payment);
         Task<HawalaDto> CancelHawalaAsync(long id, string cancelReason);
         Task<long> GetNextNumberAsync(long correspondentId, string hawalaType);
     }

@@ -1,0 +1,122 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject IFileService FileService
+
+<div class="modern-card mb-3">
+    <div class="card-header">
+        <h6 class="mb-0"><i class="bi bi-person-check me-2"></i>تکمیل مشخصات گیرنده</h6>
+    </div>
+    <div class="card-body">
+        <div class="mb-3 position-relative">
+            <label class="form-label fw-bold">جستجوی مشتری ثبت‌شده</label>
+            <input type="search" class="form-control" @bind="searchTerm" @bind:event="oninput"
+                   placeholder="نام، کد مشتری، تلفن یا شماره تذکره" autocomplete="off" />
+            @if (MatchingCustomers.Any())
+            {
+                <div class="list-group mt-1 shadow-sm">
+                    @foreach (var customer in MatchingCustomers)
+                    {
+                        <button type="button" class="list-group-item list-group-item-action"
+                                @onclick="() => SelectCustomer(customer)">
+                            <strong>@customer.FullName</strong>
+                            <span class="text-muted small ms-2">@customer.CustomerCode · @customer.PhoneNumber</span>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-bold">نام گیرنده <span class="text-danger">*</span></label>
+                <input class="form-control" @bind="Model.ReceiverName" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">نام پدر</label>
+                <input class="form-control" @bind="Model.ReceiverFatherName" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">شماره تلفن</label>
+                <input class="form-control" @bind="Model.ReceiverPhone" dir="ltr" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-bold">شماره تذکره</label>
+                <input class="form-control" @bind="Model.ReceiverTazkiraNumber" />
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">آدرس</label>
+                <textarea class="form-control" rows="2" @bind="Model.ReceiverAddress"></textarea>
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-bold">عکس تذکره گیرنده</label>
+                <InputFile class="form-control" OnChange="UploadTazkiraImage" accept="image/*" />
+                @if (!string.IsNullOrWhiteSpace(Model.ReceiverTazkiraImagePath))
+                {
+                    <a class="small d-inline-block mt-2" href="@FileService.GetFileUrl(Model.ReceiverTazkiraImagePath)" target="_blank">
+                        مشاهده عکس تذکره
+                    </a>
+                }
+                @if (!string.IsNullOrWhiteSpace(uploadError))
+                {
+                    <div class="text-danger small mt-1">@uploadError</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PayHawalaDto Model { get; set; } = new();
+    [Parameter] public IReadOnlyList<CustomerDto> Customers { get; set; } = Array.Empty<CustomerDto>();
+
+    private string searchTerm = string.Empty;
+    private string uploadError = string.Empty;
+
+    private IEnumerable<CustomerDto> MatchingCustomers
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchTerm))
+                return Enumerable.Empty<CustomerDto>();
+
+            var term = searchTerm.Trim();
+            return Customers
+                .Where(x => !x.IsArchived &&
+                    (x.FullName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                     x.CustomerCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                     (x.PhoneNumber?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                     (x.TazkiraNumber?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false)))
+                .Take(8);
+        }
+    }
+
+    private void SelectCustomer(CustomerDto customer)
+    {
+        Model.ReceiverName = customer.FullName;
+        Model.ReceiverFatherName = customer.FatherName;
+        Model.ReceiverPhone = customer.PhoneNumber;
+        Model.ReceiverTazkiraNumber = customer.TazkiraNumber;
+        Model.ReceiverTazkiraImagePath = customer.TazkiraImagePath;
+        Model.ReceiverAddress = customer.Address;
+        searchTerm = string.Empty;
+    }
+
+    private async Task UploadTazkiraImage(InputFileChangeEventArgs e)
+    {
+        uploadError = string.Empty;
+        try
+        {
+            using var stream = e.File.OpenReadStream(10 * 1024 * 1024);
+            var result = await FileService.UploadFileAsync(stream, e.File.Name, "hawala-receivers/tazkira");
+            if (result.Success)
+                Model.ReceiverTazkiraImagePath = result.FilePath;
+            else
+                uploadError = result.ErrorMessage ?? "آپلود عکس ناموفق بود.";
+        }
+        catch (Exception ex)
+        {
+            uploadError = $"خطا در آپلود عکس: {ex.Message}";
+        }
+    }
+}

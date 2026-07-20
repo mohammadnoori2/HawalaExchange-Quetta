@@ -347,15 +347,15 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-coin text-muted me-1"></i> نرخ خرید <span class="text-danger">*</span>
                                     </label>
-                                    <input type="number" step="0.0001" class="form-control"
-                                           @bind="currentRate.BuyRate" placeholder="مثال: 75.5" />
+                                    <MoneyInput DecimalPlaces="4" class="form-control"
+                                                @bind-Value="currentRate.BuyRate" placeholder="مثال: 75.5" />
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-coin text-muted me-1"></i> نرخ فروش <span class="text-danger">*</span>
                                     </label>
-                                    <input type="number" step="0.0001" class="form-control"
-                                           @bind="currentRate.SellRate" placeholder="مثال: 76.0" />
+                                    <MoneyInput DecimalPlaces="4" class="form-control"
+                                                @bind-Value="currentRate.SellRate" placeholder="مثال: 76.0" />
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">

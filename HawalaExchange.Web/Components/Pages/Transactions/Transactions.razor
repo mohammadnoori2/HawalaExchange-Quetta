@@ -448,7 +448,7 @@
                                         </div>
                                         <div class="col-md-3 mb-2">
                                             <label class="form-label fw-bold small">مبلغ از</label>
-                                            <input type="number" step="0.01" class="form-control" @bind="detail.FromAmount" />
+                                            <NullableMoneyInput class="form-control" @bind-Value="detail.FromAmount" />
                                         </div>
                                         <div class="col-md-3 mb-2">
                                             <label class="form-label fw-bold small">به ارز</label>
@@ -462,21 +462,21 @@
                                         </div>
                                         <div class="col-md-3 mb-2">
                                             <label class="form-label fw-bold small">مبلغ به</label>
-                                            <input type="number" step="0.01" class="form-control" @bind="detail.ToAmount" />
+                                            <NullableMoneyInput class="form-control" @bind-Value="detail.ToAmount" />
                                         </div>
                                     </div>
                                     <div class="row">
                                         <div class="col-md-3 mb-2">
                                             <label class="form-label fw-bold small">نرخ تبدیل</label>
-                                            <input type="number" step="0.0001" class="form-control" @bind="detail.ExchangeRate" />
+                                            <NullableMoneyInput DecimalPlaces="4" class="form-control" @bind-Value="detail.ExchangeRate" />
                                         </div>
                                         <div class="col-md-3 mb-2">
                                             <label class="form-label fw-bold small">مبلغ انتقال</label>
-                                            <input type="number" step="0.01" class="form-control" @bind="detail.TransferAmount" />
+                                            <NullableMoneyInput class="form-control" @bind-Value="detail.TransferAmount" />
                                         </div>
                                         <div class="col-md-3 mb-2">
                                             <label class="form-label fw-bold small">کارمزد</label>
-                                            <input type="number" step="0.01" class="form-control" @bind="detail.CommissionAmount" />
+                                            <MoneyInput class="form-control" @bind-Value="detail.CommissionAmount" />
                                         </div>
                                         <div class="col-md-3 mb-2">
                                             <label class="form-label fw-bold small">ارز کارمزد</label>

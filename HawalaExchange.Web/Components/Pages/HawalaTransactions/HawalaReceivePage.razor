@@ -9,6 +9,7 @@
 
 @inject IHawalaService HawalaService
 @inject IAccountService AccountService
+@inject ICustomerService CustomerService
 @inject ICompanySettingService CompanySettingService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
@@ -310,7 +311,7 @@
          tabindex="-1"
          style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
          dir="rtl">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
@@ -328,6 +329,8 @@
                         پرداخت حواله نمبر:
                         <strong>@payHawalaNumber</strong>
                     </div>
+
+                    <ReceiverPaymentFields Model="payDetails" Customers="customers" />
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">
@@ -687,6 +690,8 @@
     private long payHawalaId = 0;
     private long payHawalaNumber = 0;
     private long selectedPaymentAccountId = 0;
+    private List<CustomerDto> customers = new();
+    private PayHawalaDto payDetails = new();
 
     private long cancelId = 0;
     private long deleteId = 0;
@@ -719,6 +724,7 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadAccounts();
+        await LoadCustomers();
         await LoadData();
     }
 
@@ -736,6 +742,13 @@
         {
             validationErrors.Add($"خطا در بارگذاری حساب‌ها: {ex.Message}");
         }
+    }
+
+    private async Task LoadCustomers()
+    {
+        customers = (await CustomerService.GetAllAsync())
+            .Where(x => !x.IsArchived)
+            .ToList();
     }
 
     private async Task LoadData()
@@ -843,6 +856,8 @@
         payHawalaId = hawalaId;
         payHawalaNumber = hawalaNumber;
         selectedPaymentAccountId = 0;
+        var hawala = hawalas.FirstOrDefault(x => x.Id == hawalaId);
+        payDetails = CreatePayDetails(hawala);
         validationErrors.Clear();
         successMessage = string.Empty;
         showPayModal = true;
@@ -854,6 +869,7 @@
         payHawalaId = 0;
         payHawalaNumber = 0;
         selectedPaymentAccountId = 0;
+        payDetails = new PayHawalaDto();
     }
 
     private async Task ConfirmPay()
@@ -871,7 +887,8 @@
         {
             isLoading = true;
 
-            await HawalaService.MarkAsPaidAsync(payHawalaId, selectedPaymentAccountId);
+            payDetails.PaidFromAccountId = selectedPaymentAccountId;
+            await HawalaService.MarkAsPaidAsync(payHawalaId, payDetails);
 
             successMessage = "حواله با موفقیت پرداخت شد.";
 
@@ -888,6 +905,16 @@
             isLoading = false;
         }
     }
+
+    private static PayHawalaDto CreatePayDetails(HawalaDto? hawala) => new()
+    {
+        ReceiverName = hawala?.ReceiverName ?? string.Empty,
+        ReceiverFatherName = hawala?.ReceiverFatherName,
+        ReceiverPhone = hawala?.ReceiverPhone,
+        ReceiverTazkiraNumber = hawala?.ReceiverTazkiraNumber,
+        ReceiverTazkiraImagePath = hawala?.ReceiverTazkiraImagePath,
+        ReceiverAddress = hawala?.ReceiverAddress
+    };
 
     private async Task OpenReceipt(long hawalaId)
     {

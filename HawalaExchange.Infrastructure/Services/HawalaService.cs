@@ -311,6 +311,26 @@
             }
             public async Task<HawalaDto> MarkAsPaidAsync(long id, long paidFromAccountId)
             {
+                var hawala = await _context.Hawalas
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == id);
+                if (hawala == null)
+                    throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
+
+                return await MarkAsPaidAsync(id, new PayHawalaDto
+                {
+                    PaidFromAccountId = paidFromAccountId,
+                    ReceiverName = hawala.ReceiverName ?? string.Empty,
+                    ReceiverFatherName = hawala.ReceiverFatherName,
+                    ReceiverPhone = hawala.ReceiverPhone,
+                    ReceiverTazkiraNumber = hawala.ReceiverTazkiraNumber,
+                    ReceiverTazkiraImagePath = hawala.ReceiverTazkiraImagePath,
+                    ReceiverAddress = hawala.ReceiverAddress
+                });
+            }
+
+            public async Task<HawalaDto> MarkAsPaidAsync(long id, PayHawalaDto payment)
+            {
                 using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
                 try
@@ -327,9 +347,22 @@
                     if (hawala.Status == "Cancel")
                         throw new InvalidOperationException("حواله لغو شده قابل پرداخت نیست.");
 
+                    if (payment.PaidFromAccountId <= 0)
+                        throw new InvalidOperationException("انتخاب حساب پرداخت‌کننده الزامی است.");
+
+                    if (string.IsNullOrWhiteSpace(payment.ReceiverName))
+                        throw new InvalidOperationException("نام گیرنده الزامی است.");
+
+                    hawala.ReceiverName = payment.ReceiverName.Trim();
+                    hawala.ReceiverFatherName = payment.ReceiverFatherName?.Trim();
+                    hawala.ReceiverPhone = payment.ReceiverPhone?.Trim();
+                    hawala.ReceiverTazkiraNumber = payment.ReceiverTazkiraNumber?.Trim();
+                    hawala.ReceiverTazkiraImagePath = payment.ReceiverTazkiraImagePath;
+                    hawala.ReceiverAddress = payment.ReceiverAddress?.Trim();
+
                     if (hawala.HawalaType == "HawalaReceive")
                     {
-                        await ProcessHawalaReceivePaymentAsync(hawala, paidFromAccountId);
+                        await ProcessHawalaReceivePaymentAsync(hawala, payment.PaidFromAccountId);
                     }
                     else
                     {
@@ -601,11 +634,13 @@
                     SenderFatherName = receivedHawala.SenderFatherName,
                     SenderPhone = receivedHawala.SenderPhone,
                     SenderTazkiraNumber = receivedHawala.SenderTazkiraNumber,
+                    SenderTazkiraImagePath = receivedHawala.SenderTazkiraImagePath,
                     SenderAddress = receivedHawala.SenderAddress,
                     ReceiverName = receivedHawala.ReceiverName,
                     ReceiverFatherName = receivedHawala.ReceiverFatherName,
                     ReceiverPhone = receivedHawala.ReceiverPhone,
                     ReceiverTazkiraNumber = receivedHawala.ReceiverTazkiraNumber,
+                    ReceiverTazkiraImagePath = receivedHawala.ReceiverTazkiraImagePath,
                     ReceiverAddress = receivedHawala.ReceiverAddress,
                     FromCurrencyId = receivedHawala.FromCurrencyId,
                     FromAmount = receivedHawala.FromAmount,

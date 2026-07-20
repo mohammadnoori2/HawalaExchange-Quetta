@@ -14,6 +14,7 @@
 @inject ICorrespondentService CorrespondentService
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
+@inject ICustomerService CustomerService
 @inject IPaymentLocationService PaymentLocationService
 @inject IWebHostEnvironment WebHostEnvironment
 @inject IFileService FileService
@@ -490,7 +491,7 @@
          tabindex="-1"
          style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
          dir="rtl">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
@@ -509,6 +510,8 @@
                         <strong>@payHawalaNumber</strong>
                         هستید.
                     </div>
+
+                    <ReceiverPaymentFields Model="payDetails" Customers="customers" />
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">
@@ -873,6 +876,8 @@
     private long payHawalaId = 0;
     private long payHawalaNumber = 0;
     private long selectedPaymentAccountId = 0;
+    private List<CustomerDto> customers = new();
+    private PayHawalaDto payDetails = new();
 
     private List<AccountDto> paymentAccountsForHawalaReceive =>
         accounts
@@ -1060,6 +1065,7 @@
     {
         await LoadLookupData();
         await LoadAccounts();
+        await LoadCustomers();
         await LoadHawalas();
         await LoadPaymentLocations();
     }
@@ -1090,6 +1096,13 @@
         {
             validationErrors.Add($"خطا در بارگذاری حساب‌ها: {ex.Message}");
         }
+    }
+
+    private async Task LoadCustomers()
+    {
+        customers = (await CustomerService.GetAllAsync())
+            .Where(x => !x.IsArchived)
+            .ToList();
     }
 
     private async Task LoadHawalas()
@@ -1331,6 +1344,8 @@
         payHawalaId = hawalaId;
         payHawalaNumber = hawalaNumber;
         selectedPaymentAccountId = 0;
+        var hawala = filteredHawalas.FirstOrDefault(x => x.Id == hawalaId);
+        payDetails = CreatePayDetails(hawala);
         validationErrors.Clear();
         successMessage = string.Empty;
         showPayModal = true;
@@ -1343,6 +1358,7 @@
         payHawalaId = 0;
         payHawalaNumber = 0;
         selectedPaymentAccountId = 0;
+        payDetails = new PayHawalaDto();
         StateHasChanged();
     }
 
@@ -1363,7 +1379,8 @@
             isLoading = true;
             StateHasChanged();
 
-            await HawalaService.MarkAsPaidAsync(payHawalaId, selectedPaymentAccountId);
+            payDetails.PaidFromAccountId = selectedPaymentAccountId;
+            await HawalaService.MarkAsPaidAsync(payHawalaId, payDetails);
 
             successMessage = "حواله با موفقیت پرداخت شد.";
 
@@ -1384,6 +1401,16 @@
             StateHasChanged();
         }
     }
+
+    private static PayHawalaDto CreatePayDetails(HawalaDto? hawala) => new()
+    {
+        ReceiverName = hawala?.ReceiverName ?? string.Empty,
+        ReceiverFatherName = hawala?.ReceiverFatherName,
+        ReceiverPhone = hawala?.ReceiverPhone,
+        ReceiverTazkiraNumber = hawala?.ReceiverTazkiraNumber,
+        ReceiverTazkiraImagePath = hawala?.ReceiverTazkiraImagePath,
+        ReceiverAddress = hawala?.ReceiverAddress
+    };
 
     private async Task ConfirmCancel()
     {

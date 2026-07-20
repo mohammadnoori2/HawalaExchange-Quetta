@@ -1,12 +1,14 @@
 ﻿@page "/customers"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Authorization
 @inject ICustomerService CustomerService
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject ILedgerService LedgerService
 @inject ITransactionService TransactionService
+@inject IFileService FileService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 @attribute [Authorize]
@@ -355,6 +357,13 @@
                                     <input type="text" class="form-control"
                                            @bind="currentCustomer.FullName" placeholder="نام و نام خانوادگی" />
                                 </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-person-vcard text-muted me-1"></i> نام پدر
+                                    </label>
+                                    <input type="text" class="form-control"
+                                           @bind="currentCustomer.FatherName" placeholder="نام پدر" />
+                                </div>
                             </div>
 
                             <div class="row">
@@ -369,6 +378,29 @@
                                         <i class="bi bi-card-text text-muted me-1"></i> شماره تذکره
                                     </label>
                                     <input type="text" class="form-control" @bind="currentCustomer.TazkiraNumber" placeholder="شماره تذکره" />
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-person-square text-muted me-1"></i> عکس مشتری
+                                    </label>
+                                    <InputFile class="form-control" OnChange="OnCustomerPhotoUpload" accept="image/*" />
+                                    @if (!string.IsNullOrWhiteSpace(currentCustomer.PhotoPath))
+                                    {
+                                        <a class="small d-inline-block mt-2" href="@FileService.GetFileUrl(currentCustomer.PhotoPath)" target="_blank">مشاهده عکس</a>
+                                    }
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-card-image text-muted me-1"></i> عکس تذکره
+                                    </label>
+                                    <InputFile class="form-control" OnChange="OnCustomerTazkiraUpload" accept="image/*" />
+                                    @if (!string.IsNullOrWhiteSpace(currentCustomer.TazkiraImagePath))
+                                    {
+                                        <a class="small d-inline-block mt-2" href="@FileService.GetFileUrl(currentCustomer.TazkiraImagePath)" target="_blank">مشاهده عکس تذکره</a>
+                                    }
                                 </div>
                             </div>
 
@@ -392,15 +424,21 @@
 
                             @if (!isEditMode)
                             {
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="openCustomerAccount"
+                                           @bind="currentCustomer.OpenAccount" @bind:after="OnOpenAccountChanged" />
+                                    <label class="form-check-label fw-bold" for="openCustomerAccount">
+                                        <i class="bi bi-wallet2 text-primary me-1"></i> افتتاح حساب
+                                    </label>
+                                    <div class="text-muted small mt-1">در صورت انتخاب، یک حساب از نوع مشتری ساخته می‌شود.</div>
+                                </div>
+
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" id="hasInitialBalance"
-                                           @bind="hasInitialBalance" />
+                                           @bind="hasInitialBalance" disabled="@(!currentCustomer.OpenAccount)" />
                                     <label class="form-check-label fw-bold" for="hasInitialBalance">
                                         <i class="bi bi-plus-circle text-success me-1"></i> افزودن موجودی اولیه
                                     </label>
-                                </div>
-                                <div class="text-muted small mt-1">
-                                    <i class="bi bi-info-circle"></i> با ایجاد مشتری، یک حساب با نوع <strong>مشتری</strong> به‌طور خودکار ساخته می‌شود.
                                 </div>
                             }
                             else
@@ -413,7 +451,7 @@
                         </div>
                     </div>
 
-                    @if (!isEditMode && hasInitialBalance)
+                    @if (!isEditMode && currentCustomer.OpenAccount && hasInitialBalance)
                     {
                         <div class="modern-card mb-4" style="border-right: 4px solid var(--primary-color);">
                             <div class="card-header">
@@ -482,7 +520,7 @@
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label fw-bold small">مقدار <span class="text-danger">*</span></label>
-                                        <input type="number" class="form-control" @bind="newInitialBalance.Amount" step="0.01" min="0" placeholder="0" />
+                                        <MoneyInput class="form-control" @bind-Value="newInitialBalance.Amount" min="0" placeholder="0" />
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label fw-bold small">نوع <span class="text-danger">*</span></label>
@@ -829,7 +867,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">مقدار <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" @bind="financialTransaction.Amount" step="0.01" min="0" placeholder="0" />
+                            <MoneyInput class="form-control" @bind-Value="financialTransaction.Amount" min="0" placeholder="0" />
                         </div>
                     </div>
 
@@ -1114,8 +1152,11 @@
                 currentCustomer = new CreateCustomerDto
                 {
                     FullName = customer.FullName,
+                    FatherName = customer.FatherName,
                     PhoneNumber = customer.PhoneNumber,
                     TazkiraNumber = customer.TazkiraNumber,
+                    PhotoPath = customer.PhotoPath,
+                    TazkiraImagePath = customer.TazkiraImagePath,
                     Address = customer.Address,
                     Remarks = customer.Remarks
                 };
@@ -1212,6 +1253,9 @@
         if (hasInitialBalance && !initialBalances.Any())
             validationErrors.Add("حداقل یک موجودی اولیه باید ثبت شود");
 
+        if (hasInitialBalance && !currentCustomer.OpenAccount)
+            validationErrors.Add("برای ثبت موجودی اولیه، گزینه افتتاح حساب را انتخاب کنید");
+
         if (validationErrors.Any())
         {
             StateHasChanged();
@@ -1228,8 +1272,11 @@
                 var updateRequest = new UpdateCustomerDto
                 {
                     FullName = currentCustomer.FullName,
+                    FatherName = currentCustomer.FatherName,
                     PhoneNumber = currentCustomer.PhoneNumber,
                     TazkiraNumber = currentCustomer.TazkiraNumber,
+                    PhotoPath = currentCustomer.PhotoPath,
+                    TazkiraImagePath = currentCustomer.TazkiraImagePath,
                     Address = currentCustomer.Address,
                     Remarks = currentCustomer.Remarks,
                     IsArchived = false
@@ -1270,6 +1317,49 @@
             isLoading = false;
             StateHasChanged();
         }
+    }
+
+    private void OnOpenAccountChanged()
+    {
+        if (currentCustomer.OpenAccount)
+            return;
+
+        hasInitialBalance = false;
+        initialBalances.Clear();
+        newInitialBalance = new InitialBalanceDto();
+    }
+
+    private async Task OnCustomerPhotoUpload(InputFileChangeEventArgs e)
+    {
+        var path = await UploadCustomerImageAsync(e.File, "photos");
+        if (path != null)
+            currentCustomer.PhotoPath = path;
+    }
+
+    private async Task OnCustomerTazkiraUpload(InputFileChangeEventArgs e)
+    {
+        var path = await UploadCustomerImageAsync(e.File, "tazkira");
+        if (path != null)
+            currentCustomer.TazkiraImagePath = path;
+    }
+
+    private async Task<string?> UploadCustomerImageAsync(IBrowserFile file, string category)
+    {
+        try
+        {
+            using var stream = file.OpenReadStream(10 * 1024 * 1024);
+            var result = await FileService.UploadFileAsync(stream, file.Name, $"customers/{category}");
+            if (result.Success)
+                return result.FilePath;
+
+            validationErrors.Add(result.ErrorMessage ?? "آپلود عکس ناموفق بود.");
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در آپلود عکس: {ex.Message}");
+        }
+
+        return null;
     }
 
     // ===== بایگانی =====

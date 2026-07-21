@@ -10,6 +10,7 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<HawalaDto?> GetHawalaByIdAsync(long id);
         Task<HawalaListResultDto> GetHawalasAsync(HawalaFilterDto filter);
         Task<HawalaStatisticsDto> GetStatisticsAsync();
+        Task<CorrespondentHawalaRangeResultDto> GetCorrespondentRangeAsync(CorrespondentHawalaRangeFilterDto filter);
        
         Task<HawalaDto> MarkAsPaidAsync(long id, long paidFromAccountId);
         Task<HawalaDto> MarkAsPaidAsync(long id, PayHawalaDto payment);

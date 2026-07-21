@@ -5,6 +5,7 @@ using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Data;
 
 namespace HawalaExchange.Application.Services
 {
@@ -92,14 +93,13 @@ namespace HawalaExchange.Application.Services
 
         protected override async Task ValidateCreateAsync(Correspondent entity, CreateCorrespondentDto dto)
         {
-            if (await _dbSet.AnyAsync(c => c.Code == entity.Code))
-                throw new InvalidOperationException($"کد نماینده '{entity.Code}' قبلاً وجود دارد.");
+            entity.Code = await GenerateCorrespondentCodeAsync();
         }
 
         // ===== بازنویسی متد CreateAsync با پشتیبانی از موجودی اولیه =====
         public override async Task<CorrespondentDto> CreateAsync(CreateCorrespondentDto createDto)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
             try
             {
@@ -142,6 +142,22 @@ namespace HawalaExchange.Application.Services
         }
 
         // ===== متدهای کمکی خصوصی =====
+
+        private async Task<string> GenerateCorrespondentCodeAsync()
+        {
+            const string prefix = "AG-";
+            var existingCodes = await _dbSet
+                .Where(c => c.Code.StartsWith(prefix))
+                .Select(c => c.Code)
+                .ToListAsync();
+
+            var lastNumber = existingCodes
+                .Select(code => int.TryParse(code[prefix.Length..], out var number) ? number : 0)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return $"{prefix}{lastNumber + 1:D3}";
+        }
 
         private async Task<AccountDto> CreateCorrespondentAccountAsync(long correspondentId, string correspondentName)
         {

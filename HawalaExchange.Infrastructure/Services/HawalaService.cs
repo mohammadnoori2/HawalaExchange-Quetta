@@ -329,6 +329,100 @@
                 });
             }
 
+            public async Task<CorrespondentHawalaRangeResultDto> GetCorrespondentRangeAsync(
+                CorrespondentHawalaRangeFilterDto filter)
+            {
+                if (filter.CorrespondentId <= 0)
+                    throw new InvalidOperationException("انتخاب نمایندگی الزامی است.");
+
+                var validHawalaTypes = new[] { "HawalaSend", "HawalaReceive", "HawalaOther" };
+                if (!validHawalaTypes.Contains(filter.HawalaType))
+                    throw new InvalidOperationException("نوع حواله معتبر نیست.");
+
+                var query = _context.Hawalas
+                    .AsNoTracking()
+                    .Include(h => h.Correspondent)
+                    .Include(h => h.FromCurrency)
+                    .Include(h => h.ToCurrency)
+                    .Include(h => h.CommissionCurrency)
+                    .Include(h => h.AgentCommissionCurrency)
+                    .Where(h => h.CorrespondentId == filter.CorrespondentId &&
+                                h.HawalaType == filter.HawalaType);
+
+                if (filter.RangeType == "Number")
+                {
+                    if (!filter.StartNumber.HasValue || !filter.EndNumber.HasValue ||
+                        filter.StartNumber <= 0 || filter.EndNumber < filter.StartNumber)
+                    {
+                        throw new InvalidOperationException("محدوده شماره حواله معتبر نیست.");
+                    }
+
+                    query = query.Where(h => h.Number >= filter.StartNumber.Value &&
+                                             h.Number <= filter.EndNumber.Value);
+                }
+                else if (filter.RangeType == "Date")
+                {
+                    if (!filter.StartDate.HasValue || !filter.EndDate.HasValue ||
+                        filter.EndDate.Value.Date < filter.StartDate.Value.Date)
+                    {
+                        throw new InvalidOperationException("محدوده تاریخ معتبر نیست.");
+                    }
+
+                    var startDate = filter.StartDate.Value.Date;
+                    var endDateExclusive = filter.EndDate.Value.Date.AddDays(1);
+                    query = query.Where(h => h.CreatedAt >= startDate && h.CreatedAt < endDateExclusive);
+                }
+                else
+                {
+                    throw new InvalidOperationException("نوع محدوده معتبر نیست.");
+                }
+
+                var hawalas = await query
+                    .OrderBy(h => h.Number)
+                    .ThenBy(h => h.CreatedAt)
+                    .ToListAsync();
+
+                var result = new CorrespondentHawalaRangeResultDto
+                {
+                    Hawalas = _mapper.Map<List<HawalaDto>>(hawalas)
+                };
+
+                if (hawalas.Count == 0)
+                    return result;
+
+                var correspondentAccountId = await _context.Accounts
+                    .AsNoTracking()
+                    .Where(a => a.ReferenceType == "Correspondent" &&
+                                a.ReferenceId == filter.CorrespondentId)
+                    .Select(a => (long?)a.Id)
+                    .FirstOrDefaultAsync();
+
+                if (!correspondentAccountId.HasValue)
+                    return result;
+
+                var hawalaIds = hawalas.Select(h => h.Id).ToList();
+                var ledgerEntries = await _context.LedgerEntries
+                    .AsNoTracking()
+                    .Include(e => e.Currency)
+                    .Where(e => e.AccountId == correspondentAccountId.Value &&
+                                e.HawalaId.HasValue && hawalaIds.Contains(e.HawalaId.Value))
+                    .ToListAsync();
+
+                result.Summaries = ledgerEntries
+                    .GroupBy(e => new { e.CurrencyId, CurrencyCode = e.Currency != null ? e.Currency.Code : "N/A" })
+                    .Select(group => new CorrespondentHawalaRangeSummaryDto
+                    {
+                        CurrencyId = group.Key.CurrencyId,
+                        CurrencyCode = group.Key.CurrencyCode,
+                        TotalDebit = group.Sum(e => e.TalabKar),
+                        TotalCredit = group.Sum(e => e.BadehKar)
+                    })
+                    .OrderBy(summary => summary.CurrencyCode)
+                    .ToList();
+
+                return result;
+            }
+
             public async Task<HawalaDto> MarkAsPaidAsync(long id, PayHawalaDto payment)
             {
                 using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);

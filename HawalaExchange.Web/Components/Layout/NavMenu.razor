@@ -52,31 +52,39 @@
                 </NavLink>
             </div>
 
-            <!-- حواله‌ها -->
+            <!-- ========================================= -->
+            <!-- 💱 حواله‌ها - منوی تودرتو -->
+            <!-- ========================================= -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/hawala-transactions">
+                <div class="nav-link-custom nav-link-toggle" onclick="toggleSubMenu('hawalaSubMenu', this)">
                     <span class="bi bi-arrow-left-right"></span> حواله‌ها
-                </NavLink>
-            </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="hawala-pending">
-                    <i class="bi bi-clock-history"></i>
-                    حواله‌های اجرا نشده
-                </NavLink>
+                    <span class="toggle-icon">
+                        <i class="bi bi-chevron-down"></i>
+                    </span>
+                </div>
+                <div class="sub-menu" id="hawalaSubMenu">
+                    <NavLink class="nav-link-custom sub-link" href="/hawala-transactions">
+                        <span class="bi bi-pencil-square"></span> ثبت ولیست حواله‌ها
+                    </NavLink>
+                    <NavLink class="nav-link-custom sub-link" href="/hawala-receive">
+                        <span class="bi bi-download"></span> حواله‌های دریافتی
+                    </NavLink>
+                    <NavLink class="nav-link-custom sub-link" href="/hawala-pending">
+                        <span class="bi bi-clock-history"></span> حواله‌های اجرا نشده
+                    </NavLink>
+                    
+                </div>
             </div>
 
-            <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="hawala-receive">
-                    <i class="bi bi-download"></i>
-                    حواله‌های دریافتی
-                </NavLink>
-            </div>
+            <!-- تبدیل پول -->
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="money-exchange">
                     <i class="bi bi-currency-exchange"></i>
                     تبدیل پول
                 </NavLink>
             </div>
+
+            <!-- روزنامچه -->
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="daily-journal">
                     <i class="bi bi-journal-text"></i>
@@ -150,12 +158,10 @@
                     <NavLink class="nav-link-custom sub-link" href="/account-limits">
                         <span class="bi bi-lock"></span> محدودیت حساب‌ها
                     </NavLink>
-
                     <NavLink class="nav-link-custom sub-link" href="company-settings">
                         <i class="bi bi-building"></i>
                         تنظیمات شرکت
                     </NavLink>
-
                 </div>
             </div>
 
@@ -248,6 +254,7 @@
         </nav>
     </div>
 </div>
+
 <script>
     // تغییر وضعیت منو (برای کلیک)
     function toggleSubMenu(subMenuId, element) {
@@ -303,6 +310,29 @@
                 dropdown.classList.remove('open');
                 if (arrow) arrow.classList.remove('open');
             }
+        }
+    });
+
+    // بستن منوهای تودرتو با کلیک خارج از آنها
+    document.addEventListener('click', function(event) {
+        var navItems = document.querySelectorAll('.nav-item');
+        var clickedInside = false;
+        navItems.forEach(function(item) {
+            if (item.contains(event.target)) {
+                clickedInside = true;
+            }
+        });
+        if (!clickedInside) {
+            var allSubMenus = document.querySelectorAll('.sub-menu');
+            allSubMenus.forEach(function(menu) {
+                menu.classList.remove('open');
+            });
+            var allToggles = document.querySelectorAll('.nav-link-toggle');
+            allToggles.forEach(function(toggle) {
+                toggle.classList.remove('active');
+                var icon = toggle.querySelector('.toggle-icon');
+                if (icon) icon.classList.remove('open');
+            });
         }
     });
 </script>

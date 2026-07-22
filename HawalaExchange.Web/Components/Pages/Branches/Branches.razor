@@ -341,18 +341,16 @@
                                     }
                                     else
                                     {
-                                        <input type="text" class="form-control @(string.IsNullOrEmpty(currentBranch.Code) ? "is-invalid" : "")"
-                                               @bind="currentBranch.Code" placeholder="مثال: BR-001" />
-                                        <div class="invalid-feedback">کد شعبه الزامی است</div>
+                                        <input type="text" class="form-control" @bind="currentBranch.Code" placeholder="مثال: BR-001" />
+                                        <!-- حذف div invalid-feedback -->
                                     }
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-building text-muted me-1"></i> نام شعبه <span class="text-danger">*</span>
                                     </label>
-                                    <input type="text" class="form-control @(string.IsNullOrEmpty(currentBranch.Name) ? "is-invalid" : "")"
-                                           @bind="currentBranch.Name" placeholder="نام شعبه را وارد کنید" />
-                                    <div class="invalid-feedback">نام شعبه الزامی است</div>
+                                    <input type="text" class="form-control" @bind="currentBranch.Name" placeholder="نام شعبه را وارد کنید" />
+                                    <!-- حذف div invalid-feedback -->
                                 </div>
                             </div>
 

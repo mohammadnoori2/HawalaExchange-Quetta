@@ -89,7 +89,7 @@
                         <div class="col-md-3 col-6">
                             <div class="info-card">
                                 <span class="info-label">تاریخ ایجاد</span>
-                                <span class="info-value" dir="ltr">@Account.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDateTime12(Account.CreatedAt)</span>
                             </div>
                         </div>
                     </div>
@@ -187,7 +187,7 @@
                                             {
                                                 <tr>
                                                     <td>@entry.Id</td>
-                                                    <td dir="ltr">@entry.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(entry.CreatedAt)</td>
                                                     <td>@entry.TransactionNo</td>
                                                     <td>
                                                         <span class="badge-modern @GetTransactionTypeBadge(entry.TransactionType)">

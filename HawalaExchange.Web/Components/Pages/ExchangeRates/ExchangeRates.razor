@@ -189,7 +189,7 @@
                                     </td>
                                     <td dir="ltr" class="fw-bold text-primary">@rate.BuyRate.ToString("N2")</td>
                                     <td dir="ltr" class="fw-bold text-success">@rate.SellRate.ToString("N2")</td>
-                                    <td dir="ltr">@rate.EffectiveDate.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(rate.EffectiveDate)</td>
                                     <td>@rate.CreatedByName</td>
                                     <td>
                                         <div class="action-group justify-content-center">
@@ -361,8 +361,9 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-calendar-date text-muted me-1"></i> تاریخ مؤثر <span class="text-danger">*</span>
                                     </label>
-                                    <input type="datetime-local" class="form-control"
-                                           @bind="currentRate.EffectiveDate" />
+                                    <PersianDatePicker @bind-Value="currentRate.EffectiveDate"
+                                                       IncludeTime="true"
+                                                       Placeholder="انتخاب تاریخ و زمان" />
                                 </div>
                             </div>
                         </div>

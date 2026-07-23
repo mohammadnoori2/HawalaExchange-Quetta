@@ -764,7 +764,7 @@
                                             {
                                                 <tr>
                                                     <td>@entry.Id</td>
-                                                    <td dir="ltr">@entry.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(entry.CreatedAt)</td>
                                                     <td><span class="badge-modern badge-info">@entry.CurrencyCode</span></td>
                                                     <td class="text-success fw-bold">@(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")</td>
                                                     <td class="text-danger fw-bold">@(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")</td>

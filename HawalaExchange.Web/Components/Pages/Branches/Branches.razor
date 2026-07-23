@@ -201,7 +201,7 @@
                                     <td>
                                         <span class="overflow-ellipsis">@branch.Address</span>
                                     </td>
-                                    <td dir="ltr" class="text-start">@branch.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td dir="ltr" class="text-start">@PersianDateHelper.ToPersianDateTime12(branch.CreatedAt)</td>
                                     <td>
                                         @if (branch.IsArchived)
                                         {

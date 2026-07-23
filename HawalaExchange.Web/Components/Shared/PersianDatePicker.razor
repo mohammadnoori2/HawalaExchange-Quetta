@@ -15,6 +15,16 @@
                 @onclick="OpenCalendar">
             <i class="bi bi-calendar3"></i>
         </button>
+
+        @if (AllowEmpty && Value != DateTime.MinValue)
+        {
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    title="پاک کردن تاریخ"
+                    @onclick="ClearDate">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        }
     </div>
 
     @if (showCalendar)
@@ -243,6 +253,8 @@
 
     [Parameter] public string Placeholder { get; set; } = "انتخاب تاریخ";
 
+    [Parameter] public bool AllowEmpty { get; set; } = false;
+
     private readonly PersianCalendar persianCalendar = new();
 
     private bool showCalendar = false;
@@ -293,7 +305,9 @@
         }
 
         SetTimeFromValue(date);
-        UpdateDisplayText(date);
+        displayText = AllowEmpty && Value == DateTime.MinValue
+            ? string.Empty
+            : FormatDisplayText(date);
     }
 
     private void OpenCalendar()
@@ -304,6 +318,13 @@
     private void CloseCalendar()
     {
         showCalendar = false;
+    }
+
+    private async Task ClearDate()
+    {
+        showCalendar = false;
+        displayText = string.Empty;
+        await ValueChanged.InvokeAsync(DateTime.MinValue);
     }
 
     private async Task SelectToday()
@@ -500,7 +521,12 @@
 
     private void UpdateDisplayText(DateTime date)
     {
-        displayText = IncludeTime
+        displayText = FormatDisplayText(date);
+    }
+
+    private string FormatDisplayText(DateTime date)
+    {
+        return IncludeTime
             ? PersianDateHelper.ToPersianDateTime12(date)
             : PersianDateHelper.ToPersianDate(date);
     }

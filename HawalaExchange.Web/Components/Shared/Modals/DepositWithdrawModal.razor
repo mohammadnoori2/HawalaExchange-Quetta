@@ -303,45 +303,51 @@
 
     // ===== متدهای چرخه حیات =====
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadLookupData();
-    }
+    private bool wasVisible;
 
     protected override async Task OnParametersSetAsync()
     {
-        if (IsVisible)
+        if (!IsVisible)
         {
-            // اگر داده‌ها خالی هستند، دوباره بارگذاری کن
-            if (!CurrenciesList.Any() || !AccountsList.Any())
-            {
-                await LoadLookupData();
-            }
-
-            if (IsEditMode && EditData != null)
-            {
-                CurrentOperation = new CreateAccountMoneyOperationDto
-                {
-                    OperationType = EditData.OperationType,
-                    OperationDate = EditData.OperationDate,
-                    AccountId = EditData.AccountId,
-                    CashOrBankAccountId = EditData.CashOrBankAccountId,
-                    CurrencyId = EditData.CurrencyId,
-                    Amount = EditData.Amount,
-                    Description = EditData.Description
-                };
-
-                OperationDateLocal = EditData.OperationDate.ToLocalTime();
-            }
-            else if (!IsEditMode)
-            {
-                ResetOperation();
-            }
-
-            ValidationErrors.Clear();
-            SuccessMessage = string.Empty;
-            StateHasChanged();
+            wasVisible = false;
+            return;
         }
+
+        if (wasVisible)
+        {
+            return;
+        }
+
+        wasVisible = true;
+
+        if (!CurrenciesList.Any() || !AccountsList.Any())
+        {
+            await LoadLookupData();
+        }
+
+        if (IsEditMode && EditData != null)
+        {
+            CurrentOperation = new CreateAccountMoneyOperationDto
+            {
+                OperationType = EditData.OperationType,
+                OperationDate = EditData.OperationDate,
+                AccountId = EditData.AccountId,
+                CashOrBankAccountId = EditData.CashOrBankAccountId,
+                CurrencyId = EditData.CurrencyId,
+                Amount = EditData.Amount,
+                Description = EditData.Description
+            };
+
+            OperationDateLocal = EditData.OperationDate.ToLocalTime();
+        }
+        else if (!IsEditMode)
+        {
+            ResetOperation();
+        }
+
+        ValidationErrors.Clear();
+        SuccessMessage = string.Empty;
+        StateHasChanged();
     }
 
     // ===== متدهای بارگذاری =====

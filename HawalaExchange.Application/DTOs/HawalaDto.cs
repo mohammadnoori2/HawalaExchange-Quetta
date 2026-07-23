@@ -150,9 +150,16 @@ namespace HawalaExchange.Application.DTOs
     {
         public long Number { get; set; }
         public string? SearchTerm { get; set; }
+        public decimal? SearchAmount { get; set; }
         public string? HawalaType { get; set; }
         public string? Status { get; set; }
         public long? CorrespondentId { get; set; }
+        public long? PaymentLocationId { get; set; }
+        public long? CurrencyId { get; set; }
+        public decimal? MinAmount { get; set; }
+        public decimal? MaxAmount { get; set; }
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;
         public string SortColumn { get; set; } = "CreatedAt";

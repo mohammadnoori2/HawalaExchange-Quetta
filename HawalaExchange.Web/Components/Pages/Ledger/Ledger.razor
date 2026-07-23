@@ -114,11 +114,11 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">از تاریخ</label>
-                    <input type="date" class="form-control" @bind="fromDate" @bind:event="oninput" />
+                    <PersianDatePicker @bind-Value="fromDate" IncludeTime="false" />
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">تا تاریخ</label>
-                    <input type="date" class="form-control" @bind="toDate" @bind:event="oninput" />
+                    <PersianDatePicker @bind-Value="toDate" IncludeTime="false" />
                 </div>
                 <div class="col-md-1">
                     <button class="btn btn-primary-modern btn-modern w-100" @onclick="ApplyFilters">
@@ -264,7 +264,7 @@
                                     <td class="text-success fw-bold">
                                         @(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")
                                     </td>
-                                    <td dir="ltr">@entry.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(entry.CreatedAt)</td>
                                     <td>
                                         @if (!string.IsNullOrEmpty(entry.Description))
                                         {
@@ -503,7 +503,7 @@
                         <div class="col-md-6">
                             <div class="info-card">
                                 <span class="info-label">تاریخ</span>
-                                <span class="info-value">@selectedEntry.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                                <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDateTime12(selectedEntry.CreatedAt)</span>
                             </div>
                         </div>
                     </div>

@@ -70,7 +70,7 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-date text-muted me-1"></i> تاریخ</label>
-                            <input type="date" class="form-control" @bind="dailyDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="dailyDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
@@ -108,7 +108,7 @@
                             <div class="col-md-3">
                                 <div class="info-card">
                                     <span class="info-label">تاریخ</span>
-                                    <span class="info-value">@dailyReport.Date.ToLocalTime().ToString("yyyy/MM/dd")</span>
+                                    <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDate(dailyReport.Date)</span>
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -165,11 +165,11 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <input type="date" class="form-control" @bind="txnFromDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="txnFromDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <input type="date" class="form-control" @bind="txnToDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="txnToDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
@@ -239,7 +239,7 @@
                                             <td dir="ltr">@r.ToAmount.ToString("N2")</td>
                                             <td dir="ltr">@r.Commission.ToString("N2")</td>
                                             <td>@GetStatusBadge(r.Status)</td>
-                                            <td dir="ltr">@r.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                            <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(r.CreatedAt)</td>
                                         </tr>
                                     }
                                 </tbody>
@@ -265,11 +265,11 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <input type="date" class="form-control" @bind="commFromDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="commFromDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <input type="date" class="form-control" @bind="commToDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="commToDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
@@ -312,7 +312,7 @@
                                     @foreach (var r in commissionReports)
                                     {
                                         <tr>
-                                            <td>@r.Date.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                                            <td dir="ltr">@PersianDateHelper.ToPersianDate(r.Date)</td>
                                             <td>@r.BranchName</td>
                                             <td dir="ltr">@r.TotalCommission.ToString("N2")</td>
                                             <td dir="ltr">@r.TotalAgentCommission.ToString("N2")</td>
@@ -348,7 +348,7 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-date text-muted me-1"></i> تاریخ (تا)</label>
-                            <input type="date" class="form-control" @bind="tbAsOfDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="tbAsOfDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
@@ -437,11 +437,11 @@
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <input type="date" class="form-control" @bind="custFromDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="custFromDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <input type="date" class="form-control" @bind="custToDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="custToDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-5 d-flex align-items-end gap-2">
                             <button class="btn-modern btn-primary-modern" @onclick="LoadCustomerReport">
@@ -484,7 +484,7 @@
                                             <td dir="ltr">@r.FromAmount.ToString("N2")</td>
                                             <td dir="ltr">@r.Commission.ToString("N2")</td>
                                             <td>@GetStatusBadge(r.Status)</td>
-                                            <td dir="ltr">@r.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                            <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(r.CreatedAt)</td>
                                         </tr>
                                     }
                                 </tbody>
@@ -520,11 +520,11 @@
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <input type="date" class="form-control" @bind="corrFromDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="corrFromDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <input type="date" class="form-control" @bind="corrToDate" @bind:event="oninput" />
+                            <PersianDatePicker @bind-Value="corrToDate" IncludeTime="false" />
                         </div>
                         <div class="col-md-5 d-flex align-items-end gap-2">
                             <button class="btn-modern btn-primary-modern" @onclick="LoadCorrespondentReport">
@@ -567,7 +567,7 @@
                                             <td dir="ltr">@r.FromAmount.ToString("N2")</td>
                                             <td dir="ltr">@r.Commission.ToString("N2")</td>
                                             <td>@GetStatusBadge(r.Status)</td>
-                                            <td dir="ltr">@r.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                            <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(r.CreatedAt)</td>
                                         </tr>
                                     }
                                 </tbody>

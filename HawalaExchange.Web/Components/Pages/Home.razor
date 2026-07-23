@@ -169,11 +169,15 @@
             <div class="date-filter">
                 <div class="date-input-group">
                     <label>از تاریخ:</label>
-                    <input type="date" @bind="startDate" @bind:format="yyyy-MM-dd" />
+                    <PersianDatePicker @bind-Value="startDate"
+                                       IncludeTime="false"
+                                       CssClass="form-control form-control-sm" />
                 </div>
                 <div class="date-input-group">
                     <label>تا تاریخ:</label>
-                    <input type="date" @bind="endDate" @bind:format="yyyy-MM-dd" />
+                    <PersianDatePicker @bind-Value="endDate"
+                                       IncludeTime="false"
+                                       CssClass="form-control form-control-sm" />
                 </div>
                 <button class="btn-filter" @onclick="ApplyDateFilter">اعمال</button>
             </div>
@@ -269,8 +273,8 @@
     private int accountTransactionCount = 0;
 
     // فیلتر تاریخ
-    private DateTime? startDate = DateTime.Now.AddDays(-7);
-    private DateTime? endDate = DateTime.Now;
+    private DateTime startDate = DateTime.Today.AddDays(-7);
+    private DateTime endDate = DateTime.Today;
 
     // نقدینگی
     private string liquidityFilter = "all";
@@ -776,8 +780,8 @@
 
     private async Task ApplyDateFilter()
     {
-        var start = startDate?.Date ?? DateTime.Now.AddDays(-7);
-        var end = endDate?.Date ?? DateTime.Now;
+        var start = startDate.Date;
+        var end = endDate.Date;
 
         var filtered = allTransactions
             .Where(t => t.CreatedAt.Date >= start && t.CreatedAt.Date <= end)

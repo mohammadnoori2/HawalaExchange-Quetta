@@ -276,7 +276,7 @@
                                             </span>
                                         }
                                     </td>
-                                    <td dir="ltr">@user.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(user.CreatedAt)</td>
                                     <td>
                                         <div class="action-group justify-content-center">
                                             <button class="action-btn action-btn-view" @onclick="() => ViewUser(user.Id)" title="مشاهده">
@@ -680,7 +680,7 @@
                             </div>
                             <div class="col-12">
                                 <small class="text-muted">تاریخ ایجاد</small>
-                                <div><strong dir="ltr">@viewUser.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</strong></div>
+                                <div><strong dir="ltr">@PersianDateHelper.ToPersianDateTime12(viewUser.CreatedAt)</strong></div>
                             </div>
                         </div>
                     }

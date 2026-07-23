@@ -237,7 +237,7 @@
                                             <span class="text-muted">—</span>
                                         }
                                     </td>
-                                    <td dir="ltr">@account.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(account.CreatedAt)</td>
                                     <td>
                                         @if (account.IsArchived)
                                         {

@@ -399,8 +399,6 @@
 
     private DateTime selectedDate = DateTime.Today;
 
-    private string SelectedDatePickerValue => selectedDate.ToString("yyyy-MM-dd");
-
     private List<string> validationErrors = new();
 
     private bool isLoading = false;
@@ -466,20 +464,6 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadJournal();
-    }
-
-    private void OnDatePickerChanged(ChangeEventArgs e)
-    {
-        var value = e.Value?.ToString();
-
-        if (string.IsNullOrWhiteSpace(value))
-            return;
-
-        if (DateTime.TryParse(value, out var date))
-        {
-            selectedDate = date.Date;
-            StateHasChanged();
-        }
     }
 
     private async Task LoadToday()

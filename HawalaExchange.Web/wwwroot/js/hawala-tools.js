@@ -1,5 +1,130 @@
 ﻿// ===== فقط یک بار تعریف کنید =====
+let activeHawalaOperationMenu = null;
+
+function positionHawalaOperationMenu(button, menu) {
+    const viewportGap = 8;
+    const buttonGap = 6;
+
+    menu.style.visibility = "hidden";
+    menu.style.top = "0px";
+    menu.style.left = "0px";
+
+    const buttonRect = button.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+
+    let top = buttonRect.bottom + buttonGap;
+    const topWhenOpenedUpward = buttonRect.top - menuRect.height - buttonGap;
+
+    if (top + menuRect.height > window.innerHeight - viewportGap && topWhenOpenedUpward >= viewportGap) {
+        top = topWhenOpenedUpward;
+    }
+
+    top = Math.max(
+        viewportGap,
+        Math.min(top, window.innerHeight - menuRect.height - viewportGap)
+    );
+
+    let left = buttonRect.right - menuRect.width;
+    left = Math.max(
+        viewportGap,
+        Math.min(left, window.innerWidth - menuRect.width - viewportGap)
+    );
+
+    menu.style.top = `${Math.round(top)}px`;
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.visibility = "visible";
+}
+
+function cleanupHawalaOperationMenu(state) {
+    document.removeEventListener("pointerdown", state.onPointerDown, true);
+    document.removeEventListener("keydown", state.onKeyDown, true);
+    window.removeEventListener("scroll", state.onScroll, true);
+    window.removeEventListener("resize", state.onResize);
+}
+
+function closeHawalaOperationMenuFromBrowser(state) {
+    cleanupHawalaOperationMenu(state);
+
+    if (activeHawalaOperationMenu === state) {
+        activeHawalaOperationMenu = null;
+    }
+
+    void state.dotNetReference.invokeMethodAsync("CloseFromJs").catch(() => { });
+}
+
 window.hawalaTools = {
+    openOperationMenu: async function (buttonId, menuId, dotNetReference) {
+        if (activeHawalaOperationMenu && activeHawalaOperationMenu.menuId !== menuId) {
+            const previousMenu = activeHawalaOperationMenu;
+            cleanupHawalaOperationMenu(previousMenu);
+            activeHawalaOperationMenu = null;
+
+            try {
+                await previousMenu.dotNetReference.invokeMethodAsync("CloseFromJs");
+            } catch {
+                // The previous component may already have been disposed.
+            }
+        }
+
+        const button = document.getElementById(buttonId);
+        const menu = document.getElementById(menuId);
+
+        if (!button || !menu) {
+            return;
+        }
+
+        if (activeHawalaOperationMenu?.menuId === menuId) {
+            positionHawalaOperationMenu(button, menu);
+            return;
+        }
+
+        const state = {
+            button,
+            menu,
+            menuId,
+            dotNetReference,
+            onPointerDown: null,
+            onKeyDown: null,
+            onScroll: null,
+            onResize: null
+        };
+
+        state.onPointerDown = function (event) {
+            if (!menu.contains(event.target) && !button.contains(event.target)) {
+                closeHawalaOperationMenuFromBrowser(state);
+            }
+        };
+        state.onKeyDown = function (event) {
+            if (event.key === "Escape") {
+                closeHawalaOperationMenuFromBrowser(state);
+                button.focus();
+            }
+        };
+        state.onScroll = function () {
+            closeHawalaOperationMenuFromBrowser(state);
+        };
+        state.onResize = function () {
+            positionHawalaOperationMenu(button, menu);
+        };
+
+        activeHawalaOperationMenu = state;
+        positionHawalaOperationMenu(button, menu);
+
+        document.addEventListener("pointerdown", state.onPointerDown, true);
+        document.addEventListener("keydown", state.onKeyDown, true);
+        window.addEventListener("scroll", state.onScroll, true);
+        window.addEventListener("resize", state.onResize);
+    },
+
+    closeOperationMenu: function (menuId) {
+        if (!activeHawalaOperationMenu || activeHawalaOperationMenu.menuId !== menuId) {
+            return;
+        }
+
+        cleanupHawalaOperationMenu(activeHawalaOperationMenu);
+        activeHawalaOperationMenu = null;
+    },
+
     copyToClipboard: async function (text) {
         try {
             if (navigator.clipboard && window.isSecureContext) {

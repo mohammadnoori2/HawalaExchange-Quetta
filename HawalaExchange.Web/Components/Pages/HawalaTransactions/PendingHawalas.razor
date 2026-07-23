@@ -10,6 +10,9 @@
 @inject IHawalaService HawalaService
 @inject IAccountService AccountService
 @inject ICustomerService CustomerService
+@inject ICorrespondentService CorrespondentService
+@inject ICurrencyService CurrencyService
+@inject IPaymentLocationService PaymentLocationService
 @inject ICompanySettingService CompanySettingService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
@@ -77,7 +80,7 @@
                         <i class="bi bi-cash-stack"></i>
                     </div>
                     <div>
-                        <div class="stat-number">@hawalas.Sum(x => x.FromAmount).ToString("N2")</div>
+                        <div class="stat-number" dir="ltr">@hawalas.Sum(x => x.FromAmount).ToString("N2")</div>
                         <div class="stat-label">مجموع مبلغ</div>
                     </div>
                 </div>
@@ -85,30 +88,82 @@
         </div>
     </div>
 
-    <div class="table-card">
+    <div class="row g-3 mb-4 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label fw-bold"><i class="bi bi-search text-muted me-1"></i> جستجو</label>
+            <input type="text"
+                   class="form-control"
+                   placeholder="نمبر، مبلغ، فرستنده، گیرنده، مرجع..."
+                   @bind="searchTerm"
+                   @bind:event="oninput" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold"><i class="bi bi-person text-muted me-1"></i> نماینده</label>
+            <select class="form-select" @bind="filterCorrespondentId">
+                <option value="0">همه نمایندگان</option>
+                @foreach (var correspondent in correspondents)
+                {
+                    <option value="@correspondent.Id">@correspondent.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold"><i class="bi bi-geo-alt text-muted me-1"></i> محل پرداخت</label>
+            <select class="form-select" @bind="filterPaymentLocationId">
+                <option value="0">همه محل‌ها</option>
+                @foreach (var location in paymentLocations)
+                {
+                    <option value="@location.Id">@location.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold"><i class="bi bi-coin text-muted me-1"></i> ارز مبلغ</label>
+            <select class="form-select" @bind="filterCurrencyId">
+                <option value="0">همه ارزها</option>
+                @foreach (var currency in currencies)
+                {
+                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-cash text-muted me-1"></i> حداقل مبلغ</label>
+            <NullableMoneyInput class="form-control" @bind-Value="filterMinAmount" placeholder="از مبلغ" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label fw-bold"><i class="bi bi-cash-stack text-muted me-1"></i> حداکثر مبلغ</label>
+            <NullableMoneyInput class="form-control" @bind-Value="filterMaxAmount" placeholder="تا مبلغ" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold"><i class="bi bi-calendar-event text-muted me-1"></i> از تاریخ ثبت</label>
+            <PersianDatePicker @bind-Value="filterFromDate" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold"><i class="bi bi-calendar-check text-muted me-1"></i> تا تاریخ ثبت</label>
+            <PersianDatePicker @bind-Value="filterToDate" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilters">
+                <i class="bi bi-search"></i> فیلتر
+            </button>
+            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters">
+                <i class="bi bi-arrow-clockwise"></i> بازنشانی
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(filterValidationError))
+    {
+        <div class="alert alert-danger py-2 mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            @filterValidationError
+        </div>
+    }
+
+    <div class="table-card hawala-list-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <div class="search-modern">
-                    <span class="search-icon">
-                        <i class="bi bi-search"></i>
-                    </span>
-
-                    <input type="text"
-                           class="search-input"
-                           placeholder="جستجو: نمبر، فرستنده، گیرنده، مرجع..."
-                           @bind="searchTerm"
-                           @bind:event="oninput" />
-
-                    @if (!string.IsNullOrWhiteSpace(searchTerm))
-                    {
-                        <button class="search-btn" @onclick="ClearSearch">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    }
-                </div>
-            </div>
-
-            <div class="table-card-header-right">
                 <span class="badge-modern badge-danger">
                     <i class="bi bi-clock-history"></i>
                     @filteredHawalas.Count
@@ -589,6 +644,9 @@
     private List<HawalaDto> hawalas = new();
     private List<HawalaDto> filteredHawalas = new();
     private List<AccountDto> accounts = new();
+    private List<CorrespondentDto> correspondents = new();
+    private List<CurrencyDto> currencies = new();
+    private List<PaymentLocationDto> paymentLocations = new();
 
     private HawalaDto? selectedHawala;
     private HawalaDto? receiptHawala;
@@ -614,17 +672,15 @@
     private long deleteId = 0;
     private string cancelReason = string.Empty;
 
-    private string _searchTerm = string.Empty;
-
-    private string searchTerm
-    {
-        get => _searchTerm;
-        set
-        {
-            _searchTerm = value;
-            Search();
-        }
-    }
+    private string searchTerm = string.Empty;
+    private long filterCorrespondentId = 0;
+    private long filterPaymentLocationId = 0;
+    private long filterCurrencyId = 0;
+    private decimal? filterMinAmount;
+    private decimal? filterMaxAmount;
+    private DateTime filterFromDate = DateTime.MinValue;
+    private DateTime filterToDate = DateTime.MinValue;
+    private string filterValidationError = string.Empty;
 
     private int pageSize = 10;
     private int currentPage = 1;
@@ -649,9 +705,30 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadFilterOptions();
         await LoadAccounts();
         await LoadCustomers();
         await LoadData();
+    }
+
+    private async Task LoadFilterOptions()
+    {
+        try
+        {
+            correspondents = (await CorrespondentService.GetAllAsync())
+                .OrderBy(x => x.Name)
+                .ToList();
+            currencies = (await CurrencyService.GetAllAsync())
+                .OrderBy(x => x.Code)
+                .ToList();
+            paymentLocations = (await PaymentLocationService.GetAllAsync())
+                .OrderBy(x => x.Name)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری گزینه‌های فیلتر: {ex.Message}");
+        }
     }
 
     private async Task LoadAccounts()
@@ -685,10 +762,34 @@
             validationErrors.Clear();
             successMessage = string.Empty;
 
+            decimal? searchAmount = null;
+            long searchNumber = 0;
+
+            if (MoneyFormatHelper.TryParse(searchTerm, out var parsedSearchAmount))
+            {
+                searchAmount = parsedSearchAmount;
+                if (parsedSearchAmount > 0 &&
+                    parsedSearchAmount == decimal.Truncate(parsedSearchAmount) &&
+                    parsedSearchAmount <= long.MaxValue)
+                {
+                    searchNumber = (long)parsedSearchAmount;
+                }
+            }
+
             var filter = new HawalaFilterDto
             {
+                SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm,
+                SearchAmount = searchAmount,
+                Number = searchNumber,
                 HawalaType = "HawalaReceive",
                 Status = "Pending",
+                CorrespondentId = filterCorrespondentId == 0 ? null : filterCorrespondentId,
+                PaymentLocationId = filterPaymentLocationId == 0 ? null : filterPaymentLocationId,
+                CurrencyId = filterCurrencyId == 0 ? null : filterCurrencyId,
+                MinAmount = filterMinAmount,
+                MaxAmount = filterMaxAmount,
+                FromDate = filterFromDate == DateTime.MinValue ? null : filterFromDate.Date,
+                ToDate = filterToDate == DateTime.MinValue ? null : filterToDate.Date,
                 PageNumber = 1,
                 PageSize = int.MaxValue,
                 SortColumn = "CreatedAt",
@@ -712,31 +813,39 @@
         }
     }
 
-    private void Search()
+    private async Task ApplyFilters()
     {
-        var query = hawalas.AsEnumerable();
+        filterValidationError = string.Empty;
 
-        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        if (filterMinAmount.HasValue && filterMaxAmount.HasValue &&
+            filterMinAmount.Value > filterMaxAmount.Value)
         {
-            var term = _searchTerm.Trim();
-
-            query = query.Where(x =>
-                x.Number.ToString().Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrWhiteSpace(x.SenderName) && x.SenderName.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(x.ReceiverName) && x.ReceiverName.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(x.ReferenceNumber) && x.ReferenceNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(x.CorrespondentName) && x.CorrespondentName.Contains(term, StringComparison.OrdinalIgnoreCase)));
+            filterValidationError = "حداقل مبلغ نمی‌تواند بیشتر از حداکثر مبلغ باشد.";
+            return;
         }
 
-        filteredHawalas = query.ToList();
-        currentPage = 1;
+        if (filterFromDate != DateTime.MinValue && filterToDate != DateTime.MinValue &&
+            filterFromDate.Date > filterToDate.Date)
+        {
+            filterValidationError = "تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد.";
+            return;
+        }
+
+        await LoadData();
     }
 
-    private void ClearSearch()
+    private async Task ResetFilters()
     {
-        _searchTerm = string.Empty;
-        filteredHawalas = hawalas.ToList();
-        currentPage = 1;
+        searchTerm = string.Empty;
+        filterCorrespondentId = 0;
+        filterPaymentLocationId = 0;
+        filterCurrencyId = 0;
+        filterMinAmount = null;
+        filterMaxAmount = null;
+        filterFromDate = DateTime.MinValue;
+        filterToDate = DateTime.MinValue;
+        filterValidationError = string.Empty;
+        await LoadData();
     }
 
     private void GoToPage(int page)

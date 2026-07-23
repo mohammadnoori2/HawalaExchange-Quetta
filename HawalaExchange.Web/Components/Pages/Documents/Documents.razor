@@ -211,7 +211,7 @@
                                     <td>
                                         <span class="badge-modern badge-info">@doc.ContentType</span>
                                     </td>
-                                    <td dir="ltr">@doc.UploadedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(doc.UploadedAt)</td>
                                     <td>
                                         <div class="action-group justify-content-center">
                                             <button class="action-btn action-btn-view" @onclick="() => ViewDocument(doc.Id)" title="مشاهده">

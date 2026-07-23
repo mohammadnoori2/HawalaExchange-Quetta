@@ -21,6 +21,14 @@ public static class PersianDateHelper
         return $"{year:0000}/{month:00}/{day:00}";
     }
 
+    public static string ToPersianDate(DateOnly date)
+    {
+        if (date == DateOnly.MinValue)
+            return string.Empty;
+
+        return ToPersianDate(date.ToDateTime(TimeOnly.MinValue));
+    }
+
     public static string ToPersianDateTime(DateTime date)
     {
         if (date == DateTime.MinValue)
@@ -33,6 +41,20 @@ public static class PersianDateHelper
         var day = PersianCalendar.GetDayOfMonth(localDate);
 
         return $"{year:0000}/{month:00}/{day:00} {localDate:HH:mm}";
+    }
+
+    public static string ToPersianDateTimeWithSeconds(DateTime date)
+    {
+        if (date == DateTime.MinValue)
+            return string.Empty;
+
+        var localDate = ToLocalDateTime(date);
+
+        var year = PersianCalendar.GetYear(localDate);
+        var month = PersianCalendar.GetMonth(localDate);
+        var day = PersianCalendar.GetDayOfMonth(localDate);
+
+        return $"{year:0000}/{month:00}/{day:00} {localDate:HH:mm:ss}";
     }
 
     public static bool TryParsePersianDate(string? value, out DateTime date)

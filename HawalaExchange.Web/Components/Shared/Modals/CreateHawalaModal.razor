@@ -787,10 +787,7 @@
 
     // ===== متدهای چرخه حیات =====
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadLookupData();
-    }
+    private bool wasVisible;
 
     // ===== متد باز کردن جزییات حساب =====
     private void OpenAccountDetails(long accountId)
@@ -813,60 +810,70 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (IsVisible)
+        if (!IsVisible)
         {
-            // ===== همیشه داده‌ها را بارگذاری کن =====
-            await LoadLookupData();
+            wasVisible = false;
+            return;
+        }
 
-            if (IsEditMode && EditData != null)
-            {
-                CurrentHawala = new CreateHawalaDto
-                {
-                    Number = EditData.Number,
-                    HawalaType = EditData.HawalaType,
-                    CorrespondentId = EditData.CorrespondentId,
-                    SenderName = EditData.SenderName,
-                    SenderFatherName = EditData.SenderFatherName,
-                    SenderPhone = EditData.SenderPhone,
-                    SenderTazkiraNumber = EditData.SenderTazkiraNumber,
-                    SenderTazkiraImagePath = EditData.SenderTazkiraImagePath,
-                    SenderAddress = EditData.SenderAddress,
-                    ReceiverName = EditData.ReceiverName,
-                    ReceiverFatherName = EditData.ReceiverFatherName,
-                    ReceiverPhone = EditData.ReceiverPhone,
-                    ReceiverTazkiraNumber = EditData.ReceiverTazkiraNumber,
-                    ReceiverTazkiraImagePath = EditData.ReceiverTazkiraImagePath,
-                    ReceiverAddress = EditData.ReceiverAddress,
-                    FromCurrencyId = EditData.FromCurrencyId,
-                    FromAmount = EditData.FromAmount,
-                    ToCurrencyId = EditData.ToCurrencyId,
-                    ToAmount = EditData.ToAmount,
-                    ExchangeRate = EditData.ExchangeRate,
-                    CommissionAmount = EditData.CommissionAmount,
-                    CommissionCurrencyId = EditData.CommissionCurrencyId,
-                    AgentCommissionAmount = EditData.AgentCommissionAmount,
-                    AgentCommissionCurrencyId = EditData.AgentCommissionCurrencyId > 0 ? EditData.AgentCommissionCurrencyId : AfnCurrencyId,
-                    ReferenceNumber = EditData.ReferenceNumber,
-                    Notes = EditData.Notes,
-                    Status = EditData.Status,
-                    PaymentLocationId = EditData.PaymentLocationId,
-                    FromAccountId = EditData.FromAccountId
-                };
-            }
-            else if (!IsEditMode)
-            {
-                ResetHawala();
-            }
+        if (wasVisible)
+        {
+            return;
+        }
 
-            ValidationErrors.Clear();
-            SuccessMessage = string.Empty;
-            StateHasChanged();
+        wasVisible = true;
 
-            // دریافت شماره پیشنهادی
-            if (!IsEditMode && CurrentHawala.CorrespondentId.HasValue && !string.IsNullOrEmpty(CurrentHawala.HawalaType))
+        // داده‌های کمکی فقط هنگام بازشدن مودال بارگذاری می‌شوند.
+        await LoadLookupData();
+
+        if (IsEditMode && EditData != null)
+        {
+            CurrentHawala = new CreateHawalaDto
             {
-                await GetSuggestedNumber();
-            }
+                Number = EditData.Number,
+                HawalaType = EditData.HawalaType,
+                CorrespondentId = EditData.CorrespondentId,
+                SenderName = EditData.SenderName,
+                SenderFatherName = EditData.SenderFatherName,
+                SenderPhone = EditData.SenderPhone,
+                SenderTazkiraNumber = EditData.SenderTazkiraNumber,
+                SenderTazkiraImagePath = EditData.SenderTazkiraImagePath,
+                SenderAddress = EditData.SenderAddress,
+                ReceiverName = EditData.ReceiverName,
+                ReceiverFatherName = EditData.ReceiverFatherName,
+                ReceiverPhone = EditData.ReceiverPhone,
+                ReceiverTazkiraNumber = EditData.ReceiverTazkiraNumber,
+                ReceiverTazkiraImagePath = EditData.ReceiverTazkiraImagePath,
+                ReceiverAddress = EditData.ReceiverAddress,
+                FromCurrencyId = EditData.FromCurrencyId,
+                FromAmount = EditData.FromAmount,
+                ToCurrencyId = EditData.ToCurrencyId,
+                ToAmount = EditData.ToAmount,
+                ExchangeRate = EditData.ExchangeRate,
+                CommissionAmount = EditData.CommissionAmount,
+                CommissionCurrencyId = EditData.CommissionCurrencyId,
+                AgentCommissionAmount = EditData.AgentCommissionAmount,
+                AgentCommissionCurrencyId = EditData.AgentCommissionCurrencyId > 0 ? EditData.AgentCommissionCurrencyId : AfnCurrencyId,
+                ReferenceNumber = EditData.ReferenceNumber,
+                Notes = EditData.Notes,
+                Status = EditData.Status,
+                PaymentLocationId = EditData.PaymentLocationId,
+                FromAccountId = EditData.FromAccountId
+            };
+        }
+        else if (!IsEditMode)
+        {
+            ResetHawala();
+        }
+
+        ValidationErrors.Clear();
+        SuccessMessage = string.Empty;
+        StateHasChanged();
+
+        // دریافت شماره پیشنهادی
+        if (!IsEditMode && CurrentHawala.CorrespondentId.HasValue && !string.IsNullOrEmpty(CurrentHawala.HawalaType))
+        {
+            await GetSuggestedNumber();
         }
     }
 

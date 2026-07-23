@@ -580,6 +580,14 @@ body {
     font-size: 0.75rem;
 }
 
+    .date-input-group .persian-date-picker-wrapper {
+        width: 190px;
+    }
+
+    .date-input-group .input-group {
+        flex-wrap: nowrap;
+    }
+
     .date-input-group input {
         border: 1px solid #cbd5e1;
         border-radius: 6px;
@@ -896,6 +904,25 @@ body {
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+}
+
+/* فضای ثابت آزمایشی برای لیست‌های حواله؛ تقریباً معادل ده ردیف */
+.hawala-list-card .table-scroll-wrapper {
+    min-height: clamp(480px, 65vh, 560px);
+    margin-bottom: 0;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+}
+
+.hawala-list-card .table-modern tbody tr:hover {
+    transform: none;
+}
+
+@media (max-width: 768px) {
+    .hawala-list-card .table-scroll-wrapper {
+        min-height: 360px;
+    }
 }
 
 /* =========================================
@@ -2356,10 +2383,12 @@ body {
     }
 
 .operation-menu {
-    position: absolute;
-    top: 40px;
+    position: fixed;
+    top: 0;
     left: 0;
     min-width: 190px;
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
     background: #ffffff;
     border: 1px solid #e5e7eb;
     border-radius: 14px;
@@ -2367,6 +2396,7 @@ body {
     padding: 8px;
     z-index: 9999;
     text-align: right;
+    visibility: hidden;
 }
 
 .operation-menu-item {

@@ -343,47 +343,53 @@
 
     // ===== متدهای چرخه حیات =====
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadLookupData();
-    }
+    private bool wasVisible;
 
     protected override async Task OnParametersSetAsync()
     {
-        if (IsVisible)
+        if (!IsVisible)
         {
-            // اگر داده‌ها خالی هستند، دوباره بارگذاری کن
-            if (!CurrenciesList.Any() || !AccountsList.Any())
-            {
-                await LoadLookupData();
-            }
-
-            if (IsEditMode && EditData != null)
-            {
-                CurrentExchange = new CreateMoneyExchangeOperationDto
-                {
-                    ExchangeDate = EditData.ExchangeDate,
-                    FromAccountId = EditData.FromAccountId,
-                    FromCurrencyId = EditData.FromCurrencyId,
-                    FromAmount = EditData.FromAmount,
-                    ToAccountId = EditData.ToAccountId,
-                    ToCurrencyId = EditData.ToCurrencyId,
-                    ToAmount = EditData.ToAmount,
-                    ExchangeRate = EditData.ExchangeRate,
-                    Description = EditData.Description
-                };
-
-                ExchangeDateLocal = EditData.ExchangeDate.ToLocalTime();
-            }
-            else if (!IsEditMode)
-            {
-                ResetExchange();
-            }
-
-            ValidationErrors.Clear();
-            SuccessMessage = string.Empty;
-            StateHasChanged();
+            wasVisible = false;
+            return;
         }
+
+        if (wasVisible)
+        {
+            return;
+        }
+
+        wasVisible = true;
+
+        if (!CurrenciesList.Any() || !AccountsList.Any())
+        {
+            await LoadLookupData();
+        }
+
+        if (IsEditMode && EditData != null)
+        {
+            CurrentExchange = new CreateMoneyExchangeOperationDto
+            {
+                ExchangeDate = EditData.ExchangeDate,
+                FromAccountId = EditData.FromAccountId,
+                FromCurrencyId = EditData.FromCurrencyId,
+                FromAmount = EditData.FromAmount,
+                ToAccountId = EditData.ToAccountId,
+                ToCurrencyId = EditData.ToCurrencyId,
+                ToAmount = EditData.ToAmount,
+                ExchangeRate = EditData.ExchangeRate,
+                Description = EditData.Description
+            };
+
+            ExchangeDateLocal = EditData.ExchangeDate.ToLocalTime();
+        }
+        else if (!IsEditMode)
+        {
+            ResetExchange();
+        }
+
+        ValidationErrors.Clear();
+        SuccessMessage = string.Empty;
+        StateHasChanged();
     }
 
     // ===== متدهای بارگذاری =====

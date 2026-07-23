@@ -150,16 +150,18 @@
                     .Include(h => h.PaidFromAccount)
                     .AsQueryable();
 
-                if (filter.Number  > 0)
+                if (filter.Number > 0 && string.IsNullOrWhiteSpace(filter.SearchTerm))
                     query = query.Where(h => h.Number == filter.Number);
 
-                if (!string.IsNullOrEmpty(filter.SearchTerm))
+                if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
                 {
                     var term = filter.SearchTerm.Trim();
                     query = query.Where(h =>
                         (h.SenderName != null && h.SenderName.Contains(term)) ||
                         (h.ReceiverName != null && h.ReceiverName.Contains(term)) ||
-                        (h.ReferenceNumber != null && h.ReferenceNumber.Contains(term))
+                        (h.ReferenceNumber != null && h.ReferenceNumber.Contains(term)) ||
+                        (filter.Number > 0 && h.Number == filter.Number) ||
+                        (filter.SearchAmount.HasValue && h.FromAmount == filter.SearchAmount.Value)
                     );
                 }
 
@@ -171,6 +173,30 @@
 
                 if (filter.CorrespondentId.HasValue)
                     query = query.Where(h => h.CorrespondentId == filter.CorrespondentId);
+
+                if (filter.PaymentLocationId.HasValue)
+                    query = query.Where(h => h.PaymentLocationId == filter.PaymentLocationId);
+
+                if (filter.CurrencyId.HasValue)
+                    query = query.Where(h => h.FromCurrencyId == filter.CurrencyId);
+
+                if (filter.MinAmount.HasValue)
+                    query = query.Where(h => h.FromAmount >= filter.MinAmount.Value);
+
+                if (filter.MaxAmount.HasValue)
+                    query = query.Where(h => h.FromAmount <= filter.MaxAmount.Value);
+
+                if (filter.FromDate.HasValue)
+                {
+                    var fromDate = filter.FromDate.Value.Date;
+                    query = query.Where(h => h.CreatedAt >= fromDate);
+                }
+
+                if (filter.ToDate.HasValue)
+                {
+                    var toDateExclusive = filter.ToDate.Value.Date.AddDays(1);
+                    query = query.Where(h => h.CreatedAt < toDateExclusive);
+                }
 
                 query = filter.SortDirection == "asc"
                     ? query.OrderBy(GetSortExpression(filter.SortColumn))

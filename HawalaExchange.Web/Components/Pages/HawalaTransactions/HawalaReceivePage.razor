@@ -11,6 +11,7 @@
 @inject IAccountService AccountService
 @inject ICustomerService CustomerService
 @inject ICompanySettingService CompanySettingService
+@inject IFileService FileService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 
@@ -23,7 +24,7 @@
             <h5 class="page-title">
                 <i class="bi bi-download"></i>
                 حواله‌های دریافتی
-                <span class="page-subtitle">تمام حواله‌های دریافتی، پرداخت‌شده، اجرا نشده و لغو شده</span>
+                <span class="page-subtitle">حواله‌های دریافتی اجراشده و پرداخت‌شده</span>
             </h5>
         </div>
 
@@ -57,56 +58,14 @@
 
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-download"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@hawalas.Count</div>
-                        <div class="stat-label">کل دریافتی</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-warning">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning">
-                        <i class="bi bi-clock-history"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@hawalas.Count(x => x.Status == "Pending")</div>
-                        <div class="stat-label">در انتظار</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
             <div class="stat-card stat-card-success">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon success">
                         <i class="bi bi-check-circle"></i>
                     </div>
                     <div>
-                        <div class="stat-number">@hawalas.Count(x => x.Status == "Paid")</div>
-                        <div class="stat-label">پرداخت شده</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-danger">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger">
-                        <i class="bi bi-x-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@hawalas.Count(x => x.Status == "Cancel")</div>
-                        <div class="stat-label">لغو شده</div>
+                        <div class="stat-number">@hawalas.Count</div>
+                        <div class="stat-label">اجرا شده</div>
                     </div>
                 </div>
             </div>
@@ -114,7 +73,7 @@
     </div>
 
     <div class="row g-3 mb-4 align-items-end">
-        <div class="col-md-4">
+        <div class="col-md-7">
             <label class="form-label fw-bold">
                 <i class="bi bi-search text-muted me-1"></i>
                 جستجو
@@ -124,20 +83,6 @@
                    placeholder="نمبر، فرستنده، گیرنده، مرجع..."
                    @bind="searchTerm"
                    @bind:event="oninput" />
-        </div>
-
-        <div class="col-md-3">
-            <label class="form-label fw-bold">
-                <i class="bi bi-circle text-muted me-1"></i>
-                وضعیت
-            </label>
-
-            <select class="form-select" @bind="filterStatus">
-                <option value="">همه</option>
-                <option value="Pending">در انتظار</option>
-                <option value="Paid">پرداخت شده</option>
-                <option value="Cancel">لغو شده</option>
-            </select>
         </div>
 
         <div class="col-md-2">
@@ -452,13 +397,6 @@
 
                         <div class="col-md-6">
                             <div class="info-card">
-                                <span class="info-label">گیرنده</span>
-                                <span class="info-value">@(selectedHawala.ReceiverName ?? "-")</span>
-                            </div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <div class="info-card">
                                 <span class="info-label">نماینده</span>
                                 <span class="info-value">@(selectedHawala.CorrespondentName ?? "-")</span>
                             </div>
@@ -506,6 +444,74 @@
                                     @(selectedHawala.AgentCommissionAmount?.ToString("N2") ?? "-")
                                     @selectedHawala.AgentCommissionCurrencyCode
                                 </span>
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-4">
+                            <h6 class="text-primary fw-bold mb-0">
+                                <i class="bi bi-person-vcard me-2"></i>
+                                مشخصات کامل گیرنده
+                            </h6>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">نام گیرنده</span>
+                                <span class="info-value">@(selectedHawala.ReceiverName ?? "-")</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">نام پدر</span>
+                                <span class="info-value">@(selectedHawala.ReceiverFatherName ?? "-")</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">شماره تماس</span>
+                                <span class="info-value" dir="ltr">@(selectedHawala.ReceiverPhone ?? "-")</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="info-card">
+                                <span class="info-label">شماره تذکره</span>
+                                <span class="info-value">@(selectedHawala.ReceiverTazkiraNumber ?? "-")</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="info-card">
+                                <span class="info-label">آدرس گیرنده</span>
+                                <span class="info-value">@(selectedHawala.ReceiverAddress ?? "-")</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="info-card">
+                                <span class="info-label mb-2">عکس تذکره گیرنده</span>
+                                @if (!string.IsNullOrWhiteSpace(selectedHawala.ReceiverTazkiraImagePath))
+                                {
+                                    var tazkiraImageUrl = FileService.GetFileUrl(selectedHawala.ReceiverTazkiraImagePath);
+                                    <a href="@tazkiraImageUrl"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       title="مشاهده عکس تذکره در اندازه کامل">
+                                        <img src="@tazkiraImageUrl"
+                                             alt="عکس تذکره گیرنده"
+                                             class="img-fluid rounded border"
+                                             style="width: 100%; max-height: 360px; object-fit: contain; background: #f8f9fa;" />
+                                    </a>
+                                    <small class="text-muted d-block mt-2">
+                                        برای مشاهده در اندازه کامل روی عکس کلیک کنید.
+                                    </small>
+                                }
+                                else
+                                {
+                                    <span class="info-value text-muted">عکس تذکره ثبت نشده است.</span>
+                                }
                             </div>
                         </div>
 
@@ -698,8 +704,6 @@
     private string cancelReason = string.Empty;
 
     private string searchTerm = string.Empty;
-    private string filterStatus = string.Empty;
-
     private int pageSize = 10;
     private int currentPage = 1;
 
@@ -762,7 +766,7 @@
             var filter = new HawalaFilterDto
             {
                 HawalaType = "HawalaReceive",
-                Status = string.IsNullOrWhiteSpace(filterStatus) ? null : filterStatus,
+                Status = "Paid",
                 PageNumber = 1,
                 PageSize = int.MaxValue,
                 SortColumn = "CreatedAt",
@@ -771,7 +775,9 @@
 
             var result = await HawalaService.GetHawalasAsync(filter);
 
-            hawalas = result.Items.ToList();
+            hawalas = result.Items
+                .Where(x => x.Status == "Paid")
+                .ToList();
 
             SearchLocal();
 
@@ -796,14 +802,13 @@
     private async Task ResetFilter()
     {
         searchTerm = string.Empty;
-        filterStatus = string.Empty;
 
         await LoadData();
     }
 
     private void SearchLocal()
     {
-        var query = hawalas.AsEnumerable();
+        var query = hawalas.Where(x => x.Status == "Paid");
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -832,6 +837,13 @@
         try
         {
             selectedHawala = await HawalaService.GetHawalaByIdAsync(id);
+            if (selectedHawala == null || selectedHawala.Status != "Paid")
+            {
+                validationErrors.Add("فقط جزئیات حواله‌های دریافتی اجراشده قابل مشاهده است.");
+                selectedHawala = null;
+                return;
+            }
+
             showDetailModal = true;
         }
         catch (Exception ex)

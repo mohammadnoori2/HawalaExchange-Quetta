@@ -372,6 +372,7 @@
                     .Include(h => h.ToCurrency)
                     .Include(h => h.CommissionCurrency)
                     .Include(h => h.AgentCommissionCurrency)
+                    .Include(h => h.PaymentLocation)
                     .Where(h => h.CorrespondentId == filter.CorrespondentId &&
                                 h.HawalaType == filter.HawalaType);
 

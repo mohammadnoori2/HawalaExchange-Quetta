@@ -39,6 +39,7 @@ namespace HawalaExchange.Infrastructure
             services.AddScoped<ILedgerService, LedgerService>();
             services.AddScoped<ITransferService, TransferService>();
             services.AddScoped<IExpenseService, ExpenseService>();
+            services.AddScoped<ICurrencyCostService, CurrencyCostService>();
 
             // Document and Audit
             services.AddScoped<IDocumentService, DocumentService>();

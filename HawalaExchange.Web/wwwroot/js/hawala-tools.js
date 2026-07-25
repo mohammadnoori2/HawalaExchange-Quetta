@@ -174,6 +174,181 @@ window.hawalaTools = {
         }
     },
 
+    printPdfElement: function (elementId, documentTitle) {
+        const element = document.getElementById(elementId);
+
+        if (!element) {
+            return false;
+        }
+
+        const printWindow = window.open("", "_blank", "width=1200,height=850,scrollbars=yes");
+
+        if (!printWindow) {
+            return false;
+        }
+
+        const clonedElement = element.cloneNode(true);
+        const title = documentTitle || "hawala-range-report";
+
+        printWindow.document.open();
+        printWindow.document.write(`
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>${title}</title>
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 10mm;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            color: #172033;
+            direction: rtl;
+            font-family: Tahoma, Arial, sans-serif;
+            font-size: 10px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .range-report-header {
+            padding-bottom: 10px;
+            margin-bottom: 14px;
+            border-bottom: 2px solid #3157a4;
+        }
+
+        .range-report-header h4 {
+            margin: 0 0 10px;
+            color: #24478f;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .col-md-3 {
+            padding: 7px 9px;
+            border: 1px solid #d8dfeb;
+            border-radius: 5px;
+            background: #f6f8fc;
+        }
+
+        .table-responsive {
+            overflow: visible !important;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            margin-bottom: 14px;
+        }
+
+        .hawala-range-table {
+            font-size: 8.5px;
+        }
+
+        .hawala-range-table th,
+        .hawala-range-table td {
+            padding: 5px 3px;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        th,
+        td {
+            border: 1px solid #cbd3df;
+            padding: 6px 5px;
+            text-align: center;
+            vertical-align: middle;
+            overflow-wrap: anywhere;
+        }
+
+        th {
+            background: #3157a4 !important;
+            color: #ffffff !important;
+            font-weight: 700;
+        }
+
+        tbody tr:nth-child(even) td {
+            background: #f5f7fb;
+        }
+
+        h6 {
+            margin: 14px 0 8px;
+            color: #24478f;
+            font-size: 13px;
+        }
+
+        .fw-bold {
+            font-weight: 700;
+        }
+
+        .text-danger {
+            color: #b42318 !important;
+        }
+
+        .text-success {
+            color: #067647 !important;
+        }
+
+        .text-primary {
+            color: #24478f !important;
+        }
+
+        .text-muted {
+            color: #667085 !important;
+        }
+
+        .mb-0,
+        .mb-3,
+        .mb-4 {
+            margin-bottom: 0;
+        }
+
+        [dir="ltr"] {
+            direction: ltr;
+            unicode-bidi: embed;
+        }
+    </style>
+</head>
+<body>
+    ${clonedElement.outerHTML}
+</body>
+</html>`);
+
+        printWindow.onload = function () {
+            setTimeout(function () {
+                printWindow.focus();
+                printWindow.print();
+            }, 350);
+        };
+
+        printWindow.document.close();
+
+        return true;
+    },
+
     printElement: function (elementId, paperWidthMm) {
         const element = document.getElementById(elementId);
 

@@ -132,6 +132,8 @@ namespace HawalaSystem.Mappings
             CreateMap<CapitalInvestment, CapitalInvestmentDto>()
                 .ForMember(dest => dest.CurrencyCode,
                     opt => opt.MapFrom(src => src.Currency != null ? src.Currency.Code : ""))
+                .ForMember(dest => dest.ProfitCurrencyCode,
+                    opt => opt.MapFrom(src => src.ProfitCurrency != null ? src.ProfitCurrency.Code : ""))
                 .ForMember(dest => dest.ReceivingAccountName,
                     opt => opt.MapFrom(src => src.ReceivingAccount != null ? src.ReceivingAccount.AccountName : ""))
                 .ForMember(dest => dest.CapitalAccountName,
@@ -145,6 +147,7 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.ModifiedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.ModifiedBy, opt => opt.Ignore())
                 .ForMember(dest => dest.Currency, opt => opt.Ignore())
+                .ForMember(dest => dest.ProfitCurrency, opt => opt.Ignore())
                 .ForMember(dest => dest.ReceivingAccount, opt => opt.Ignore())
                 .ForMember(dest => dest.CapitalAccount, opt => opt.Ignore())
                 .ForMember(dest => dest.LedgerEntries, opt => opt.Ignore());
@@ -157,6 +160,7 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.ModifiedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.ModifiedBy, opt => opt.Ignore())
                 .ForMember(dest => dest.Currency, opt => opt.Ignore())
+                .ForMember(dest => dest.ProfitCurrency, opt => opt.Ignore())
                 .ForMember(dest => dest.ReceivingAccount, opt => opt.Ignore())
                 .ForMember(dest => dest.CapitalAccount, opt => opt.Ignore())
                 .ForMember(dest => dest.LedgerEntries, opt => opt.Ignore());
@@ -213,7 +217,13 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.FromCurrencyCode,
                     opt => opt.MapFrom(src => src.FromCurrency != null ? src.FromCurrency.Code : ""))
                 .ForMember(dest => dest.ToCurrencyCode,
-                    opt => opt.MapFrom(src => src.ToCurrency != null ? src.ToCurrency.Code : ""));
+                    opt => opt.MapFrom(src => src.ToCurrency != null ? src.ToCurrency.Code : ""))
+                .ForMember(dest => dest.ProfitCurrencyCode,
+                    opt => opt.MapFrom(src => src.ProfitCurrency != null ? src.ProfitCurrency.Code : ""))
+                .ForMember(dest => dest.RateBaseCurrencyCode,
+                    opt => opt.MapFrom(src => src.RateBaseCurrency != null ? src.RateBaseCurrency.Code : ""))
+                .ForMember(dest => dest.RateQuoteCurrencyCode,
+                    opt => opt.MapFrom(src => src.RateQuoteCurrency != null ? src.RateQuoteCurrency.Code : ""));
 
             CreateMap<CreateMoneyExchangeOperationDto, MoneyExchangeOperation>()
                 .ForMember(dest => dest.Id, opt => opt.Ignore())
@@ -226,6 +236,20 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.ToAccount, opt => opt.Ignore())
                 .ForMember(dest => dest.FromCurrency, opt => opt.Ignore())
                 .ForMember(dest => dest.ToCurrency, opt => opt.Ignore())
+                .ForMember(dest => dest.ProfitCurrency, opt => opt.Ignore())
+                .ForMember(dest => dest.RateBaseCurrencyId, opt => opt.Ignore())
+                .ForMember(dest => dest.RateQuoteCurrencyId, opt => opt.Ignore())
+                .ForMember(dest => dest.RateBaseCurrency, opt => opt.Ignore())
+                .ForMember(dest => dest.RateQuoteCurrency, opt => opt.Ignore())
+                .ForMember(dest => dest.CostAmount, opt => opt.Ignore())
+                .ForMember(dest => dest.RealizedProfit, opt => opt.Ignore())
+                .ForMember(dest => dest.ExchangeProfitAmount, opt => opt.Ignore())
+                .ForMember(dest => dest.InventoryCostIncrease, opt => opt.Ignore())
+                .ForMember(dest => dest.InventoryCostDecrease, opt => opt.Ignore())
+                .ForMember(dest => dest.ShortLiabilityIncrease, opt => opt.Ignore())
+                .ForMember(dest => dest.ShortLiabilityDecrease, opt => opt.Ignore())
+                .ForMember(dest => dest.DeferredAmount, opt => opt.Ignore())
+                .ForMember(dest => dest.ProfitStatus, opt => opt.Ignore())
                 .ForMember(dest => dest.LedgerEntries, opt => opt.Ignore());
 
             CreateMap<UpdateMoneyExchangeOperationDto, MoneyExchangeOperation>()
@@ -239,6 +263,20 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.ToAccount, opt => opt.Ignore())
                 .ForMember(dest => dest.FromCurrency, opt => opt.Ignore())
                 .ForMember(dest => dest.ToCurrency, opt => opt.Ignore())
+                .ForMember(dest => dest.ProfitCurrency, opt => opt.Ignore())
+                .ForMember(dest => dest.RateBaseCurrencyId, opt => opt.Ignore())
+                .ForMember(dest => dest.RateQuoteCurrencyId, opt => opt.Ignore())
+                .ForMember(dest => dest.RateBaseCurrency, opt => opt.Ignore())
+                .ForMember(dest => dest.RateQuoteCurrency, opt => opt.Ignore())
+                .ForMember(dest => dest.CostAmount, opt => opt.Ignore())
+                .ForMember(dest => dest.RealizedProfit, opt => opt.Ignore())
+                .ForMember(dest => dest.ExchangeProfitAmount, opt => opt.Ignore())
+                .ForMember(dest => dest.InventoryCostIncrease, opt => opt.Ignore())
+                .ForMember(dest => dest.InventoryCostDecrease, opt => opt.Ignore())
+                .ForMember(dest => dest.ShortLiabilityIncrease, opt => opt.Ignore())
+                .ForMember(dest => dest.ShortLiabilityDecrease, opt => opt.Ignore())
+                .ForMember(dest => dest.DeferredAmount, opt => opt.Ignore())
+                .ForMember(dest => dest.ProfitStatus, opt => opt.Ignore())
                 .ForMember(dest => dest.LedgerEntries, opt => opt.Ignore());
             // ===== Hawala =====
             // Hawala -> HawalaDto

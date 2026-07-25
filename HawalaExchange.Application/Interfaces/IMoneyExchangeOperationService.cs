@@ -13,4 +13,8 @@ public interface IMoneyExchangeOperationService
     Task<MoneyExchangeOperationDto> UpdateAsync(long id, UpdateMoneyExchangeOperationDto dto);
 
     Task DeleteAsync(long id);
+
+    Task<IReadOnlyList<CurrencyCostPositionDto>> GetCostPositionsAsync();
+
+    Task<MoneyExchangeProfitSummaryDto> GetProfitSummaryAsync(long? profitCurrencyId = null);
 }

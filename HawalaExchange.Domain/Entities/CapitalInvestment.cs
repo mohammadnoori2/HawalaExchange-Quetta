@@ -8,6 +8,12 @@ public class CapitalInvestment
 
     public decimal Amount { get; set; }
 
+    /// <summary>Currency selected for measuring the carrying value of this capital.</summary>
+    public long? ProfitCurrencyId { get; set; }
+
+    /// <summary>Opening carrying value in ProfitCurrency. No reference/market rate is used.</summary>
+    public decimal? ProfitCurrencyAmount { get; set; }
+
     public long ReceivingAccountId { get; set; }
 
     public long CapitalAccountId { get; set; }
@@ -27,6 +33,8 @@ public class CapitalInvestment
     public long? ModifiedBy { get; set; }
 
     public Currency Currency { get; set; } = null!;
+
+    public Currency? ProfitCurrency { get; set; }
 
     public Account ReceivingAccount { get; set; } = null!;
 

@@ -103,6 +103,7 @@ public partial class Program
 
         builder.Services.AddScoped<IAccountMoneyOperationService, AccountMoneyOperationService>();
         builder.Services.AddScoped<IMoneyExchangeOperationService, MoneyExchangeOperationService>();
+        builder.Services.AddScoped<ICurrencyCostService, CurrencyCostService>();
         builder.Services.AddScoped<IJournalService, JournalService>();
         builder.Services.AddScoped<ICompanySettingService, CompanySettingService>();
         // ============================================================
@@ -152,6 +153,11 @@ public partial class Program
                 var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
                 SeedData.InitializeAsync(roleManager, userManager, context).Wait();
+
+                // Recalculate cost positions and recreate all exchange valuation ledger
+                // entries after migrations or application restarts.
+                var currencyCostService = services.GetRequiredService<ICurrencyCostService>();
+                currencyCostService.RebuildAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {

@@ -15,6 +15,10 @@ namespace HawalaExchange.Application.DTOs
 
         public decimal Amount { get; set; }
 
+        public long? ProfitCurrencyId { get; set; }
+        public string ProfitCurrencyCode { get; set; } = string.Empty;
+        public decimal? ProfitCurrencyAmount { get; set; }
+
         public long ReceivingAccountId { get; set; }
 
         public string ReceivingAccountName { get; set; } = string.Empty;
@@ -34,6 +38,9 @@ namespace HawalaExchange.Application.DTOs
 
         public decimal Amount { get; set; }
 
+        public long ProfitCurrencyId { get; set; }
+        public decimal ProfitCurrencyAmount { get; set; }
+
         public long ReceivingAccountId { get; set; }
 
         public long CapitalAccountId { get; set; }
@@ -48,6 +55,9 @@ namespace HawalaExchange.Application.DTOs
         public long CurrencyId { get; set; }
 
         public decimal Amount { get; set; }
+
+        public long ProfitCurrencyId { get; set; }
+        public decimal ProfitCurrencyAmount { get; set; }
 
         public long ReceivingAccountId { get; set; }
 

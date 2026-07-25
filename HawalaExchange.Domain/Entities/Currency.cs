@@ -24,6 +24,11 @@ namespace HawalaExchange.Domain.Entities
 
         public int DecimalPlaces { get; set; } = 2;
 
+        /// <summary>
+        /// Lower values make this currency the base currency when a canonical pair is formed.
+        /// </summary>
+        public int QuotationPriority { get; set; } = 1000;
+
         public bool IsActive { get; set; } = true;
 
         // Navigation Properties

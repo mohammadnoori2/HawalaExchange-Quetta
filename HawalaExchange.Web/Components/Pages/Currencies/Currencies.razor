@@ -124,6 +124,7 @@
                             </th>
                             <th>سمبل</th>
                             <th>تعداد اعشار</th>
+                            <th>اولویت نرخ</th>
                             <th>وضعیت</th>
                             <th class="text-center">عملیات</th>
                         </tr>
@@ -132,7 +133,7 @@
                         @if (isLoading && currencies == null)
                         {
                             <tr>
-                                <td colspan="7" class="text-center py-5">
+                                <td colspan="8" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status">
                                             <span class="visually-hidden">در حال بارگذاری...</span>
@@ -145,7 +146,7 @@
                         else if (!pagedCurrencies.Any())
                         {
                             <tr>
-                                <td colspan="7" class="text-center py-5">
+                                <td colspan="8" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ ارزی یافت نشد</span>
@@ -176,6 +177,7 @@
                                         <span class="badge-modern badge-info">@currency.Symbol</span>
                                     </td>
                                     <td>@currency.DecimalPlaces</td>
+                                    <td>@currency.QuotationPriority</td>
                                     <td>
                                         @if (currency.IsActive)
                                         {
@@ -342,6 +344,12 @@
                                         <i class="bi bi-123 text-muted me-1"></i> تعداد اعشار
                                     </label>
                                     <input type="number" class="form-control" @bind="currentCurrency.DecimalPlaces" min="0" max="8" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">اولویت پایه نرخ</label>
+                                    <input type="number" class="form-control"
+                                           @bind="currentCurrency.QuotationPriority" min="1" />
+                                    <small class="text-muted">عدد کمتر یعنی ارز در جفت‌ارز، پایه قرار می‌گیرد.</small>
                                 </div>
                             </div>
                         </div>
@@ -555,7 +563,7 @@
 
     private void OpenCreateModal()
     {
-        currentCurrency = new CreateCurrencyDto();
+        currentCurrency = new CreateCurrencyDto { QuotationPriority = 1000 };
         currencyCodeDisplay = null;
         isEditMode = false;
         editId = 0;
@@ -581,7 +589,8 @@
                     Code = currency.Code,
                     Name = currency.Name,
                     Symbol = currency.Symbol,
-                    DecimalPlaces = currency.DecimalPlaces
+                    DecimalPlaces = currency.DecimalPlaces,
+                    QuotationPriority = currency.QuotationPriority
                 };
 
                 isEditMode = true;
@@ -625,6 +634,8 @@
             validationErrors.Add("نام ارز الزامی است");
         if (currentCurrency.DecimalPlaces < 0)
             validationErrors.Add("تعداد اعشار نمی‌تواند منفی باشد");
+        if (currentCurrency.QuotationPriority <= 0)
+            validationErrors.Add("اولویت نرخ باید بزرگتر از صفر باشد");
 
         if (validationErrors.Any())
         {
@@ -644,6 +655,7 @@
                     Name = currentCurrency.Name,
                     Symbol = currentCurrency.Symbol,
                     DecimalPlaces = currentCurrency.DecimalPlaces,
+                    QuotationPriority = currentCurrency.QuotationPriority,
                     IsActive = true
                 };
                 await CurrencyService.UpdateAsync(editId, updateRequest);

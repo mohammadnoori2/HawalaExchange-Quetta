@@ -2,10 +2,12 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
 @inject ICorrespondentService CorrespondentService
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject IHawalaService HawalaService
+@inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 @attribute [Authorize]
@@ -644,81 +646,113 @@
                     {
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="mb-0">تعداد حواله‌ها: <span class="badge bg-primary">@rangeResult.Hawalas.Count</span></h6>
+                            <button type="button"
+                                    class="btn-modern btn-danger-modern"
+                                    @onclick="ExportRangePdf"
+                                    disabled="@(rangePdfLoading || rangeResult.Hawalas.Count == 0)">
+                                @if (rangePdfLoading)
+                                {
+                                    <span class="spinner-border spinner-border-sm"></span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                }
+                                خروجی PDF
+                            </button>
                         </div>
 
-                        <div class="table-responsive mb-4">
-                            <table class="table table-hover align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>شماره حواله</th>
-                                        <th>تاریخ</th>
-                                        <th>نام کامل فرستنده</th>
-                                        <th>نام کامل گیرنده</th>
-                                        <th>مقدار حواله</th>
-                                        <th>ارز حواله</th>
-                                        <th>کارمزد</th>
-                                        <th>ارز کارمزد</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @if (rangeResult.Hawalas.Count == 0)
-                                    {
-                                        <tr><td colspan="9" class="text-center text-muted py-4">در این محدوده حواله‌ای یافت نشد.</td></tr>
-                                    }
-                                    else
-                                    {
-                                        var reportIndex = 1;
-                                        @foreach (var hawala in rangeResult.Hawalas)
-                                        {
-                                            <tr>
-                                                <td>@reportIndex</td>
-                                                <td class="fw-bold">@hawala.Number</td>
-                                                <td dir="ltr">@PersianDateHelper.ToPersianDate(hawala.CreatedAt)</td>
-                                                <td>@GetFullName(hawala.SenderName, hawala.SenderFatherName)</td>
-                                                <td>@GetFullName(hawala.ReceiverName, hawala.ReceiverFatherName)</td>
-                                                <td class="fw-bold" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount)</td>
-                                                <td>@hawala.FromCurrencyCode</td>
-                                                <td dir="ltr">@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")</td>
-                                                <td>@(hawala.CommissionCurrencyCode ?? "-")</td>
-                                            </tr>
-                                            reportIndex++;
-                                        }
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
+                        <div id="correspondentRangeReport">
+                            <div class="range-report-header">
+                                <h4 class="fw-bold mb-3">گزارش محدوده حواله‌های نمایندگی</h4>
+                                <div class="row g-2 mb-4">
+                                    <div class="col-md-3"><strong>نمایندگی:</strong> @selectedRangeCorrespondent.Name</div>
+                                    <div class="col-md-3"><strong>کد:</strong> @selectedRangeCorrespondent.Code</div>
+                                    <div class="col-md-3"><strong>نوع حواله:</strong> @rangeReportHawalaType</div>
+                                    <div class="col-md-3"><strong>محدوده:</strong> @rangeReportDescription</div>
+                                </div>
+                            </div>
 
-                        <h6 class="fw-bold mb-3"><i class="bi bi-calculator me-2"></i>خلاصه لیجر در محدوده</h6>
-                        <div class="table-responsive">
-                            <table class="table table-bordered align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>ارز</th>
-                                        <th>مجموع بدهکار</th>
-                                        <th>مجموع طلبکار</th>
-                                        <th>بیلانس محدوده</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @if (rangeResult.Summaries.Count == 0)
-                                    {
-                                        <tr><td colspan="4" class="text-center text-muted">برای این محدوده رکورد لیجر نمایندگی وجود ندارد.</td></tr>
-                                    }
-                                    else
-                                    {
-                                        @foreach (var summary in rangeResult.Summaries)
+                            <div class="table-responsive mb-4">
+                                <table class="table table-hover align-middle hawala-range-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>شماره حواله</th>
+                                            <th>تاریخ</th>
+                                            <th>نام کامل فرستنده</th>
+                                            <th>نام کامل گیرنده</th>
+                                            <th>محل پرداخت</th>
+                                            <th>مقدار حواله</th>
+                                            <th>ارز حواله</th>
+                                            <th>کارمزد</th>
+                                            <th>ارز کارمزد</th>
+                                            <th>کارمزد نمایندگی</th>
+                                            <th>ارز کارمزد نمایندگی</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (rangeResult.Hawalas.Count == 0)
                                         {
-                                            <tr>
-                                                <td class="fw-bold">@summary.CurrencyCode</td>
-                                                <td class="text-danger fw-bold" dir="ltr">@MoneyFormatHelper.Format(summary.TotalDebit)</td>
-                                                <td class="text-success fw-bold" dir="ltr">@MoneyFormatHelper.Format(summary.TotalCredit)</td>
-                                                <td class="fw-bold @(summary.Balance < 0 ? "text-danger" : "text-primary")" dir="ltr">@MoneyFormatHelper.Format(summary.Balance)</td>
-                                            </tr>
+                                            <tr><td colspan="12" class="text-center text-muted py-4">در این محدوده حواله‌ای یافت نشد.</td></tr>
                                         }
-                                    }
-                                </tbody>
-                            </table>
+                                        else
+                                        {
+                                            var reportIndex = 1;
+                                            @foreach (var hawala in rangeResult.Hawalas)
+                                            {
+                                                <tr>
+                                                    <td>@reportIndex</td>
+                                                    <td class="fw-bold">@hawala.Number</td>
+                                                    <td dir="ltr">@PersianDateHelper.ToPersianDate(hawala.CreatedAt)</td>
+                                                    <td>@GetFullName(hawala.SenderName, hawala.SenderFatherName)</td>
+                                                    <td>@GetFullName(hawala.ReceiverName, hawala.ReceiverFatherName)</td>
+                                                    <td>@GetRangePaymentLocation(hawala)</td>
+                                                    <td class="fw-bold" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount)</td>
+                                                    <td>@hawala.FromCurrencyCode</td>
+                                                    <td dir="ltr">@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")</td>
+                                                    <td>@(hawala.CommissionCurrencyCode ?? "-")</td>
+                                                    <td dir="ltr">@(hawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) : "-")</td>
+                                                    <td>@(hawala.AgentCommissionCurrencyCode ?? "-")</td>
+                                                </tr>
+                                                reportIndex++;
+                                            }
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <h6 class="fw-bold mb-3"><i class="bi bi-calculator me-2"></i>خلاصه لیجر در محدوده</h6>
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>ارز</th>
+                                            <th>مجموع بدهکار</th>
+                                            <th>مجموع طلبکار</th>
+                                            <th>بیلانس محدوده</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (rangeResult.Summaries.Count == 0)
+                                        {
+                                            <tr><td colspan="4" class="text-center text-muted">برای این محدوده رکورد لیجر نمایندگی وجود ندارد.</td></tr>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var summary in rangeResult.Summaries)
+                                            {
+                                                <tr>
+                                                    <td class="fw-bold">@summary.CurrencyCode</td>
+                                                    <td class="text-danger fw-bold" dir="ltr">@MoneyFormatHelper.Format(summary.TotalDebit)</td>
+                                                    <td class="text-success fw-bold" dir="ltr">@MoneyFormatHelper.Format(summary.TotalCredit)</td>
+                                                    <td class="fw-bold @(summary.Balance < 0 ? "text-danger" : "text-primary")" dir="ltr">@MoneyFormatHelper.Format(summary.Balance)</td>
+                                                </tr>
+                                            }
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     }
                 </div>
@@ -839,12 +873,15 @@
     private string successMessage = string.Empty;
     private string? correspondentCodeDisplay;
     private bool rangeLoading = false;
+    private bool rangePdfLoading = false;
     private string rangeError = string.Empty;
     private CorrespondentDto? selectedRangeCorrespondent;
     private CorrespondentHawalaRangeFilterDto rangeFilter = new();
     private CorrespondentHawalaRangeResultDto? rangeResult;
     private DateTime rangeStartDate = DateTime.Today.AddMonths(-1);
     private DateTime rangeEndDate = DateTime.Today;
+    private string rangeReportHawalaType = string.Empty;
+    private string rangeReportDescription = string.Empty;
 
     private CreateCorrespondentDto currentCorrespondent = new();
 
@@ -1083,6 +1120,8 @@
         rangeEndDate = DateTime.Today;
         rangeResult = null;
         rangeError = string.Empty;
+        rangeReportHawalaType = string.Empty;
+        rangeReportDescription = string.Empty;
         showRangeModal = true;
     }
 
@@ -1092,6 +1131,8 @@
         selectedRangeCorrespondent = null;
         rangeResult = null;
         rangeError = string.Empty;
+        rangeReportHawalaType = string.Empty;
+        rangeReportDescription = string.Empty;
     }
 
     private async Task LoadRangeReport()
@@ -1116,6 +1157,8 @@
         {
             rangeLoading = true;
             rangeResult = await HawalaService.GetCorrespondentRangeAsync(rangeFilter);
+            rangeReportHawalaType = GetRangeHawalaTypeName(rangeFilter.HawalaType);
+            rangeReportDescription = GetRangeDescription();
         }
         catch (Exception ex)
         {
@@ -1125,6 +1168,67 @@
         {
             rangeLoading = false;
         }
+    }
+
+    private async Task ExportRangePdf()
+    {
+        if (rangeResult == null || rangeResult.Hawalas.Count == 0 || selectedRangeCorrespondent == null)
+        {
+            rangeError = "برای خروجی PDF باید ابتدا محدوده‌ای دارای حواله را نمایش دهید.";
+            return;
+        }
+
+        try
+        {
+            rangePdfLoading = true;
+            rangeError = string.Empty;
+            var safeCode = string.Concat(selectedRangeCorrespondent.Code
+                .Where(character => char.IsLetterOrDigit(character) || character is '-' or '_'));
+            var fileName = $"hawala-range-{safeCode}-{DateTime.Now:yyyyMMdd-HHmmss}";
+            var exported = await JS.InvokeAsync<bool>(
+                "hawalaTools.printPdfElement",
+                "correspondentRangeReport",
+                fileName);
+
+            if (!exported)
+                rangeError = "پنجره خروجی باز نشد. لطفاً اجازه باز شدن پنجره جدید را در مرورگر فعال کنید.";
+        }
+        catch (Exception ex)
+        {
+            rangeError = $"خطا در ایجاد خروجی PDF: {ex.Message}";
+        }
+        finally
+        {
+            rangePdfLoading = false;
+        }
+    }
+
+    private string GetRangeDescription()
+    {
+        if (rangeFilter.RangeType == "Date")
+            return $"{PersianDateHelper.ToPersianDate(rangeStartDate)} تا {PersianDateHelper.ToPersianDate(rangeEndDate)}";
+
+        return $"{rangeFilter.StartNumber?.ToString() ?? "-"} تا {rangeFilter.EndNumber?.ToString() ?? "-"}";
+    }
+
+    private static string GetRangeHawalaTypeName(string hawalaType) => hawalaType switch
+    {
+        "HawalaSend" => "حواله ارسالی",
+        "HawalaReceive" => "حواله دریافتی",
+        "HawalaOther" => "حواله متفرقه",
+        _ => hawalaType
+    };
+
+    private static string GetRangePaymentLocation(HawalaDto hawala)
+    {
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationName))
+            return hawala.PaymentLocationName;
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationAddress))
+            return hawala.PaymentLocationAddress;
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocation))
+            return hawala.PaymentLocation;
+
+        return "-";
     }
 
     private static string GetFullName(string? name, string? fatherName)

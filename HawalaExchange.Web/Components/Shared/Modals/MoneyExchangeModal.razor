@@ -2,6 +2,7 @@
 @using System.Globalization
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
 @using HawalaExchange.Web.Helpers
 @using Microsoft.AspNetCore.Components.Forms
 
@@ -76,31 +77,33 @@
                             <div class="card-body">
                                 <div class="row mb-3">
                                     <div class="col-md-4">
-                                        <label class="form-label fw-bold">روش محاسبه</label>
-                                        <div class="d-flex gap-3">
-                                            <label class="form-check-label">
-                                                <input type="radio"
-                                                       class="form-check-input"
-                                                       name="calcMode"
-                                                       value="RateToAmount"
-                                                       checked="@(CalculationMode == "RateToAmount")"
-                                                       @onchange='() => ChangeCalculationMode("RateToAmount")' />
-                                                نرخ → مبلغ دریافتی
-                                            </label>
-
-                                            <label class="form-check-label">
-                                                <input type="radio"
-                                                       class="form-check-input"
-                                                       name="calcMode"
-                                                       value="AmountToRate"
-                                                       checked="@(CalculationMode == "AmountToRate")"
-                                                       @onchange='() => ChangeCalculationMode("AmountToRate")' />
-                                                مبلغ دریافتی → نرخ
-                                            </label>
+                                        <label class="form-label fw-bold">مالک پول</label>
+                                        <select class="form-select"
+                                                value="@CurrentExchange.OperationType"
+                                                @onchange="OnOperationTypeChanged">
+                                            <option value="Treasury">سرمایه خود صراف</option>
+                                            <option value="Customer">پول مشتری</option>
+                                        </select>
+                                        <small class="text-muted">پول مشتری وارد موجودی و مفاد سرمایه صراف نمی‌شود.</small>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold">ارز محاسبه مفاد <span class="text-danger">*</span></label>
+                                        <select class="form-select" @bind="CurrentExchange.ProfitCurrencyId">
+                                            <option value="0">انتخاب ارز</option>
+                                            @foreach (var currency in CurrenciesList)
+                                            {
+                                                <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold">روش محاسبه نرخ</label>
+                                        <div class="alert alert-light border mb-0 py-2">
+                                            نرخ از مبلغ پرداختی و دریافتی و بر اساس ترتیب پایه/قیمت‌گذاری ارزها محاسبه می‌شود.
                                         </div>
                                     </div>
 
-                                    <div class="col-md-4">
+                                    <div class="col-md-6 mt-3">
                                         <label class="form-label fw-bold">تاریخ و زمان تبدیل</label>
 
                                         <PersianDatePicker @bind-Value="ExchangeDateLocal"
@@ -108,7 +111,7 @@
                                                            Placeholder="انتخاب تاریخ شمسی" />
                                     </div>
 
-                                    <div class="col-md-4">
+                                    <div class="col-md-6 mt-3">
                                         <label class="form-label fw-bold">توضیحات</label>
                                         <input type="text"
                                                class="form-control"
@@ -134,7 +137,7 @@
                                                     <option value="0">انتخاب حساب</option>
                                                     @if (AccountsList != null && AccountsList.Any())
                                                     {
-                                                        @foreach (var account in AccountsList)
+                                                        @foreach (var account in AvailableAccounts)
                                                         {
                                                             <option value="@account.Id">
                                                                 @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
@@ -153,7 +156,9 @@
                                                     ارز پرداختی <span class="text-danger">*</span>
                                                 </label>
 
-                                                <select class="form-select" @bind="CurrentExchange.FromCurrencyId">
+                                                <select class="form-select"
+                                                        value="@CurrentExchange.FromCurrencyId"
+                                                        @onchange="OnFromCurrencyChanged">
                                                     <option value="0">انتخاب ارز</option>
                                                     @if (CurrenciesList != null && CurrenciesList.Any())
                                                     {
@@ -200,7 +205,7 @@
                                                     <option value="0">انتخاب حساب</option>
                                                     @if (AccountsList != null && AccountsList.Any())
                                                     {
-                                                        @foreach (var account in AccountsList)
+                                                        @foreach (var account in AvailableAccounts)
                                                         {
                                                             <option value="@account.Id">
                                                                 @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
@@ -219,7 +224,9 @@
                                                     ارز دریافتی <span class="text-danger">*</span>
                                                 </label>
 
-                                                <select class="form-select" @bind="CurrentExchange.ToCurrencyId">
+                                                <select class="form-select"
+                                                        value="@CurrentExchange.ToCurrencyId"
+                                                        @onchange="OnToCurrencyChanged">
                                                     <option value="0">انتخاب ارز</option>
                                                     @if (CurrenciesList != null && CurrenciesList.Any())
                                                     {
@@ -257,14 +264,25 @@
                                             نرخ تبدیل <span class="text-danger">*</span>
                                         </label>
 
-                                        <MoneyInput DecimalPlaces="4"
-                                                    class="form-control"
-                                                    Value="CurrentExchange.ExchangeRate"
-                                                    ValueChanged="OnExchangeRateChanged"
-                                                    placeholder="مثلاً 70" />
+                                        <input class="form-control"
+                                               value="@CurrentExchange.ExchangeRate.ToString("N8")"
+                                               readonly />
+                                        <small class="text-muted">@RateMeaning</small>
                                     </div>
 
-                                    <div class="col-md-8">
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold">کمیسیون (ارز مفاد)</label>
+                                        <MoneyInput class="form-control"
+                                                    @bind-Value="CurrentExchange.CommissionAmount"
+                                                    placeholder="0" />
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold">هزینه خارجی (ارز مفاد)</label>
+                                        <MoneyInput class="form-control"
+                                                    @bind-Value="CurrentExchange.ExternalFeeAmount"
+                                                    placeholder="0" />
+                                    </div>
+                                    <div class="col-12">
                                         <div class="alert alert-info mb-0 mt-md-4">
                                             <strong>سند حسابداری:</strong>
                                             <div class="mt-2">
@@ -332,6 +350,10 @@
     private CreateMoneyExchangeOperationDto CurrentExchange { get; set; } = new();
     private List<CurrencyDto> CurrenciesList { get; set; } = new();
     private List<AccountDto> AccountsList { get; set; } = new();
+    private IEnumerable<AccountDto> AvailableAccounts =>
+        CurrentExchange.OperationType == "Customer"
+            ? AccountsList.Where(x => x.AccountType == "Customer")
+            : AccountsList.Where(x => x.AccountType is "Cash" or "Bank");
 
     private List<string> ValidationErrors { get; set; } = new();
     private string SuccessMessage { get; set; } = string.Empty;
@@ -339,7 +361,6 @@
     private bool IsDataLoading { get; set; } = true;
 
     private DateTime ExchangeDateLocal { get; set; } = DateTime.Now;
-    private string CalculationMode { get; set; } = "RateToAmount";
 
     // ===== متدهای چرخه حیات =====
 
@@ -377,6 +398,10 @@
                 ToCurrencyId = EditData.ToCurrencyId,
                 ToAmount = EditData.ToAmount,
                 ExchangeRate = EditData.ExchangeRate,
+                OperationType = EditData.OperationType,
+                ProfitCurrencyId = EditData.ProfitCurrencyId,
+                CommissionAmount = EditData.CommissionAmount,
+                ExternalFeeAmount = EditData.ExternalFeeAmount,
                 Description = EditData.Description
             };
 
@@ -440,12 +465,15 @@
             FromAmount = 0,
             ToAmount = 0,
             ExchangeRate = 0,
+            OperationType = "Treasury",
+            ProfitCurrencyId = afn?.Id ?? 0,
+            CommissionAmount = 0,
+            ExternalFeeAmount = 0,
             ExchangeDate = DateTime.UtcNow,
             Description = "ثبت تبدیل پول"
         };
 
         ExchangeDateLocal = DateTime.Now;
-        CalculationMode = "RateToAmount";
     }
 
     private async Task CloseModal()
@@ -489,6 +517,10 @@
                     ToCurrencyId = CurrentExchange.ToCurrencyId,
                     ToAmount = CurrentExchange.ToAmount,
                     ExchangeRate = CurrentExchange.ExchangeRate,
+                    OperationType = CurrentExchange.OperationType,
+                    ProfitCurrencyId = CurrentExchange.ProfitCurrencyId,
+                    CommissionAmount = CurrentExchange.CommissionAmount,
+                    ExternalFeeAmount = CurrentExchange.ExternalFeeAmount,
                     Description = CurrentExchange.Description
                 };
 
@@ -546,61 +578,73 @@
 
         if (CurrentExchange.ExchangeRate <= 0)
             ValidationErrors.Add("نرخ تبدیل باید بزرگتر از صفر باشد.");
+
+        if (CurrentExchange.OperationType == "Customer" &&
+            CurrentExchange.FromAccountId != CurrentExchange.ToAccountId)
+            ValidationErrors.Add("برای پول مشتری، حساب پرداخت‌کننده و دریافت‌کننده باید همان حساب مشتری باشد.");
+
+        if (CurrentExchange.ProfitCurrencyId <= 0)
+            ValidationErrors.Add("انتخاب ارز محاسبه مفاد الزامی است.");
+
+        if (CurrentExchange.CommissionAmount < 0 || CurrentExchange.ExternalFeeAmount < 0)
+            ValidationErrors.Add("کمیسیون و هزینه خارجی نمی‌تواند منفی باشد.");
     }
 
     // ===== متدهای محاسبه =====
 
-    private void ChangeCalculationMode(string mode)
+    private void OnOperationTypeChanged(ChangeEventArgs args)
     {
-        CalculationMode = mode;
-        CalculateValues();
-        StateHasChanged();
+        CurrentExchange.OperationType = args.Value?.ToString() ?? "Treasury";
+        var account = AvailableAccounts.FirstOrDefault();
+        CurrentExchange.FromAccountId = account?.Id ?? 0;
+        CurrentExchange.ToAccountId = account?.Id ?? 0;
     }
 
     private void OnFromAmountChanged(decimal amount)
     {
         CurrentExchange.FromAmount = amount;
-        CalculateValues();
+        CalculateRate();
         StateHasChanged();
     }
 
     private void OnToAmountChanged(decimal amount)
     {
         CurrentExchange.ToAmount = amount;
-        CalculateValues();
+        CalculateRate();
         StateHasChanged();
     }
 
-    private void OnExchangeRateChanged(decimal rate)
+    private void OnFromCurrencyChanged(ChangeEventArgs args)
     {
-        CurrentExchange.ExchangeRate = rate;
-        CalculateValues();
-        StateHasChanged();
+        CurrentExchange.FromCurrencyId = long.TryParse(args.Value?.ToString(), out var id) ? id : 0;
+        CalculateRate();
     }
 
-    private void CalculateValues()
+    private void OnToCurrencyChanged(ChangeEventArgs args)
     {
-        if (CurrentExchange.FromAmount <= 0)
+        CurrentExchange.ToCurrencyId = long.TryParse(args.Value?.ToString(), out var id) ? id : 0;
+        CalculateRate();
+    }
+
+    private string RateMeaning { get; set; } = "پس از ورود هر دو مبلغ نمایش داده می‌شود.";
+
+    private void CalculateRate()
+    {
+        var from = CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.FromCurrencyId);
+        var to = CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.ToCurrencyId);
+        if (from == null || to == null || from.Id == to.Id ||
+            CurrentExchange.FromAmount <= 0 || CurrentExchange.ToAmount <= 0)
+        {
+            CurrentExchange.ExchangeRate = 0;
+            RateMeaning = "پس از انتخاب ارزها و ورود هر دو مبلغ نمایش داده می‌شود.";
             return;
+        }
 
-        if (CalculationMode == "RateToAmount")
-        {
-            if (CurrentExchange.ExchangeRate > 0)
-            {
-                CurrentExchange.ToAmount = Math.Round(
-                    CurrentExchange.FromAmount / CurrentExchange.ExchangeRate,
-                    4);
-            }
-        }
-        else if (CalculationMode == "AmountToRate")
-        {
-            if (CurrentExchange.ToAmount > 0)
-            {
-                CurrentExchange.ExchangeRate = Math.Round(
-                    CurrentExchange.FromAmount / CurrentExchange.ToAmount,
-                    8);
-            }
-        }
+        var result = CurrencyQuotationCalculator.Calculate(
+            from.Id, from.Code, from.QuotationPriority, CurrentExchange.FromAmount,
+            to.Id, to.Code, to.QuotationPriority, CurrentExchange.ToAmount);
+        CurrentExchange.ExchangeRate = Math.Round(result.Rate, 8);
+        RateMeaning = $"1 {result.BaseCurrencyCode} = {CurrentExchange.ExchangeRate:N8} {result.QuoteCurrencyCode}";
     }
 
     private static decimal ParseDecimal(object? value)

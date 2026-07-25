@@ -11,6 +11,7 @@
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject IPaymentLocationService PaymentLocationService
+@inject ICompanySettingService CompanySettingService
 @inject IFileService FileService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
@@ -686,24 +687,48 @@
                         </div>
                     </div>
 
+                    @if (!string.IsNullOrWhiteSpace(ShareErrorMessage))
+                    {
+                        <div class="alert alert-danger mb-3" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            @ShareErrorMessage
+                        </div>
+                    }
+
                     <!-- دکمه‌های اقدام -->
-                    <div class="row g-2">
-                        <div class="col-md-3 col-6">
+                    <div class="row row-cols-2 row-cols-md-5 g-2">
+                        <div class="col">
                             <button class="btn w-100 py-2" style="background: #e9ecef; border-radius: 10px;" @onclick="PrintReceiptWithHeader">
                                 <i class="bi bi-printer text-primary me-1"></i>
                                 <span class="small">چاپ با سربرگ</span>
                             </button>
                         </div>
-                        <div class="col-md-3 col-6">
+                        <div class="col">
                             <button class="btn w-100 py-2" style="background: #e9ecef; border-radius: 10px;" @onclick="PrintReceiptWithoutHeader">
                                 <i class="bi bi-printer text-secondary me-1"></i>
                                 <span class="small">چاپ بدون سربرگ</span>
                             </button>
                         </div>
-                        <div class="col-md-3 col-6">
+                        <div class="col">
                             <button class="btn w-100 py-2" style="background: #e9ecef; border-radius: 10px;" @onclick="DuplicateOperation">
                                 <i class="bi bi-arrow-repeat text-warning me-1"></i>
                                 <span class="small">تکرار عملیات</span>
+                            </button>
+                        </div>
+                        <div class="col">
+                            <button class="btn w-100 py-2"
+                                    style="background: #e8f5e9; border-radius: 10px;"
+                                    @onclick="ShareCreatedHawalaWhatsApp">
+                                <i class="bi bi-whatsapp text-success me-1"></i>
+                                <span class="small">واتساپ</span>
+                            </button>
+                        </div>
+                        <div class="col">
+                            <button class="btn w-100 py-2"
+                                    style="background: #e3f2fd; border-radius: 10px;"
+                                    @onclick="ShareCreatedHawalaTelegram">
+                                <i class="bi bi-telegram text-primary me-1"></i>
+                                <span class="small">تلگرام</span>
                             </button>
                         </div>
                     </div>
@@ -763,6 +788,8 @@
     // ===== متغیرهای مودال موفقیت =====
     private bool ShowSuccessModal { get; set; } = false;
     private CreateHawalaDto? CreatedHawala { get; set; }
+    private HawalaDto? CreatedHawalaDetails { get; set; }
+    private string ShareErrorMessage { get; set; } = string.Empty;
 
     // ===== متغیرهای مودال جزییات حساب =====
     private bool showAccountDetailsModal = false;
@@ -916,6 +943,7 @@
         }
 
         CreatedHawala = hawala;
+        ShareErrorMessage = string.Empty;
         ShowSuccessModal = true;
         StateHasChanged();
     }
@@ -923,7 +951,58 @@
     private void CloseSuccessModal()
     {
         ShowSuccessModal = false;
+        ShareErrorMessage = string.Empty;
         StateHasChanged();
+    }
+
+    private async Task ShareCreatedHawalaWhatsApp()
+    {
+        if (CreatedHawalaDetails == null)
+        {
+            ShareErrorMessage = "اطلاعات حواله ثبت‌شده برای ارسال در دسترس نیست.";
+            return;
+        }
+
+        try
+        {
+            ShareErrorMessage = string.Empty;
+            var company = await CompanySettingService.GetAsync();
+            var text = HawalaShareHelper.BuildText(CreatedHawalaDetails, company);
+            var url = "https://wa.me/?text=" + Uri.EscapeDataString(text);
+
+            await JS.InvokeVoidAsync("hawalaTools.openShareUrl", url);
+        }
+        catch (Exception ex)
+        {
+            ShareErrorMessage = $"خطا در ارسال واتساپ: {ex.Message}";
+        }
+    }
+
+    private async Task ShareCreatedHawalaTelegram()
+    {
+        if (CreatedHawalaDetails == null)
+        {
+            ShareErrorMessage = "اطلاعات حواله ثبت‌شده برای ارسال در دسترس نیست.";
+            return;
+        }
+
+        try
+        {
+            ShareErrorMessage = string.Empty;
+            var company = await CompanySettingService.GetAsync();
+            var text = HawalaShareHelper.BuildText(CreatedHawalaDetails, company);
+            var receiptUrl = NavigationManager.BaseUri.TrimEnd('/');
+            var telegramAppUrl =
+                "tg://msg_url" +
+                "?url=" + Uri.EscapeDataString(receiptUrl) +
+                "&text=" + Uri.EscapeDataString(text);
+
+            await JS.InvokeVoidAsync("hawalaTools.openTelegramApp", telegramAppUrl);
+        }
+        catch (Exception ex)
+        {
+            ShareErrorMessage = $"خطا در باز کردن تلگرام: {ex.Message}";
+        }
     }
 
     // ===== متدهای چاپ =====
@@ -1273,6 +1352,8 @@
             // ===== 2. بستن مودال موفقیت =====
             ShowSuccessModal = false;
             CreatedHawala = null;
+            CreatedHawalaDetails = null;
+            ShareErrorMessage = string.Empty;
 
             // ===== 3. بستن کامل مودال ایجاد (با notify به والد) =====
             IsVisible = false;
@@ -1489,7 +1570,38 @@
             }
             else
             {
-                await HawalaService.CreateHawalaAsync(CurrentHawala);
+                var createdHawala = await HawalaService.CreateHawalaAsync(CurrentHawala);
+                try
+                {
+                    CreatedHawalaDetails =
+                        await HawalaService.GetHawalaByIdAsync(createdHawala.Id) ??
+                        createdHawala;
+                }
+                catch
+                {
+                    // ثبت حواله انجام شده است؛ در صورت خطای بازیابی جزئیات،
+                    // نتیجه همان عملیات ثبت برای اشتراک‌گذاری استفاده می‌شود.
+                    CreatedHawalaDetails = createdHawala;
+                }
+
+                CreatedHawalaDetails.CorrespondentName ??=
+                    CorrespondentsList.FirstOrDefault(x => x.Id == CreatedHawalaDetails.CorrespondentId)?.Name;
+                CreatedHawalaDetails.PaymentLocationName ??=
+                    PaymentLocationsList.FirstOrDefault(x => x.Id == CreatedHawalaDetails.PaymentLocationId)?.Name;
+                CreatedHawalaDetails.FromCurrencyCode =
+                    string.IsNullOrWhiteSpace(CreatedHawalaDetails.FromCurrencyCode)
+                        ? GetCurrencyCode(CreatedHawalaDetails.FromCurrencyId)
+                        : CreatedHawalaDetails.FromCurrencyCode;
+                CreatedHawalaDetails.ToCurrencyCode =
+                    string.IsNullOrWhiteSpace(CreatedHawalaDetails.ToCurrencyCode)
+                        ? GetCurrencyCode(CreatedHawalaDetails.ToCurrencyId)
+                        : CreatedHawalaDetails.ToCurrencyCode;
+                CreatedHawalaDetails.CommissionCurrencyCode ??=
+                    GetCurrencyCode(CreatedHawalaDetails.CommissionCurrencyId);
+                CreatedHawalaDetails.AgentCommissionCurrencyCode ??=
+                    GetCurrencyCode(CreatedHawalaDetails.AgentCommissionCurrencyId);
+
+                CurrentHawala.Number = CreatedHawalaDetails.Number;
                 SuccessMessage = $"حواله با شماره {CurrentHawala.Number} با موفقیت ایجاد شد.";
 
                 // ===== نمایش مودال موفقیت =====

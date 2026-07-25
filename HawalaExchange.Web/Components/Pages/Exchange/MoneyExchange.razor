@@ -112,6 +112,62 @@
         </div>
     </div>
 
+    <div class="table-card mb-4">
+        <div class="table-card-header">
+            <h6 class="mb-0 text-primary">
+                <i class="bi bi-calculator"></i>
+                موجودی و بهای میانگین سرمایه صراف
+            </h6>
+        </div>
+        <div class="table-card-body">
+            <div class="row g-3 p-3">
+                @foreach (var group in ProfitGroups)
+                {
+                    <div class="col-md-4">
+                        <div class="stat-card">
+                            <div class="stat-number" dir="ltr">@group.Total.ToString("N2") @group.CurrencyCode</div>
+                            <div class="stat-label">
+                                مفاد مشتری: @group.Customer.ToString("N2") |
+                                مفاد سرمایه صراف: @group.Treasury.ToString("N2")
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="table-scroll-wrapper">
+                <table class="table-modern">
+                    <thead>
+                        <tr>
+                            <th>ارز</th>
+                            <th>ارز مفاد</th>
+                            <th>موجودی</th>
+                            <th>بهای دفتری</th>
+                            <th>بهای میانگین</th>
+                            <th>عاید تعلیق‌شده فروش استقراضی</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!costPositions.Any())
+                        {
+                            <tr><td colspan="6" class="text-center text-muted py-3">هنوز موجودی دارای بهای افتتاحیه ثبت نشده است.</td></tr>
+                        }
+                        @foreach (var position in costPositions)
+                        {
+                            <tr class="@(position.IsShort ? "table-warning" : "")">
+                                <td>@position.CurrencyCode</td>
+                                <td>@position.ProfitCurrencyCode</td>
+                                <td dir="ltr">@position.Quantity.ToString("N4")</td>
+                                <td dir="ltr">@position.CarryingAmount.ToString("N2")</td>
+                                <td dir="ltr">@position.AverageCost.ToString("N6")</td>
+                                <td dir="ltr">@position.DeferredProceeds.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
@@ -187,6 +243,7 @@
                             <th>پرداختی</th>
                             <th>به حساب</th>
                             <th>دریافتی</th>
+                            <th>نوع</th>
 
                             <th class="sortable-header @(sortColumn == "ExchangeRate" ? "active" : "")"
                                 @onclick="@(() => SortBy("ExchangeRate"))">
@@ -198,6 +255,7 @@
                             </th>
 
                             <th>توضیحات</th>
+                            <th>مفاد تحقق‌یافته</th>
                             <th class="text-center" style="min-width: 160px;">عملیات</th>
                         </tr>
                     </thead>
@@ -206,7 +264,7 @@
                         @if (isLoading && !exchanges.Any())
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="11" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status">
                                             <span class="visually-hidden">در حال بارگذاری...</span>
@@ -219,7 +277,7 @@
                         else if (!pagedExchanges.Any())
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="11" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ تبدیلی ثبت نشده است</span>
@@ -271,12 +329,29 @@
                                         </span>
                                     </td>
 
+                                    <td>
+                                        @(item.OperationType == "Customer" ? "پول مشتری" : "سرمایه صراف")
+                                    </td>
+
                                     <td dir="ltr">
                                         @item.ExchangeRate.ToString("N4")
+                                        <small class="d-block text-muted">
+                                            1 @item.RateBaseCurrencyCode = @item.ExchangeRate.ToString("N8") @item.RateQuoteCurrencyCode
+                                        </small>
                                     </td>
 
                                     <td>
                                         @(item.Description ?? "-")
+                                    </td>
+
+                                    <td dir="ltr">
+                                        <span class="fw-bold @(item.RealizedProfit >= 0 ? "text-success" : "text-danger")">
+                                            @item.RealizedProfit.ToString("N2") @item.ProfitCurrencyCode
+                                        </span>
+                                        @if (item.ProfitStatus != "Realized")
+                                        {
+                                            <small class="d-block text-warning">تعلیق: @item.DeferredAmount.ToString("N4")</small>
+                                        }
                                     </td>
 
                                     <td>
@@ -431,8 +506,33 @@
                     <div class="row g-3 mt-1">
                         <div class="col-md-4">
                             <div class="info-card">
+                                <span class="info-label">مالک پول</span>
+                                <span class="info-value">@(selectedExchange.OperationType == "Customer" ? "مشتری" : "صراف")</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">مفاد تحقق‌یافته</span>
+                                <span class="info-value" dir="ltr">@selectedExchange.RealizedProfit.ToString("N2") @selectedExchange.ProfitCurrencyCode</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">وضعیت محاسبه</span>
+                                <span class="info-value">@GetProfitStatusName(selectedExchange.ProfitStatus)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-4">
+                            <div class="info-card">
                                 <span class="info-label">نرخ</span>
-                                <span class="info-value" dir="ltr">@selectedExchange.ExchangeRate.ToString("N4")</span>
+                                <span class="info-value" dir="ltr">
+                                    1 @selectedExchange.RateBaseCurrencyCode =
+                                    @selectedExchange.ExchangeRate.ToString("N8")
+                                    @selectedExchange.RateQuoteCurrencyCode
+                                </span>
                             </div>
                         </div>
 
@@ -532,6 +632,14 @@
 @code {
     private List<MoneyExchangeOperationDto> exchanges = new();
     private List<MoneyExchangeOperationDto> filteredExchanges = new();
+    private IReadOnlyList<CurrencyCostPositionDto> costPositions = Array.Empty<CurrencyCostPositionDto>();
+    private IEnumerable<ProfitGroup> ProfitGroups => exchanges
+        .Where(x => x.ProfitCurrencyId.HasValue)
+        .GroupBy(x => new { x.ProfitCurrencyId, x.ProfitCurrencyCode })
+        .Select(x => new ProfitGroup(
+            x.Key.ProfitCurrencyCode,
+            x.Where(y => y.OperationType == "Customer").Sum(y => y.RealizedProfit),
+            x.Where(y => y.OperationType == "Treasury").Sum(y => y.RealizedProfit)));
 
     private List<CurrencyDto> currencies = new();
     private List<AccountDto> accounts = new();
@@ -660,6 +768,7 @@
             var result = await MoneyExchangeOperationService.GetAllAsync();
 
             exchanges = result.ToList();
+            costPositions = await MoneyExchangeOperationService.GetCostPositionsAsync();
             filteredExchanges = exchanges.ToList();
             currentPage = 1;
         }
@@ -788,6 +897,10 @@
                 ToCurrencyId = exchange.ToCurrencyId,
                 ToAmount = exchange.ToAmount,
                 ExchangeRate = exchange.ExchangeRate,
+                OperationType = exchange.OperationType,
+                ProfitCurrencyId = exchange.ProfitCurrencyId ?? 0,
+                CommissionAmount = exchange.CommissionAmount,
+                ExternalFeeAmount = exchange.ExternalFeeAmount,
                 Description = exchange.Description
             };
 
@@ -845,6 +958,19 @@
         showDetailModal = false;
         selectedExchange = null;
         StateHasChanged();
+    }
+
+    private static string GetProfitStatusName(string status) => status switch
+    {
+        "Realized" => "تحقق‌یافته",
+        "PartiallyDeferred" => "بخشی تعلیق‌شده",
+        "Deferred" => "تعلیق‌شده",
+        _ => "محاسبه‌نشده"
+    };
+
+    private sealed record ProfitGroup(string CurrencyCode, decimal Customer, decimal Treasury)
+    {
+        public decimal Total => Customer + Treasury;
     }
 
     private void ShowDeleteConfirm(long id)

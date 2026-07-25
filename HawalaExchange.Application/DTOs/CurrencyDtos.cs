@@ -11,6 +11,7 @@ namespace HawalaExchange.Application.DTOs
         public string Name { get; set; }
         public string? Symbol { get; set; }
         public int DecimalPlaces { get; set; }
+        public int QuotationPriority { get; set; }
         public bool IsActive { get; set; }
     }
 
@@ -20,6 +21,7 @@ namespace HawalaExchange.Application.DTOs
         public string Name { get; set; }
         public string? Symbol { get; set; }
         public int DecimalPlaces { get; set; }
+        public int QuotationPriority { get; set; } = 1000;
     }
 
     public class UpdateCurrencyDto
@@ -27,6 +29,7 @@ namespace HawalaExchange.Application.DTOs
         public string Name { get; set; }
         public string? Symbol { get; set; }
         public int DecimalPlaces { get; set; }
+        public int QuotationPriority { get; set; }
         public bool IsActive { get; set; }
     }
 }

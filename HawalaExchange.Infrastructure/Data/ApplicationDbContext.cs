@@ -196,10 +196,13 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Branch>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<Currency>().Property(x => x.DecimalPlaces).HasDefaultValue(2);
             modelBuilder.Entity<Currency>().Property(x => x.IsActive).HasDefaultValue(true);
+            modelBuilder.Entity<Currency>().Property(x => x.QuotationPriority).HasDefaultValue(1000);
             modelBuilder.Entity<Account>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<Customer>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<Correspondent>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.IsActive).HasDefaultValue(true);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.OperationType).HasDefaultValue("Treasury");
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ProfitStatus).HasDefaultValue("NotCalculated");
 
             modelBuilder.Entity<Hawala>()
                 .Property(x => x.Status)
@@ -244,6 +247,21 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<ExchangeRate>().Property(x => x.SellRate).HasPrecision(18, 8);
             modelBuilder.Entity<Expense>().Property(x => x.Amount).HasPrecision(18, 4);
             modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.BadehkarLimit).HasPrecision(18, 4);
+            modelBuilder.Entity<CapitalInvestment>().Property(x => x.Amount).HasPrecision(18, 4);
+            modelBuilder.Entity<CapitalInvestment>().Property(x => x.ProfitCurrencyAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.FromAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ToAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ExchangeRate).HasPrecision(18, 8);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.CommissionAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ExternalFeeAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.CostAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.RealizedProfit).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.DeferredAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ExchangeProfitAmount).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.InventoryCostIncrease).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.InventoryCostDecrease).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ShortLiabilityIncrease).HasPrecision(18, 4);
+            modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ShortLiabilityDecrease).HasPrecision(18, 4);
 
             modelBuilder.Entity<Hawala>()
                 .Property(x => x.FromAmount)
@@ -622,6 +640,12 @@ namespace HawalaExchange.Infrastructure.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<CapitalInvestment>()
+                .HasOne(x => x.ProfitCurrency)
+                .WithMany()
+                .HasForeignKey(x => x.ProfitCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CapitalInvestment>()
                 .HasOne(x => x.ReceivingAccount)
                 .WithMany()
                 .HasForeignKey(x => x.ReceivingAccountId)
@@ -686,6 +710,24 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasOne(x => x.ToCurrency)
                 .WithMany()
                 .HasForeignKey(x => x.ToCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MoneyExchangeOperation>()
+                .HasOne(x => x.ProfitCurrency)
+                .WithMany()
+                .HasForeignKey(x => x.ProfitCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MoneyExchangeOperation>()
+                .HasOne(x => x.RateBaseCurrency)
+                .WithMany()
+                .HasForeignKey(x => x.RateBaseCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<MoneyExchangeOperation>()
+                .HasOne(x => x.RateQuoteCurrency)
+                .WithMany()
+                .HasForeignKey(x => x.RateQuoteCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<LedgerEntry>()
@@ -755,12 +797,12 @@ namespace HawalaExchange.Infrastructure.Data
             );
 
             modelBuilder.Entity<Currency>().HasData(
-                new Currency { Id = 1, Code = "AFN", Name = "افغانی", Symbol = "؋", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 2, Code = "USD", Name = "دالر امریکایی", Symbol = "$", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 3, Code = "EUR", Name = "یورو", Symbol = "€", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 4, Code = "AED", Name = "درهم عربی", Symbol = "د.إ", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 5, Code = "IRR", Name = "ریال ایرانی", Symbol = "﷼", DecimalPlaces = 2, IsActive = true },
-                new Currency { Id = 6, Code = "PKR", Name = "روپیه پاکستانی", Symbol = "₨", DecimalPlaces = 2, IsActive = true }
+                new Currency { Id = 1, Code = "AFN", Name = "افغانی", Symbol = "؋", DecimalPlaces = 2, QuotationPriority = 60, IsActive = true },
+                new Currency { Id = 2, Code = "USD", Name = "دالر امریکایی", Symbol = "$", DecimalPlaces = 2, QuotationPriority = 20, IsActive = true },
+                new Currency { Id = 3, Code = "EUR", Name = "یورو", Symbol = "€", DecimalPlaces = 2, QuotationPriority = 10, IsActive = true },
+                new Currency { Id = 4, Code = "AED", Name = "درهم عربی", Symbol = "د.إ", DecimalPlaces = 2, QuotationPriority = 30, IsActive = true },
+                new Currency { Id = 5, Code = "IRR", Name = "ریال ایرانی", Symbol = "﷼", DecimalPlaces = 2, QuotationPriority = 50, IsActive = true },
+                new Currency { Id = 6, Code = "PKR", Name = "روپیه پاکستانی", Symbol = "₨", DecimalPlaces = 2, QuotationPriority = 40, IsActive = true }
             );
 
             modelBuilder.Entity<Account>().HasData(

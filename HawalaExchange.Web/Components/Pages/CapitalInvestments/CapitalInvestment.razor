@@ -76,6 +76,7 @@
                             <th>تاریخ</th>
                             <th>ارز</th>
                             <th>مبلغ</th>
+                            <th>ارزش افتتاحیه</th>
                             <th>حساب دریافت‌کننده</th>
                             <th>حساب سرمایه</th>
                             <th>توضیحات</th>
@@ -87,7 +88,7 @@
                         @if (isLoading && !investments.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
                                     <div class="spinner-border text-primary" role="status">
                                         <span class="visually-hidden">در حال بارگذاری...</span>
                                     </div>
@@ -98,7 +99,7 @@
                         else if (!investments.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5 text-muted">
+                                <td colspan="9" class="text-center py-5 text-muted">
                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                     هیچ سرمایه‌ای ثبت نشده است.
                                 </td>
@@ -125,6 +126,10 @@
 
                                     <td dir="ltr" class="fw-bold text-primary">
                                         @item.Amount.ToString("N2")
+                                    </td>
+                                    <td dir="ltr">
+                                        @((item.ProfitCurrencyAmount ?? 0).ToString("N2"))
+                                        <span class="badge-modern badge-info">@item.ProfitCurrencyCode</span>
                                     </td>
 
                                     <td>
@@ -233,6 +238,29 @@
                                     <MoneyInput class="form-control"
                                                 @bind-Value="model.Amount"
                                                 placeholder="مثلاً 100,000" />
+                                </div>
+
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        ارز محاسبه مفاد <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select" @bind="model.ProfitCurrencyId">
+                                        <option value="0">انتخاب ارز</option>
+                                        @foreach (var currency in currencies)
+                                        {
+                                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                        }
+                                    </select>
+                                </div>
+
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">
+                                        ارزش افتتاحیه <span class="text-danger">*</span>
+                                    </label>
+                                    <MoneyInput class="form-control"
+                                                @bind-Value="model.ProfitCurrencyAmount"
+                                                placeholder="ارزش توافقی، بدون نرخ مرجع" />
+                                    <small class="text-muted">بهای توافقی سرمایه در ارز محاسبه مفاد</small>
                                 </div>
 
                                 <div class="col-md-3 mb-3">
@@ -501,6 +529,8 @@
         model = new CreateCapitalInvestmentDto
         {
             CurrencyId = afn?.Id ?? 0,
+            ProfitCurrencyId = afn?.Id ?? 0,
+            ProfitCurrencyAmount = 0,
             ReceivingAccountId = cash?.Id ?? 0,
             CapitalAccountId = ownerCapital?.Id ?? 0,
             InvestmentDate = DateTime.UtcNow,
@@ -531,6 +561,8 @@
             {
                 CurrencyId = investment.CurrencyId,
                 Amount = investment.Amount,
+                ProfitCurrencyId = investment.ProfitCurrencyId ?? 0,
+                ProfitCurrencyAmount = investment.ProfitCurrencyAmount ?? 0,
                 ReceivingAccountId = investment.ReceivingAccountId,
                 CapitalAccountId = investment.CapitalAccountId,
                 InvestmentDate = investment.InvestmentDate,
@@ -571,6 +603,8 @@
                 {
                     CurrencyId = model.CurrencyId,
                     Amount = model.Amount,
+                    ProfitCurrencyId = model.ProfitCurrencyId,
+                    ProfitCurrencyAmount = model.ProfitCurrencyAmount,
                     ReceivingAccountId = model.ReceivingAccountId,
                     CapitalAccountId = model.CapitalAccountId,
                     InvestmentDate = model.InvestmentDate,
@@ -609,6 +643,12 @@
 
         if (model.Amount <= 0)
             validationErrors.Add("مبلغ سرمایه باید بزرگتر از صفر باشد.");
+
+        if (model.ProfitCurrencyId <= 0)
+            validationErrors.Add("انتخاب ارز محاسبه مفاد الزامی است.");
+
+        if (model.ProfitCurrencyAmount <= 0)
+            validationErrors.Add("ارزش افتتاحیه سرمایه باید بزرگتر از صفر باشد.");
 
         if (model.ReceivingAccountId <= 0)
             validationErrors.Add("انتخاب حساب دریافت‌کننده الزامی است.");

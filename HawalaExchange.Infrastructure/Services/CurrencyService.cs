@@ -46,8 +46,17 @@ namespace HawalaExchange.Application.Services
 
         protected override async Task ValidateCreateAsync(Currency entity, CreateCurrencyDto dto)
         {
+            if (entity.QuotationPriority <= 0)
+                throw new InvalidOperationException("Quotation priority must be greater than zero.");
             if (await _dbSet.AnyAsync(c => c.Code == entity.Code))
                 throw new InvalidOperationException($"Currency with code '{entity.Code}' already exists.");
+        }
+
+        protected override Task ValidateUpdateAsync(Currency entity, UpdateCurrencyDto dto)
+        {
+            if (entity.QuotationPriority <= 0)
+                throw new InvalidOperationException("Quotation priority must be greater than zero.");
+            return Task.CompletedTask;
         }
     }
 }

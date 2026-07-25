@@ -1,7 +1,6 @@
 ﻿using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using HawalaExchange.Application.DTOs;
-using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
@@ -15,15 +14,18 @@ public class CapitalInvestmentService : ICapitalInvestmentService
     private readonly ApplicationDbContext _context;
     private readonly IMapper _mapper;
     private readonly IAuditLogService _auditLogService;
+    private readonly ICurrencyCostService _currencyCostService;
 
     public CapitalInvestmentService(
         ApplicationDbContext context,
         IMapper mapper,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        ICurrencyCostService currencyCostService)
     {
         _context = context;
         _mapper = mapper;
         _auditLogService = auditLogService;
+        _currencyCostService = currencyCostService;
     }
 
     public async Task<List<CapitalInvestmentDto>> GetAllAsync()
@@ -31,6 +33,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
         return await _context.CapitalInvestments
             .AsNoTracking()
             .Include(x => x.Currency)
+            .Include(x => x.ProfitCurrency)
             .Include(x => x.ReceivingAccount)
             .Include(x => x.CapitalAccount)
             .Where(x => !x.IsDeleted)
@@ -44,6 +47,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
         return await _context.CapitalInvestments
             .AsNoTracking()
             .Include(x => x.Currency)
+            .Include(x => x.ProfitCurrency)
             .Include(x => x.ReceivingAccount)
             .Include(x => x.CapitalAccount)
             .Where(x => x.Id == id && !x.IsDeleted)
@@ -53,7 +57,8 @@ public class CapitalInvestmentService : ICapitalInvestmentService
 
     public async Task<long> CreateAsync(CreateCapitalInvestmentDto dto)
     {
-        Validate(dto.CurrencyId, dto.Amount, dto.ReceivingAccountId, dto.CapitalAccountId);
+        Validate(dto.CurrencyId, dto.Amount, dto.ReceivingAccountId, dto.CapitalAccountId,
+            dto.ProfitCurrencyId, dto.ProfitCurrencyAmount);
 
         using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
@@ -63,6 +68,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
                 dto.ReceivingAccountId,
                 dto.CapitalAccountId,
                 dto.CurrencyId);
+            await ValidateProfitCurrencyAsync(dto.ProfitCurrencyId);
 
             var capitalInvestment = _mapper.Map<CapitalInvestment>(dto);
 
@@ -76,6 +82,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
 
             await _context.CapitalInvestments.AddAsync(capitalInvestment);
             await _context.SaveChangesAsync();
+            await _currencyCostService.RebuildAsync();
 
             await CreateLedgerEntriesAsync(capitalInvestment);
 
@@ -102,7 +109,8 @@ public class CapitalInvestmentService : ICapitalInvestmentService
 
     public async Task UpdateAsync(long id, UpdateCapitalInvestmentDto dto)
     {
-        Validate(dto.CurrencyId, dto.Amount, dto.ReceivingAccountId, dto.CapitalAccountId);
+        Validate(dto.CurrencyId, dto.Amount, dto.ReceivingAccountId, dto.CapitalAccountId,
+            dto.ProfitCurrencyId, dto.ProfitCurrencyAmount);
 
         using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
@@ -118,6 +126,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
                 dto.ReceivingAccountId,
                 dto.CapitalAccountId,
                 dto.CurrencyId);
+            await ValidateProfitCurrencyAsync(dto.ProfitCurrencyId);
 
             await DeleteLedgerEntriesAsync(id);
 
@@ -133,6 +142,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
             await CreateLedgerEntriesAsync(capitalInvestment);
 
             await _context.SaveChangesAsync();
+            await _currencyCostService.RebuildAsync();
 
             await _auditLogService.LogAsync(
                 "UPDATE",
@@ -170,6 +180,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
             capitalInvestment.ModifiedBy = GetCurrentUserId();
 
             await _context.SaveChangesAsync();
+            await _currencyCostService.RebuildAsync();
 
             await _auditLogService.LogAsync(
                 "DELETE",
@@ -277,7 +288,9 @@ public class CapitalInvestmentService : ICapitalInvestmentService
         long currencyId,
         decimal amount,
         long receivingAccountId,
-        long capitalAccountId)
+        long capitalAccountId,
+        long profitCurrencyId,
+        decimal profitCurrencyAmount)
     {
         if (currencyId <= 0)
             throw new InvalidOperationException("انتخاب ارز الزامی است.");
@@ -293,6 +306,18 @@ public class CapitalInvestmentService : ICapitalInvestmentService
 
         if (receivingAccountId == capitalAccountId)
             throw new InvalidOperationException("حساب دریافت‌کننده و حساب سرمایه نمی‌تواند یکی باشد.");
+
+        if (profitCurrencyId <= 0)
+            throw new InvalidOperationException("انتخاب ارز محاسبه سود الزامی است.");
+
+        if (profitCurrencyAmount <= 0)
+            throw new InvalidOperationException("ارزش افتتاحیه سرمایه در ارز محاسبه سود باید بزرگتر از صفر باشد.");
+    }
+
+    private async Task ValidateProfitCurrencyAsync(long profitCurrencyId)
+    {
+        if (!await _context.Currencies.AnyAsync(x => x.Id == profitCurrencyId && x.IsActive))
+            throw new InvalidOperationException("ارز محاسبه سود معتبر نیست.");
     }
 
     private long GetCurrentUserId() => 1;

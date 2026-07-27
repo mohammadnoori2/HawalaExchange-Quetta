@@ -207,8 +207,8 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
                 AccountId = exchange.ToAccountId,
                 CurrencyId = exchange.ToCurrencyId,
 
-                TalabKar = exchange.ToAmount,
-                BadehKar = 0,
+                TalabKar = 0,
+                BadehKar = exchange.ToAmount,
 
                 Description = description,
                 CreatedAt = exchange.ExchangeDate
@@ -224,8 +224,8 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
                 AccountId = exchange.FromAccountId,
                 CurrencyId = exchange.FromCurrencyId,
 
-                TalabKar = 0,
-                BadehKar = exchange.FromAmount,
+                TalabKar = exchange.FromAmount,
+                BadehKar = 0,
 
                 Description = description,
                 CreatedAt = exchange.ExchangeDate
@@ -391,12 +391,11 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             .ToDictionaryAsync(x => x.Id);
         var from = currencies[exchange.FromCurrencyId];
         var to = currencies[exchange.ToCurrencyId];
-        var quotation = CurrencyQuotationCalculator.Calculate(
+        var conversion = CurrencyQuotationCalculator.ConvertFromAmount(
             from.Id, from.Code, from.QuotationPriority, exchange.FromAmount,
-            to.Id, to.Code, to.QuotationPriority, exchange.ToAmount);
-        exchange.RateBaseCurrencyId = quotation.BaseCurrencyId;
-        exchange.RateQuoteCurrencyId = quotation.QuoteCurrencyId;
-        exchange.ExchangeRate = decimal.Round(quotation.Rate, 8);
+            to.Id, to.Code, to.QuotationPriority, exchange.ExchangeRate);
+        exchange.RateBaseCurrencyId = conversion.BaseCurrencyId;
+        exchange.RateQuoteCurrencyId = conversion.QuoteCurrencyId;
     }
 
     private async Task DeleteLedgerEntriesAsync(long moneyExchangeOperationId)

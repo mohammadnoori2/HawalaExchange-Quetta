@@ -1,5 +1,4 @@
 ﻿@* Components/Shared/Modals/MoneyExchangeModal.razor *@
-@using System.Globalization
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Application.Services
@@ -97,9 +96,9 @@
                                         </select>
                                     </div>
                                     <div class="col-md-4">
-                                        <label class="form-label fw-bold">روش محاسبه نرخ</label>
+                                        <label class="form-label fw-bold">روش محاسبه مبلغ</label>
                                         <div class="alert alert-light border mb-0 py-2">
-                                            نرخ از مبلغ پرداختی و دریافتی و بر اساس ترتیب پایه/قیمت‌گذاری ارزها محاسبه می‌شود.
+                                            یکی از دو مبلغ و نرخ را وارد کنید؛ مبلغ مقابل بر اساس جهت canonical جفت‌ارز محاسبه می‌شود.
                                         </div>
                                     </div>
 
@@ -185,6 +184,7 @@
                                                             Value="CurrentExchange.FromAmount"
                                                             ValueChanged="OnFromAmountChanged"
                                                             placeholder="مثلاً 7,000" />
+                                                <small class="text-muted">با ویرایش این مبلغ، مبلغ دریافتی خودکار به‌روزرسانی می‌شود.</small>
                                             </div>
                                         </div>
                                     </div>
@@ -253,6 +253,7 @@
                                                             Value="CurrentExchange.ToAmount"
                                                             ValueChanged="OnToAmountChanged"
                                                             placeholder="مثلاً 100" />
+                                                <small class="text-muted">با ویرایش این مبلغ، مبلغ پرداختی خودکار به‌روزرسانی می‌شود.</small>
                                             </div>
                                         </div>
                                     </div>
@@ -264,9 +265,11 @@
                                             نرخ تبدیل <span class="text-danger">*</span>
                                         </label>
 
-                                        <input class="form-control"
-                                               value="@CurrentExchange.ExchangeRate.ToString("N8")"
-                                               readonly />
+                                        <MoneyInput class="form-control"
+                                                    DecimalPlaces="8"
+                                                    Value="CurrentExchange.ExchangeRate"
+                                                    ValueChanged="OnExchangeRateChanged"
+                                                    placeholder="مثلاً 84" />
                                         <small class="text-muted">@RateMeaning</small>
                                     </div>
 
@@ -361,6 +364,7 @@
     private bool IsDataLoading { get; set; } = true;
 
     private DateTime ExchangeDateLocal { get; set; } = DateTime.Now;
+    private AmountInputSource LastEditedAmount { get; set; } = AmountInputSource.From;
 
     // ===== متدهای چرخه حیات =====
 
@@ -388,6 +392,7 @@
 
         if (IsEditMode && EditData != null)
         {
+            LastEditedAmount = AmountInputSource.From;
             CurrentExchange = new CreateMoneyExchangeOperationDto
             {
                 ExchangeDate = EditData.ExchangeDate,
@@ -406,6 +411,7 @@
             };
 
             ExchangeDateLocal = EditData.ExchangeDate.ToLocalTime();
+            CalculateCounterAmount();
         }
         else if (!IsEditMode)
         {
@@ -473,6 +479,7 @@
             Description = "ثبت تبدیل پول"
         };
 
+        LastEditedAmount = AmountInputSource.From;
         ExchangeDateLocal = DateTime.Now;
     }
 
@@ -490,6 +497,7 @@
         ValidationErrors.Clear();
         SuccessMessage = string.Empty;
 
+        CalculateCounterAmount();
         ValidateForm();
 
         if (ValidationErrors.Any())
@@ -602,70 +610,102 @@
 
     private void OnFromAmountChanged(decimal amount)
     {
+        if (CurrentExchange.FromAmount == amount)
+            return;
+
+        LastEditedAmount = AmountInputSource.From;
         CurrentExchange.FromAmount = amount;
-        CalculateRate();
+        CalculateCounterAmount();
         StateHasChanged();
     }
 
     private void OnToAmountChanged(decimal amount)
     {
+        if (CurrentExchange.ToAmount == amount)
+            return;
+
+        LastEditedAmount = AmountInputSource.To;
         CurrentExchange.ToAmount = amount;
-        CalculateRate();
+        CalculateCounterAmount();
+        StateHasChanged();
+    }
+
+    private void OnExchangeRateChanged(decimal rate)
+    {
+        CurrentExchange.ExchangeRate = rate;
+        CalculateCounterAmount();
         StateHasChanged();
     }
 
     private void OnFromCurrencyChanged(ChangeEventArgs args)
     {
         CurrentExchange.FromCurrencyId = long.TryParse(args.Value?.ToString(), out var id) ? id : 0;
-        CalculateRate();
+        CalculateCounterAmount();
     }
 
     private void OnToCurrencyChanged(ChangeEventArgs args)
     {
         CurrentExchange.ToCurrencyId = long.TryParse(args.Value?.ToString(), out var id) ? id : 0;
-        CalculateRate();
+        CalculateCounterAmount();
     }
 
-    private string RateMeaning { get; set; } = "پس از ورود هر دو مبلغ نمایش داده می‌شود.";
+    private string RateMeaning { get; set; } = "پس از انتخاب ارزها و ورود نرخ نمایش داده می‌شود.";
 
-    private void CalculateRate()
+    private void CalculateCounterAmount()
     {
         var from = CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.FromCurrencyId);
         var to = CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.ToCurrencyId);
-        if (from == null || to == null || from.Id == to.Id ||
-            CurrentExchange.FromAmount <= 0 || CurrentExchange.ToAmount <= 0)
+        if (from == null || to == null || from.Id == to.Id || CurrentExchange.ExchangeRate <= 0)
         {
-            CurrentExchange.ExchangeRate = 0;
-            RateMeaning = "پس از انتخاب ارزها و ورود هر دو مبلغ نمایش داده می‌شود.";
+            ClearCalculatedAmount();
+            RateMeaning = "پس از انتخاب ارزها و ورود یکی از مبلغ‌ها و نرخ نمایش داده می‌شود.";
             return;
         }
 
-        var result = CurrencyQuotationCalculator.Calculate(
-            from.Id, from.Code, from.QuotationPriority, CurrentExchange.FromAmount,
-            to.Id, to.Code, to.QuotationPriority, CurrentExchange.ToAmount);
-        CurrentExchange.ExchangeRate = Math.Round(result.Rate, 8);
+        CurrencyConversionResult result;
+
+        if (LastEditedAmount == AmountInputSource.From)
+        {
+            if (CurrentExchange.FromAmount <= 0)
+            {
+                CurrentExchange.ToAmount = 0;
+                return;
+            }
+
+            result = CurrencyQuotationCalculator.ConvertFromAmount(
+                from.Id, from.Code, from.QuotationPriority, CurrentExchange.FromAmount,
+                to.Id, to.Code, to.QuotationPriority, CurrentExchange.ExchangeRate);
+            CurrentExchange.ToAmount = Math.Round(result.ToAmount, to.DecimalPlaces);
+        }
+        else
+        {
+            if (CurrentExchange.ToAmount <= 0)
+            {
+                CurrentExchange.FromAmount = 0;
+                return;
+            }
+
+            result = CurrencyQuotationCalculator.ConvertFromAmount(
+                to.Id, to.Code, to.QuotationPriority, CurrentExchange.ToAmount,
+                from.Id, from.Code, from.QuotationPriority, CurrentExchange.ExchangeRate);
+            CurrentExchange.FromAmount = Math.Round(result.ToAmount, from.DecimalPlaces);
+        }
+
         RateMeaning = $"1 {result.BaseCurrencyCode} = {CurrentExchange.ExchangeRate:N8} {result.QuoteCurrencyCode}";
     }
 
-    private static decimal ParseDecimal(object? value)
+    private void ClearCalculatedAmount()
     {
-        var text = value?.ToString();
+        if (LastEditedAmount == AmountInputSource.From)
+            CurrentExchange.ToAmount = 0;
+        else
+            CurrentExchange.FromAmount = 0;
+    }
 
-        if (string.IsNullOrWhiteSpace(text))
-            return 0;
-
-        text = text.Replace(",", ".");
-
-        if (decimal.TryParse(
-                text,
-                NumberStyles.Any,
-                CultureInfo.InvariantCulture,
-                out var result))
-        {
-            return result;
-        }
-
-        return 0;
+    private enum AmountInputSource
+    {
+        From,
+        To
     }
 
     // ===== توابع کمکی =====

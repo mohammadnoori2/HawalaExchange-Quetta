@@ -1,171 +1,154 @@
-﻿@page "/"
-@using System.Globalization
+@page "/"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
-@using Microsoft.AspNetCore.Authorization
-@using Microsoft.JSInterop
 @using HawalaExchange.Web.Components.Shared.Modals
 @using HawalaExchange.Web.Helpers
-@inject ITransactionService TransactionService
-@inject ICustomerService CustomerService
-@inject IBranchService BranchService
-@inject ICorrespondentService CorrespondentService
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
 @inject ICurrencyService CurrencyService
-@inject IExchangeRateService ExchangeRateService
-@inject IAccountService AccountService
-@inject ILedgerService LedgerService
-@inject IExpenseService ExpenseService
+@inject ICompanySettingService CompanySettingService
+@inject IFinancialReportService FinancialReportService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
 @attribute [Authorize]
 
-<div class="dashboard-wrapper" dir="rtl">
+<PageTitle>داشبورد</PageTitle>
 
-    <!-- ===== HEADER ===== -->
+<div class="dashboard-wrapper" dir="rtl">
     <div class="dashboard-header">
         <div class="header-left">
-            <span class="time-label">زمان آخرین معامله:</span>
-            <span class="time-value">@lastTransactionTime</span>
+            <span class="time-label">زمان آخرین فعالیت:</span>
+            <span class="time-value">@lastActivityTime</span>
         </div>
 
-        <!-- Quick Links -->
         <div class="quick-links">
-            <button class="quick-link-btn quick-link-hawala" @onclick="OpenHawalaModal">
-                ثبت حواله
-            </button>
-            <button class="quick-link-btn quick-link-exchange" @onclick="OpenExchangeModal">
-                تبدیل پول
-            </button>
-            <button class="quick-link-btn quick-link-deposit" @onclick="OpenDepositWithdrawModal">
-                واریز/برداشت
-            </button>
-            <button class="quick-link-btn quick-link-pending" @onclick="NavigateToPendingHawalas">
-                اجرای حواله 
-            </button>
+            <button class="quick-link-btn quick-link-hawala" @onclick="OpenHawalaModal">ثبت حواله</button>
+            <button class="quick-link-btn quick-link-exchange" @onclick="OpenExchangeModal">تبدیل پول</button>
+            <button class="quick-link-btn quick-link-deposit" @onclick="OpenDepositWithdrawModal">واریز/برداشت</button>
+            <button class="quick-link-btn quick-link-pending" @onclick="NavigateToPendingHawalas">اجرای حواله</button>
         </div>
 
         <div class="header-center">
-            
-            <!-- انتخاب واحد پول -->
             <div class="currency-selector">
                 <select @onchange="OnCurrencyChanged" value="@selectedCurrency">
-                    @foreach (var cur in availableCurrencies)
+                    @foreach (var currency in currencies)
                     {
-                        <option value="@cur">@cur</option>
+                        <option value="@currency.Code">@currency.Code</option>
                     }
                 </select>
             </div>
         </div>
 
-        
-
         <div class="header-right">
-            <span class="badge-live">نرخ لحظه‌ای ارز</span>
+            <span class="badge-live">نرخ‌های ثبت‌شده</span>
         </div>
     </div>
 
-    <!-- ===== نرخ‌های لحظه‌ای ارز ===== -->
     <div class="currency-rates-grid">
-        @if (currencyRates.Any())
+        @if (dashboard?.Rates.Any() == true)
         {
-            @foreach (var rate in currencyRates)
+            @foreach (var rate in dashboard.Rates)
             {
                 <div class="rate-card">
                     <div class="rate-pair">@rate.Pair</div>
-                    <div class="rate-value">@rate.Value</div>
-                    <div class="rate-change @(rate.Change >= 0 ? "positive" : "negative")">
-                        @(rate.Change >= 0 ? "+" : "")@rate.Change.ToString("F2")%
+                    <div class="rate-value">
+                        <span>خرید @rate.BuyRate.ToString("N4")</span>
+                        <span>فروش @rate.SellRate.ToString("N4")</span>
                     </div>
+                    <div class="rate-change">@PersianDateHelper.ToPersianDate(rate.EffectiveDate)</div>
                 </div>
             }
         }
         else
         {
-            <div class="rate-card">هیچ نرخی موجود نیست</div>
+            <div class="rate-card">
+                <div class="rate-pair">نرخی ثبت نشده است</div>
+                <div class="rate-change">نرخ‌ها را از بخش نرخ تبادله ثبت کنید.</div>
+            </div>
         }
     </div>
 
-    <!-- ===== ردیف اول: حواله، تبادله اسعار، مفاد ===== -->
     <div class="stats-row">
         <div class="stat-box">
             <span class="stat-icon">📤</span>
             <span class="stat-label">حواله</span>
-            <span class="stat-value">@hawalaCount</span>
+            <span class="stat-value">@(dashboard?.HawalaCount ?? 0)</span>
         </div>
         <div class="stat-box">
             <span class="stat-icon">💱</span>
-            <span class="stat-label">تبادله اسعار</span>
-            <span class="stat-value">@exchangeCount</span>
+            <span class="stat-label">تبدیل پول</span>
+            <span class="stat-value">@(dashboard?.ExchangeCount ?? 0)</span>
         </div>
         <div class="stat-box">
             <span class="stat-icon">📊</span>
-            <span class="stat-label">مفاد</span>
-            <span class="stat-value">@provisionCount</span>
+            <span class="stat-label">مفاد خالص</span>
+            <span class="stat-value">@NetProfit.ToString("N2") @selectedCurrency</span>
         </div>
     </div>
 
-    <!-- ===== دو نمودار کنار هم ===== -->
     <div class="charts-row">
         <div class="chart-box">
             <div class="chart-header">
-                <span class="chart-title"><i class="bi bi-graph-up"></i> گراف معامله‌های روزانه</span>
+                <span class="chart-title"><i class="bi bi-graph-up"></i> فعالیت‌های روزانه واقعی</span>
             </div>
-            <div class="chart-body">
-                <canvas id="dailyChart"></canvas>
-            </div>
+            <div class="chart-body"><canvas id="dailyChart"></canvas></div>
         </div>
         <div class="chart-box">
             <div class="chart-header">
-                <span class="chart-title"><i class="bi bi-bar-chart"></i> گراف دوره‌ای مفاد</span>
+                <span class="chart-title"><i class="bi bi-bar-chart"></i> مفاد/ضرر هفتگی</span>
             </div>
-            <div class="chart-body">
-                <canvas id="periodicChart"></canvas>
-            </div>
+            <div class="chart-body"><canvas id="periodicChart"></canvas></div>
         </div>
     </div>
 
-    <!-- ===== مفاد تخمینی + لیست بیشترین باقی‌داران ===== -->
     <div class="provision-row">
         <div class="provision-card">
-            <div class="provision-label">مفاد تخمینی (@selectedCurrency)</div>
-            <div class="provision-amount">@estimatedProvision</div>
-            <div class="provision-sub">(0) @selectedCurrency 0</div>
+            <div class="provision-label">مفاد/ضرر واقعی دوره (@selectedCurrency)</div>
+            <div class="provision-amount @(NetProfit >= 0 ? "text-success" : "text-danger")">
+                @NetProfit.ToString("N2")
+            </div>
+            <div class="provision-sub">از حساب‌های عواید و مصارف لیجر</div>
+            <a class="btn btn-sm btn-outline-primary mt-3" href="/reports/profit-loss">
+                مشاهده صورت حساب مفاد و ضرر
+            </a>
         </div>
+
         <div class="top-remain-card">
             <div class="top-remain-header">
-                <span class="top-remain-title">لیست بیشترین باقی‌داران</span>
-                <span class="top-remain-sub">مجموع بدهی به @selectedCurrency: @totalDebt.ToString("N0")</span>
+                <span class="top-remain-title">بیشترین طلب از مشتریان</span>
+                <span class="top-remain-sub">
+                    مجموع طلب به @selectedCurrency: @(dashboard?.TotalCustomerReceivables.ToString("N2") ?? "0.00")
+                </span>
             </div>
             <div class="top-remain-list">
                 <div class="remain-header-row">
-                    <span>نام</span>
+                    <span>نام حساب</span>
                     <span>پروفایل</span>
                     <span>مبلغ</span>
                 </div>
-                @if (topRemainders.Any())
+                @if (dashboard?.TopDebtors.Any() == true)
                 {
-                    @foreach (var item in topRemainders)
+                    @foreach (var item in dashboard.TopDebtors)
                     {
                         <div class="remain-item">
                             <span class="remain-name">@item.Name</span>
                             <span class="remain-initial">@item.Initial</span>
-                            <span class="remain-amount">@item.Amount.ToString("N0")</span>
+                            <span class="remain-amount">@item.Amount.ToString("N2")</span>
                         </div>
                     }
                 }
                 else
                 {
-                    <div class="remain-item">هیچ داده‌ای موجود نیست</div>
+                    <div class="remain-item">طلب بدهکار از مشتریان موجود نیست.</div>
                 }
             </div>
         </div>
     </div>
 
-    <!-- ===== بخش پایین: تعداد معاملات + نقدینگی ===== -->
     <div class="bottom-row">
-        <!-- تعداد معامله‌های انجام شده -->
         <div class="transactions-card">
-            <div class="section-title">تعداد معامله‌های انجام شده</div>
+            <div class="section-title">فعالیت‌های ثبت‌شده</div>
             <div class="date-filter">
                 <div class="date-input-group">
                     <label>از تاریخ:</label>
@@ -179,650 +162,250 @@
                                        IncludeTime="false"
                                        CssClass="form-control form-control-sm" />
                 </div>
-                <button class="btn-filter" @onclick="ApplyDateFilter">اعمال</button>
+                <button class="btn-filter" @onclick="ApplyDateFilter" disabled="@isLoading">
+                    @(isLoading ? "..." : "اعمال")
+                </button>
             </div>
             <div class="transaction-stats">
                 <div class="transaction-stat">
-                    <span class="stat-label">تفاوت نقدی</span>
-                    <span class="stat-value">@transactionDiffCount</span>
+                    <span class="stat-label">حواله</span>
+                    <span class="stat-value">@(dashboard?.HawalaCount ?? 0)</span>
                 </div>
                 <div class="transaction-stat">
-                    <span class="stat-label">معامله نقدی</span>
-                    <span class="stat-value">@cashTransactionCount</span>
+                    <span class="stat-label">تبدیل پول</span>
+                    <span class="stat-value">@(dashboard?.ExchangeCount ?? 0)</span>
                 </div>
                 <div class="transaction-stat">
-                    <span class="stat-label">تعداد</span>
-                    <span class="stat-value highlight">@totalTransactionCount</span>
+                    <span class="stat-label">مجموع فعالیت</span>
+                    <span class="stat-value highlight">@(dashboard?.TotalActivityCount ?? 0)</span>
                 </div>
                 <div class="transaction-stat">
-                    <span class="stat-label">تفاوت بین حساب</span>
-                    <span class="stat-value">@accountDiffCount</span>
+                    <span class="stat-label">عملیات حساب</span>
+                    <span class="stat-value">@(dashboard?.AccountOperationCount ?? 0)</span>
                 </div>
                 <div class="transaction-stat">
-                    <span class="stat-label">تعداد</span>
-                    <span class="stat-value">@accountTransactionCount</span>
+                    <span class="stat-label">مصارف و سرمایه</span>
+                    <span class="stat-value">@((dashboard?.ExpenseCount ?? 0) + (dashboard?.CapitalInvestmentCount ?? 0))</span>
                 </div>
             </div>
-            <div class="mini-chart-container">
-                <canvas id="miniChart"></canvas>
-            </div>
+            <div class="mini-chart-container"><canvas id="miniChart"></canvas></div>
         </div>
 
-        <!-- نقدینگی -->
         <div class="liquidity-card">
-            <div class="section-title">نقدینگی (@selectedCurrency)</div>
+            <div class="section-title">نقدینگی به ارزش @selectedCurrency</div>
             <div class="liquidity-tabs">
                 <button class="tab-btn @(liquidityFilter == "all" ? "active" : "")" @onclick="SetAll">همه</button>
-                <button class="tab-btn @(liquidityFilter == "treasury" ? "active" : "")" @onclick="SetTreasury">خزانه</button>
+                <button class="tab-btn @(liquidityFilter == "treasury" ? "active" : "")" @onclick="SetTreasury">صندوق</button>
                 <button class="tab-btn @(liquidityFilter == "bank" ? "active" : "")" @onclick="SetBank">بانک</button>
             </div>
             <div class="liquidity-items">
-                @foreach (var item in currentLiquidityItems)
+                @if (currentLiquidityItems.Any())
                 {
-                    <div class="liquidity-item">
-                        <span class="liquidity-currency">@item.Currency</span>
-                        <span class="liquidity-percent">@item.Percent%</span>
-                    </div>
+                    @foreach (var item in currentLiquidityItems)
+                    {
+                        <div class="liquidity-item">
+                            <span class="liquidity-currency">@item.AccountName (@item.CurrencyCode)</span>
+                            <span class="liquidity-percent">@item.Percentage.ToString("N1")%</span>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="liquidity-item">ماندهٔ قابل محاسبه موجود نیست.</div>
                 }
             </div>
-            <div class="liquidity-chart-container">
-                <canvas id="liquidityChart"></canvas>
-            </div>
+            <div class="liquidity-chart-container"><canvas id="liquidityChart"></canvas></div>
         </div>
     </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger mt-3">@errorMessage</div>
+    }
+
+    @if (dashboard?.Warnings.Any() == true)
+    {
+        <div class="alert alert-warning mt-3">
+            <strong>محدودیت محاسبه:</strong>
+            <ul class="mb-0 mt-2">
+                @foreach (var warning in dashboard.Warnings)
+                {
+                    <li>@warning</li>
+                }
+            </ul>
+        </div>
+    }
 </div>
 
-<!-- ===== کامپوننت مودال ایجاد حواله ===== -->
 <CreateHawalaModal IsVisible="@showHawalaModal"
                    IsVisibleChanged="@((bool value) => { showHawalaModal = value; StateHasChanged(); })"
                    IsEditMode="false"
                    OnSaveSuccess="@OnHawalaSaved" />
 
-<!-- ===== کامپوننت مودال تبدیل پول ===== -->
 <MoneyExchangeModal IsVisible="@showExchangeModal"
                     IsVisibleChanged="@((bool value) => { showExchangeModal = value; StateHasChanged(); })"
                     IsEditMode="false"
                     OnSaveSuccess="@OnExchangeSaved" />
 
-<!-- ===== کامپوننت مودال واریز/برداشت ===== -->
 <DepositWithdrawModal IsVisible="@showDepositWithdrawModal"
                       IsVisibleChanged="@((bool value) => { showDepositWithdrawModal = value; StateHasChanged(); })"
                       IsEditMode="false"
                       OnSaveSuccess="@OnDepositWithdrawSaved" />
 
 @code {
-    // ===== متغیرها =====
-    private string lastTransactionTime = "--:--:--";
-    private string selectedCurrency = "AFN";
-    private List<string> availableCurrencies = new();
-
-    // داده‌های اصلی
-    private List<CurrencyRateDto> currencyRates = new();
-    private string estimatedProvision = "0";
-    private List<TopRemainderDto> topRemainders = new();
-    private int totalDebt = 0;
-
-    // آمار
-    private int hawalaCount = 0;
-    private int exchangeCount = 0;
-    private int provisionCount = 0;
-    private int transactionDiffCount = 0;
-    private int cashTransactionCount = 0;
-    private int totalTransactionCount = 0;
-    private int accountDiffCount = 0;
-    private int accountTransactionCount = 0;
-
-    // فیلتر تاریخ
-    private DateTime startDate = DateTime.Today.AddDays(-7);
+    private DateTime startDate = DateTime.Today.AddDays(-27);
     private DateTime endDate = DateTime.Today;
-
-    // نقدینگی
+    private string selectedCurrency = "AFN";
+    private string lastActivityTime = "--:--:--";
     private string liquidityFilter = "all";
-    private List<LiquidityItem> currentLiquidityItems = new();
+    private string? errorMessage;
+    private bool isLoading;
+    private bool chartsRendered;
+    private bool showHawalaModal;
+    private bool showExchangeModal;
+    private bool showDepositWithdrawModal;
+    private List<CurrencyDto> currencies = new();
+    private DashboardSummaryDto? dashboard;
+    private List<DashboardLiquidityDto> currentLiquidityItems = new();
 
-    // داده‌های نمودار
-    private List<string> dailyLabels = new();
-    private List<int> dailyData = new();
-    private List<string> periodicLabels = new();
-    private List<int> periodicData = new();
-    private List<string> liquidityLabels = new();
-    private List<int> liquidityData = new();
-    private List<string> miniLabels = new();
-    private List<int> miniData = new();
-
-    // داده‌های کش شده
-    private List<TransactionDto> allTransactions = new();
-    private List<CurrencyDto> allCurrencies = new();
-    private bool isDataLoaded = false;
-    private bool chartsRendered = false;
-
-    // ===== متغیرهای مودال‌ها =====
-    private bool showHawalaModal = false;
-    private bool showExchangeModal = false;
-    private bool showDepositWithdrawModal = false;
-
-    [Inject]
-    private IJSRuntime JSRuntime { get; set; } = default!;
+    private decimal NetProfit => dashboard?.NetProfit ?? 0;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadInitialData();
-        await LoadDashboardData();
+        await LoadCurrenciesAsync();
+        await LoadDashboardAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // اگر داده‌ها بارگذاری شده‌اند ولی نمودارها رسم نشده‌اند، رسم کن
-        if (isDataLoaded && !chartsRendered)
+        if (dashboard != null && !chartsRendered)
         {
-            await RenderCharts();
+            await RenderChartsAsync();
             chartsRendered = true;
         }
     }
 
-    // ===== متدهای ناوبری =====
-
-    private void NavigateToPendingHawalas()
+    private async Task LoadCurrenciesAsync()
     {
-        NavigationManager.NavigateTo("/hawala-pending");
+        currencies = (await CurrencyService.GetAllAsync())
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.Code)
+            .ToList();
+
+        var setting = await CompanySettingService.GetAsync();
+        selectedCurrency = currencies
+            .FirstOrDefault(x => x.Id == setting.DefaultProfitCurrencyId)?.Code
+            ?? currencies.FirstOrDefault(x => x.Code == "AFN")?.Code
+            ?? currencies.FirstOrDefault()?.Code
+            ?? string.Empty;
     }
 
-    // ===== متدهای باز کردن مودال‌ها =====
-
-    private void OpenHawalaModal()
-    {
-        showHawalaModal = true;
-        StateHasChanged();
-    }
-
-    private void OpenExchangeModal()
-    {
-        showExchangeModal = true;
-        StateHasChanged();
-    }
-
-    private void OpenDepositWithdrawModal()
-    {
-        showDepositWithdrawModal = true;
-        StateHasChanged();
-    }
-
-    // ===== متدهای رویدادهای مودال‌ها =====
-
-    private async Task OnHawalaSaved(CreateHawalaDto newHawala)
-    {
-        // به‌روزرسانی داده‌های داشبورد پس از ثبت حواله
-        await LoadDashboardData();
-        StateHasChanged();
-    }
-
-    private async Task OnExchangeSaved(CreateMoneyExchangeOperationDto newExchange)
-    {
-        // به‌روزرسانی داده‌های داشبورد پس از ثبت تبدیل پول
-        await LoadDashboardData();
-        StateHasChanged();
-    }
-
-    private async Task OnDepositWithdrawSaved(CreateAccountMoneyOperationDto newOperation)
-    {
-        // به‌روزرسانی داده‌های داشبورد پس از ثبت واریز/برداشت
-        await LoadDashboardData();
-        StateHasChanged();
-    }
-
-    // ===== متدهای بارگذاری =====
-
-    private async Task LoadInitialData()
+    private async Task LoadDashboardAsync()
     {
         try
         {
-            allCurrencies = (await CurrencyService.GetAllAsync()).ToList();
-            availableCurrencies = allCurrencies.Select(c => c.Code).ToList();
+            isLoading = true;
+            errorMessage = null;
+            var currency = currencies.FirstOrDefault(x => x.Code == selectedCurrency);
+            if (currency == null)
+                throw new InvalidOperationException("ارز انتخاب‌شده معتبر نیست.");
 
-            if (!availableCurrencies.Contains(selectedCurrency))
-                selectedCurrency = availableCurrencies.FirstOrDefault() ?? "AFN";
-
-            allTransactions = (await TransactionService.GetAllAsync()).ToList();
-
-            if (allTransactions.Any())
-            {
-                var last = allTransactions.MaxBy(t => t.CreatedAt);
-                if (last != null)
-                {
-                    lastTransactionTime = PersianDateHelper.ToPersianDateTime12(last.CreatedAt);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading initial data: {ex.Message}");
-        }
-    }
-
-    private async Task LoadDashboardData()
-    {
-        try
-        {
-            // فیلتر تراکنش‌ها بر اساس ارز انتخاب‌شده
-            var filteredTransactions = allTransactions
-                .Where(t => IsTransactionInCurrency(t, selectedCurrency))
-                .ToList();
-
-            // ===== بارگذاری تمام داده‌ها =====
-            await LoadCurrencyRates();
-            await LoadStatistics(filteredTransactions);
-            await LoadTopRemainders(selectedCurrency);
-            await LoadDailyChartData(filteredTransactions);
-            await LoadPeriodicChartData(filteredTransactions);
-            await LoadLiquidityData();
-            await LoadMiniChartData(filteredTransactions);
+            dashboard = await FinancialReportService.GetDashboardSummaryAsync(
+                startDate,
+                endDate,
+                currency.Id);
+            lastActivityTime = dashboard.LastActivityAt.HasValue
+                ? PersianDateHelper.ToPersianDateTime12(dashboard.LastActivityAt.Value)
+                : "--:--:--";
             UpdateLiquidityItems();
+            chartsRendered = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"داشبورد بارگذاری نشد: {ex.Message}";
+            dashboard = null;
+            currentLiquidityItems.Clear();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
 
-            isDataLoaded = true;
-            StateHasChanged();
+    private async Task RenderChartsAsync()
+    {
+        if (dashboard == null)
+            return;
 
-            // ✅ رسم نمودارها بعد از بارگذاری داده‌ها و رندر شدن صفحه
-            await InvokeAsync(async () =>
+        await JSRuntime.InvokeVoidAsync(
+            "renderDailyChart",
+            "dailyChart",
+            dashboard.DailyActivities.Select(x => x.Label).ToArray(),
+            dashboard.DailyActivities.Select(x => x.Value).ToArray());
+        await JSRuntime.InvokeVoidAsync(
+            "renderPeriodicChart",
+            "periodicChart",
+            dashboard.WeeklyProfit.Select(x => x.Label).ToArray(),
+            dashboard.WeeklyProfit.Select(x => x.Value).ToArray());
+        await JSRuntime.InvokeVoidAsync(
+            "renderLiquidityChart",
+            "liquidityChart",
+            currentLiquidityItems.Select(x => $"{x.AccountName} ({x.CurrencyCode})").ToArray(),
+            currentLiquidityItems.Select(x => x.Amount).ToArray());
+        await JSRuntime.InvokeVoidAsync(
+            "renderMiniChart",
+            "miniChart",
+            new[] { "حواله", "تبدیل پول", "عملیات حساب", "مصارف", "سرمایه" },
+            new decimal[]
             {
-                await Task.Delay(100); // صبر برای رندر شدن کامل DOM
-                await RenderCharts();
-                chartsRendered = true;
+                dashboard.HawalaCount,
+                dashboard.ExchangeCount,
+                dashboard.AccountOperationCount,
+                dashboard.ExpenseCount,
+                dashboard.CapitalInvestmentCount
             });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
-        }
     }
 
-    private async Task LoadStatistics(List<TransactionDto> filteredTransactions)
+    private async Task OnCurrencyChanged(ChangeEventArgs args)
     {
-        hawalaCount = filteredTransactions.Count(t => t.TransactionType == "HawalaSend" || t.TransactionType == "HawalaReceive");
-        exchangeCount = filteredTransactions.Count(t => t.TransactionType == "Exchange");
-        provisionCount = filteredTransactions.Count(t => t.TransactionType == "Provision");
-
-        totalTransactionCount = filteredTransactions.Count;
-        transactionDiffCount = filteredTransactions.Count(t => t.Status == "Pending");
-        cashTransactionCount = filteredTransactions.Count(t => t.Status == "Paid");
-        accountDiffCount = filteredTransactions.Count(t => t.Status == "Cancel");
-        accountTransactionCount = filteredTransactions.Count(t => t.Status == "Processing");
-
-        // مفاد تخمینی
-        var totalCommission = filteredTransactions
-            .Where(t => t.Status != "Cancel")
-            .SelectMany(t => t.TransactionDetails ?? new List<TransactionDetailDto>())
-            .Sum(d => d.CommissionAmount);
-        estimatedProvision = $"{selectedCurrency} {totalCommission:N0}";
-    }
-
-    // ===== سایر متدها (بدون تغییر) =====
-
-    private bool IsTransactionInCurrency(TransactionDto transaction, string currencyCode)
-    {
-        if (transaction.TransactionDetails == null || !transaction.TransactionDetails.Any())
-            return false;
-
-        return transaction.TransactionDetails.Any(d =>
-            d.FromCurrencyCode == currencyCode ||
-            d.ToCurrencyCode == currencyCode);
-    }
-
-    private async Task LoadCurrencyRates()
-    {
-        try
-        {
-            var rates = new List<ExchangeRateDto>();
-            var selectedCurrencyId = allCurrencies.First(c => c.Code == selectedCurrency).Id;
-
-            foreach (var currency in allCurrencies)
-            {
-                if (currency.Code == selectedCurrency) continue;
-
-                var rate = await ExchangeRateService.GetLatestRateAsync(selectedCurrencyId, currency.Id);
-
-                if (rate != null)
-                {
-                    rates.Add(new ExchangeRateDto
-                    {
-                        FromCurrency = selectedCurrency,
-                        ToCurrency = currency.Code,
-                        Rate = rate.SellRate,
-                        ChangePercent = 0
-                    });
-                }
-            }
-
-            if (!rates.Any())
-            {
-                var sampleRates = GetSampleRates(selectedCurrency);
-                rates = sampleRates;
-            }
-
-            currencyRates = rates.Select(r => new CurrencyRateDto
-            {
-                Pair = $"{r.FromCurrency}/{r.ToCurrency}",
-                Value = r.Rate.ToString("F2"),
-                Change = r.ChangePercent ?? 0
-            }).ToList();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading currency rates: {ex.Message}");
-            currencyRates = GetSampleRates(selectedCurrency)
-                .Select(r => new CurrencyRateDto
-                {
-                    Pair = $"{r.FromCurrency}/{r.ToCurrency}",
-                    Value = r.Rate.ToString("F2"),
-                    Change = r.ChangePercent ?? 0
-                }).ToList();
-        }
-    }
-
-    private List<ExchangeRateDto> GetSampleRates(string baseCurrency)
-    {
-        var sampleRates = new Dictionary<string, Dictionary<string, decimal>>
-        {
-            ["AFN"] = new() { { "USD", 0.011m }, { "EUR", 0.010m }, { "GBP", 0.0085m }, { "PKR", 2.5m }, { "AED", 0.041m }, { "IRR", 0.00035m } },
-            ["USD"] = new() { { "AFN", 90.0m }, { "EUR", 0.95m }, { "GBP", 0.80m }, { "PKR", 278.0m }, { "AED", 3.67m }, { "IRR", 42000m } },
-            ["EUR"] = new() { { "AFN", 95.0m }, { "USD", 1.05m }, { "GBP", 0.85m }, { "PKR", 290.0m }, { "AED", 3.85m }, { "IRR", 44000m } },
-            ["GBP"] = new() { { "AFN", 118.0m }, { "USD", 1.25m }, { "EUR", 1.18m }, { "PKR", 350.0m }, { "AED", 4.60m }, { "IRR", 52000m } },
-            ["PKR"] = new() { { "AFN", 0.40m }, { "USD", 0.0036m }, { "EUR", 0.0034m }, { "GBP", 0.0029m }, { "AED", 0.013m }, { "IRR", 150m } },
-            ["AED"] = new() { { "AFN", 24.5m }, { "USD", 0.27m }, { "EUR", 0.26m }, { "GBP", 0.22m }, { "PKR", 75.0m }, { "IRR", 11400m } },
-            ["IRR"] = new() { { "AFN", 0.00028m }, { "USD", 0.000024m }, { "EUR", 0.000023m }, { "GBP", 0.000019m }, { "PKR", 0.0067m }, { "AED", 0.000088m } }
-        };
-
-        if (sampleRates.ContainsKey(baseCurrency))
-        {
-            return sampleRates[baseCurrency]
-                .Select(kvp => new ExchangeRateDto
-                {
-                    FromCurrency = baseCurrency,
-                    ToCurrency = kvp.Key,
-                    Rate = kvp.Value,
-                    ChangePercent = 0
-                }).ToList();
-        }
-
-        return new List<ExchangeRateDto>
-        {
-            new() { FromCurrency = baseCurrency, ToCurrency = "USD", Rate = 1.0m, ChangePercent = 0 },
-            new() { FromCurrency = baseCurrency, ToCurrency = "EUR", Rate = 0.9m, ChangePercent = 0 },
-            new() { FromCurrency = baseCurrency, ToCurrency = "GBP", Rate = 0.8m, ChangePercent = 0 }
-        };
-    }
-
-    private async Task LoadTopRemainders(string currencyCode)
-    {
-        try
-        {
-            var customers = (await CustomerService.GetAllAsync()).ToList();
-
-            var debtors = customers
-                .Select(c => new
-                {
-                    Customer = c,
-                    Debt = allTransactions
-                        .Where(t => t.CustomerId == c.Id && IsTransactionInCurrency(t, currencyCode))
-                        .SelectMany(t => t.TransactionDetails ?? new List<TransactionDetailDto>())
-                        .Where(d => d.FromCurrencyCode == currencyCode)
-                        .Sum(d => d.FromAmount ?? 0)
-                })
-                .Where(x => x.Debt > 0)
-                .OrderByDescending(x => x.Debt)
-                .Take(10)
-                .ToList();
-
-            topRemainders = debtors.Select(d => new TopRemainderDto
-            {
-                Name = d.Customer.FullName ?? "نامشخص",
-                Initial = d.Customer.FullName?.Length > 0 ? d.Customer.FullName.Substring(0, 1) : "?",
-                Amount = (int)d.Debt
-            }).ToList();
-
-            totalDebt = topRemainders.Sum(x => x.Amount);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading top remainders: {ex.Message}");
-            topRemainders = new List<TopRemainderDto>();
-            totalDebt = 0;
-        }
-    }
-
-    private async Task LoadDailyChartData(List<TransactionDto> transactions)
-    {
-        var daily = new Dictionary<DateTime, int>();
-        for (int i = 6; i >= 0; i--)
-        {
-            var date = DateTime.Today.AddDays(-i);
-            daily[date] = 0;
-        }
-
-        foreach (var t in transactions)
-        {
-            var date = t.CreatedAt.Date;
-            if (daily.ContainsKey(date))
-                daily[date]++;
-        }
-
-        var pc = new PersianCalendar();
-        dailyLabels = daily.Keys.Select(d =>
-            $"{pc.GetMonth(d)}/{pc.GetDayOfMonth(d)}"
-        ).ToList();
-        dailyData = daily.Values.ToList();
-
-        if (dailyData.All(x => x == 0))
-        {
-            dailyData = Enumerable.Range(1, 7).Select(_ => new Random().Next(2, 15)).ToList();
-        }
-    }
-
-    private async Task LoadPeriodicChartData(List<TransactionDto> transactions)
-    {
-        var weeklyData = new Dictionary<int, int>();
-        for (int i = 0; i < 4; i++)
-        {
-            weeklyData[i] = 0;
-        }
-
-        var now = DateTime.Now;
-        foreach (var t in transactions)
-        {
-            var diff = (now - t.CreatedAt).Days;
-            if (diff >= 0 && diff < 28)
-            {
-                var weekIndex = diff / 7;
-                if (weeklyData.ContainsKey(weekIndex))
-                    weeklyData[weekIndex]++;
-            }
-        }
-
-        periodicLabels = new List<string> { "هفته ۱", "هفته ۲", "هفته ۳", "هفته ۴" };
-        periodicData = weeklyData.Values.ToList();
-
-        if (periodicData.All(x => x == 0))
-        {
-            var rnd = new Random(selectedCurrency.GetHashCode());
-            periodicData = new List<int> { rnd.Next(10, 50), rnd.Next(10, 50), rnd.Next(10, 50), rnd.Next(10, 50) };
-        }
-    }
-
-    private async Task LoadLiquidityData()
-    {
-        try
-        {
-            var accounts = (await AccountService.GetAllAsync())
-                .Where(a => a.AccountType == "Cash" || a.AccountType == "Bank")
-                .ToList();
-
-            var liquidity = new List<LiquidityItem>();
-
-            foreach (var account in accounts)
-            {
-                var balances = await LedgerService.GetAccountBalancesAsync(account.Id);
-                var totalBalance = balances.Sum(b => b.Balance);
-                if (totalBalance > 0)
-                {
-                    liquidity.Add(new LiquidityItem
-                    {
-                        Currency = account.AccountName ?? "نامشخص",
-                        Percent = (decimal)totalBalance
-                    });
-                }
-            }
-
-            if (liquidity.Any())
-            {
-                var total = liquidity.Sum(l => l.Percent);
-                if (total > 0)
-                {
-                    liquidity = liquidity.Select(l => new LiquidityItem
-                    {
-                        Currency = l.Currency,
-                        Percent = Math.Round((l.Percent / total) * 100, 1)
-                    }).ToList();
-                }
-            }
-            else
-            {
-                liquidity = new List<LiquidityItem>
-                {
-                    new() { Currency = "افغانی", Percent = 17.3m },
-                    new() { Currency = "دالر", Percent = 32.0m },
-                    new() { Currency = "یورو", Percent = 25.3m },
-                    new() { Currency = "پوند", Percent = 18.7m }
-                };
-            }
-
-            liquidityLabels = liquidity.Select(l => l.Currency).ToList();
-            liquidityData = liquidity.Select(l => (int)Math.Round(l.Percent)).ToList();
-            currentLiquidityItems = liquidity;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading liquidity: {ex.Message}");
-            liquidityLabels = new List<string> { "افغانی", "دالر", "یورو" };
-            liquidityData = new List<int> { 30, 40, 30 };
-            currentLiquidityItems = new List<LiquidityItem>
-            {
-                new() { Currency = "افغانی", Percent = 30 },
-                new() { Currency = "دالر", Percent = 40 },
-                new() { Currency = "یورو", Percent = 30 }
-            };
-        }
-    }
-
-    private async Task LoadMiniChartData(List<TransactionDto> transactions)
-    {
-        var diffCash = transactions.Count(t => t.TransactionType == "Exchange" && t.Status == "Pending");
-        var cashTrans = transactions.Count(t => t.TransactionType == "Exchange" && t.Status == "Paid");
-        var diffAccount = transactions.Count(t => t.TransactionType == "Transfer" && t.Status == "Pending");
-
-        miniLabels = new List<string> { "تفاوت نقدی", "معامله نقدی", "تفاوت بین حساب" };
-        miniData = new List<int> { diffCash, cashTrans, diffAccount };
-
-        if (miniData.All(x => x == 0))
-        {
-            var rnd = new Random(selectedCurrency.GetHashCode());
-            miniData = new List<int> { rnd.Next(5, 20), rnd.Next(10, 30), rnd.Next(3, 15) };
-        }
-    }
-
-    private void UpdateLiquidityItems()
-    {
-        // ساده‌سازی شده
-    }
-
-    // ===== متدهای رسم نمودار =====
-
-    private async Task RenderCharts()
-    {
-        try
-        {
-            if (dailyLabels.Any() && dailyData.Any())
-            {
-                await JSRuntime.InvokeVoidAsync("renderDailyChart", "dailyChart",
-                    dailyLabels.ToArray(), dailyData.ToArray());
-            }
-
-            if (periodicLabels.Any() && periodicData.Any())
-            {
-                await JSRuntime.InvokeVoidAsync("renderPeriodicChart", "periodicChart",
-                    periodicLabels.ToArray(), periodicData.ToArray());
-            }
-
-            if (liquidityLabels.Any() && liquidityData.Any())
-            {
-                await JSRuntime.InvokeVoidAsync("renderLiquidityChart", "liquidityChart",
-                    liquidityLabels.ToArray(), liquidityData.ToArray());
-            }
-
-            if (miniLabels.Any() && miniData.Any())
-            {
-                await JSRuntime.InvokeVoidAsync("renderMiniChart", "miniChart",
-                    miniLabels.ToArray(), miniData.ToArray());
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error rendering charts: {ex.Message}");
-        }
-    }
-
-    // ===== متدهای رویدادها =====
-
-    private async Task OnCurrencyChanged(ChangeEventArgs e)
-    {
-        selectedCurrency = e.Value?.ToString() ?? "AFN";
-        chartsRendered = false;
-        await LoadDashboardData();
+        selectedCurrency = args.Value?.ToString() ?? selectedCurrency;
+        await LoadDashboardAsync();
     }
 
     private async Task ApplyDateFilter()
     {
-        var start = startDate.Date;
-        var end = endDate.Date;
-
-        var filtered = allTransactions
-            .Where(t => t.CreatedAt.Date >= start && t.CreatedAt.Date <= end)
-            .ToList();
-
-        await LoadDailyChartData(filtered);
-        await LoadPeriodicChartData(filtered);
-        await LoadMiniChartData(filtered);
-        await RenderCharts();
+        await LoadDashboardAsync();
     }
 
-    private void SetAll() { liquidityFilter = "all"; UpdateLiquidityItems(); StateHasChanged(); }
-    private void SetTreasury() { liquidityFilter = "treasury"; UpdateLiquidityItems(); StateHasChanged(); }
-    private void SetBank() { liquidityFilter = "bank"; UpdateLiquidityItems(); StateHasChanged(); }
-
-    // ===== DTOهای داخلی =====
-    private class CurrencyRateDto
+    private void UpdateLiquidityItems()
     {
-        public string Pair { get; set; } = "";
-        public string Value { get; set; } = "";
-        public decimal Change { get; set; }
+        var all = dashboard?.Liquidity ?? new List<DashboardLiquidityDto>();
+        currentLiquidityItems = liquidityFilter switch
+        {
+            "treasury" => all.Where(x => x.AccountType.Equals("Cash", StringComparison.OrdinalIgnoreCase)).ToList(),
+            "bank" => all.Where(x => x.AccountType.Equals("Bank", StringComparison.OrdinalIgnoreCase)).ToList(),
+            _ => all.ToList()
+        };
+        chartsRendered = false;
     }
 
-    private class TopRemainderDto
+    private async Task SetLiquidityFilterAsync(string filter)
     {
-        public string Name { get; set; } = "";
-        public string Initial { get; set; } = "";
-        public int Amount { get; set; }
+        liquidityFilter = filter;
+        UpdateLiquidityItems();
+        await InvokeAsync(StateHasChanged);
     }
 
-    private class LiquidityItem
-    {
-        public string Currency { get; set; } = "";
-        public decimal Percent { get; set; }
-    }
+    private Task SetAll() => SetLiquidityFilterAsync("all");
+    private Task SetTreasury() => SetLiquidityFilterAsync("treasury");
+    private Task SetBank() => SetLiquidityFilterAsync("bank");
 
-    private class ExchangeRateDto
-    {
-        public string FromCurrency { get; set; } = "";
-        public string ToCurrency { get; set; } = "";
-        public decimal Rate { get; set; }
-        public decimal? ChangePercent { get; set; }
-    }
+    private void NavigateToPendingHawalas() => NavigationManager.NavigateTo("/hawala-pending");
+    private void OpenHawalaModal() => showHawalaModal = true;
+    private void OpenExchangeModal() => showExchangeModal = true;
+    private void OpenDepositWithdrawModal() => showDepositWithdrawModal = true;
+
+    private Task OnHawalaSaved(CreateHawalaDto _) => LoadDashboardAsync();
+    private Task OnExchangeSaved(CreateMoneyExchangeOperationDto _) => LoadDashboardAsync();
+    private Task OnDepositWithdrawSaved(CreateAccountMoneyOperationDto _) => LoadDashboardAsync();
 }

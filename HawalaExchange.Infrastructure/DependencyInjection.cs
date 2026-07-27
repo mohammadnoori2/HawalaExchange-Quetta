@@ -48,6 +48,7 @@ namespace HawalaExchange.Infrastructure
             // Balance and Reports
             services.AddScoped<IBalanceService, BalanceService>();
             services.AddScoped<IReportService, ReportService>();
+            services.AddScoped<IFinancialReportService, FinancialReportService>();
 
             return services;
         }

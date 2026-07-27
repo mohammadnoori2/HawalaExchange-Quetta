@@ -1,0 +1,137 @@
+@page "/reports/balance-sheet"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Helpers
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+@inject IFinancialReportService FinancialReportService
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>بیلانس شیت</PageTitle>
+
+<div class="financial-page" dir="rtl">
+    <div class="report-toolbar no-print">
+        <div>
+            <h2>بیلانس شیت</h2>
+            <p>صورت وضعیت مالی بر مبنای مانده‌های واقعی لیجر</p>
+        </div>
+        <div class="toolbar-actions">
+            <a class="btn btn-outline-secondary" href="/reports">
+                <i class="bi bi-arrow-right"></i>
+                برگشت
+            </a>
+            <button class="btn btn-outline-primary" @onclick="PrintAsync" disabled="@(report == null)">
+                <i class="bi bi-printer"></i>
+                چاپ
+            </button>
+        </div>
+    </div>
+
+    <div class="report-filter no-print">
+        <div class="filter-field">
+            <label>تاریخ گزارش</label>
+            <PersianDatePicker @bind-Value="asOfDate"
+                               IncludeTime="false"
+                               CssClass="form-control" />
+        </div>
+        <button class="btn btn-primary" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "در حال محاسبه..." : "نمایش گزارش")
+        </button>
+        @if (report != null)
+        {
+            <div class="currency-chip">
+                ارز اصلی گزارش:
+                <strong>@report.Header.CurrencyName (@report.Header.CurrencyCode)</strong>
+            </div>
+        }
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger no-print">@errorMessage</div>
+    }
+
+    @if (report?.Header.Warnings.Any() == true)
+    {
+        <div class="alert alert-warning report-warnings no-print">
+            <strong>توجه:</strong>
+            <ul>
+                @foreach (var warning in report.Header.Warnings)
+                {
+                    <li>@warning</li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="loading-state no-print">
+            <div class="spinner-border text-primary" role="status"></div>
+            <span>مانده‌های لیجر در حال محاسبه است...</span>
+        </div>
+    }
+    else if (report != null)
+    {
+        <article class="statement-sheet portrait-sheet">
+            <ReportHeader Title="بیلانس شیت"
+                          Header="@report.Header"
+                          PeriodLabel="@PersianDateHelper.ToPersianDate(asOfDate)" />
+
+            <StatementTable Lines="@report.AssetLines" />
+
+            <div class="page-break"></div>
+
+            <ReportHeader Title="بیلانس شیت"
+                          Header="@report.Header"
+                          PeriodLabel="@PersianDateHelper.ToPersianDate(asOfDate)" />
+
+            <StatementTable Lines="@report.LiabilityAndEquityLines" />
+
+            <div class="balance-check @(report.IsBalanced ? "balanced" : "unbalanced")">
+                <span>کنترول توازن</span>
+                <strong>
+                    @(report.IsBalanced
+                        ? "بیلانس متوازن است"
+                        : $"تفاوت: {FormatAmount(report.TotalAssets - report.TotalLiabilitiesAndEquity)}")
+                </strong>
+            </div>
+
+            <ReportSignatures />
+        </article>
+    }
+</div>
+
+@code {
+    private DateTime asOfDate = DateTime.Today;
+    private BalanceSheetDto? report;
+    private bool isLoading;
+    private string? errorMessage;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            report = await FinancialReportService.GetBalanceSheetAsync(asOfDate);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"بیلانس شیت محاسبه نشد: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task PrintAsync() => await JSRuntime.InvokeVoidAsync("window.print");
+
+    private static string FormatAmount(decimal amount) =>
+        amount < 0 ? $"({Math.Abs(amount):N2})" : amount.ToString("N2");
+}

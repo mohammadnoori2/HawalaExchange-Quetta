@@ -1,0 +1,46 @@
+@using HawalaExchange.Application.DTOs
+
+<table class="statement-table">
+    <thead>
+        <tr>
+            <th class="number-column">شماره</th>
+            <th>تفصیل</th>
+            <th class="amount-column">مبلغ</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var line in Lines)
+        {
+            <tr class="@GetRowClass(line)">
+                <td>@line.Number</td>
+                <td>@line.Description</td>
+                <td class="amount-cell">
+                    @if (!line.IsSection)
+                    {
+                        @FormatAmount(line.Amount)
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyCollection<FinancialStatementLineDto> Lines { get; set; } =
+        Array.Empty<FinancialStatementLineDto>();
+
+    private static string GetRowClass(FinancialStatementLineDto line)
+    {
+        if (line.IsSection)
+            return "section-row";
+        if (line.IsGrandTotal)
+            return "grand-total-row";
+        if (line.IsTotal)
+            return "total-row";
+        return string.Empty;
+    }
+
+    private static string FormatAmount(decimal amount) =>
+        amount < 0 ? $"({Math.Abs(amount):N2})" : amount.ToString("N2");
+}

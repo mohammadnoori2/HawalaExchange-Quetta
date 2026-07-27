@@ -1,0 +1,142 @@
+@page "/reports/profit-loss"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Helpers
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+@inject IFinancialReportService FinancialReportService
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>صورت حساب مفاد و ضرر</PageTitle>
+
+<div class="financial-page" dir="rtl">
+    <div class="report-toolbar no-print">
+        <div>
+            <h2>صورت حساب مفاد و ضرر</h2>
+            <p>عواید و مصارف واقعی ثبت‌شده در لیجر</p>
+        </div>
+        <div class="toolbar-actions">
+            <a class="btn btn-outline-secondary" href="/reports">
+                <i class="bi bi-arrow-right"></i>
+                برگشت
+            </a>
+            <button class="btn btn-outline-primary" @onclick="PrintAsync" disabled="@(report == null)">
+                <i class="bi bi-printer"></i>
+                چاپ
+            </button>
+        </div>
+    </div>
+
+    <div class="report-filter no-print">
+        <div class="filter-field">
+            <label>از تاریخ</label>
+            <PersianDatePicker @bind-Value="fromDate"
+                               IncludeTime="false"
+                               CssClass="form-control" />
+        </div>
+        <div class="filter-field">
+            <label>تا تاریخ</label>
+            <PersianDatePicker @bind-Value="toDate"
+                               IncludeTime="false"
+                               CssClass="form-control" />
+        </div>
+        <button class="btn btn-primary" @onclick="LoadAsync" disabled="@isLoading">
+            @(isLoading ? "در حال محاسبه..." : "نمایش گزارش")
+        </button>
+        @if (report != null)
+        {
+            <div class="currency-chip">
+                ارز اصلی گزارش:
+                <strong>@report.Header.CurrencyName (@report.Header.CurrencyCode)</strong>
+            </div>
+        }
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger no-print">@errorMessage</div>
+    }
+
+    @if (report?.Header.Warnings.Any() == true)
+    {
+        <div class="alert alert-warning report-warnings no-print">
+            <strong>توجه:</strong>
+            <ul>
+                @foreach (var warning in report.Header.Warnings)
+                {
+                    <li>@warning</li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="loading-state no-print">
+            <div class="spinner-border text-primary" role="status"></div>
+            <span>عواید و مصارف در حال محاسبه است...</span>
+        </div>
+    }
+    else if (report != null)
+    {
+        <article class="statement-sheet landscape-sheet">
+            <ReportHeader Title="صورت حساب مفاد و ضرر"
+                          Header="@report.Header"
+                          PeriodLabel="@($"{PersianDateHelper.ToPersianDate(fromDate)} الی {PersianDateHelper.ToPersianDate(toDate)}")" />
+
+            <StatementTable Lines="@report.Lines" />
+
+            <div class="statement-summary">
+                <div>
+                    <span>مجموع عواید</span>
+                    <strong>@FormatAmount(report.GrossRevenue)</strong>
+                </div>
+                <div>
+                    <span>مجموع مصارف و مالیات</span>
+                    <strong>@FormatAmount(report.OperatingExpenses + report.TaxExpense)</strong>
+                </div>
+                <div class="net-profit @(report.NetProfit >= 0 ? "profit" : "loss")">
+                    <span>مفاد/ضرر خالص</span>
+                    <strong>@FormatAmount(report.NetProfit) @report.Header.CurrencyCode</strong>
+                </div>
+            </div>
+
+            <ReportSignatures />
+        </article>
+    }
+</div>
+
+@code {
+    private DateTime fromDate = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime toDate = DateTime.Today;
+    private ProfitLossStatementDto? report;
+    private bool isLoading;
+    private string? errorMessage;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            report = await FinancialReportService.GetProfitLossStatementAsync(fromDate, toDate);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"صورت حساب مفاد و ضرر محاسبه نشد: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task PrintAsync() => await JSRuntime.InvokeVoidAsync("window.print");
+
+    private static string FormatAmount(decimal amount) =>
+        amount < 0 ? $"({Math.Abs(amount):N2})" : amount.ToString("N2");
+}

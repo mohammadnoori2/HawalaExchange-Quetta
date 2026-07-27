@@ -95,6 +95,7 @@ public partial class Program
         builder.Services.AddScoped<IAuditLogService, AuditLogService>();
         builder.Services.AddScoped<IBalanceService, BalanceService>();
         builder.Services.AddScoped<IReportService, ReportService>();
+        builder.Services.AddScoped<IFinancialReportService, FinancialReportService>();
         builder.Services.AddScoped<IAccountBadehkarLimitService, AccountBadehkarLimitService>();
         builder.Services.AddScoped<IHawalaService, HawalaService>();
         builder.Services.AddScoped<ICapitalInvestmentService, CapitalInvestmentService>();

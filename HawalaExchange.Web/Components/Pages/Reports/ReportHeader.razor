@@ -1,0 +1,39 @@
+@using HawalaExchange.Application.DTOs
+
+<header class="regulatory-header">
+    <div class="report-logo">
+        @if (!string.IsNullOrWhiteSpace(Header.LogoPath))
+        {
+            <img src="@Header.LogoPath" alt="لوگوی شرکت" />
+        }
+        else
+        {
+            <div class="logo-placeholder"><i class="bi bi-building"></i></div>
+        }
+    </div>
+    <div class="regulatory-titles">
+        <div>د افغانستان بانک</div>
+        <div>آمریت عمومی نظارت از موسسات مالی غیر بانکی</div>
+        <h1>@Title</h1>
+    </div>
+    <div class="report-copy">نسخه سیستم</div>
+</header>
+
+<section class="report-meta">
+    <div><span>نام شرکت:</span><strong>@Header.CompanyName</strong></div>
+    <div><span>شعبه:</span><strong>@Header.BranchName</strong></div>
+    <div><span>دوره/تاریخ:</span><strong>@PeriodLabel</strong></div>
+    <div><span>واحد پول:</span><strong>@Header.CurrencyName (@Header.CurrencyCode)</strong></div>
+    <div><span>تناوب گزارش:</span><strong>حسب ضرورت</strong></div>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public FinancialReportHeaderDto Header { get; set; } = new();
+
+    [Parameter, EditorRequired]
+    public string PeriodLabel { get; set; } = string.Empty;
+}

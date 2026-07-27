@@ -75,7 +75,7 @@
 
                             <div class="card-body">
                                 <div class="row mb-3">
-                                    <div class="col-md-3">
+                                    <div class="col-md-4">
                                         <label class="form-label fw-bold">مالک پول</label>
                                         <select class="form-select"
                                                 value="@CurrentExchange.OperationType"
@@ -85,17 +85,7 @@
                                         </select>
                                         <small class="text-muted">پول مشتری وارد موجودی و مفاد سرمایه صراف نمی‌شود.</small>
                                     </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label fw-bold">گزینه خرید و فروش</label>
-                                        <select class="form-select"
-                                                value="@InputMode"
-                                                @onchange="OnInputModeChanged">
-                                            <option value="@ExchangeInputMode.Sell">فروش</option>
-                                            <option value="@ExchangeInputMode.Buy">خرید</option>
-                                        </select>
-                                        <small class="text-muted">@InputModeHelp</small>
-                                    </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-4">
                                         <label class="form-label fw-bold">ارز محاسبه مفاد <span class="text-danger">*</span></label>
                                         <select class="form-select" @bind="CurrentExchange.ProfitCurrencyId">
                                             <option value="0">انتخاب ارز</option>
@@ -105,10 +95,10 @@
                                             }
                                         </select>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-4">
                                         <label class="form-label fw-bold">روش محاسبه مبلغ</label>
                                         <div class="alert alert-light border mb-0 py-2">
-                                            مبلغ گزینهٔ انتخاب‌شده و نرخ canonical را وارد کنید؛ مبلغ مقابل خودکار محاسبه می‌شود.
+                                            نرخ تبدیل و یکی از مبلغ‌های پرداختی یا دریافتی را وارد کنید؛ مبلغ مقابل خودکار محاسبه می‌شود.
                                         </div>
                                     </div>
 
@@ -187,19 +177,15 @@
 
                                             <div class="mb-0">
                                                 <label class="form-label fw-bold">
-                                                    مبلغ ارز فروش <span class="text-danger">*</span>
+                                                    مبلغ پرداختی (ارز فروش) <span class="text-danger">*</span>
                                                 </label>
 
-                                                <MoneyInput class="@(InputMode == ExchangeInputMode.Buy ? "form-control bg-light" : "form-control")"
+                                                <MoneyInput class="form-control"
+                                                            DecimalPlaces="@FromAmountDecimalPlaces"
                                                             Value="CurrentExchange.FromAmount"
                                                             ValueChanged="OnFromAmountChanged"
-                                                            readonly="@(InputMode == ExchangeInputMode.Buy)"
                                                             placeholder="مثلاً 7,000" />
-                                                <small class="text-muted">
-                                                    @(InputMode == ExchangeInputMode.Sell
-                                                        ? "مبلغ فروش را وارد کنید؛ مبلغ خرید خودکار محاسبه می‌شود."
-                                                        : "این مبلغ از روی مبلغ خرید و نرخ محاسبه می‌شود.")
-                                                </small>
+                                                <small class="text-muted">قابل ویرایش است؛ مبلغ دریافتی با نرخ تبدیل خودکار به‌روزرسانی می‌شود.</small>
                                             </div>
                                         </div>
                                     </div>
@@ -261,19 +247,15 @@
 
                                             <div class="mb-0">
                                                 <label class="form-label fw-bold">
-                                                    مبلغ ارز خرید <span class="text-danger">*</span>
+                                                    مبلغ دریافتی (ارز خرید) <span class="text-danger">*</span>
                                                 </label>
 
-                                                <MoneyInput class="@(InputMode == ExchangeInputMode.Sell ? "form-control bg-light" : "form-control")"
+                                                <MoneyInput class="form-control"
+                                                            DecimalPlaces="@ToAmountDecimalPlaces"
                                                             Value="CurrentExchange.ToAmount"
                                                             ValueChanged="OnToAmountChanged"
-                                                            readonly="@(InputMode == ExchangeInputMode.Sell)"
                                                             placeholder="مثلاً 100" />
-                                                <small class="text-muted">
-                                                    @(InputMode == ExchangeInputMode.Buy
-                                                        ? "مبلغ خرید را وارد کنید؛ مبلغ فروش خودکار محاسبه می‌شود."
-                                                        : "این مبلغ از روی مبلغ فروش و نرخ محاسبه می‌شود.")
-                                                </small>
+                                                <small class="text-muted">قابل ویرایش است؛ مبلغ پرداختی با نرخ تبدیل خودکار به‌روزرسانی می‌شود.</small>
                                             </div>
                                         </div>
                                     </div>
@@ -385,11 +367,10 @@
 
     private DateTime ExchangeDateLocal { get; set; } = DateTime.Now;
     private AmountInputSource LastEditedAmount { get; set; } = AmountInputSource.From;
-    private ExchangeInputMode InputMode { get; set; } = ExchangeInputMode.Sell;
-    private string InputModeHelp =>
-        InputMode == ExchangeInputMode.Sell
-            ? "مبلغ ارز فروش وارد و مبلغ ارز خرید محاسبه می‌شود."
-            : "مبلغ ارز خرید وارد و مبلغ ارز فروش محاسبه می‌شود.";
+    private int FromAmountDecimalPlaces =>
+        CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.FromCurrencyId)?.DecimalPlaces ?? 2;
+    private int ToAmountDecimalPlaces =>
+        CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.ToCurrencyId)?.DecimalPlaces ?? 2;
     private string LedgerExplanation =>
         CurrentExchange.OperationType == "Customer"
             ? "برای مشتری، ارز خرید طلبکار و ارز فروش بدهکار ثبت می‌شود."
@@ -421,7 +402,6 @@
 
         if (IsEditMode && EditData != null)
         {
-            InputMode = ExchangeInputMode.Sell;
             LastEditedAmount = AmountInputSource.From;
             CurrentExchange = new CreateMoneyExchangeOperationDto
             {
@@ -509,7 +489,6 @@
             Description = "ثبت تبدیل پول"
         };
 
-        InputMode = ExchangeInputMode.Sell;
         LastEditedAmount = AmountInputSource.From;
         ExchangeDateLocal = DateTime.Now;
     }
@@ -639,17 +618,6 @@
         CurrentExchange.ToAccountId = account?.Id ?? 0;
     }
 
-    private void OnInputModeChanged(ChangeEventArgs args)
-    {
-        InputMode = Enum.TryParse<ExchangeInputMode>(args.Value?.ToString(), out var mode)
-            ? mode
-            : ExchangeInputMode.Sell;
-        LastEditedAmount = InputMode == ExchangeInputMode.Sell
-            ? AmountInputSource.From
-            : AmountInputSource.To;
-        CalculateCounterAmount();
-    }
-
     private void OnFromAmountChanged(decimal amount)
     {
         if (CurrentExchange.FromAmount == amount)
@@ -748,12 +716,6 @@
     {
         From,
         To
-    }
-
-    private enum ExchangeInputMode
-    {
-        Sell,
-        Buy
     }
 
     // ===== توابع کمکی =====

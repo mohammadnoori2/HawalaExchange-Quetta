@@ -60,6 +60,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
 
     public async Task<MoneyExchangeOperationDto> CreateAsync(CreateMoneyExchangeOperationDto dto)
     {
+        dto.ProfitCurrencyId = await ResolveDefaultProfitCurrencyIdAsync();
         ValidateCreateDto(dto);
 
         using var dbTransaction = await _context.Database.BeginTransactionAsync();
@@ -108,8 +109,6 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
 
     public async Task<MoneyExchangeOperationDto> UpdateAsync(long id, UpdateMoneyExchangeOperationDto dto)
     {
-        ValidateUpdateDto(dto);
-
         using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
         try
@@ -119,6 +118,12 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
 
             if (exchange == null)
                 throw new KeyNotFoundException($"تبدیل پول با شناسه {id} یافت نشد.");
+
+            // ارز مفاد هر سند تاریخی ثابت می‌ماند. فقط سندهای قدیمی فاقد این مقدار،
+            // هنگام ویرایش ارز اصلی فعلی تنظیمات را دریافت می‌کنند.
+            dto.ProfitCurrencyId = exchange.ProfitCurrencyId
+                ?? await ResolveDefaultProfitCurrencyIdAsync();
+            ValidateUpdateDto(dto);
 
             await ValidateAccountsAndCurrenciesAsync(dto.FromAccountId, dto.ToAccountId, dto.FromCurrencyId, dto.ToCurrencyId, dto.OperationType);
             await ValidateProfitCurrencyAsync(dto.ProfitCurrencyId);
@@ -464,7 +469,40 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
     {
         if (profitCurrencyId <= 0 ||
             !await _context.Currencies.AnyAsync(x => x.Id == profitCurrencyId && x.IsActive))
-            throw new InvalidOperationException("ارز محاسبه سود معتبر نیست.");
+            throw new InvalidOperationException("ارز اصلی محاسبه مفاد و ضرر معتبر نیست.");
+    }
+
+    private async Task<long> ResolveDefaultProfitCurrencyIdAsync()
+    {
+        var configuredCurrencyId = await _context.CompanySettings
+            .AsNoTracking()
+            .Select(x => x.DefaultProfitCurrencyId)
+            .FirstOrDefaultAsync();
+
+        if (configuredCurrencyId.HasValue)
+        {
+            if (await _context.Currencies.AnyAsync(x =>
+                    x.Id == configuredCurrencyId.Value &&
+                    x.IsActive))
+            {
+                return configuredCurrencyId.Value;
+            }
+
+            throw new InvalidOperationException(
+                "ارز اصلی محاسبه مفاد و ضرر در تنظیمات غیرفعال یا نامعتبر است.");
+        }
+
+        var fallbackCurrencyId = await _context.Currencies
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderByDescending(x => x.Code == "AFN")
+            .ThenBy(x => x.Id)
+            .Select(x => (long?)x.Id)
+            .FirstOrDefaultAsync();
+
+        return fallbackCurrencyId
+            ?? throw new InvalidOperationException(
+                "ابتدا ارز اصلی محاسبه مفاد و ضرر را در تنظیمات شرکت انتخاب کنید.");
     }
 
     private static void ValidateCreateDto(CreateMoneyExchangeOperationDto dto)
@@ -519,7 +557,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         if (operationType is not ("Customer" or "Treasury"))
             throw new InvalidOperationException("نوع تبدیل باید مشتری یا سرمایه صراف باشد.");
         if (profitCurrencyId <= 0)
-            throw new InvalidOperationException("انتخاب ارز محاسبه سود الزامی است.");
+            throw new InvalidOperationException("ارز اصلی محاسبه مفاد و ضرر در تنظیمات مشخص نشده است.");
         if (commission < 0 || externalFee < 0)
             throw new InvalidOperationException("کمیسیون و هزینه خارجی نمی‌تواند منفی باشد.");
     }

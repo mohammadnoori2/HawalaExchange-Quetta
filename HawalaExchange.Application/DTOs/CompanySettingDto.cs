@@ -17,4 +17,8 @@ public class CompanySettingDto
     public string? Address { get; set; }
 
     public string? FooterNote { get; set; }
+
+    public long? DefaultProfitCurrencyId { get; set; }
+
+    public string DefaultProfitCurrencyCode { get; set; } = string.Empty;
 }

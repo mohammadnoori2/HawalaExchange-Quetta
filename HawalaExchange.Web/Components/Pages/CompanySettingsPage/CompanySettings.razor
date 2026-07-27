@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 
 @inject ICompanySettingService CompanySettingService
+@inject ICurrencyService CurrencyService
 @inject IFileService FileService
 
 @rendermode InteractiveServer
@@ -17,7 +18,7 @@
             <h5 class="page-title">
                 <i class="bi bi-building"></i>
                 تنظیمات شرکت
-                <span class="page-subtitle">تنظیم نام، لوگو و معلومات رسید حواله</span>
+                <span class="page-subtitle">تنظیم معلومات شرکت و ارز اصلی محاسبه مفاد و ضرر</span>
             </h5>
         </div>
     </div>
@@ -127,6 +128,26 @@
                     </div>
                 </div>
 
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">
+                            ارز اصلی محاسبه مفاد و ضرر <span class="text-danger">*</span>
+                        </label>
+
+                        <select class="form-select" @bind="setting.DefaultProfitCurrencyId">
+                            <option value="">انتخاب ارز اصلی</option>
+                            @foreach (var currency in activeCurrencies)
+                            {
+                                <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                            }
+                        </select>
+
+                        <small class="text-muted">
+                            بهای تمام‌شده، مفاد و ضرر تبدیل‌های جدید با این ارز محاسبه می‌شود؛ در فرم تبدیل پول دیگر نیاز به انتخاب آن نیست.
+                        </small>
+                    </div>
+                </div>
+
                 <hr />
 
                 <div class="row">
@@ -199,7 +220,7 @@
 
                 <div class="alert alert-info">
                     <strong>استفاده:</strong>
-                    این معلومات در رسید حواله ارسال و رسید حواله دریافت نمایش داده می‌شود.
+                    معلومات شرکت در رسیدها نمایش داده می‌شود و ارز اصلی در محاسبه بهای تمام‌شده، مفاد و ضرر تبدیل‌های جدید استفاده می‌گردد.
                 </div>
 
                 <div class="d-flex justify-content-end gap-2">
@@ -233,6 +254,7 @@
 
 @code {
     private CompanySettingDto setting = new();
+    private List<CurrencyDto> activeCurrencies = new();
 
     private List<string> validationErrors = new();
 
@@ -254,7 +276,18 @@
             validationErrors.Clear();
             successMessage = string.Empty;
 
+            activeCurrencies = (await CurrencyService.GetActiveCurrenciesAsync())
+                .OrderBy(x => x.Code)
+                .ToList();
             setting = await CompanySettingService.GetAsync();
+
+            if (!setting.DefaultProfitCurrencyId.HasValue)
+            {
+                setting.DefaultProfitCurrencyId = activeCurrencies
+                    .FirstOrDefault(x =>
+                        x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase))?.Id
+                    ?? activeCurrencies.FirstOrDefault()?.Id;
+            }
         }
         catch (Exception ex)
         {
@@ -274,6 +307,12 @@
 
         if (string.IsNullOrWhiteSpace(setting.CompanyName))
             validationErrors.Add("نام شرکت الزامی است.");
+
+        if (!setting.DefaultProfitCurrencyId.HasValue ||
+            activeCurrencies.All(x => x.Id != setting.DefaultProfitCurrencyId.Value))
+        {
+            validationErrors.Add("انتخاب یک ارز فعال به عنوان ارز اصلی محاسبه مفاد و ضرر الزامی است.");
+        }
 
         if (validationErrors.Any())
             return;

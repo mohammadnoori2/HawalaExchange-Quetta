@@ -79,6 +79,11 @@ namespace HawalaExchange.Infrastructure.Data
 
                 entity.Property(x => x.FooterNote)
                     .HasMaxLength(1000);
+
+                entity.HasOne(x => x.DefaultProfitCurrency)
+                    .WithMany()
+                    .HasForeignKey(x => x.DefaultProfitCurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
         }
 

@@ -32,7 +32,14 @@ public class CompanySetting
     [MaxLength(1000)]
     public string? FooterNote { get; set; }
 
+    /// <summary>
+    /// ارز اصلی که بهای تمام‌شده، مفاد و ضرر تبدیل پول بر اساس آن محاسبه می‌شود.
+    /// </summary>
+    public long? DefaultProfitCurrencyId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }
+
+    public Currency? DefaultProfitCurrency { get; set; }
 }

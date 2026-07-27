@@ -19,14 +19,21 @@ public class CompanySettingService : ICompanySettingService
     {
         var setting = await _context.CompanySettings
             .AsNoTracking()
+            .Include(x => x.DefaultProfitCurrency)
             .FirstOrDefaultAsync();
+
+        var fallbackCurrency = setting?.DefaultProfitCurrencyId == null
+            ? await GetFallbackProfitCurrencyAsync()
+            : null;
 
         if (setting == null)
         {
             return new CompanySettingDto
             {
                 CompanyName = "نام شرکت",
-                FooterNote = "تشکر از اعتماد شما"
+                FooterNote = "تشکر از اعتماد شما",
+                DefaultProfitCurrencyId = fallbackCurrency?.Id,
+                DefaultProfitCurrencyCode = fallbackCurrency?.Code ?? string.Empty
             };
         }
 
@@ -39,7 +46,12 @@ public class CompanySettingService : ICompanySettingService
             WhatsAppNumber = setting.WhatsAppNumber,
             TelegramUserName = setting.TelegramUserName,
             Address = setting.Address,
-            FooterNote = setting.FooterNote
+            FooterNote = setting.FooterNote,
+            DefaultProfitCurrencyId = setting.DefaultProfitCurrencyId ?? fallbackCurrency?.Id,
+            DefaultProfitCurrencyCode =
+                setting.DefaultProfitCurrency?.Code ??
+                fallbackCurrency?.Code ??
+                string.Empty
         };
     }
 
@@ -47,6 +59,18 @@ public class CompanySettingService : ICompanySettingService
     {
         if (string.IsNullOrWhiteSpace(dto.CompanyName))
             throw new InvalidOperationException("نام شرکت الزامی است.");
+
+        if (!dto.DefaultProfitCurrencyId.HasValue || dto.DefaultProfitCurrencyId.Value <= 0)
+            throw new InvalidOperationException("انتخاب ارز اصلی محاسبه مفاد و ضرر الزامی است.");
+
+        var profitCurrency = await _context.Currencies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.Id == dto.DefaultProfitCurrencyId.Value &&
+                x.IsActive);
+
+        if (profitCurrency == null)
+            throw new InvalidOperationException("ارز اصلی محاسبه مفاد و ضرر معتبر یا فعال نیست.");
 
         var setting = await _context.CompanySettings
             .FirstOrDefaultAsync();
@@ -68,6 +92,7 @@ public class CompanySettingService : ICompanySettingService
         setting.TelegramUserName = dto.TelegramUserName;
         setting.Address = dto.Address;
         setting.FooterNote = dto.FooterNote;
+        setting.DefaultProfitCurrencyId = profitCurrency.Id;
         setting.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -81,7 +106,19 @@ public class CompanySettingService : ICompanySettingService
             WhatsAppNumber = setting.WhatsAppNumber,
             TelegramUserName = setting.TelegramUserName,
             Address = setting.Address,
-            FooterNote = setting.FooterNote
+            FooterNote = setting.FooterNote,
+            DefaultProfitCurrencyId = profitCurrency.Id,
+            DefaultProfitCurrencyCode = profitCurrency.Code
         };
+    }
+
+    private async Task<Currency?> GetFallbackProfitCurrencyAsync()
+    {
+        return await _context.Currencies
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderByDescending(x => x.Code == "AFN")
+            .ThenBy(x => x.Id)
+            .FirstOrDefaultAsync();
     }
 }

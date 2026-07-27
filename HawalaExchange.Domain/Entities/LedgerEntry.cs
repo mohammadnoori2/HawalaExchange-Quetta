@@ -28,9 +28,9 @@ namespace HawalaExchange.Domain.Entities
         [Required]
         public long CurrencyId { get; set; }
 
-        public decimal TalabKar { get; set; } = 0; // Debit
+        public decimal TalabKar { get; set; } = 0; // Credit
 
-        public decimal BadehKar { get; set; } = 0; // Credit
+        public decimal BadehKar { get; set; } = 0; // Debit
 
         [MaxLength(500)]
         public string? Description { get; set; }

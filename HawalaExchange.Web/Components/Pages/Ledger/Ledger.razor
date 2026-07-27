@@ -50,7 +50,7 @@
                     </div>
                     <div>
                         <div class="stat-number">@ledgerEntries.Count(e => e.TalabKar > 0)</div>
-                        <div class="stat-label">تعداد بدهکار</div>
+                        <div class="stat-label">تعداد طلبکار</div>
                     </div>
                 </div>
             </div>
@@ -63,7 +63,7 @@
                     </div>
                     <div>
                         <div class="stat-number">@ledgerEntries.Count(e => e.BadehKar > 0)</div>
-                        <div class="stat-label">تعداد بستانکار</div>
+                        <div class="stat-label">تعداد بدهکار</div>
                     </div>
                 </div>
             </div>
@@ -152,10 +152,10 @@
                     <i class="bi bi-list-ul"></i> @filteredEntries.Count
                 </span>
                 <span class="badge-modern badge-success">
-                    <i class="bi bi-currency-dollar"></i> جمع بدهکار: @filteredEntries.Sum(e => e.TalabKar).ToString("N2")
+                    <i class="bi bi-currency-dollar"></i> جمع طلبکار: @filteredEntries.Sum(e => e.TalabKar).ToString("N2")
                 </span>
                 <span class="badge-modern badge-danger">
-                    <i class="bi bi-currency-dollar"></i> جمع بستانکار: @filteredEntries.Sum(e => e.BadehKar).ToString("N2")
+                    <i class="bi bi-currency-dollar"></i> جمع بدهکار: @filteredEntries.Sum(e => e.BadehKar).ToString("N2")
                 </span>
             </div>
         </div>
@@ -188,14 +188,14 @@
                                 }
                             </th>
                             <th class="sortable-header @(sortColumn == "TalabKar" ? "active" : "")" @onclick="@(() => SortBy("TalabKar"))">
-                                بدهکار
+                                طلبکار
                                 @if (sortColumn == "TalabKar")
                                 {
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
                             <th class="sortable-header @(sortColumn == "BadehKar" ? "active" : "")" @onclick="@(() => SortBy("BadehKar"))">
-                                بستانکار
+                                بدهکار
                                 @if (sortColumn == "BadehKar")
                                 {
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
@@ -258,10 +258,10 @@
                                     <td>
                                         <span class="badge-modern badge-info">@entry.CurrencyCode</span>
                                     </td>
-                                    <td class="text-danger fw-bold">
+                                    <td class="text-success fw-bold">
                                         @(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")
                                     </td>
-                                    <td class="text-success fw-bold">
+                                    <td class="text-danger fw-bold">
                                         @(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")
                                     </td>
                                     <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(entry.CreatedAt)</td>
@@ -328,10 +328,10 @@
 
             <div class="table-card-footer-right">
                 <span class="badge-modern badge-success">
-                    <i class="bi bi-arrow-up"></i> بدهکار: @filteredEntries.Sum(e => e.TalabKar).ToString("N2")
+                    <i class="bi bi-arrow-up"></i> طلبکار: @filteredEntries.Sum(e => e.TalabKar).ToString("N2")
                 </span>
                 <span class="badge-modern badge-danger">
-                    <i class="bi bi-arrow-down"></i> بستانکار: @filteredEntries.Sum(e => e.BadehKar).ToString("N2")
+                    <i class="bi bi-arrow-down"></i> بدهکار: @filteredEntries.Sum(e => e.BadehKar).ToString("N2")
                 </span>
             </div>
         </div>
@@ -413,17 +413,17 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-arrow-up text-muted me-1"></i> بدهکار
+                                        <i class="bi bi-arrow-up text-muted me-1"></i> طلبکار
                                     </label>
                                     <MoneyInput class="form-control"
-                                                @bind-Value="newEntry.TalabKar" placeholder="مقدار بدهکار" />
+                                                @bind-Value="newEntry.TalabKar" placeholder="مقدار طلبکار" />
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-arrow-down text-muted me-1"></i> بستانکار
+                                        <i class="bi bi-arrow-down text-muted me-1"></i> بدهکار
                                     </label>
                                     <MoneyInput class="form-control"
-                                                @bind-Value="newEntry.BadehKar" placeholder="مقدار بستانکار" />
+                                                @bind-Value="newEntry.BadehKar" placeholder="مقدار بدهکار" />
                                 </div>
                             </div>
 
@@ -438,7 +438,7 @@
 
                             <div class="alert alert-info">
                                 <i class="bi bi-info-circle"></i>
-                                <small>حداقل یکی از فیلدهای بدهکار یا بستانکار باید پر شود. مبالغ باید مثبت باشند.</small>
+                                <small>حداقل یکی از فیلدهای طلبکار یا بدهکار باید پر شود. مبالغ باید مثبت باشند.</small>
                             </div>
                         </div>
                     </div>
@@ -510,14 +510,14 @@
                     <div class="row g-3 mt-1">
                         <div class="col-md-6">
                             <div class="info-card">
-                                <span class="info-label">بدهکار</span>
-                                <span class="info-value text-danger fw-bold">@(selectedEntry.TalabKar > 0 ? selectedEntry.TalabKar.ToString("N2") : "-")</span>
+                                <span class="info-label">طلبکار</span>
+                                <span class="info-value text-success fw-bold">@(selectedEntry.TalabKar > 0 ? selectedEntry.TalabKar.ToString("N2") : "-")</span>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="info-card">
-                                <span class="info-label">بستانکار</span>
-                                <span class="info-value text-success fw-bold">@(selectedEntry.BadehKar > 0 ? selectedEntry.BadehKar.ToString("N2") : "-")</span>
+                                <span class="info-label">بدهکار</span>
+                                <span class="info-value text-danger fw-bold">@(selectedEntry.BadehKar > 0 ? selectedEntry.BadehKar.ToString("N2") : "-")</span>
                             </div>
                         </div>
                     </div>
@@ -850,7 +850,7 @@
         if (newEntry.CurrencyId == 0)
             validationErrors.Add("انتخاب ارز الزامی است");
         if (newEntry.TalabKar <= 0 && newEntry.BadehKar <= 0)
-            validationErrors.Add("حداقل یکی از فیلدهای بدهکار یا بستانکار باید پر شود");
+            validationErrors.Add("حداقل یکی از فیلدهای طلبکار یا بدهکار باید پر شود");
         if (newEntry.TalabKar < 0 || newEntry.BadehKar < 0)
             validationErrors.Add("مبالغ نمی‌توانند منفی باشند");
 

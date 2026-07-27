@@ -13,8 +13,8 @@ namespace HawalaExchange.Application.DTOs
         public string AccountCode { get; set; }
         public long CurrencyId { get; set; }
         public string CurrencyCode { get; set; }
-        public decimal TalabKar { get; set; } // Debit
-        public decimal BadehKar { get; set; } // Credit
+        public decimal TalabKar { get; set; } // Credit
+        public decimal BadehKar { get; set; } // Debit
         public string? Description { get; set; }
         public DateTime CreatedAt { get; set; }
 

@@ -8,8 +8,9 @@ namespace HawalaExchange.Application.Services;
 
 /// <summary>
 /// Rebuilds moving-weighted-average currency cost without using a market/reference rate.
-/// Customer conversions never enter the exchange office's inventory; their explicit
-/// commission (less an explicit external fee) is the only recognized office profit.
+/// Treasury conversions move inventory in the entered direction. Customer conversions
+/// move the office's inventory in the opposite direction and recognize the spread between
+/// the customer's rate and the office's moving weighted-average cost.
 /// </summary>
 public sealed class CurrencyCostService : ICurrencyCostService
 {
@@ -54,7 +55,7 @@ public sealed class CurrencyCostService : ICurrencyCostService
         var currencies = await _context.Currencies.AsNoTracking()
             .ToDictionaryAsync(x => x.Id, x => x.Code, cancellationToken);
         var operations = await _context.MoneyExchangeOperations.AsNoTracking()
-            .Where(x => !x.IsDeleted && x.ProfitCurrencyId != null && x.OperationType == "Treasury")
+            .Where(x => !x.IsDeleted && x.ProfitCurrencyId != null)
             .ToListAsync(cancellationToken);
         var capitals = await _context.CapitalInvestments.AsNoTracking()
             .Where(x => !x.IsDeleted && x.ProfitCurrencyId != null && x.ProfitCurrencyAmount != null)
@@ -67,7 +68,10 @@ public sealed class CurrencyCostService : ICurrencyCostService
         foreach (var item in events)
         {
             if (item.Capital is not null) ApplyCapital(item.Capital, positions);
-            else ApplyTreasury(item.Exchange!, positions, updateOperation: false);
+            else if (item.Exchange!.OperationType == "Customer")
+                ApplyCustomer(item.Exchange, positions, updateOperation: false);
+            else
+                ApplyTreasury(item.Exchange, positions, updateOperation: false);
         }
 
         return positions
@@ -130,12 +134,86 @@ public sealed class CurrencyCostService : ICurrencyCostService
         exchange.ProfitStatus = "Realized";
 
         if (exchange.OperationType == "Customer")
+            ApplyCustomer(exchange, positions, updateOperation: true);
+        else
+            ApplyTreasury(exchange, positions, updateOperation: true);
+    }
+
+    /// <summary>
+    /// A customer conversion is recorded from the customer's point of view. Therefore,
+    /// the office acquires the customer's From currency and supplies the customer's To
+    /// currency—the inverse inventory movement of a treasury conversion with the same
+    /// currency direction.
+    /// </summary>
+    private static void ApplyCustomer(
+        MoneyExchangeOperation exchange,
+        IDictionary<(long, long), Position> positions,
+        bool updateOperation)
+    {
+        var profitCurrencyId = exchange.ProfitCurrencyId!.Value;
+        var profit = exchange.CommissionAmount;
+        var cost = 0m;
+        var deferred = 0m;
+        var status = "Realized";
+        var exchangeProfit = 0m;
+        var inventoryIncrease = 0m;
+        var inventoryDecrease = 0m;
+        var shortIncrease = 0m;
+        var shortDecrease = 0m;
+
+        if (exchange.FromCurrencyId == profitCurrencyId)
         {
-            exchange.RealizedProfit = exchange.CommissionAmount - exchange.ExternalFeeAmount;
-            return;
+            var position = Get(positions, exchange.ToCurrencyId, profitCurrencyId);
+            var sale = Sell(position, exchange.ToAmount, exchange.FromAmount);
+            cost = sale.Cost;
+            exchangeProfit = sale.Profit;
+            profit += exchangeProfit - exchange.ExternalFeeAmount;
+            inventoryDecrease = sale.Cost;
+            shortIncrease = sale.DeferredProceeds;
+            deferred = sale.DeferredQuantity;
+            status = sale.Status;
+        }
+        else if (exchange.ToCurrencyId == profitCurrencyId)
+        {
+            var position = Get(positions, exchange.FromCurrencyId, profitCurrencyId);
+            var purchase = Buy(position, exchange.FromAmount,
+                exchange.ToAmount + exchange.ExternalFeeAmount);
+            exchangeProfit = purchase.Profit;
+            profit += purchase.Profit;
+            cost = purchase.CoverCost;
+            inventoryIncrease = purchase.RemainingCost;
+            shortDecrease = purchase.CoverProceeds;
+        }
+        else
+        {
+            var supplied = Get(positions, exchange.ToCurrencyId, profitCurrencyId);
+            var removed = RemoveAtCost(supplied, exchange.ToAmount);
+            cost = removed.Cost;
+            deferred = removed.MissingQuantity;
+            status = deferred > 0 ? (cost > 0 ? "PartiallyDeferred" : "Deferred") : "Realized";
+
+            if (deferred > 0)
+                supplied.Quantity -= deferred;
+
+            var acquired = Get(positions, exchange.FromCurrencyId, profitCurrencyId);
+            var purchase = Buy(acquired, exchange.FromAmount, cost + exchange.ExternalFeeAmount);
+            exchangeProfit = purchase.Profit;
+            profit += purchase.Profit;
+            inventoryDecrease = cost;
+            inventoryIncrease = purchase.RemainingCost;
+            shortDecrease = purchase.CoverProceeds;
         }
 
-        ApplyTreasury(exchange, positions, updateOperation: true);
+        if (!updateOperation) return;
+        exchange.CostAmount = cost;
+        exchange.RealizedProfit = profit;
+        exchange.ExchangeProfitAmount = exchangeProfit;
+        exchange.InventoryCostIncrease = inventoryIncrease;
+        exchange.InventoryCostDecrease = inventoryDecrease;
+        exchange.ShortLiabilityIncrease = shortIncrease;
+        exchange.ShortLiabilityDecrease = shortDecrease;
+        exchange.DeferredAmount = deferred;
+        exchange.ProfitStatus = status;
     }
 
     private static void ApplyTreasury(

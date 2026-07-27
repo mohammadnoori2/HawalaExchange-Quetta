@@ -213,7 +213,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
                 description)
         };
 
-        if (exchange.OperationType == "Treasury" && exchange.ProfitCurrencyId.HasValue)
+        if (exchange.ProfitCurrencyId.HasValue)
         {
             var systemAccounts = await context.Accounts
                 .Where(x => x.AccountCode == "1201" || x.AccountCode == "2101" ||
@@ -225,20 +225,20 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             var profitAccount = RequireSystemAccount(systemAccounts, "3002");
             var profitCurrencyId = exchange.ProfitCurrencyId.Value;
 
-            AddDebit(ledgerEntries, exchange, inventoryAccount, profitCurrencyId,
+            AddBadehKar(ledgerEntries, exchange, inventoryAccount, profitCurrencyId,
                 exchange.InventoryCostIncrease, "افزایش موجودی ارز به بهای تمام‌شده");
-            AddCredit(ledgerEntries, exchange, inventoryAccount, profitCurrencyId,
+            AddTalabKar(ledgerEntries, exchange, inventoryAccount, profitCurrencyId,
                 exchange.InventoryCostDecrease, "بهای تمام‌شده ارز فروش‌رفته");
-            AddCredit(ledgerEntries, exchange, shortLiabilityAccount, profitCurrencyId,
+            AddTalabKar(ledgerEntries, exchange, shortLiabilityAccount, profitCurrencyId,
                 exchange.ShortLiabilityIncrease, "افزایش تعهد فروش ارز");
-            AddDebit(ledgerEntries, exchange, shortLiabilityAccount, profitCurrencyId,
+            AddBadehKar(ledgerEntries, exchange, shortLiabilityAccount, profitCurrencyId,
                 exchange.ShortLiabilityDecrease, "تسویه تعهد فروش ارز");
 
             if (exchange.ExchangeProfitAmount >= 0)
-                AddDebit(ledgerEntries, exchange, profitAccount, profitCurrencyId,
+                AddTalabKar(ledgerEntries, exchange, profitAccount, profitCurrencyId,
                     exchange.ExchangeProfitAmount, "مفاد تحقق‌یافته تبدیل پول");
             else
-                AddCredit(ledgerEntries, exchange, profitAccount, profitCurrencyId,
+                AddBadehKar(ledgerEntries, exchange, profitAccount, profitCurrencyId,
                     -exchange.ExchangeProfitAmount, "زیان تحقق‌یافته تبدیل پول");
         }
 
@@ -247,9 +247,9 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             var commissionAccount = await context.Accounts
                 .FirstOrDefaultAsync(x => x.AccountCode == "3001")
                 ?? throw new InvalidOperationException("حساب درآمد کمیسیون با کد 3001 یافت نشد.");
-            AddDebit(ledgerEntries, exchange, exchange.ToAccountId, exchange.ProfitCurrencyId.Value,
+            AddBadehKar(ledgerEntries, exchange, exchange.ToAccountId, exchange.ProfitCurrencyId.Value,
                 exchange.CommissionAmount, "کمیسیون تبدیل پول");
-            AddCredit(ledgerEntries, exchange, commissionAccount.Id, exchange.ProfitCurrencyId.Value,
+            AddTalabKar(ledgerEntries, exchange, commissionAccount.Id, exchange.ProfitCurrencyId.Value,
                 exchange.CommissionAmount, "درآمد کمیسیون تبدیل پول");
         }
 
@@ -257,7 +257,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         {
             if (exchange.FromCurrencyId == exchange.ProfitCurrencyId)
             {
-                AddCredit(ledgerEntries, exchange, exchange.FromAccountId, exchange.ProfitCurrencyId.Value,
+                AddTalabKar(ledgerEntries, exchange, exchange.FromAccountId, exchange.ProfitCurrencyId.Value,
                     exchange.ExternalFeeAmount, "هزینه مستقیم خرید ارز");
             }
             else
@@ -265,9 +265,9 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
                 var expenseAccount = await context.Accounts
                     .FirstOrDefaultAsync(x => x.AccountCode == "4001")
                     ?? throw new InvalidOperationException("حساب هزینه تبدیل پول یافت نشد.");
-                AddDebit(ledgerEntries, exchange, expenseAccount.Id, exchange.ProfitCurrencyId.Value,
+                AddBadehKar(ledgerEntries, exchange, expenseAccount.Id, exchange.ProfitCurrencyId.Value,
                     exchange.ExternalFeeAmount, "هزینه مستقیم فروش ارز");
-                AddCredit(ledgerEntries, exchange, exchange.ToAccountId, exchange.ProfitCurrencyId.Value,
+                AddTalabKar(ledgerEntries, exchange, exchange.ToAccountId, exchange.ProfitCurrencyId.Value,
                     exchange.ExternalFeeAmount, "پرداخت هزینه مستقیم فروش ارز");
             }
         }
@@ -336,7 +336,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             ? account.Id
             : throw new InvalidOperationException($"حساب سیستمی با کد {code} یافت نشد.");
 
-    private static void AddDebit(
+    private static void AddTalabKar(
         ICollection<LedgerEntry> entries, MoneyExchangeOperation exchange,
         long accountId, long currencyId, decimal amount, string description)
     {
@@ -344,7 +344,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         entries.Add(NewLedgerEntry(exchange, accountId, currencyId, amount, 0, description));
     }
 
-    private static void AddCredit(
+    private static void AddBadehKar(
         ICollection<LedgerEntry> entries, MoneyExchangeOperation exchange,
         long accountId, long currencyId, decimal amount, string description)
     {
@@ -354,13 +354,13 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
 
     private static LedgerEntry NewLedgerEntry(
         MoneyExchangeOperation exchange, long accountId, long currencyId,
-        decimal debit, decimal credit, string description) => new()
+        decimal talabKar, decimal badehKar, string description) => new()
     {
         MoneyExchangeOperationId = exchange.Id,
         AccountId = accountId,
         CurrencyId = currencyId,
-        TalabKar = debit,
-        BadehKar = credit,
+        TalabKar = talabKar,
+        BadehKar = badehKar,
         Description = $"{description} - تبدیل شماره {exchange.Id}",
         CreatedAt = exchange.ExchangeDate
     };

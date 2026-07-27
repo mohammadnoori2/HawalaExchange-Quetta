@@ -75,7 +75,7 @@
 
                             <div class="card-body">
                                 <div class="row mb-3">
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <label class="form-label fw-bold">مالک پول</label>
                                         <select class="form-select"
                                                 value="@CurrentExchange.OperationType"
@@ -83,9 +83,19 @@
                                             <option value="Treasury">سرمایه خود صراف</option>
                                             <option value="Customer">پول مشتری</option>
                                         </select>
-                                        <small class="text-muted">پول مشتری وارد موجودی و مفاد سرمایه صراف نمی‌شود.</small>
+                                        <small class="text-muted">در تبدیل مشتری، گردش ارز در حساب مشتری و مفاد حاصل در حساب مفاد تبدیل ثبت می‌شود.</small>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-bold">گزینه خرید و فروش</label>
+                                        <select class="form-select"
+                                                value="@TradeOption"
+                                                @onchange="OnTradeOptionChanged">
+                                            <option value="@ExchangeTradeOption.Sell">فروش</option>
+                                            <option value="@ExchangeTradeOption.Buy">خرید</option>
+                                        </select>
+                                        <small class="text-muted">@TradeOptionHelp</small>
+                                    </div>
+                                    <div class="col-md-3">
                                         <label class="form-label fw-bold">ارز محاسبه مفاد <span class="text-danger">*</span></label>
                                         <select class="form-select" @bind="CurrentExchange.ProfitCurrencyId">
                                             <option value="0">انتخاب ارز</option>
@@ -95,7 +105,7 @@
                                             }
                                         </select>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <label class="form-label fw-bold">روش محاسبه مبلغ</label>
                                         <div class="alert alert-light border mb-0 py-2">
                                             نرخ تبدیل و یکی از مبلغ‌های پرداختی یا دریافتی را وارد کنید؛ مبلغ مقابل خودکار محاسبه می‌شود.
@@ -367,13 +377,18 @@
 
     private DateTime ExchangeDateLocal { get; set; } = DateTime.Now;
     private AmountInputSource LastEditedAmount { get; set; } = AmountInputSource.From;
+    private ExchangeTradeOption TradeOption { get; set; } = ExchangeTradeOption.Sell;
+    private string TradeOptionHelp =>
+        TradeOption == ExchangeTradeOption.Sell
+            ? "ارز فروش مرجع است؛ هر دو مبلغ قابل ویرایش می‌ماند."
+            : "ارز خرید مرجع است؛ هر دو مبلغ قابل ویرایش می‌ماند.";
     private int FromAmountDecimalPlaces =>
         CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.FromCurrencyId)?.DecimalPlaces ?? 2;
     private int ToAmountDecimalPlaces =>
         CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.ToCurrencyId)?.DecimalPlaces ?? 2;
     private string LedgerExplanation =>
         CurrentExchange.OperationType == "Customer"
-            ? "برای مشتری، ارز خرید طلبکار و ارز فروش بدهکار ثبت می‌شود."
+            ? "برای مشتری، ارز خرید طلبکار و ارز فروش بدهکار است؛ مفاد فقط در حساب مفاد تبدیل پول ثبت می‌شود."
             : "برای سرمایه صراف، ارز خرید بدهکار و ارز فروش طلبکار ثبت می‌شود.";
 
     // ===== متدهای چرخه حیات =====
@@ -402,6 +417,7 @@
 
         if (IsEditMode && EditData != null)
         {
+            TradeOption = ExchangeTradeOption.Sell;
             LastEditedAmount = AmountInputSource.From;
             CurrentExchange = new CreateMoneyExchangeOperationDto
             {
@@ -489,6 +505,7 @@
             Description = "ثبت تبدیل پول"
         };
 
+        TradeOption = ExchangeTradeOption.Sell;
         LastEditedAmount = AmountInputSource.From;
         ExchangeDateLocal = DateTime.Now;
     }
@@ -618,8 +635,20 @@
         CurrentExchange.ToAccountId = account?.Id ?? 0;
     }
 
+    private void OnTradeOptionChanged(ChangeEventArgs args)
+    {
+        TradeOption = Enum.TryParse<ExchangeTradeOption>(args.Value?.ToString(), out var option)
+            ? option
+            : ExchangeTradeOption.Sell;
+        LastEditedAmount = TradeOption == ExchangeTradeOption.Sell
+            ? AmountInputSource.From
+            : AmountInputSource.To;
+        CalculateCounterAmount();
+    }
+
     private void OnFromAmountChanged(decimal amount)
     {
+        TradeOption = ExchangeTradeOption.Sell;
         if (CurrentExchange.FromAmount == amount)
             return;
 
@@ -631,6 +660,7 @@
 
     private void OnToAmountChanged(decimal amount)
     {
+        TradeOption = ExchangeTradeOption.Buy;
         if (CurrentExchange.ToAmount == amount)
             return;
 
@@ -716,6 +746,12 @@
     {
         From,
         To
+    }
+
+    private enum ExchangeTradeOption
+    {
+        Sell,
+        Buy
     }
 
     // ===== توابع کمکی =====

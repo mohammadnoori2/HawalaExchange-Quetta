@@ -1,0 +1,374 @@
+.financial-page {
+    color: #172033;
+    font-family: Tahoma, Arial, sans-serif;
+}
+
+.report-toolbar,
+.report-filter {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid #dce3ec;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 4px 18px rgba(19, 41, 75, .05);
+}
+
+.report-toolbar h2 {
+    margin: 0 0 .25rem;
+    font-size: 1.35rem;
+}
+
+.report-toolbar p {
+    margin: 0;
+    color: #697386;
+}
+
+.toolbar-actions,
+.report-filter {
+    display: flex;
+    align-items: end;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.filter-field {
+    min-width: 220px;
+}
+
+.filter-field label {
+    display: block;
+    margin-bottom: .4rem;
+    color: #536176;
+    font-size: .86rem;
+}
+
+.currency-chip {
+    margin-inline-start: auto;
+    padding: .65rem .85rem;
+    border-radius: 9px;
+    color: #164e63;
+    background: #ecfeff;
+}
+
+.loading-state {
+    display: flex;
+    min-height: 200px;
+    align-items: center;
+    justify-content: center;
+    gap: .75rem;
+    color: #596579;
+}
+
+.report-warnings ul {
+    margin: .5rem 0 0;
+}
+
+.statement-sheet {
+    width: min(100%, 940px);
+    margin: 0 auto 2rem;
+    padding: 24px 30px;
+    border: 1px solid #c7ced8;
+    background: #fff;
+    box-shadow: 0 8px 30px rgba(22, 34, 51, .08);
+}
+
+.landscape-sheet {
+    width: min(100%, 1160px);
+}
+
+.regulatory-header {
+    display: grid;
+    grid-template-columns: 105px 1fr 105px;
+    align-items: center;
+    min-height: 105px;
+    text-align: center;
+}
+
+.report-logo img,
+.logo-placeholder {
+    width: 78px;
+    height: 78px;
+    object-fit: contain;
+}
+
+.logo-placeholder {
+    display: grid;
+    place-items: center;
+    border: 1px solid #b7c1ce;
+    border-radius: 50%;
+    color: #708198;
+    font-size: 2rem;
+}
+
+.regulatory-titles {
+    line-height: 1.65;
+    font-weight: 700;
+}
+
+.regulatory-titles h1 {
+    margin: .25rem 0 0;
+    font-size: 1.4rem;
+}
+
+.report-copy {
+    align-self: start;
+    padding-top: .5rem;
+    color: #6c7789;
+    font-size: .72rem;
+}
+
+.report-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 1rem 0;
+    border-top: 1.5px solid #111;
+    border-right: 1.5px solid #111;
+}
+
+.report-meta div {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    min-height: 34px;
+    align-items: center;
+    padding: .3rem .55rem;
+    border-left: 1.5px solid #111;
+    border-bottom: 1.5px solid #111;
+}
+
+.report-meta span {
+    color: #343d4b;
+}
+
+.statement-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1.5px solid #111;
+    font-size: .88rem;
+}
+
+.statement-table th,
+.statement-table td {
+    height: 34px;
+    padding: .36rem .55rem;
+    border: 1px solid #111;
+}
+
+.statement-table thead th {
+    background: #e7ebef;
+    text-align: center;
+    font-weight: 800;
+}
+
+.number-column {
+    width: 76px;
+}
+
+.amount-column {
+    width: 210px;
+}
+
+.statement-table td:first-child {
+    text-align: center;
+}
+
+.amount-cell {
+    direction: ltr;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.section-row td {
+    background: #dbe2e8;
+    font-weight: 800;
+}
+
+.total-row td {
+    background: #f4f5f7;
+    font-weight: 800;
+}
+
+.grand-total-row td {
+    border-top: 2px solid #111;
+    background: #eceff1;
+    color: #9b1c1c;
+    font-weight: 900;
+}
+
+.balance-check {
+    display: flex;
+    justify-content: space-between;
+    margin-top: .75rem;
+    padding: .65rem .8rem;
+    border-radius: 6px;
+}
+
+.balance-check.balanced {
+    color: #166534;
+    background: #ecfdf3;
+}
+
+.balance-check.unbalanced {
+    color: #991b1b;
+    background: #fef2f2;
+}
+
+.statement-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
+    margin-top: 1rem;
+}
+
+.statement-summary > div {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    padding: .75rem 1rem;
+    border: 1px solid #d3dae4;
+    background: #f8fafc;
+}
+
+.statement-summary .profit {
+    color: #166534;
+    background: #f0fdf4;
+}
+
+.statement-summary .loss {
+    color: #991b1b;
+    background: #fef2f2;
+}
+
+.report-signatures {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5rem;
+    margin-top: 4rem;
+    text-align: center;
+}
+
+.report-signatures > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2.8rem;
+}
+
+.signature-line {
+    padding-top: .35rem;
+    border-top: 1px solid #111;
+    color: #5b6472;
+    font-size: .78rem;
+}
+
+.page-break {
+    height: 2rem;
+}
+
+@media (max-width: 720px) {
+    .report-toolbar,
+    .report-filter {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .currency-chip {
+        margin-inline-start: 0;
+    }
+
+    .statement-sheet {
+        overflow-x: auto;
+        padding: 14px;
+    }
+
+    .report-meta,
+    .statement-summary {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media print {
+    @page financial-portrait {
+        size: A4 portrait;
+        margin: 8mm;
+    }
+
+    @page financial-landscape {
+        size: A4 landscape;
+        margin: 8mm;
+    }
+
+    .portrait-sheet {
+        page: financial-portrait;
+    }
+
+    .landscape-sheet {
+        page: financial-landscape;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+    html,
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .sidebar,
+    .nav-sidebar,
+    .navbar,
+    .navbar-toggler,
+    #blazor-error-ui {
+        display: none !important;
+    }
+
+    .page {
+        display: block !important;
+        width: 100% !important;
+        min-height: 0 !important;
+    }
+
+    body .page > main,
+    body .page > main > article.content {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .financial-page {
+        display: block !important;
+        width: 100% !important;
+        margin: 0;
+        padding: 0;
+    }
+
+    .statement-sheet {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        box-shadow: none;
+    }
+
+    .landscape-sheet {
+        width: 100%;
+    }
+
+    .page-break {
+        height: 0;
+        break-before: page;
+        page-break-before: always;
+    }
+
+    .statement-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}

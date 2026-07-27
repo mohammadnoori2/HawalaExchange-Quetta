@@ -1,14 +1,13 @@
-﻿@page "/daily-journal"
-
+@page "/daily-journal"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Web.Helpers
 @using Microsoft.AspNetCore.Authorization
-
 @inject IJournalService JournalService
-
 @rendermode InteractiveServer
 @attribute [Authorize]
+
+<PageTitle>روزنامچه</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
     <div class="page-header">
@@ -16,7 +15,7 @@
             <h5 class="page-title">
                 <i class="bi bi-journal-text"></i>
                 روزنامچه
-                <span class="page-subtitle">نمایش تمام فعالیت‌های ثبت‌شده در دفتر کل برای روز انتخاب‌شده</span>
+                <span class="page-subtitle">هر عملیات در یک ردیف و تمام ثبت‌های لیجر آن در بخش جزئیات</span>
             </h5>
         </div>
 
@@ -26,13 +25,11 @@
                                    IncludeTime="false"
                                    Placeholder="انتخاب تاریخ شمسی" />
             </div>
-
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="LoadJournal">
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="LoadJournal" disabled="@isLoading">
                 <i class="bi bi-search"></i>
                 نمایش
             </button>
-
-            <button class="btn-modern btn-light-modern btn-rounded" @onclick="LoadToday">
+            <button class="btn-modern btn-light-modern btn-rounded" @onclick="LoadToday" disabled="@isLoading">
                 <i class="bi bi-calendar-check"></i>
                 امروز
             </button>
@@ -55,23 +52,29 @@
         <div class="col-md-3 col-6">
             <div class="stat-card">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-list-ul"></i>
-                    </div>
+                    <div class="stat-icon primary"><i class="bi bi-receipt"></i></div>
                     <div>
-                        <div class="stat-number">@journal.Entries.Count</div>
-                        <div class="stat-label">تعداد ثبت‌ها</div>
+                        <div class="stat-number">@journal.Operations.Count</div>
+                        <div class="stat-label">تعداد عملیات</div>
                     </div>
                 </div>
             </div>
         </div>
-
         <div class="col-md-3 col-6">
             <div class="stat-card stat-card-info">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-coin"></i>
+                    <div class="stat-icon info"><i class="bi bi-list-ul"></i></div>
+                    <div>
+                        <div class="stat-number">@journal.Entries.Count</div>
+                        <div class="stat-label">ردیف‌های لیجر</div>
                     </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-card stat-card-success">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon success"><i class="bi bi-coin"></i></div>
                     <div>
                         <div class="stat-number">@journal.CurrencySummaries.Count</div>
                         <div class="stat-label">تعداد ارزها</div>
@@ -79,31 +82,12 @@
                 </div>
             </div>
         </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-arrow-down-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@journal.Entries.Count(x => x.TalabKar > 0)</div>
-                        <div class="stat-label">ردیف‌های طلبکار</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <div class="col-md-3 col-6">
             <div class="stat-card stat-card-warning">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning">
-                        <i class="bi bi-calendar-date"></i>
-                    </div>
+                    <div class="stat-icon warning"><i class="bi bi-calendar-date"></i></div>
                     <div>
-                        <div class="stat-number" style="font-size: 1rem;">
-                            @PersianDateHelper.ToPersianDate(selectedDate)
-                        </div>
+                        <div class="stat-number journal-date-value">@PersianDateHelper.ToPersianDate(selectedDate)</div>
                         <div class="stat-label">تاریخ گزارش</div>
                     </div>
                 </div>
@@ -116,17 +100,13 @@
             <div class="table-card-header-left">
                 <h6 class="mb-0 text-primary">
                     <i class="bi bi-bar-chart"></i>
-                    خلاصه روز به تفکیک ارز
+                    خلاصهٔ ردیف‌های لیجر به تفکیک ارز
                 </h6>
             </div>
-
             <div class="table-card-header-right">
-                <span class="badge-modern badge-info">
-                    @journal.CurrencySummaries.Count
-                </span>
+                <span class="badge-modern badge-info">@journal.CurrencySummaries.Count</span>
             </div>
         </div>
-
         <div class="table-card-body">
             <div class="table-scroll-wrapper">
                 <table class="table-modern table-striped-modern">
@@ -134,53 +114,33 @@
                         <tr>
                             <th>#</th>
                             <th>ارز</th>
-                            <th>تعداد ردیف</th>
+                            <th>تعداد ردیف لیجر</th>
                             <th>مجموع طلبکار</th>
                             <th>مجموع بدهکار</th>
                             <th>تفاوت</th>
                         </tr>
                     </thead>
-
                     <tbody>
                         @if (!journal.CurrencySummaries.Any())
                         {
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">
-                                    برای این تاریخ هیچ خلاصه‌ای وجود ندارد.
-                                </td>
+                                <td colspan="6" class="text-center py-4 text-muted">برای این تاریخ خلاصه‌ای وجود ندارد.</td>
                             </tr>
                         }
                         else
                         {
-                            var index = 1;
-
+                            var summaryIndex = 1;
                             @foreach (var item in journal.CurrencySummaries)
                             {
                                 <tr>
-                                    <td>@index</td>
-
-                                    <td>
-                                        <span class="badge-modern badge-info">
-                                            @item.CurrencyCode
-                                        </span>
-                                    </td>
-
+                                    <td>@summaryIndex</td>
+                                    <td><span class="badge-modern badge-info">@item.CurrencyCode</span></td>
                                     <td>@item.EntriesCount</td>
-
-                                    <td dir="ltr" class="fw-bold text-success">
-                                        @item.TotalTalabKar.ToString("N2")
-                                    </td>
-
-                                    <td dir="ltr" class="fw-bold text-danger">
-                                        @item.TotalBadehKar.ToString("N2")
-                                    </td>
-
-                                    <td dir="ltr" class="fw-bold">
-                                        @((item.TotalTalabKar - item.TotalBadehKar).ToString("N2"))
-                                    </td>
+                                    <td dir="ltr" class="fw-bold text-success">@item.TotalTalabKar.ToString("N2")</td>
+                                    <td dir="ltr" class="fw-bold text-danger">@item.TotalBadehKar.ToString("N2")</td>
+                                    <td dir="ltr" class="fw-bold">@((item.TotalTalabKar - item.TotalBadehKar).ToString("N2"))</td>
                                 </tr>
-
-                                index++;
+                                summaryIndex++;
                             }
                         }
                     </tbody>
@@ -193,27 +153,18 @@
         <div class="table-card-header">
             <div class="table-card-header-left">
                 <div class="search-modern">
-                    <span class="search-icon">
-                        <i class="bi bi-search"></i>
-                    </span>
-
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
                     <input type="text"
                            class="search-input"
-                           placeholder="جستجو: حساب، نوع سند، ارز، توضیحات..."
+                           placeholder="جستجو در عملیات، حساب، ارز و جزئیات..."
                            @bind="searchTerm"
                            @bind:event="oninput" />
-
-                    <button class="search-btn" @onclick="ClearSearch">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
+                    <button class="search-btn" @onclick="ClearSearch"><i class="bi bi-x-lg"></i></button>
                 </div>
 
                 <div class="filter-selector">
-                    <select class="form-select form-select-sm"
-                            @bind="filterSourceType"
-                            @bind:event="oninput">
-                        <option value="">همه اسناد</option>
-
+                    <select class="form-select form-select-sm" @bind="filterSourceType" @bind:event="oninput">
+                        <option value="">همه عملیات</option>
                         @foreach (var source in sourceTypes)
                         {
                             <option value="@source">@source</option>
@@ -223,7 +174,6 @@
 
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-
                     <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
                         <option value="10">10</option>
                         <option value="20">20</option>
@@ -234,111 +184,71 @@
                     </select>
                 </div>
             </div>
-
             <div class="table-card-header-right">
                 <span class="badge-modern badge-info">
-                    <i class="bi bi-list-ul"></i>
-                    @filteredEntries.Count
+                    <i class="bi bi-receipt"></i>
+                    @filteredOperations.Count عملیات
                 </span>
             </div>
         </div>
 
         <div class="table-card-body">
             <div class="table-scroll-wrapper">
-                <table class="table-modern table-striped-modern">
+                <table class="table-modern table-striped-modern journal-operation-table">
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
-                            <th>زمان</th>
-                            <th>نوع سند</th>
-                            <th>شماره سند</th>
-                            <th>حساب</th>
-                            <th>ارز</th>
-                            <th>طلبکار</th>
-                            <th>بدهکار</th>
-                            <th>توضیحات</th>
+                            <th>شرح روزنامچه</th>
+                            <th>عملیات</th>
                         </tr>
                     </thead>
-
                     <tbody>
                         @if (isLoading)
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">در حال بارگذاری...</span>
-                                    </div>
+                                <td colspan="3" class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status"></div>
                                     <p class="text-muted mt-2">در حال بارگذاری روزنامچه...</p>
                                 </td>
                             </tr>
                         }
-                        else if (!pagedEntries.Any())
+                        else if (!pagedOperations.Any())
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="3" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
-                                        <span class="fs-5 text-muted">برای این تاریخ هیچ ثبت روزنامچه‌ای یافت نشد</span>
-                                        <p class="text-muted small">
-                                            اگر امروز عملیات انجام داده باشید، باید در LedgerEntries ثبت شده باشد.
-                                        </p>
+                                        <span class="fs-5 text-muted">برای این تاریخ عملیاتی یافت نشد</span>
                                     </div>
                                 </td>
                             </tr>
                         }
                         else
                         {
-                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredEntries.Count : pageSize) + 1;
+                            var rowIndex = (currentPage - 1) *
+                                (pageSize == 0 ? filteredOperations.Count : pageSize) + 1;
 
-                            @foreach (var entry in pagedEntries)
+                            @foreach (var operation in pagedOperations)
                             {
                                 <tr>
-                                    <td>
-                                        <span class="fw-bold text-muted">@rowIndex</span>
-                                    </td>
-
-                                    <td dir="ltr">
-                                        @PersianDateHelper.ToTime12(entry.CreatedAt)
-                                    </td>
-
-                                    <td>
-                                        <span class="badge-modern @GetSourceBadge(entry.SourceType)">
-                                            @entry.SourceType
+                                    <td><span class="fw-bold text-muted">@rowIndex</span></td>
+                                    <td class="journal-sentence">
+                                        <span class="journal-sentence-time">
+                                            @PersianDateHelper.ToTime12(operation.CreatedAt)
                                         </span>
-                                    </td>
-
-                                    <td dir="ltr">
-                                        @(entry.SourceId?.ToString() ?? "-")
-                                    </td>
-
-                                    <td>
-                                        <span class="fw-semibold">
-                                            @entry.AccountName
+                                        <span class="badge-modern @GetSourceBadge(operation.SourceType)">
+                                            @operation.SourceType
                                         </span>
-                                        <small class="text-muted d-block">
-                                            @entry.AccountCode
-                                        </small>
+                                        <span>@operation.SummarySentence</span>
                                     </td>
-
                                     <td>
-                                        <span class="badge-modern badge-info">
-                                            @entry.CurrencyCode
-                                        </span>
-                                    </td>
-
-                                    <td dir="ltr" class="fw-bold text-success">
-                                        @(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")
-                                    </td>
-
-                                    <td dir="ltr" class="fw-bold text-danger">
-                                        @(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")
-                                    </td>
-
-                                    <td>
-                                        @(entry.Description ?? "-")
+                                        <button class="btn btn-sm btn-outline-primary journal-details-button"
+                                                @onclick="() => ShowDetails(operation)">
+                                            <i class="bi bi-eye"></i>
+                                            جزئیات
+                                        </button>
                                     </td>
                                 </tr>
-
                                 rowIndex++;
                             }
                         }
@@ -350,10 +260,8 @@
         <div class="table-card-footer">
             <div class="table-card-footer-left">
                 <span class="text-muted small">
-                    نمایش <strong>@pagedEntries.Count</strong>
-                    از <strong>@filteredEntries.Count</strong> ردیف
+                    نمایش <strong>@pagedOperations.Count</strong> از <strong>@filteredOperations.Count</strong> عملیات
                 </span>
-
                 @if (totalPages > 1)
                 {
                     <nav aria-label="Page navigation">
@@ -363,16 +271,13 @@
                                     <i class="bi bi-chevron-right"></i>
                                 </button>
                             </li>
-
-                            @for (int i = 1; i <= totalPages; i++)
+                            @for (var page = 1; page <= totalPages; page++)
                             {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">
-                                        @i
-                                    </button>
+                                var pageNumber = page;
+                                <li class="page-item @(pageNumber == currentPage ? "active" : "")">
+                                    <button class="page-link" @onclick="() => GoToPage(pageNumber)">@pageNumber</button>
                                 </li>
                             }
-
                             <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
                                 <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
                                     <i class="bi bi-chevron-left"></i>
@@ -382,7 +287,6 @@
                     </nav>
                 }
             </div>
-
             <div class="table-card-footer-right">
                 <span class="badge-modern badge-info">
                     <i class="bi bi-calendar-check"></i>
@@ -393,15 +297,130 @@
     </div>
 </div>
 
+@if (selectedOperation != null)
+{
+    <div class="journal-modal-backdrop" @onclick="CloseDetails">
+        <section class="journal-detail-modal" role="dialog" aria-modal="true" @onclick:stopPropagation="true">
+            <header class="journal-modal-header">
+                <div>
+                    <h5>
+                        <i class="bi bi-receipt-cutoff"></i>
+                        جزئیات کامل @selectedOperation.SourceType
+                    </h5>
+                    <div class="journal-modal-subtitle">
+                        سند @selectedOperation.DocumentNumber ·
+                        @PersianDateHelper.ToPersianDate(selectedOperation.CreatedAt)
+                        @PersianDateHelper.ToTime12(selectedOperation.CreatedAt)
+                    </div>
+                </div>
+                <button type="button" class="btn-close" aria-label="بستن" @onclick="CloseDetails"></button>
+            </header>
+
+            <div class="journal-modal-body">
+                <div class="journal-overview-grid">
+                    <div><span>نوع عملیات</span><strong>@selectedOperation.SourceType</strong></div>
+                    <div><span>شماره سند</span><strong>@selectedOperation.DocumentNumber</strong></div>
+                    <div><span>تعداد حساب</span><strong>@selectedOperation.AccountNames.Count</strong></div>
+                    <div><span>تعداد ثبت لیجر</span><strong>@selectedOperation.LedgerEntriesCount</strong></div>
+                </div>
+
+                @if (selectedOperation.SourceDetails.Any())
+                {
+                    <h6 class="journal-section-title">مشخصات عملیات</h6>
+                    <div class="journal-source-details">
+                        @foreach (var field in selectedOperation.SourceDetails)
+                        {
+                            <div>
+                                <span>@field.Label</span>
+                                <strong>@field.Value</strong>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <h6 class="journal-section-title">خلاصهٔ گردش به تفکیک ارز</h6>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>ارز</th>
+                                <th>مجموع طلبکار</th>
+                                <th>مجموع بدهکار</th>
+                                <th>تفاوت</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var currency in selectedOperation.CurrencySummaries)
+                            {
+                                <tr>
+                                    <td><span class="badge-modern badge-info">@currency.CurrencyCode</span></td>
+                                    <td dir="ltr" class="text-success fw-bold">@currency.TotalTalabKar.ToString("N2")</td>
+                                    <td dir="ltr" class="text-danger fw-bold">@currency.TotalBadehKar.ToString("N2")</td>
+                                    <td dir="ltr">@((currency.TotalTalabKar - currency.TotalBadehKar).ToString("N2"))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <h6 class="journal-section-title">تمام ثبت‌های مرتبط در لیجر</h6>
+                <div class="table-responsive journal-ledger-table">
+                    <table class="table table-bordered table-striped table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>شناسه</th>
+                                <th>حساب</th>
+                                <th>کُد حساب</th>
+                                <th>ارز</th>
+                                <th>طلبکار</th>
+                                <th>بدهکار</th>
+                                <th>توضیحات ثبت</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in selectedOperation.LedgerEntries)
+                            {
+                                <tr>
+                                    <td dir="ltr">@entry.Id</td>
+                                    <td>@entry.AccountName</td>
+                                    <td dir="ltr">@entry.AccountCode</td>
+                                    <td>@entry.CurrencyCode</td>
+                                    <td dir="ltr" class="text-success">
+                                        @(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")
+                                    </td>
+                                    <td dir="ltr" class="text-danger">
+                                        @(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")
+                                    </td>
+                                    <td>@(entry.Description ?? "-")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="journal-operation-description">
+                    <span>شرح مجموعی عملیات</span>
+                    <p>@selectedOperation.Description</p>
+                </div>
+            </div>
+
+            <footer class="journal-modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseDetails">بستن</button>
+            </footer>
+        </section>
+    </div>
+}
+
 @code {
     private DailyJournalDto journal = new();
-    private List<JournalEntryDto> filteredEntries = new();
-
+    private List<JournalOperationDto> filteredOperations = new();
+    private JournalOperationDto? selectedOperation;
     private DateTime selectedDate = DateTime.Today;
-
     private List<string> validationErrors = new();
-
-    private bool isLoading = false;
+    private bool isLoading;
+    private List<string> sourceTypes = new();
+    private int pageSize = 20;
+    private int currentPage = 1;
 
     private string _searchTerm = string.Empty;
     private string searchTerm
@@ -431,40 +450,29 @@
         }
     }
 
-    private List<string> sourceTypes = new();
-
-    private int pageSize = 20;
-    private int currentPage = 1;
-
-    private List<JournalEntryDto> pagedEntries
+    private List<JournalOperationDto> pagedOperations
     {
         get
         {
-            var sorted = filteredEntries
+            var sorted = filteredOperations
                 .OrderByDescending(x => x.CreatedAt)
-                .ThenByDescending(x => x.Id)
+                .ThenByDescending(x => x.SourceId)
                 .ToList();
-
             if (pageSize == 0)
             {
                 currentPage = 1;
                 return sorted;
             }
 
-            var skip = (currentPage - 1) * pageSize;
-            return sorted.Skip(skip).Take(pageSize).ToList();
+            return sorted.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
         }
     }
 
-    private int totalPages =>
-        pageSize == 0
-            ? 1
-            : (int)Math.Ceiling((double)filteredEntries.Count / pageSize);
+    private int totalPages => pageSize == 0
+        ? 1
+        : (int)Math.Ceiling((double)filteredOperations.Count / pageSize);
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadJournal();
-    }
+    protected override Task OnInitializedAsync() => LoadJournal();
 
     private async Task LoadToday()
     {
@@ -478,19 +486,16 @@
         {
             isLoading = true;
             validationErrors.Clear();
-
+            selectedOperation = null;
             journal = await JournalService.GetDailyJournalAsync(selectedDate);
-
-            sourceTypes = journal.Entries
+            sourceTypes = journal.Operations
                 .Select(x => x.SourceType)
                 .Distinct()
                 .OrderBy(x => x)
                 .ToList();
-
             _searchTerm = string.Empty;
             _filterSourceType = string.Empty;
-
-            filteredEntries = journal.Entries.ToList();
+            filteredOperations = journal.Operations.ToList();
             currentPage = 1;
         }
         catch (Exception ex)
@@ -500,79 +505,66 @@
         finally
         {
             isLoading = false;
-            StateHasChanged();
         }
     }
 
     private void ApplyFilters()
     {
-        var query = journal.Entries.AsEnumerable();
-
+        var query = journal.Operations.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
-            var term = _searchTerm.Trim().ToLower();
-
-            query = query.Where(x =>
-                (!string.IsNullOrWhiteSpace(x.SourceType) &&
-                 x.SourceType.ToLower().Contains(term)) ||
-
-                (!string.IsNullOrWhiteSpace(x.AccountName) &&
-                 x.AccountName.ToLower().Contains(term)) ||
-
-                (!string.IsNullOrWhiteSpace(x.AccountCode) &&
-                 x.AccountCode.ToLower().Contains(term)) ||
-
-                (!string.IsNullOrWhiteSpace(x.CurrencyCode) &&
-                 x.CurrencyCode.ToLower().Contains(term)) ||
-
-                (!string.IsNullOrWhiteSpace(x.Description) &&
-                 x.Description.ToLower().Contains(term)) ||
-
-                (x.SourceId.HasValue &&
-                 x.SourceId.Value.ToString().Contains(term))
-            );
+            var term = _searchTerm.Trim();
+            query = query.Where(operation =>
+                Contains(operation.SourceType, term) ||
+                Contains(operation.DocumentNumber, term) ||
+                Contains(operation.SummarySentence, term) ||
+                Contains(operation.Description, term) ||
+                operation.AccountNames.Any(x => Contains(x, term)) ||
+                operation.CurrencySummaries.Any(x => Contains(x.CurrencyCode, term)) ||
+                operation.SourceDetails.Any(x => Contains(x.Label, term) || Contains(x.Value, term)) ||
+                operation.LedgerEntries.Any(x =>
+                    Contains(x.AccountName, term) ||
+                    Contains(x.AccountCode, term) ||
+                    Contains(x.Description, term)));
         }
 
         if (!string.IsNullOrWhiteSpace(_filterSourceType))
-        {
             query = query.Where(x => x.SourceType == _filterSourceType);
-        }
 
-        filteredEntries = query.ToList();
+        filteredOperations = query.ToList();
         currentPage = 1;
-        StateHasChanged();
     }
+
+    private static bool Contains(string? value, string term) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Contains(term, StringComparison.OrdinalIgnoreCase);
 
     private void ClearSearch()
     {
         _searchTerm = string.Empty;
         _filterSourceType = string.Empty;
-        filteredEntries = journal.Entries.ToList();
+        filteredOperations = journal.Operations.ToList();
         currentPage = 1;
-        StateHasChanged();
     }
 
     private void GoToPage(int page)
     {
         if (page >= 1 && page <= totalPages)
-        {
             currentPage = page;
-            StateHasChanged();
-        }
     }
 
-    private string GetSourceBadge(string sourceType)
+    private void ShowDetails(JournalOperationDto operation) => selectedOperation = operation;
+    private void CloseDetails() => selectedOperation = null;
+
+    private static string GetSourceBadge(string sourceType) => sourceType switch
     {
-        return sourceType switch
-        {
-            "حواله" => "badge-primary",
-            "ثبت سرمایه" => "badge-success",
-            "مصرف" => "badge-danger",
-            "واریز / برداشت" => "badge-info",
-            "تبدیل پول" => "badge-warning",
-            "انتقال" => "badge-secondary",
-            "تراکنش" => "badge-secondary",
-            _ => "badge-secondary"
-        };
-    }
+        "حواله" => "badge-primary",
+        "ثبت سرمایه" => "badge-success",
+        "مصرف" => "badge-danger",
+        "واریز / برداشت" => "badge-info",
+        "تبدیل پول" => "badge-warning",
+        "انتقال" => "badge-secondary",
+        "تراکنش" => "badge-secondary",
+        _ => "badge-secondary"
+    };
 }

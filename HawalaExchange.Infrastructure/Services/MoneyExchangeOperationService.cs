@@ -194,42 +194,23 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
     {
         var description = await BuildPrimaryLedgerDescriptionAsync(context, exchange);
 
+        var isCustomerExchange = exchange.OperationType == "Customer";
         var ledgerEntries = new List<LedgerEntry>
         {
-            new LedgerEntry
-            {
-                MoneyExchangeOperationId = exchange.Id,
-                CapitalInvestmentId = null,
-                ExpenseId = null,
-                HawalaId = null,
-                TransactionId = null,
-
-                AccountId = exchange.ToAccountId,
-                CurrencyId = exchange.ToCurrencyId,
-
-                TalabKar = 0,
-                BadehKar = exchange.ToAmount,
-
-                Description = description,
-                CreatedAt = exchange.ExchangeDate
-            },
-            new LedgerEntry
-            {
-                MoneyExchangeOperationId = exchange.Id,
-                CapitalInvestmentId = null,
-                ExpenseId = null,
-                HawalaId = null,
-                TransactionId = null,
-
-                AccountId = exchange.FromAccountId,
-                CurrencyId = exchange.FromCurrencyId,
-
-                TalabKar = exchange.FromAmount,
-                BadehKar = 0,
-
-                Description = description,
-                CreatedAt = exchange.ExchangeDate
-            }
+            NewPrimaryLedgerEntry(
+                exchange,
+                exchange.ToAccountId,
+                exchange.ToCurrencyId,
+                talabKar: isCustomerExchange ? exchange.ToAmount : 0,
+                badehKar: isCustomerExchange ? 0 : exchange.ToAmount,
+                description),
+            NewPrimaryLedgerEntry(
+                exchange,
+                exchange.FromAccountId,
+                exchange.FromCurrencyId,
+                talabKar: isCustomerExchange ? 0 : exchange.FromAmount,
+                badehKar: isCustomerExchange ? exchange.FromAmount : 0,
+                description)
         };
 
         if (exchange.OperationType == "Treasury" && exchange.ProfitCurrencyId.HasValue)
@@ -384,6 +365,27 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         CreatedAt = exchange.ExchangeDate
     };
 
+    private static LedgerEntry NewPrimaryLedgerEntry(
+        MoneyExchangeOperation exchange,
+        long accountId,
+        long currencyId,
+        decimal talabKar,
+        decimal badehKar,
+        string description) => new()
+    {
+        MoneyExchangeOperationId = exchange.Id,
+        CapitalInvestmentId = null,
+        ExpenseId = null,
+        HawalaId = null,
+        TransactionId = null,
+        AccountId = accountId,
+        CurrencyId = currencyId,
+        TalabKar = talabKar,
+        BadehKar = badehKar,
+        Description = description,
+        CreatedAt = exchange.ExchangeDate
+    };
+
     private async Task ApplyCanonicalRateAsync(MoneyExchangeOperation exchange)
     {
         var currencies = await _context.Currencies
@@ -396,6 +398,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             to.Id, to.Code, to.QuotationPriority, exchange.ExchangeRate);
         exchange.RateBaseCurrencyId = conversion.BaseCurrencyId;
         exchange.RateQuoteCurrencyId = conversion.QuoteCurrencyId;
+        exchange.ToAmount = decimal.Round(conversion.ToAmount, to.DecimalPlaces);
     }
 
     private async Task DeleteLedgerEntriesAsync(long moneyExchangeOperationId)
@@ -421,13 +424,13 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             .FirstOrDefaultAsync(x => x.Id == fromAccountId && !x.IsArchived);
 
         if (fromAccount == null)
-            throw new InvalidOperationException("حساب پرداخت‌کننده معتبر نیست.");
+            throw new InvalidOperationException("حساب ارز فروش معتبر نیست.");
 
         var toAccount = await _context.Accounts
             .FirstOrDefaultAsync(x => x.Id == toAccountId && !x.IsArchived);
 
         if (toAccount == null)
-            throw new InvalidOperationException("حساب دریافت‌کننده معتبر نیست.");
+            throw new InvalidOperationException("حساب ارز خرید معتبر نیست.");
 
         if (operationType == "Customer" &&
             (fromAccount.AccountType != "Customer" || toAccount.AccountType != "Customer" ||
@@ -442,16 +445,16 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             .AnyAsync(x => x.Id == fromCurrencyId && x.IsActive);
 
         if (!fromCurrencyExists)
-            throw new InvalidOperationException("ارز پرداختی معتبر نیست.");
+            throw new InvalidOperationException("ارز فروش معتبر نیست.");
 
         var toCurrencyExists = await _context.Currencies
             .AnyAsync(x => x.Id == toCurrencyId && x.IsActive);
 
         if (!toCurrencyExists)
-            throw new InvalidOperationException("ارز دریافتی معتبر نیست.");
+            throw new InvalidOperationException("ارز خرید معتبر نیست.");
 
         if (fromCurrencyId == toCurrencyId)
-            throw new InvalidOperationException("ارز پرداختی و ارز دریافتی نباید یکی باشد.");
+            throw new InvalidOperationException("ارز فروش و ارز خرید نباید یکی باشد.");
     }
 
     private static bool IsTreasuryAccount(string accountType) =>
@@ -467,22 +470,22 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
     private static void ValidateCreateDto(CreateMoneyExchangeOperationDto dto)
     {
         if (dto.FromAccountId <= 0)
-            throw new InvalidOperationException("انتخاب حساب پرداخت‌کننده الزامی است.");
+            throw new InvalidOperationException("انتخاب حساب ارز فروش الزامی است.");
 
         if (dto.ToAccountId <= 0)
-            throw new InvalidOperationException("انتخاب حساب دریافت‌کننده الزامی است.");
+            throw new InvalidOperationException("انتخاب حساب ارز خرید الزامی است.");
 
         if (dto.FromCurrencyId <= 0)
-            throw new InvalidOperationException("انتخاب ارز پرداختی الزامی است.");
+            throw new InvalidOperationException("انتخاب ارز فروش الزامی است.");
 
         if (dto.ToCurrencyId <= 0)
-            throw new InvalidOperationException("انتخاب ارز دریافتی الزامی است.");
+            throw new InvalidOperationException("انتخاب ارز خرید الزامی است.");
 
         if (dto.FromAmount <= 0)
-            throw new InvalidOperationException("مبلغ پرداختی باید بزرگتر از صفر باشد.");
+            throw new InvalidOperationException("مبلغ ارز فروش باید بزرگتر از صفر باشد.");
 
         if (dto.ToAmount <= 0)
-            throw new InvalidOperationException("مبلغ دریافتی باید بزرگتر از صفر باشد.");
+            throw new InvalidOperationException("مبلغ ارز خرید باید بزرگتر از صفر باشد.");
 
         ValidateProfitFields(dto.OperationType, dto.ProfitCurrencyId, dto.CommissionAmount, dto.ExternalFeeAmount);
     }
@@ -490,22 +493,22 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
     private static void ValidateUpdateDto(UpdateMoneyExchangeOperationDto dto)
     {
         if (dto.FromAccountId <= 0)
-            throw new InvalidOperationException("انتخاب حساب پرداخت‌کننده الزامی است.");
+            throw new InvalidOperationException("انتخاب حساب ارز فروش الزامی است.");
 
         if (dto.ToAccountId <= 0)
-            throw new InvalidOperationException("انتخاب حساب دریافت‌کننده الزامی است.");
+            throw new InvalidOperationException("انتخاب حساب ارز خرید الزامی است.");
 
         if (dto.FromCurrencyId <= 0)
-            throw new InvalidOperationException("انتخاب ارز پرداختی الزامی است.");
+            throw new InvalidOperationException("انتخاب ارز فروش الزامی است.");
 
         if (dto.ToCurrencyId <= 0)
-            throw new InvalidOperationException("انتخاب ارز دریافتی الزامی است.");
+            throw new InvalidOperationException("انتخاب ارز خرید الزامی است.");
 
         if (dto.FromAmount <= 0)
-            throw new InvalidOperationException("مبلغ پرداختی باید بزرگتر از صفر باشد.");
+            throw new InvalidOperationException("مبلغ ارز فروش باید بزرگتر از صفر باشد.");
 
         if (dto.ToAmount <= 0)
-            throw new InvalidOperationException("مبلغ دریافتی باید بزرگتر از صفر باشد.");
+            throw new InvalidOperationException("مبلغ ارز خرید باید بزرگتر از صفر باشد.");
 
         ValidateProfitFields(dto.OperationType, dto.ProfitCurrencyId, dto.CommissionAmount, dto.ExternalFeeAmount);
     }

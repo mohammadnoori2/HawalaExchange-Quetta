@@ -75,7 +75,7 @@
 
                             <div class="card-body">
                                 <div class="row mb-3">
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <label class="form-label fw-bold">مالک پول</label>
                                         <select class="form-select"
                                                 value="@CurrentExchange.OperationType"
@@ -85,7 +85,17 @@
                                         </select>
                                         <small class="text-muted">پول مشتری وارد موجودی و مفاد سرمایه صراف نمی‌شود.</small>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
+                                        <label class="form-label fw-bold">گزینه خرید و فروش</label>
+                                        <select class="form-select"
+                                                value="@InputMode"
+                                                @onchange="OnInputModeChanged">
+                                            <option value="@ExchangeInputMode.Sell">فروش</option>
+                                            <option value="@ExchangeInputMode.Buy">خرید</option>
+                                        </select>
+                                        <small class="text-muted">@InputModeHelp</small>
+                                    </div>
+                                    <div class="col-md-3">
                                         <label class="form-label fw-bold">ارز محاسبه مفاد <span class="text-danger">*</span></label>
                                         <select class="form-select" @bind="CurrentExchange.ProfitCurrencyId">
                                             <option value="0">انتخاب ارز</option>
@@ -95,10 +105,10 @@
                                             }
                                         </select>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <label class="form-label fw-bold">روش محاسبه مبلغ</label>
                                         <div class="alert alert-light border mb-0 py-2">
-                                            یکی از دو مبلغ و نرخ را وارد کنید؛ مبلغ مقابل بر اساس جهت canonical جفت‌ارز محاسبه می‌شود.
+                                            مبلغ گزینهٔ انتخاب‌شده و نرخ canonical را وارد کنید؛ مبلغ مقابل خودکار محاسبه می‌شود.
                                         </div>
                                     </div>
 
@@ -124,12 +134,12 @@
                                         <div class="border rounded p-3 h-100">
                                             <h6 class="text-danger mb-3">
                                                 <i class="bi bi-arrow-up-circle"></i>
-                                                بخش پرداختی
+                                                ارز فروش
                                             </h6>
 
                                             <div class="mb-3">
                                                 <label class="form-label fw-bold">
-                                                    حساب پرداخت‌کننده <span class="text-danger">*</span>
+                                                    حساب ارز فروش <span class="text-danger">*</span>
                                                 </label>
 
                                                 <select class="form-select" @bind="CurrentExchange.FromAccountId">
@@ -152,7 +162,7 @@
 
                                             <div class="mb-3">
                                                 <label class="form-label fw-bold">
-                                                    ارز پرداختی <span class="text-danger">*</span>
+                                                    ارز فروش <span class="text-danger">*</span>
                                                 </label>
 
                                                 <select class="form-select"
@@ -177,14 +187,19 @@
 
                                             <div class="mb-0">
                                                 <label class="form-label fw-bold">
-                                                    مبلغ پرداختی <span class="text-danger">*</span>
+                                                    مبلغ ارز فروش <span class="text-danger">*</span>
                                                 </label>
 
-                                                <MoneyInput class="form-control"
+                                                <MoneyInput class="@(InputMode == ExchangeInputMode.Buy ? "form-control bg-light" : "form-control")"
                                                             Value="CurrentExchange.FromAmount"
                                                             ValueChanged="OnFromAmountChanged"
+                                                            readonly="@(InputMode == ExchangeInputMode.Buy)"
                                                             placeholder="مثلاً 7,000" />
-                                                <small class="text-muted">با ویرایش این مبلغ، مبلغ دریافتی خودکار به‌روزرسانی می‌شود.</small>
+                                                <small class="text-muted">
+                                                    @(InputMode == ExchangeInputMode.Sell
+                                                        ? "مبلغ فروش را وارد کنید؛ مبلغ خرید خودکار محاسبه می‌شود."
+                                                        : "این مبلغ از روی مبلغ خرید و نرخ محاسبه می‌شود.")
+                                                </small>
                                             </div>
                                         </div>
                                     </div>
@@ -193,12 +208,12 @@
                                         <div class="border rounded p-3 h-100">
                                             <h6 class="text-success mb-3">
                                                 <i class="bi bi-arrow-down-circle"></i>
-                                                بخش دریافتی
+                                                ارز خرید
                                             </h6>
 
                                             <div class="mb-3">
                                                 <label class="form-label fw-bold">
-                                                    حساب دریافت‌کننده <span class="text-danger">*</span>
+                                                    حساب ارز خرید <span class="text-danger">*</span>
                                                 </label>
 
                                                 <select class="form-select" @bind="CurrentExchange.ToAccountId">
@@ -221,7 +236,7 @@
 
                                             <div class="mb-3">
                                                 <label class="form-label fw-bold">
-                                                    ارز دریافتی <span class="text-danger">*</span>
+                                                    ارز خرید <span class="text-danger">*</span>
                                                 </label>
 
                                                 <select class="form-select"
@@ -246,14 +261,19 @@
 
                                             <div class="mb-0">
                                                 <label class="form-label fw-bold">
-                                                    مبلغ دریافتی <span class="text-danger">*</span>
+                                                    مبلغ ارز خرید <span class="text-danger">*</span>
                                                 </label>
 
-                                                <MoneyInput class="form-control"
+                                                <MoneyInput class="@(InputMode == ExchangeInputMode.Sell ? "form-control bg-light" : "form-control")"
                                                             Value="CurrentExchange.ToAmount"
                                                             ValueChanged="OnToAmountChanged"
+                                                            readonly="@(InputMode == ExchangeInputMode.Sell)"
                                                             placeholder="مثلاً 100" />
-                                                <small class="text-muted">با ویرایش این مبلغ، مبلغ پرداختی خودکار به‌روزرسانی می‌شود.</small>
+                                                <small class="text-muted">
+                                                    @(InputMode == ExchangeInputMode.Buy
+                                                        ? "مبلغ خرید را وارد کنید؛ مبلغ فروش خودکار محاسبه می‌شود."
+                                                        : "این مبلغ از روی مبلغ فروش و نرخ محاسبه می‌شود.")
+                                                </small>
                                             </div>
                                         </div>
                                     </div>
@@ -289,7 +309,7 @@
                                         <div class="alert alert-info mb-0 mt-md-4">
                                             <strong>سند حسابداری:</strong>
                                             <div class="mt-2">
-                                                حساب دریافت‌کننده بدهکار می‌شود و حساب پرداخت‌کننده طلبکار می‌شود.
+                                                @LedgerExplanation
                                             </div>
                                         </div>
                                     </div>
@@ -365,6 +385,15 @@
 
     private DateTime ExchangeDateLocal { get; set; } = DateTime.Now;
     private AmountInputSource LastEditedAmount { get; set; } = AmountInputSource.From;
+    private ExchangeInputMode InputMode { get; set; } = ExchangeInputMode.Sell;
+    private string InputModeHelp =>
+        InputMode == ExchangeInputMode.Sell
+            ? "مبلغ ارز فروش وارد و مبلغ ارز خرید محاسبه می‌شود."
+            : "مبلغ ارز خرید وارد و مبلغ ارز فروش محاسبه می‌شود.";
+    private string LedgerExplanation =>
+        CurrentExchange.OperationType == "Customer"
+            ? "برای مشتری، ارز خرید طلبکار و ارز فروش بدهکار ثبت می‌شود."
+            : "برای سرمایه صراف، ارز خرید بدهکار و ارز فروش طلبکار ثبت می‌شود.";
 
     // ===== متدهای چرخه حیات =====
 
@@ -392,6 +421,7 @@
 
         if (IsEditMode && EditData != null)
         {
+            InputMode = ExchangeInputMode.Sell;
             LastEditedAmount = AmountInputSource.From;
             CurrentExchange = new CreateMoneyExchangeOperationDto
             {
@@ -479,6 +509,7 @@
             Description = "ثبت تبدیل پول"
         };
 
+        InputMode = ExchangeInputMode.Sell;
         LastEditedAmount = AmountInputSource.From;
         ExchangeDateLocal = DateTime.Now;
     }
@@ -564,32 +595,32 @@
     private void ValidateForm()
     {
         if (CurrentExchange.FromAccountId <= 0)
-            ValidationErrors.Add("انتخاب حساب پرداخت‌کننده الزامی است.");
+            ValidationErrors.Add("انتخاب حساب ارز فروش الزامی است.");
 
         if (CurrentExchange.ToAccountId <= 0)
-            ValidationErrors.Add("انتخاب حساب دریافت‌کننده الزامی است.");
+            ValidationErrors.Add("انتخاب حساب ارز خرید الزامی است.");
 
         if (CurrentExchange.FromCurrencyId <= 0)
-            ValidationErrors.Add("انتخاب ارز پرداختی الزامی است.");
+            ValidationErrors.Add("انتخاب ارز فروش الزامی است.");
 
         if (CurrentExchange.ToCurrencyId <= 0)
-            ValidationErrors.Add("انتخاب ارز دریافتی الزامی است.");
+            ValidationErrors.Add("انتخاب ارز خرید الزامی است.");
 
         if (CurrentExchange.FromCurrencyId == CurrentExchange.ToCurrencyId)
-            ValidationErrors.Add("ارز پرداختی و ارز دریافتی نباید یکی باشد.");
+            ValidationErrors.Add("ارز فروش و ارز خرید نباید یکی باشد.");
 
         if (CurrentExchange.FromAmount <= 0)
-            ValidationErrors.Add("مبلغ پرداختی باید بزرگتر از صفر باشد.");
+            ValidationErrors.Add("مبلغ ارز فروش باید بزرگتر از صفر باشد.");
 
         if (CurrentExchange.ToAmount <= 0)
-            ValidationErrors.Add("مبلغ دریافتی باید بزرگتر از صفر باشد.");
+            ValidationErrors.Add("مبلغ ارز خرید باید بزرگتر از صفر باشد.");
 
         if (CurrentExchange.ExchangeRate <= 0)
             ValidationErrors.Add("نرخ تبدیل باید بزرگتر از صفر باشد.");
 
         if (CurrentExchange.OperationType == "Customer" &&
             CurrentExchange.FromAccountId != CurrentExchange.ToAccountId)
-            ValidationErrors.Add("برای پول مشتری، حساب پرداخت‌کننده و دریافت‌کننده باید همان حساب مشتری باشد.");
+            ValidationErrors.Add("برای پول مشتری، حساب ارز فروش و حساب ارز خرید باید همان حساب مشتری باشد.");
 
         if (CurrentExchange.ProfitCurrencyId <= 0)
             ValidationErrors.Add("انتخاب ارز محاسبه مفاد الزامی است.");
@@ -606,6 +637,17 @@
         var account = AvailableAccounts.FirstOrDefault();
         CurrentExchange.FromAccountId = account?.Id ?? 0;
         CurrentExchange.ToAccountId = account?.Id ?? 0;
+    }
+
+    private void OnInputModeChanged(ChangeEventArgs args)
+    {
+        InputMode = Enum.TryParse<ExchangeInputMode>(args.Value?.ToString(), out var mode)
+            ? mode
+            : ExchangeInputMode.Sell;
+        LastEditedAmount = InputMode == ExchangeInputMode.Sell
+            ? AmountInputSource.From
+            : AmountInputSource.To;
+        CalculateCounterAmount();
     }
 
     private void OnFromAmountChanged(decimal amount)
@@ -706,6 +748,12 @@
     {
         From,
         To
+    }
+
+    private enum ExchangeInputMode
+    {
+        Sell,
+        Buy
     }
 
     // ===== توابع کمکی =====

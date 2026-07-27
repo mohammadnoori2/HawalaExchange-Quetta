@@ -91,7 +91,7 @@
                     </div>
                     <div>
                         <div class="stat-number">@filteredExchanges.Sum(x => x.ToAmount).ToString("N0")</div>
-                        <div class="stat-label">مجموع دریافتی</div>
+                        <div class="stat-label">مجموع ارز خرید</div>
                     </div>
                 </div>
             </div>
@@ -105,7 +105,7 @@
                     </div>
                     <div>
                         <div class="stat-number">@filteredExchanges.Sum(x => x.FromAmount).ToString("N0")</div>
-                        <div class="stat-label">مجموع پرداختی</div>
+                        <div class="stat-label">مجموع ارز فروش</div>
                     </div>
                 </div>
             </div>
@@ -239,10 +239,10 @@
                                 }
                             </th>
 
-                            <th>از حساب</th>
-                            <th>پرداختی</th>
-                            <th>به حساب</th>
-                            <th>دریافتی</th>
+                            <th>حساب ارز فروش</th>
+                            <th>ارز فروش</th>
+                            <th>حساب ارز خرید</th>
+                            <th>ارز خرید</th>
                             <th>نوع</th>
 
                             <th class="sortable-header @(sortColumn == "ExchangeRate" ? "active" : "")"
@@ -464,7 +464,7 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="info-card">
-                                <span class="info-label">پرداختی</span>
+                                <span class="info-label">ارز فروش</span>
                                 <span class="info-value" dir="ltr">
                                     @selectedExchange.FromAmount.ToString("N2") @selectedExchange.FromCurrencyCode
                                 </span>
@@ -473,7 +473,7 @@
 
                         <div class="col-md-6">
                             <div class="info-card">
-                                <span class="info-label">دریافتی</span>
+                                <span class="info-label">ارز خرید</span>
                                 <span class="info-value" dir="ltr">
                                     @selectedExchange.ToAmount.ToString("N2") @selectedExchange.ToCurrencyCode
                                 </span>
@@ -484,7 +484,7 @@
                     <div class="row g-3 mt-1">
                         <div class="col-md-6">
                             <div class="info-card">
-                                <span class="info-label">از حساب</span>
+                                <span class="info-label">حساب ارز فروش</span>
                                 <span class="info-value">
                                     @selectedExchange.FromAccountName
                                     <small class="text-muted d-block">@selectedExchange.FromAccountCode</small>
@@ -494,7 +494,7 @@
 
                         <div class="col-md-6">
                             <div class="info-card">
-                                <span class="info-label">به حساب</span>
+                                <span class="info-label">حساب ارز خرید</span>
                                 <span class="info-value">
                                     @selectedExchange.ToAccountName
                                     <small class="text-muted d-block">@selectedExchange.ToAccountCode</small>

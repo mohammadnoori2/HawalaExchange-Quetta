@@ -4,6 +4,10 @@ public class DailyJournalDto
 {
     public DateTime JournalDate { get; set; }
 
+    public DateTime FromDate { get; set; }
+
+    public DateTime ToDate { get; set; }
+
     /// <summary>یک ردیف برای هر عملیات تجارتی، صرف‌نظر از تعداد ثبت‌های لیجر آن.</summary>
     public List<JournalOperationDto> Operations { get; set; } = new();
 

@@ -33,30 +33,40 @@ namespace HawalaExchange.Application.Services
         // ✅ Override CreateAsync to set CreatedBy
         public override async Task<TransactionDto> CreateAsync(CreateTransactionDto createDto)
         {
-            var transaction = _mapper.Map<Transaction>(createDto);
-            transaction.TransactionNo = await GenerateTransactionNumberAsync(createDto.TransactionType);
-            transaction.Status = "Pending";
-            transaction.CreatedAt = DateTime.UtcNow;
-            transaction.CreatedBy = 1; // ✅ Set to current user ID (hardcoded for now)
-
-            await _dbSet.AddAsync(transaction);
-            await _context.SaveChangesAsync();
-
-            if (createDto.TransactionDetails != null)
+            await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                foreach (var detailDto in createDto.TransactionDetails)
-                {
-                    var detail = _mapper.Map<TransactionDetail>(detailDto);
-                    detail.TransactionId = transaction.Id;
-                    await _context.TransactionDetails.AddAsync(detail);
-                }
+                var transaction = _mapper.Map<Transaction>(createDto);
+                transaction.TransactionNo = await GenerateTransactionNumberAsync(createDto.TransactionType);
+                transaction.Status = "Pending";
+                transaction.CreatedAt = DateTime.UtcNow;
+                transaction.CreatedBy = 1; // ✅ Set to current user ID (hardcoded for now)
+
+                await _dbSet.AddAsync(transaction);
                 await _context.SaveChangesAsync();
+
+                if (createDto.TransactionDetails != null)
+                {
+                    foreach (var detailDto in createDto.TransactionDetails)
+                    {
+                        var detail = _mapper.Map<TransactionDetail>(detailDto);
+                        detail.TransactionId = transaction.Id;
+                        await _context.TransactionDetails.AddAsync(detail);
+                    }
+                    await _context.SaveChangesAsync();
+                }
+
+                await GenerateLedgerEntries(transaction);
+                await _auditLogService.LogAsync("CREATE", "Transactions", transaction.Id, null, "Created", transaction.CreatedBy);
+                await dbTransaction.CommitAsync();
+
+                return _mapper.Map<TransactionDto>(transaction);
             }
-
-            await GenerateLedgerEntries(transaction);
-            await _auditLogService.LogAsync("CREATE", "Transactions", transaction.Id, null, "Created", transaction.CreatedBy);
-
-            return _mapper.Map<TransactionDto>(transaction);
+            catch
+            {
+                await dbTransaction.RollbackAsync();
+                throw;
+            }
         }
 
         // ===== Custom Query Methods =====
@@ -143,6 +153,7 @@ namespace HawalaExchange.Application.Services
 
         public async Task<TransactionDto> ReverseTransactionAsync(long id, CancelTransactionDto cancelDto)
         {
+            await using var dbTransaction = await _context.Database.BeginTransactionAsync();
             var transaction = await _dbSet.FindAsync(id);
             if (transaction == null)
                 throw new KeyNotFoundException($"Transaction with ID {id} not found.");
@@ -178,6 +189,7 @@ namespace HawalaExchange.Application.Services
             }
 
             await _auditLogService.LogAsync("REVERSE", "Transactions", id, "Active", "Reversed", transaction.CreatedBy);
+            await dbTransaction.CommitAsync();
             return _mapper.Map<TransactionDto>(reversalTransaction);
         }
 

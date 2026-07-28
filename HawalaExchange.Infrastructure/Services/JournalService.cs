@@ -15,10 +15,18 @@ public class JournalService : IJournalService
         _context = context;
     }
 
-    public async Task<DailyJournalDto> GetDailyJournalAsync(DateTime journalDate)
+    public Task<DailyJournalDto> GetDailyJournalAsync(DateTime journalDate) =>
+        GetJournalAsync(journalDate, journalDate);
+
+    public async Task<DailyJournalDto> GetJournalAsync(
+        DateTime fromDate,
+        DateTime toDate)
     {
-        var localStart = journalDate.Date;
-        var localEnd = localStart.AddDays(1);
+        if (fromDate.Date > toDate.Date)
+            throw new InvalidOperationException("تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد.");
+
+        var localStart = fromDate.Date;
+        var localEnd = toDate.Date.AddDays(1);
         var utcStart = localStart.ToUniversalTime();
         var utcEnd = localEnd.ToUniversalTime();
 
@@ -56,7 +64,9 @@ public class JournalService : IJournalService
 
         return new DailyJournalDto
         {
-            JournalDate = journalDate.Date,
+            JournalDate = localStart,
+            FromDate = localStart,
+            ToDate = toDate.Date,
             Operations = operations,
             Entries = entries,
             CurrencySummaries = summaries

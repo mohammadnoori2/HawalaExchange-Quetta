@@ -15,13 +15,13 @@
         <div>
             <h5 class="page-title">
                 <i class="bi bi-credit-card-2-front"></i>
-                مدیریت محدودیت حساب‌ها
-                <span class="page-subtitle">تنظیم و مدیریت محدودیت‌های بدهکاری حساب‌ها</span>
+                سقف بدهکاری مشتریان و نمایندگی‌ها
+                <span class="page-subtitle">تعیین بیشترین بدهکاری مجاز هر حساب به تفکیک ارز</span>
             </h5>
         </div>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
-                <i class="bi bi-plus-circle"></i> محدودیت جدید
+                <i class="bi bi-plus-circle"></i> سقف جدید
             </button>
         </div>
     </div>
@@ -36,7 +36,7 @@
                     </div>
                     <div>
                         <div class="stat-number">@limits.Count</div>
-                        <div class="stat-label">تعداد محدودیت‌ها</div>
+                        <div class="stat-label">تعداد سقف‌ها</div>
                     </div>
                 </div>
             </div>
@@ -71,11 +71,11 @@
             <div class="stat-card stat-card-info">
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon info">
-                        <i class="bi bi-clock-history"></i>
+                        <i class="bi bi-exclamation-triangle"></i>
                     </div>
                     <div>
-                        <div class="stat-number">@limits.Count(l => l.CreatedAt.Date == DateTime.Today)</div>
-                        <div class="stat-label">ایجاد امروز</div>
+                        <div class="stat-number">@limits.Count(l => l.IsActive && l.IsOverLimit)</div>
+                        <div class="stat-label">بالاتر از سقف</div>
                     </div>
                 </div>
             </div>
@@ -147,9 +147,24 @@
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
+                            <th>نوع حساب</th>
                             <th class="sortable-header @(sortColumn == "BadehkarLimit" ? "active" : "")" @onclick="@(() => SortBy("BadehkarLimit"))">
-                                محدودیت بدهکاری
+                                سقف بدهکاری
                                 @if (sortColumn == "BadehkarLimit")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "CurrentDebt" ? "active" : "")" @onclick="@(() => SortBy("CurrentDebt"))">
+                                بدهکاری فعلی
+                                @if (sortColumn == "CurrentDebt")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="sortable-header @(sortColumn == "AvailableDebt" ? "active" : "")" @onclick="@(() => SortBy("AvailableDebt"))">
+                                ظرفیت باقی‌مانده
+                                @if (sortColumn == "AvailableDebt")
                                 {
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
@@ -170,7 +185,7 @@
                         @if (isLoading && limits == null)
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="11" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status">
                                             <span class="visually-hidden">در حال بارگذاری...</span>
@@ -183,7 +198,7 @@
                         else if (!pagedLimits.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="11" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ محدودیتی یافت نشد</span>
@@ -205,9 +220,26 @@
                                     <td>
                                         <span class="badge-modern badge-info">@limit.CurrencyCode</span>
                                     </td>
-                                    <td dir="ltr" class="fw-bold text-primary">@limit.BadehkarLimit.ToString("N2")</td>
                                     <td>
-                                        @if (limit.IsActive)
+                                        <span class="badge-modern @(limit.AccountType == "نمایندگی" ? "badge-info" : "badge-active")">
+                                            @limit.AccountType
+                                        </span>
+                                    </td>
+                                    <td dir="ltr" class="fw-bold text-primary">@limit.BadehkarLimit.ToString("N2")</td>
+                                    <td dir="ltr" class="fw-bold @(limit.IsOverLimit ? "text-danger" : "")">
+                                        @limit.CurrentDebt.ToString("N2")
+                                    </td>
+                                    <td dir="ltr" class="fw-bold @(limit.AvailableDebt == 0 ? "text-danger" : "text-success")">
+                                        @limit.AvailableDebt.ToString("N2")
+                                    </td>
+                                    <td>
+                                        @if (limit.IsActive && limit.IsOverLimit)
+                                        {
+                                            <span class="badge-modern badge-archived">
+                                                <i class="bi bi-exclamation-triangle"></i> بالاتر از سقف
+                                            </span>
+                                        }
+                                        else if (limit.IsActive)
                                         {
                                             <span class="badge-modern badge-active">
                                                 <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> فعال
@@ -355,7 +387,7 @@
                                             <option value="0">انتخاب حساب</option>
                                             @foreach (var account in accounts)
                                             {
-                                                <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
+                                                <option value="@account.Id">@account.AccountCode - @account.AccountName (@GetAccountTypeLabel(account))</option>
                                             }
                                         </select>
                                     }
@@ -386,10 +418,11 @@
                             <div class="row">
                                 <div class="col-md-12 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-credit-card text-muted me-1"></i> محدودیت بدهکاری <span class="text-danger">*</span>
+                                        <i class="bi bi-credit-card text-muted me-1"></i> سقف بدهکاری <span class="text-danger">*</span>
                                     </label>
-                                            <MoneyInput class="form-control"
-                                                        @bind-Value="currentLimit.BadehkarLimit" placeholder="مقدار محدودیت را وارد کنید" />
+                                    <MoneyInput class="form-control"
+                                                @bind-Value="currentLimit.BadehkarLimit" placeholder="مقدار سقف را وارد کنید" />
+                                    <small class="text-muted">مقدار صفر یعنی این حساب اجازه بدهکار شدن ندارد.</small>
                                 </div>
                             </div>
                         </div>
@@ -539,6 +572,12 @@
                 case "BadehkarLimit":
                     sorted = sortAscending ? filteredLimits.OrderBy(l => l.BadehkarLimit).ToList() : filteredLimits.OrderByDescending(l => l.BadehkarLimit).ToList();
                     break;
+                case "CurrentDebt":
+                    sorted = sortAscending ? filteredLimits.OrderBy(l => l.CurrentDebt).ToList() : filteredLimits.OrderByDescending(l => l.CurrentDebt).ToList();
+                    break;
+                case "AvailableDebt":
+                    sorted = sortAscending ? filteredLimits.OrderBy(l => l.AvailableDebt).ToList() : filteredLimits.OrderByDescending(l => l.AvailableDebt).ToList();
+                    break;
                 case "CreatedAt":
                     sorted = sortAscending ? filteredLimits.OrderBy(l => l.CreatedAt).ToList() : filteredLimits.OrderByDescending(l => l.CreatedAt).ToList();
                     break;
@@ -564,6 +603,7 @@
     private bool showConfirmModal = false;
     private bool showDeleteModal = false;
     private bool isEditMode = false;
+    private bool currentLimitIsActive = true;
     private bool isLoading = false;
     private long editId = 0;
     private long confirmId = 0;
@@ -585,8 +625,15 @@
     {
         try
         {
-            accounts = (await AccountService.GetAllAsync()).ToList();
-            currencies = (await CurrencyService.GetAllAsync()).ToList();
+            accounts = (await AccountService.GetAllAsync())
+                .Where(IsEligibleAccount)
+                .OrderBy(a => a.AccountType == "Correspondent" ? 1 : 0)
+                .ThenBy(a => a.AccountName)
+                .ToList();
+            currencies = (await CurrencyService.GetAllAsync())
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.Code)
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -624,6 +671,7 @@
             var term = _searchTerm.Trim().ToLower();
             query = query.Where(l =>
                 (l.AccountName != null && l.AccountName.ToLower().Contains(term)) ||
+                (l.AccountType != null && l.AccountType.ToLower().Contains(term)) ||
                 (l.CurrencyCode != null && l.CurrencyCode.ToLower().Contains(term))
             );
         }
@@ -681,6 +729,7 @@
             BadehkarLimit = 0
         };
         isEditMode = false;
+        currentLimitIsActive = true;
         editId = 0;
         validationErrors.Clear();
         successMessage = string.Empty;
@@ -705,6 +754,7 @@
                     BadehkarLimit = limit.BadehkarLimit
                 };
                 isEditMode = true;
+                currentLimitIsActive = limit.IsActive;
                 editId = id;
                 validationErrors.Clear();
                 successMessage = string.Empty;
@@ -749,8 +799,8 @@
             validationErrors.Add("انتخاب حساب الزامی است");
         if (currentLimit.CurrencyId == 0)
             validationErrors.Add("انتخاب ارز الزامی است");
-        if (currentLimit.BadehkarLimit <= 0)
-            validationErrors.Add("محدودیت باید بزرگتر از صفر باشد");
+        if (currentLimit.BadehkarLimit < 0)
+            validationErrors.Add("سقف بدهکاری نمی‌تواند منفی باشد");
 
         if (validationErrors.Any())
         {
@@ -768,7 +818,7 @@
                 var updateRequest = new UpdateAccountBadehkarLimitDto
                 {
                     BadehkarLimit = currentLimit.BadehkarLimit,
-                    IsActive = true
+                    IsActive = currentLimitIsActive
                 };
                 await AccountLimitService.UpdateAsync(editId, updateRequest);
                 successMessage = "محدودیت با موفقیت ویرایش شد";
@@ -796,6 +846,16 @@
             StateHasChanged();
         }
     }
+
+    private static bool IsEligibleAccount(AccountDto account) =>
+        !account.IsArchived &&
+        (account.AccountType is "Customer" or "Correspondent" ||
+         account.ReferenceType is "Customer" or "Correspondent");
+
+    private static string GetAccountTypeLabel(AccountDto account) =>
+        account.AccountType == "Correspondent" || account.ReferenceType == "Correspondent"
+            ? "نمایندگی"
+            : "مشتری";
 
     private void ShowDeactivateConfirm(long id)
     {

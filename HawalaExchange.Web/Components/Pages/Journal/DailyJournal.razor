@@ -19,19 +19,10 @@
             </h5>
         </div>
 
-        <div class="page-actions d-flex gap-2 align-items-start flex-wrap">
-            <div style="width: 220px;">
-                <PersianDatePicker @bind-Value="selectedDate"
-                                   IncludeTime="false"
-                                   Placeholder="انتخاب تاریخ شمسی" />
-            </div>
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="LoadJournal" disabled="@isLoading">
-                <i class="bi bi-search"></i>
-                نمایش
-            </button>
+        <div class="page-actions">
             <button class="btn-modern btn-light-modern btn-rounded" @onclick="LoadToday" disabled="@isLoading">
                 <i class="bi bi-calendar-check"></i>
-                امروز
+                نمایش امروز
             </button>
         </div>
     </div>
@@ -47,6 +38,99 @@
             </ul>
         </div>
     }
+
+    <div class="table-card journal-filter-card mb-4">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <h6 class="mb-0 text-primary">
+                    <i class="bi bi-funnel"></i>
+                    فیلترهای روزنامچه
+                </h6>
+            </div>
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">
+                    <i class="bi bi-calendar-range"></i>
+                    @GetPeriodLabel()
+                </span>
+            </div>
+        </div>
+        <div class="table-card-body p-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-xl-2 col-md-4">
+                    <label class="form-label fw-bold">از تاریخ</label>
+                    <PersianDatePicker @bind-Value="filterFromDate"
+                                       IncludeTime="false"
+                                       Placeholder="تاریخ شروع" />
+                </div>
+                <div class="col-xl-2 col-md-4">
+                    <label class="form-label fw-bold">تا تاریخ</label>
+                    <PersianDatePicker @bind-Value="filterToDate"
+                                       IncludeTime="false"
+                                       Placeholder="تاریخ پایان" />
+                </div>
+                <div class="col-xl-2 col-md-4">
+                    <label class="form-label fw-bold">نوع عملیات</label>
+                    <select class="form-select" @bind="filterSourceType" @bind:event="oninput">
+                        <option value="">همه عملیات</option>
+                        @foreach (var source in sourceTypes)
+                        {
+                            <option value="@source">@source</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-xl-3 col-md-6">
+                    <label class="form-label fw-bold">حساب</label>
+                    <select class="form-select" @bind="filterAccountName" @bind:event="oninput">
+                        <option value="">همه حساب‌ها</option>
+                        @foreach (var accountName in accountNames)
+                        {
+                            <option value="@accountName">@accountName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-xl-3 col-md-6">
+                    <label class="form-label fw-bold">ارز</label>
+                    <select class="form-select" @bind="filterCurrencyCode" @bind:event="oninput">
+                        <option value="">همه ارزها</option>
+                        @foreach (var currencyCode in currencyCodes)
+                        {
+                            <option value="@currencyCode">@currencyCode</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-8">
+                    <label class="form-label fw-bold">جستجو</label>
+                    <div class="search-modern journal-filter-search">
+                        <span class="search-icon"><i class="bi bi-search"></i></span>
+                        <input type="text"
+                               class="search-input"
+                               placeholder="شماره سند، شرح، حساب، ارز یا جزئیات..."
+                               @bind="searchTerm"
+                               @bind:event="oninput" />
+                        <button class="search-btn" @onclick="ClearTextSearch" title="پاک‌کردن جستجو">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="d-flex gap-2">
+                        <button class="btn-modern btn-primary-modern flex-fill"
+                                @onclick="LoadJournal"
+                                disabled="@isLoading">
+                            <i class="bi bi-search"></i>
+                            تطبیق تاریخ
+                        </button>
+                        <button class="btn-modern btn-light-modern flex-fill"
+                                @onclick="ResetFilters"
+                                disabled="@isLoading">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                            بازنشانی
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-6">
@@ -87,8 +171,8 @@
                 <div class="d-flex align-items-center gap-3">
                     <div class="stat-icon warning"><i class="bi bi-calendar-date"></i></div>
                     <div>
-                        <div class="stat-number journal-date-value">@PersianDateHelper.ToPersianDate(selectedDate)</div>
-                        <div class="stat-label">تاریخ گزارش</div>
+                        <div class="stat-number journal-date-value">@GetPeriodLabel()</div>
+                        <div class="stat-label">بازه گزارش</div>
                     </div>
                 </div>
             </div>
@@ -124,7 +208,7 @@
                         @if (!journal.CurrencySummaries.Any())
                         {
                             <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">برای این تاریخ خلاصه‌ای وجود ندارد.</td>
+                                <td colspan="6" class="text-center py-4 text-muted">برای بازه انتخاب‌شده خلاصه‌ای وجود ندارد.</td>
                             </tr>
                         }
                         else
@@ -152,26 +236,6 @@
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <div class="search-modern">
-                    <span class="search-icon"><i class="bi bi-search"></i></span>
-                    <input type="text"
-                           class="search-input"
-                           placeholder="جستجو در عملیات، حساب، ارز و جزئیات..."
-                           @bind="searchTerm"
-                           @bind:event="oninput" />
-                    <button class="search-btn" @onclick="ClearSearch"><i class="bi bi-x-lg"></i></button>
-                </div>
-
-                <div class="filter-selector">
-                    <select class="form-select form-select-sm" @bind="filterSourceType" @bind:event="oninput">
-                        <option value="">همه عملیات</option>
-                        @foreach (var source in sourceTypes)
-                        {
-                            <option value="@source">@source</option>
-                        }
-                    </select>
-                </div>
-
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
                     <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
@@ -198,6 +262,7 @@
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
+                            <th>تاریخ</th>
                             <th>شرح روزنامچه</th>
                             <th>عملیات</th>
                         </tr>
@@ -206,7 +271,7 @@
                         @if (isLoading)
                         {
                             <tr>
-                                <td colspan="3" class="text-center py-5">
+                                <td colspan="4" class="text-center py-5">
                                     <div class="spinner-border text-primary" role="status"></div>
                                     <p class="text-muted mt-2">در حال بارگذاری روزنامچه...</p>
                                 </td>
@@ -215,10 +280,10 @@
                         else if (!pagedOperations.Any())
                         {
                             <tr>
-                                <td colspan="3" class="text-center py-5">
+                                <td colspan="4" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
-                                        <span class="fs-5 text-muted">برای این تاریخ عملیاتی یافت نشد</span>
+                                        <span class="fs-5 text-muted">برای فیلترهای انتخاب‌شده عملیاتی یافت نشد</span>
                                     </div>
                                 </td>
                             </tr>
@@ -232,10 +297,11 @@
                             {
                                 <tr>
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
+                                    <td class="journal-row-date">
+                                        <strong>@PersianDateHelper.ToPersianDate(operation.CreatedAt)</strong>
+                                        <span>@PersianDateHelper.ToTime12(operation.CreatedAt)</span>
+                                    </td>
                                     <td class="journal-sentence">
-                                        <span class="journal-sentence-time">
-                                            @PersianDateHelper.ToTime12(operation.CreatedAt)
-                                        </span>
                                         <span class="badge-modern @GetSourceBadge(operation.SourceType)">
                                             @operation.SourceType
                                         </span>
@@ -290,7 +356,7 @@
             <div class="table-card-footer-right">
                 <span class="badge-modern badge-info">
                     <i class="bi bi-calendar-check"></i>
-                    تاریخ: @PersianDateHelper.ToPersianDate(selectedDate)
+                    @GetPeriodLabel()
                 </span>
             </div>
         </div>
@@ -369,6 +435,7 @@
                         <thead>
                             <tr>
                                 <th>شناسه</th>
+                                <th>تاریخ</th>
                                 <th>حساب</th>
                                 <th>کُد حساب</th>
                                 <th>ارز</th>
@@ -382,6 +449,10 @@
                             {
                                 <tr>
                                     <td dir="ltr">@entry.Id</td>
+                                    <td>
+                                        @PersianDateHelper.ToPersianDate(entry.CreatedAt)
+                                        <small class="d-block text-muted">@PersianDateHelper.ToTime12(entry.CreatedAt)</small>
+                                    </td>
                                     <td>@entry.AccountName</td>
                                     <td dir="ltr">@entry.AccountCode</td>
                                     <td>@entry.CurrencyCode</td>
@@ -415,10 +486,13 @@
     private DailyJournalDto journal = new();
     private List<JournalOperationDto> filteredOperations = new();
     private JournalOperationDto? selectedOperation;
-    private DateTime selectedDate = DateTime.Today;
+    private DateTime filterFromDate = DateTime.Today;
+    private DateTime filterToDate = DateTime.Today;
     private List<string> validationErrors = new();
     private bool isLoading;
     private List<string> sourceTypes = new();
+    private List<string> accountNames = new();
+    private List<string> currencyCodes = new();
     private int pageSize = 20;
     private int currentPage = 1;
 
@@ -450,6 +524,34 @@
         }
     }
 
+    private string _filterAccountName = string.Empty;
+    private string filterAccountName
+    {
+        get => _filterAccountName;
+        set
+        {
+            if (_filterAccountName != value)
+            {
+                _filterAccountName = value;
+                ApplyFilters();
+            }
+        }
+    }
+
+    private string _filterCurrencyCode = string.Empty;
+    private string filterCurrencyCode
+    {
+        get => _filterCurrencyCode;
+        set
+        {
+            if (_filterCurrencyCode != value)
+            {
+                _filterCurrencyCode = value;
+                ApplyFilters();
+            }
+        }
+    }
+
     private List<JournalOperationDto> pagedOperations
     {
         get
@@ -476,7 +578,8 @@
 
     private async Task LoadToday()
     {
-        selectedDate = DateTime.Today;
+        filterFromDate = DateTime.Today;
+        filterToDate = DateTime.Today;
         await LoadJournal();
     }
 
@@ -487,16 +590,40 @@
             isLoading = true;
             validationErrors.Clear();
             selectedOperation = null;
-            journal = await JournalService.GetDailyJournalAsync(selectedDate);
+            if (filterFromDate.Date > filterToDate.Date)
+            {
+                validationErrors.Add("تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد.");
+                return;
+            }
+
+            journal = await JournalService.GetJournalAsync(filterFromDate, filterToDate);
             sourceTypes = journal.Operations
                 .Select(x => x.SourceType)
                 .Distinct()
                 .OrderBy(x => x)
                 .ToList();
-            _searchTerm = string.Empty;
-            _filterSourceType = string.Empty;
-            filteredOperations = journal.Operations.ToList();
-            currentPage = 1;
+            accountNames = journal.Operations
+                .SelectMany(x => x.AccountNames)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+            currencyCodes = journal.Operations
+                .SelectMany(x => x.CurrencySummaries)
+                .Select(x => x.CurrencyCode)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+
+            if (!sourceTypes.Contains(_filterSourceType))
+                _filterSourceType = string.Empty;
+            if (!accountNames.Contains(_filterAccountName))
+                _filterAccountName = string.Empty;
+            if (!currencyCodes.Contains(_filterCurrencyCode))
+                _filterCurrencyCode = string.Empty;
+
+            ApplyFilters();
         }
         catch (Exception ex)
         {
@@ -531,6 +658,16 @@
         if (!string.IsNullOrWhiteSpace(_filterSourceType))
             query = query.Where(x => x.SourceType == _filterSourceType);
 
+        if (!string.IsNullOrWhiteSpace(_filterAccountName))
+            query = query.Where(x => x.AccountNames.Contains(_filterAccountName));
+
+        if (!string.IsNullOrWhiteSpace(_filterCurrencyCode))
+        {
+            query = query.Where(x =>
+                x.CurrencySummaries.Any(currency =>
+                    currency.CurrencyCode == _filterCurrencyCode));
+        }
+
         filteredOperations = query.ToList();
         currentPage = 1;
     }
@@ -539,12 +676,21 @@
         !string.IsNullOrWhiteSpace(value) &&
         value.Contains(term, StringComparison.OrdinalIgnoreCase);
 
-    private void ClearSearch()
+    private void ClearTextSearch()
     {
         _searchTerm = string.Empty;
+        ApplyFilters();
+    }
+
+    private async Task ResetFilters()
+    {
+        filterFromDate = DateTime.Today;
+        filterToDate = DateTime.Today;
+        _searchTerm = string.Empty;
         _filterSourceType = string.Empty;
-        filteredOperations = journal.Operations.ToList();
-        currentPage = 1;
+        _filterAccountName = string.Empty;
+        _filterCurrencyCode = string.Empty;
+        await LoadJournal();
     }
 
     private void GoToPage(int page)
@@ -555,6 +701,15 @@
 
     private void ShowDetails(JournalOperationDto operation) => selectedOperation = operation;
     private void CloseDetails() => selectedOperation = null;
+
+    private string GetPeriodLabel()
+    {
+        var fromDate = journal.FromDate == default ? filterFromDate.Date : journal.FromDate.Date;
+        var toDate = journal.ToDate == default ? filterToDate.Date : journal.ToDate.Date;
+        return fromDate == toDate
+            ? $"تاریخ {PersianDateHelper.ToPersianDate(fromDate)}"
+            : $"از {PersianDateHelper.ToPersianDate(fromDate)} تا {PersianDateHelper.ToPersianDate(toDate)}";
+    }
 
     private static string GetSourceBadge(string sourceType) => sourceType switch
     {

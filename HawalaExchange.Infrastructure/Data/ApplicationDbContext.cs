@@ -39,6 +39,183 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<AccountMoneyOperation> AccountMoneyOperations { get; set; }
         public DbSet<MoneyExchangeOperation> MoneyExchangeOperations { get; set; }
         public DbSet<CompanySetting> CompanySettings { get; set; }
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            ValidateAccountDebtLimits();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override async Task<int> SaveChangesAsync(
+            bool acceptAllChangesOnSuccess,
+            CancellationToken cancellationToken = default)
+        {
+            await ValidateAccountDebtLimitsAsync(cancellationToken);
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        private void ValidateAccountDebtLimits()
+        {
+            var changes = GetPendingLedgerBalanceChanges();
+            if (changes.Count == 0)
+                return;
+
+            var accountIds = changes.Select(x => x.AccountId).Distinct().ToList();
+            var accounts = Accounts
+                .AsNoTracking()
+                .Where(x => accountIds.Contains(x.Id))
+                .ToDictionary(x => x.Id);
+            var limits = AccountBadehkarLimits
+                .AsNoTracking()
+                .Include(x => x.Currency)
+                .Where(x => x.IsActive && accountIds.Contains(x.AccountId))
+                .ToList();
+
+            ValidateProjectedDebts(
+                changes,
+                accounts,
+                limits,
+                (accountId, currencyId) => LedgerEntries
+                    .AsNoTracking()
+                    .Where(x => x.AccountId == accountId && x.CurrencyId == currencyId)
+                    .Sum(x => (decimal?)(x.TalabKar - x.BadehKar)) ?? 0m);
+        }
+
+        private async Task ValidateAccountDebtLimitsAsync(CancellationToken cancellationToken)
+        {
+            var changes = GetPendingLedgerBalanceChanges();
+            if (changes.Count == 0)
+                return;
+
+            var accountIds = changes.Select(x => x.AccountId).Distinct().ToList();
+            var accounts = await Accounts
+                .AsNoTracking()
+                .Where(x => accountIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, cancellationToken);
+            var limits = await AccountBadehkarLimits
+                .AsNoTracking()
+                .Include(x => x.Currency)
+                .Where(x => x.IsActive && accountIds.Contains(x.AccountId))
+                .ToListAsync(cancellationToken);
+
+            foreach (var changeGroup in changes.GroupBy(x => new { x.AccountId, x.CurrencyId }))
+            {
+                if (!accounts.TryGetValue(changeGroup.Key.AccountId, out var account) ||
+                    !IsCustomerOrCorrespondentAccount(account))
+                    continue;
+
+                var limit = limits.FirstOrDefault(x =>
+                    x.AccountId == changeGroup.Key.AccountId &&
+                    x.CurrencyId == changeGroup.Key.CurrencyId);
+                if (limit == null)
+                    continue;
+
+                var databaseBalance = await LedgerEntries
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.AccountId == changeGroup.Key.AccountId &&
+                        x.CurrencyId == changeGroup.Key.CurrencyId)
+                    .SumAsync(x => (decimal?)(x.TalabKar - x.BadehKar), cancellationToken) ?? 0m;
+                ThrowIfLimitExceeded(
+                    account,
+                    limit,
+                    databaseBalance,
+                    databaseBalance + changeGroup.Sum(x => x.Delta));
+            }
+        }
+
+        private static void ValidateProjectedDebts(
+            IReadOnlyCollection<LedgerBalanceChange> changes,
+            IReadOnlyDictionary<long, Account> accounts,
+            IReadOnlyCollection<AccountBadehkarLimit> limits,
+            Func<long, long, decimal> getDatabaseBalance)
+        {
+            foreach (var changeGroup in changes.GroupBy(x => new { x.AccountId, x.CurrencyId }))
+            {
+                if (!accounts.TryGetValue(changeGroup.Key.AccountId, out var account) ||
+                    !IsCustomerOrCorrespondentAccount(account))
+                    continue;
+
+                var limit = limits.FirstOrDefault(x =>
+                    x.AccountId == changeGroup.Key.AccountId &&
+                    x.CurrencyId == changeGroup.Key.CurrencyId);
+                if (limit == null)
+                    continue;
+
+                var databaseBalance = getDatabaseBalance(
+                    changeGroup.Key.AccountId,
+                    changeGroup.Key.CurrencyId);
+                ThrowIfLimitExceeded(
+                    account,
+                    limit,
+                    databaseBalance,
+                    databaseBalance + changeGroup.Sum(x => x.Delta));
+            }
+        }
+
+        private List<LedgerBalanceChange> GetPendingLedgerBalanceChanges()
+        {
+            var changes = new List<LedgerBalanceChange>();
+            foreach (var entry in ChangeTracker.Entries<LedgerEntry>())
+            {
+                if (entry.State == EntityState.Added)
+                {
+                    changes.Add(new LedgerBalanceChange(
+                        entry.Entity.AccountId,
+                        entry.Entity.CurrencyId,
+                        entry.Entity.TalabKar - entry.Entity.BadehKar));
+                }
+                else if (entry.State == EntityState.Deleted)
+                {
+                    changes.Add(new LedgerBalanceChange(
+                        entry.OriginalValues.GetValue<long>(nameof(LedgerEntry.AccountId)),
+                        entry.OriginalValues.GetValue<long>(nameof(LedgerEntry.CurrencyId)),
+                        -(entry.OriginalValues.GetValue<decimal>(nameof(LedgerEntry.TalabKar)) -
+                          entry.OriginalValues.GetValue<decimal>(nameof(LedgerEntry.BadehKar)))));
+                }
+                else if (entry.State == EntityState.Modified)
+                {
+                    changes.Add(new LedgerBalanceChange(
+                        entry.OriginalValues.GetValue<long>(nameof(LedgerEntry.AccountId)),
+                        entry.OriginalValues.GetValue<long>(nameof(LedgerEntry.CurrencyId)),
+                        -(entry.OriginalValues.GetValue<decimal>(nameof(LedgerEntry.TalabKar)) -
+                          entry.OriginalValues.GetValue<decimal>(nameof(LedgerEntry.BadehKar)))));
+                    changes.Add(new LedgerBalanceChange(
+                        entry.Entity.AccountId,
+                        entry.Entity.CurrencyId,
+                        entry.Entity.TalabKar - entry.Entity.BadehKar));
+                }
+            }
+
+            return changes;
+        }
+
+        private static void ThrowIfLimitExceeded(
+            Account account,
+            AccountBadehkarLimit limit,
+            decimal currentBalance,
+            decimal projectedBalance)
+        {
+            var currentDebt = Math.Max(-currentBalance, 0m);
+            var projectedDebt = Math.Max(-projectedBalance, 0m);
+            if (projectedDebt <= limit.BadehkarLimit || projectedDebt <= currentDebt)
+                return;
+
+            var currencyCode = limit.Currency?.Code ?? limit.CurrencyId.ToString();
+            throw new InvalidOperationException(
+                $"سقف بدهکاری حساب «{account.AccountName}» در ارز {currencyCode} تجاوز می‌شود. " +
+                $"سقف تعیین‌شده: {limit.BadehkarLimit:N2}، بدهکاری بعد از عملیات: {projectedDebt:N2}.");
+        }
+
+        private static bool IsCustomerOrCorrespondentAccount(Account account) =>
+            account.AccountType is "Customer" or "Correspondent" or "مشتری" or "نماینده" or "نمایندگی" ||
+            account.ReferenceType is "Customer" or "Correspondent";
+
+        private sealed record LedgerBalanceChange(
+            long AccountId,
+            long CurrencyId,
+            decimal Delta);
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

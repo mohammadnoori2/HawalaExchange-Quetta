@@ -1,132 +1,253 @@
-﻿using AutoMapper;
+using AutoMapper;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace HawalaExchange.Application.Services
+namespace HawalaExchange.Application.Services;
+
+public class AccountBadehkarLimitService
+    : BaseService<AccountBadehkarLimit, AccountBadehkarLimitDto, CreateAccountBadehkarLimitDto, UpdateAccountBadehkarLimitDto>,
+      IAccountBadehkarLimitService
 {
-    public class AccountBadehkarLimitService : BaseService<AccountBadehkarLimit, AccountBadehkarLimitDto, CreateAccountBadehkarLimitDto, UpdateAccountBadehkarLimitDto>, IAccountBadehkarLimitService
+    public AccountBadehkarLimitService(ApplicationDbContext context, IMapper mapper)
+        : base(context, mapper)
     {
-        public AccountBadehkarLimitService(ApplicationDbContext context, IMapper mapper)
-            : base(context, mapper) { }
+    }
 
-        // ===== متدهای سفارشی =====
+    public override async Task<IEnumerable<AccountBadehkarLimitDto>> GetAllAsync()
+    {
+        var entities = await LimitsQuery()
+            .Where(x =>
+                x.Account!.AccountType == "Customer" ||
+                x.Account.AccountType == "Correspondent" ||
+                x.Account.ReferenceType == "Customer" ||
+                x.Account.ReferenceType == "Correspondent")
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+        return await ToDtosAsync(entities);
+    }
 
-        public async Task<AccountBadehkarLimitDto?> GetByAccountAndCurrencyAsync(long accountId, long currencyId)
+    public override async Task<AccountBadehkarLimitDto?> GetByIdAsync(long id)
+    {
+        var entity = await LimitsQuery().FirstOrDefaultAsync(x => x.Id == id);
+        return entity == null ? null : (await ToDtosAsync([entity])).Single();
+    }
+
+    public async Task<AccountBadehkarLimitDto?> GetByAccountAndCurrencyAsync(
+        long accountId,
+        long currencyId)
+    {
+        var entity = await LimitsQuery().FirstOrDefaultAsync(x =>
+            x.AccountId == accountId && x.CurrencyId == currencyId);
+        return entity == null ? null : (await ToDtosAsync([entity])).Single();
+    }
+
+    public async Task<IEnumerable<AccountBadehkarLimitDto>> GetByAccountAsync(long accountId)
+    {
+        var entities = await LimitsQuery()
+            .Where(x => x.AccountId == accountId)
+            .OrderByDescending(x => x.Id)
+            .ToListAsync();
+        return await ToDtosAsync(entities);
+    }
+
+    public async Task<IEnumerable<AccountBadehkarLimitDto>> GetByCurrencyAsync(long currencyId)
+    {
+        var entities = await LimitsQuery()
+            .Where(x =>
+                x.CurrencyId == currencyId &&
+                (x.Account!.AccountType == "Customer" ||
+                 x.Account.AccountType == "Correspondent" ||
+                 x.Account.ReferenceType == "Customer" ||
+                 x.Account.ReferenceType == "Correspondent"))
+            .OrderByDescending(x => x.Id)
+            .ToListAsync();
+        return await ToDtosAsync(entities);
+    }
+
+    public async Task<IEnumerable<AccountBadehkarLimitDto>> GetActiveLimitsAsync()
+    {
+        var entities = await LimitsQuery()
+            .Where(x =>
+                x.IsActive &&
+                (x.Account!.AccountType == "Customer" ||
+                 x.Account.AccountType == "Correspondent" ||
+                 x.Account.ReferenceType == "Customer" ||
+                 x.Account.ReferenceType == "Correspondent"))
+            .OrderByDescending(x => x.Id)
+            .ToListAsync();
+        return await ToDtosAsync(entities);
+    }
+
+    public async Task<AccountBadehkarLimitDto> ActivateAsync(long id)
+    {
+        var entity = await _dbSet.FirstOrDefaultAsync(x => x.Id == id);
+        if (entity == null)
+            throw new KeyNotFoundException($"محدودیت با شناسه {id} یافت نشد.");
+
+        await ValidateTargetAsync(entity.AccountId, entity.CurrencyId, entity.BadehkarLimit);
+        entity.IsActive = true;
+        await _context.SaveChangesAsync();
+        return (await GetByIdAsync(id))!;
+    }
+
+    public async Task<AccountBadehkarLimitDto> DeactivateAsync(long id)
+    {
+        var entity = await _dbSet.FirstOrDefaultAsync(x => x.Id == id);
+        if (entity == null)
+            throw new KeyNotFoundException($"محدودیت با شناسه {id} یافت نشد.");
+
+        entity.IsActive = false;
+        await _context.SaveChangesAsync();
+        return (await GetByIdAsync(id))!;
+    }
+
+    public override async Task<AccountBadehkarLimitDto> CreateAsync(
+        CreateAccountBadehkarLimitDto createDto)
+    {
+        await ValidateTargetAsync(
+            createDto.AccountId,
+            createDto.CurrencyId,
+            createDto.BadehkarLimit);
+
+        var exists = await _dbSet.AnyAsync(x =>
+            x.AccountId == createDto.AccountId &&
+            x.CurrencyId == createDto.CurrencyId);
+        if (exists)
         {
-            var entity = await _dbSet
-                .FirstOrDefaultAsync(l => l.AccountId == accountId && l.CurrencyId == currencyId);
-            return entity == null ? null : _mapper.Map<AccountBadehkarLimitDto>(entity);
+            throw new InvalidOperationException(
+                "برای این حساب و ارز قبلاً سقف بدهکاری تعریف شده است؛ همان مورد را ویرایش یا فعال کنید.");
         }
 
-        public async Task<IEnumerable<AccountBadehkarLimitDto>> GetByAccountAsync(long accountId)
+        var entity = new AccountBadehkarLimit
         {
-            var entities = await _dbSet
-                .Where(l => l.AccountId == accountId)
-                .Include(l => l.Account)
-                .Include(l => l.Currency)
-                .Include(l => l.CreatedByUser)
-                .OrderByDescending(l => l.Id)
-                .ToListAsync();
-            return _mapper.Map<IEnumerable<AccountBadehkarLimitDto>>(entities);
+            AccountId = createDto.AccountId,
+            CurrencyId = createDto.CurrencyId,
+            BadehkarLimit = createDto.BadehkarLimit,
+            CreatedBy = 1,
+            CreatedAt = DateTime.UtcNow,
+            IsActive = true
+        };
+        await _dbSet.AddAsync(entity);
+        await _context.SaveChangesAsync();
+        return (await GetByIdAsync(entity.Id))!;
+    }
+
+    public override async Task<AccountBadehkarLimitDto> UpdateAsync(
+        long id,
+        UpdateAccountBadehkarLimitDto updateDto)
+    {
+        var entity = await _dbSet.FirstOrDefaultAsync(x => x.Id == id);
+        if (entity == null)
+            throw new KeyNotFoundException($"محدودیت با شناسه {id} یافت نشد.");
+
+        await ValidateTargetAsync(
+            entity.AccountId,
+            entity.CurrencyId,
+            updateDto.BadehkarLimit);
+        entity.BadehkarLimit = updateDto.BadehkarLimit;
+        entity.IsActive = updateDto.IsActive;
+        await _context.SaveChangesAsync();
+        return (await GetByIdAsync(id))!;
+    }
+
+    private async Task ValidateTargetAsync(
+        long accountId,
+        long currencyId,
+        decimal limitAmount)
+    {
+        if (limitAmount < 0)
+            throw new InvalidOperationException("سقف بدهکاری نمی‌تواند منفی باشد.");
+
+        var account = await _context.Accounts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == accountId && !x.IsArchived);
+        if (account == null)
+            throw new InvalidOperationException("حساب انتخاب‌شده معتبر یا فعال نیست.");
+        if (!IsEligibleAccount(account))
+        {
+            throw new InvalidOperationException(
+                "سقف بدهکاری فقط برای حساب مشتری یا نمایندگی قابل تعریف است.");
         }
 
-        public async Task<IEnumerable<AccountBadehkarLimitDto>> GetByCurrencyAsync(long currencyId)
+        var currencyExists = await _context.Currencies
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == currencyId && x.IsActive);
+        if (!currencyExists)
+            throw new InvalidOperationException("ارز انتخاب‌شده معتبر یا فعال نیست.");
+    }
+
+    private IQueryable<AccountBadehkarLimit> LimitsQuery() =>
+        _dbSet
+            .AsNoTracking()
+            .Include(x => x.Account)
+            .Include(x => x.Currency)
+            .Include(x => x.CreatedByUser);
+
+    private async Task<List<AccountBadehkarLimitDto>> ToDtosAsync(
+        IReadOnlyCollection<AccountBadehkarLimit> entities)
+    {
+        if (entities.Count == 0)
+            return [];
+
+        var accountIds = entities.Select(x => x.AccountId).Distinct().ToList();
+        var currencyIds = entities.Select(x => x.CurrencyId).Distinct().ToList();
+        var balances = await _context.LedgerEntries
+            .AsNoTracking()
+            .Where(x =>
+                accountIds.Contains(x.AccountId) &&
+                currencyIds.Contains(x.CurrencyId))
+            .GroupBy(x => new { x.AccountId, x.CurrencyId })
+            .Select(group => new
+            {
+                group.Key.AccountId,
+                group.Key.CurrencyId,
+                Balance = group.Sum(x => x.TalabKar - x.BadehKar)
+            })
+            .ToListAsync();
+        var balanceMap = balances.ToDictionary(
+            x => (x.AccountId, x.CurrencyId),
+            x => x.Balance);
+
+        return entities.Select(entity =>
         {
-            var entities = await _dbSet
-                .Where(l => l.CurrencyId == currencyId)
-                .Include(l => l.Account)
-                .Include(l => l.Currency)
-                .Include(l => l.CreatedByUser)
-                .OrderByDescending(l => l.Id)
-                .ToListAsync();
-            return _mapper.Map<IEnumerable<AccountBadehkarLimitDto>>(entities);
-        }
+            var balance = balanceMap.GetValueOrDefault(
+                (entity.AccountId, entity.CurrencyId));
+            var debt = Math.Max(-balance, 0m);
+            return new AccountBadehkarLimitDto
+            {
+                Id = entity.Id,
+                AccountId = entity.AccountId,
+                AccountName = entity.Account?.AccountName ?? string.Empty,
+                AccountType = GetAccountTypeLabel(entity.Account),
+                CurrencyId = entity.CurrencyId,
+                CurrencyCode = entity.Currency?.Code ?? string.Empty,
+                BadehkarLimit = entity.BadehkarLimit,
+                CurrentBalance = balance,
+                CurrentDebt = debt,
+                AvailableDebt = Math.Max(entity.BadehkarLimit - debt, 0m),
+                IsOverLimit = debt > entity.BadehkarLimit,
+                IsActive = entity.IsActive,
+                CreatedBy = entity.CreatedBy,
+                CreatedByName = entity.CreatedByUser?.FullName ?? "-",
+                CreatedAt = entity.CreatedAt
+            };
+        }).ToList();
+    }
 
-        public async Task<IEnumerable<AccountBadehkarLimitDto>> GetActiveLimitsAsync()
-        {
-            var entities = await _dbSet
-                .Where(l => l.IsActive)
-                .Include(l => l.Account)
-                .Include(l => l.Currency)
-                .Include(l => l.CreatedByUser)
-                .OrderByDescending(l => l.Id)
-                .ToListAsync();
-            return _mapper.Map<IEnumerable<AccountBadehkarLimitDto>>(entities);
-        }
+    private static bool IsEligibleAccount(Account account) =>
+        account.AccountType is "Customer" or "Correspondent" or "مشتری" or "نماینده" or "نمایندگی" ||
+        account.ReferenceType is "Customer" or "Correspondent";
 
-        public async Task<AccountBadehkarLimitDto> ActivateAsync(long id)
-        {
-            var entity = await _dbSet.FindAsync(id);
-            if (entity == null)
-                throw new KeyNotFoundException($"محدودیت با شناسه {id} یافت نشد.");
-
-            entity.IsActive = true;
-            await _context.SaveChangesAsync();
-            return _mapper.Map<AccountBadehkarLimitDto>(entity);
-        }
-
-        public async Task<AccountBadehkarLimitDto> DeactivateAsync(long id)
-        {
-            var entity = await _dbSet.FindAsync(id);
-            if (entity == null)
-                throw new KeyNotFoundException($"محدودیت با شناسه {id} یافت نشد.");
-
-            entity.IsActive = false;
-            await _context.SaveChangesAsync();
-            return _mapper.Map<AccountBadehkarLimitDto>(entity);
-        }
-
-        // ===== بازنویسی متد CreateAsync برای تنظیم CreatedBy و اعتبارسنجی =====
-
-        public override async Task<AccountBadehkarLimitDto> CreateAsync(CreateAccountBadehkarLimitDto createDto)
-        {
-            // بررسی تکراری نبودن (AccountId + CurrencyId)
-            var exists = await _dbSet.AnyAsync(l =>
-                l.AccountId == createDto.AccountId &&
-                l.CurrencyId == createDto.CurrencyId);
-            if (exists)
-                throw new InvalidOperationException($"محدودیت برای حساب {createDto.AccountId} و ارز {createDto.CurrencyId} قبلاً تعریف شده است.");
-
-            var entity = _mapper.Map<AccountBadehkarLimit>(createDto);
-
-            // ✅ تنظیم CreatedBy (موقتاً 1 – در آینده از کاربر جاری دریافت می‌شود)
-            entity.CreatedBy = 1;
-            entity.CreatedAt = DateTime.UtcNow;
-            entity.IsActive = true;
-
-            await _dbSet.AddAsync(entity);
-            await _context.SaveChangesAsync();
-
-            return _mapper.Map<AccountBadehkarLimitDto>(entity);
-        }
-
-        // ===== بازنویسی متد UpdateAsync برای جلوگیری از تغییر AccountId و CurrencyId =====
-
-        public override async Task<AccountBadehkarLimitDto> UpdateAsync(long id, UpdateAccountBadehkarLimitDto updateDto)
-        {
-            var entity = await _dbSet.FindAsync(id);
-            if (entity == null)
-                throw new KeyNotFoundException($"محدودیت با شناسه {id} یافت نشد.");
-
-            // فقط BadehkarLimit و IsActive قابل‌تغییر هستند
-            entity.BadehkarLimit = updateDto.BadehkarLimit;
-            entity.IsActive = updateDto.IsActive;
-
-            _dbSet.Update(entity);
-            await _context.SaveChangesAsync();
-
-            return _mapper.Map<AccountBadehkarLimitDto>(entity);
-        }
-
-        // ===== متدهای اعتبارسنجی (اختیاری) =====
-
-        protected override async Task ValidateDeleteAsync(AccountBadehkarLimit entity)
-        {
-            // در صورت نیاز، می‌توانید بررسی کنید که آیا این محدودیت در حال استفاده است یا خیر
-            // مثلاً بررسی کنید که آیا تراکنشی با این محدودیت در حال انجام است
-        }
+    private static string GetAccountTypeLabel(Account? account)
+    {
+        if (account == null)
+            return "-";
+        if (account.AccountType is "Correspondent" or "نماینده" or "نمایندگی" ||
+            account.ReferenceType == "Correspondent")
+            return "نمایندگی";
+        return "مشتری";
     }
 }

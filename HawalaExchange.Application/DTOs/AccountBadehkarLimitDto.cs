@@ -8,13 +8,18 @@ namespace HawalaExchange.Application.DTOs
     {
         public long Id { get; set; }
         public long AccountId { get; set; }
-        public string AccountName { get; set; }
+        public string AccountName { get; set; } = string.Empty;
+        public string AccountType { get; set; } = string.Empty;
         public long CurrencyId { get; set; }
-        public string CurrencyCode { get; set; }
+        public string CurrencyCode { get; set; } = string.Empty;
         public decimal BadehkarLimit { get; set; }
+        public decimal CurrentBalance { get; set; }
+        public decimal CurrentDebt { get; set; }
+        public decimal AvailableDebt { get; set; }
+        public bool IsOverLimit { get; set; }
         public bool IsActive { get; set; }
         public long? CreatedBy { get; set; }
-        public string CreatedByName { get; set; }
+        public string CreatedByName { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
     }
 

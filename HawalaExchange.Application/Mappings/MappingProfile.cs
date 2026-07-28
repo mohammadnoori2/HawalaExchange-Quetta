@@ -122,6 +122,7 @@ namespace HawalaSystem.Mappings
             // ===== AccountBadehkarLimit =====
             CreateMap<AccountBadehkarLimit, AccountBadehkarLimitDto>()
                 .ForMember(dest => dest.AccountName, opt => opt.MapFrom(src => src.Account.AccountName))
+                .ForMember(dest => dest.AccountType, opt => opt.MapFrom(src => src.Account.AccountType))
                 .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code))
                 .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser.FullName));
             CreateMap<CreateAccountBadehkarLimitDto, AccountBadehkarLimit>();

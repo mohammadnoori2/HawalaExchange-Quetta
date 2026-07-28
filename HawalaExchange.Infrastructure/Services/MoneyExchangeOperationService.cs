@@ -221,12 +221,18 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         if (exchange.ProfitCurrencyId.HasValue)
         {
             var systemAccounts = await context.Accounts
-                .Where(x => x.AccountCode == "1201" || x.AccountCode == "2101" ||
+                .Where(x =>
+                            x.AccountCode == ApplicationDbContext.CurrencyInventoryAccountCode ||
+                            x.AccountCode == ApplicationDbContext.CurrencySaleLiabilityAccountCode ||
                             x.AccountCode == "3002" || x.AccountCode == "3001" ||
                             x.AccountCode == "4001")
                 .ToDictionaryAsync(x => x.AccountCode);
-            var inventoryAccount = RequireSystemAccount(systemAccounts, "1201");
-            var shortLiabilityAccount = RequireSystemAccount(systemAccounts, "2101");
+            var inventoryAccount = RequireSystemAccount(
+                systemAccounts,
+                ApplicationDbContext.CurrencyInventoryAccountCode);
+            var shortLiabilityAccount = RequireSystemAccount(
+                systemAccounts,
+                ApplicationDbContext.CurrencySaleLiabilityAccountCode);
             var profitAccount = RequireSystemAccount(systemAccounts, "3002");
             var profitCurrencyId = exchange.ProfitCurrencyId.Value;
 

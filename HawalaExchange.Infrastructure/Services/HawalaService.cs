@@ -927,7 +927,7 @@
             private long GetCurrentUserId() => 1;
             private async Task<Account> GetOrCreatePendingHawalaAccountAsync()
             {
-                const string accountCode = "2101";
+                const string accountCode = ApplicationDbContext.PendingHawalaAccountCode;
 
                 var account = await _context.Accounts
                     .FirstOrDefaultAsync(a => a.AccountCode == accountCode);

@@ -40,6 +40,130 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<MoneyExchangeOperation> MoneyExchangeOperations { get; set; }
         public DbSet<CompanySetting> CompanySettings { get; set; }
 
+        public const string CurrencyInventoryAccountCode = "1201";
+        public const string CurrencySaleLiabilityAccountCode = "2101";
+        public const string PendingHawalaAccountCode = "2102";
+
+        /// <summary>
+        /// Creates and repairs application-owned accounts without relying on a migration.
+        /// It also separates the historical 2101 collision between currency-sale
+        /// liabilities and pending incoming hawalas.
+        /// </summary>
+        public async Task EnsureSystemAccountsAsync(CancellationToken cancellationToken = default)
+        {
+            var systemCodes = new[]
+            {
+                CurrencyInventoryAccountCode,
+                CurrencySaleLiabilityAccountCode,
+                PendingHawalaAccountCode
+            };
+            var accounts = await Accounts
+                .Where(x => systemCodes.Contains(x.AccountCode))
+                .ToListAsync(cancellationToken);
+
+            var inventoryAccount = accounts.FirstOrDefault(
+                x => x.AccountCode == CurrencyInventoryAccountCode);
+            var liabilityAccount = accounts.FirstOrDefault(
+                x => x.AccountCode == CurrencySaleLiabilityAccountCode);
+            var pendingHawalaAccount = accounts.FirstOrDefault(
+                x => x.AccountCode == PendingHawalaAccountCode);
+
+            var legacyPendingAccount = liabilityAccount != null &&
+                (liabilityAccount.AccountType == "PendingHawala" ||
+                 liabilityAccount.AccountName == "حواله‌های اجرا نشده");
+
+            if (legacyPendingAccount && pendingHawalaAccount == null)
+            {
+                liabilityAccount!.AccountCode = PendingHawalaAccountCode;
+                pendingHawalaAccount = liabilityAccount;
+                liabilityAccount = null;
+
+                // Release the unique 2101 code before creating its correct account.
+                await SaveChangesAsync(cancellationToken);
+            }
+
+            inventoryAccount ??= AddSystemAccount(
+                CurrencyInventoryAccountCode,
+                "موجودی ارز به بهای تمام‌شده",
+                "Asset");
+            liabilityAccount ??= AddSystemAccount(
+                CurrencySaleLiabilityAccountCode,
+                "تعهد فروش ارز",
+                "Liability");
+            pendingHawalaAccount ??= AddSystemAccount(
+                PendingHawalaAccountCode,
+                "حواله‌های اجرا نشده",
+                "PendingHawala");
+
+            NormalizeSystemAccount(
+                inventoryAccount,
+                "موجودی ارز به بهای تمام‌شده",
+                "Asset");
+            NormalizeSystemAccount(
+                liabilityAccount,
+                "تعهد فروش ارز",
+                "Liability");
+            NormalizeSystemAccount(
+                pendingHawalaAccount,
+                "حواله‌های اجرا نشده",
+                "PendingHawala");
+            await SaveChangesAsync(cancellationToken);
+
+            var hawalaEntriesOnLiability = await LedgerEntries
+                .Where(x =>
+                    x.AccountId == liabilityAccount.Id &&
+                    x.HawalaId != null &&
+                    x.MoneyExchangeOperationId == null)
+                .ToListAsync(cancellationToken);
+            foreach (var entry in hawalaEntriesOnLiability)
+                entry.AccountId = pendingHawalaAccount.Id;
+
+            var exchangeEntriesOnPendingHawala = await LedgerEntries
+                .Where(x =>
+                    x.AccountId == pendingHawalaAccount.Id &&
+                    x.MoneyExchangeOperationId != null)
+                .ToListAsync(cancellationToken);
+            foreach (var entry in exchangeEntriesOnPendingHawala)
+                entry.AccountId = liabilityAccount.Id;
+
+            if (hawalaEntriesOnLiability.Count > 0 ||
+                exchangeEntriesOnPendingHawala.Count > 0)
+            {
+                await SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        private Account AddSystemAccount(
+            string accountCode,
+            string accountName,
+            string accountType)
+        {
+            var account = new Account
+            {
+                AccountCode = accountCode,
+                AccountName = accountName,
+                AccountType = accountType,
+                ReferenceType = null,
+                ReferenceId = null,
+                IsArchived = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            Accounts.Add(account);
+            return account;
+        }
+
+        private static void NormalizeSystemAccount(
+            Account account,
+            string accountName,
+            string accountType)
+        {
+            account.AccountName = accountName;
+            account.AccountType = accountType;
+            account.ReferenceType = null;
+            account.ReferenceId = null;
+            account.IsArchived = false;
+        }
+
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
             ValidateAccountDebtLimits();

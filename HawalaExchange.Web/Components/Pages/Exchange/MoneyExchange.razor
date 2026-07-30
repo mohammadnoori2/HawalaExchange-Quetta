@@ -90,7 +90,7 @@
                         <i class="bi bi-arrow-down-circle"></i>
                     </div>
                     <div>
-                        <div class="stat-number">@filteredExchanges.Sum(x => x.ToAmount).ToString("N0")</div>
+                        <div class="stat-number">@MoneyFormatHelper.Format(filteredExchanges.Sum(x => x.ToAmount))</div>
                         <div class="stat-label">مجموع ارز خرید</div>
                     </div>
                 </div>
@@ -104,7 +104,7 @@
                         <i class="bi bi-arrow-up-circle"></i>
                     </div>
                     <div>
-                        <div class="stat-number">@filteredExchanges.Sum(x => x.FromAmount).ToString("N0")</div>
+                        <div class="stat-number">@MoneyFormatHelper.Format(filteredExchanges.Sum(x => x.FromAmount))</div>
                         <div class="stat-label">مجموع ارز فروش</div>
                     </div>
                 </div>
@@ -125,10 +125,10 @@
                 {
                     <div class="col-md-4">
                         <div class="stat-card">
-                            <div class="stat-number" dir="ltr">@group.Total.ToString("N2") @group.CurrencyCode</div>
+                            <div class="stat-number" dir="ltr">@MoneyFormatHelper.Format(group.Total) @group.CurrencyCode</div>
                             <div class="stat-label">
-                                مفاد مشتری: @group.Customer.ToString("N2") |
-                                مفاد سرمایه صراف: @group.Treasury.ToString("N2")
+                                مفاد مشتری: @MoneyFormatHelper.Format(group.Customer) |
+                                مفاد سرمایه صراف: @MoneyFormatHelper.Format(group.Treasury)
                             </div>
                         </div>
                     </div>
@@ -156,10 +156,10 @@
                             <tr class="@(position.IsShort ? "table-warning" : "")">
                                 <td>@position.CurrencyCode</td>
                                 <td>@position.ProfitCurrencyCode</td>
-                                <td dir="ltr">@position.Quantity.ToString("N4")</td>
-                                <td dir="ltr">@position.CarryingAmount.ToString("N2")</td>
-                                <td dir="ltr">@position.AverageCost.ToString("N6")</td>
-                                <td dir="ltr">@position.DeferredProceeds.ToString("N2")</td>
+                                <td dir="ltr">@MoneyFormatHelper.Format(position.Quantity)</td>
+                                <td dir="ltr">@MoneyFormatHelper.Format(position.CarryingAmount)</td>
+                                <td dir="ltr">@MoneyFormatHelper.Format(position.AverageCost)</td>
+                                <td dir="ltr">@MoneyFormatHelper.Format(position.DeferredProceeds)</td>
                             </tr>
                         }
                     </tbody>
@@ -308,7 +308,7 @@
 
                                     <td dir="ltr">
                                         <span class="fw-bold text-danger">
-                                            @item.FromAmount.ToString("N2")
+                                            @MoneyFormatHelper.Format(item.FromAmount)
                                         </span>
                                         <span class="badge-modern badge-danger">
                                             @item.FromCurrencyCode
@@ -322,7 +322,7 @@
 
                                     <td dir="ltr">
                                         <span class="fw-bold text-success">
-                                            @item.ToAmount.ToString("N2")
+                                            @MoneyFormatHelper.Format(item.ToAmount)
                                         </span>
                                         <span class="badge-modern badge-success">
                                             @item.ToCurrencyCode
@@ -334,9 +334,9 @@
                                     </td>
 
                                     <td dir="ltr">
-                                        @item.ExchangeRate.ToString("N4")
+                                        @MoneyFormatHelper.Format(item.ExchangeRate)
                                         <small class="d-block text-muted">
-                                            1 @item.RateBaseCurrencyCode = @item.ExchangeRate.ToString("N8") @item.RateQuoteCurrencyCode
+                                            1 @item.RateBaseCurrencyCode = @MoneyFormatHelper.Format(item.ExchangeRate) @item.RateQuoteCurrencyCode
                                         </small>
                                     </td>
 
@@ -346,11 +346,11 @@
 
                                     <td dir="ltr">
                                         <span class="fw-bold @(item.RealizedProfit >= 0 ? "text-success" : "text-danger")">
-                                            @item.RealizedProfit.ToString("N2") @item.ProfitCurrencyCode
+                                            @MoneyFormatHelper.Format(item.RealizedProfit) @item.ProfitCurrencyCode
                                         </span>
                                         @if (item.ProfitStatus != "Realized")
                                         {
-                                            <small class="d-block text-warning">تعلیق: @item.DeferredAmount.ToString("N4")</small>
+                                            <small class="d-block text-warning">تعلیق: @MoneyFormatHelper.Format(item.DeferredAmount)</small>
                                         }
                                     </td>
 
@@ -466,7 +466,7 @@
                             <div class="info-card">
                                 <span class="info-label">ارز فروش</span>
                                 <span class="info-value" dir="ltr">
-                                    @selectedExchange.FromAmount.ToString("N2") @selectedExchange.FromCurrencyCode
+                                    @MoneyFormatHelper.Format(selectedExchange.FromAmount) @selectedExchange.FromCurrencyCode
                                 </span>
                             </div>
                         </div>
@@ -475,7 +475,7 @@
                             <div class="info-card">
                                 <span class="info-label">ارز خرید</span>
                                 <span class="info-value" dir="ltr">
-                                    @selectedExchange.ToAmount.ToString("N2") @selectedExchange.ToCurrencyCode
+                                    @MoneyFormatHelper.Format(selectedExchange.ToAmount) @selectedExchange.ToCurrencyCode
                                 </span>
                             </div>
                         </div>
@@ -513,7 +513,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">مفاد تحقق‌یافته</span>
-                                <span class="info-value" dir="ltr">@selectedExchange.RealizedProfit.ToString("N2") @selectedExchange.ProfitCurrencyCode</span>
+                                <span class="info-value" dir="ltr">@MoneyFormatHelper.Format(selectedExchange.RealizedProfit) @selectedExchange.ProfitCurrencyCode</span>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -530,7 +530,7 @@
                                 <span class="info-label">نرخ</span>
                                 <span class="info-value" dir="ltr">
                                     1 @selectedExchange.RateBaseCurrencyCode =
-                                    @selectedExchange.ExchangeRate.ToString("N8")
+                                    @MoneyFormatHelper.Format(selectedExchange.ExchangeRate)
                                     @selectedExchange.RateQuoteCurrencyCode
                                 </span>
                             </div>

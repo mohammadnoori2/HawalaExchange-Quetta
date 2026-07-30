@@ -225,12 +225,12 @@
                                             @limit.AccountType
                                         </span>
                                     </td>
-                                    <td dir="ltr" class="fw-bold text-primary">@limit.BadehkarLimit.ToString("N2")</td>
+                                    <td dir="ltr" class="fw-bold text-primary">@MoneyFormatHelper.Format(limit.BadehkarLimit)</td>
                                     <td dir="ltr" class="fw-bold @(limit.IsOverLimit ? "text-danger" : "")">
-                                        @limit.CurrentDebt.ToString("N2")
+                                        @MoneyFormatHelper.Format(limit.CurrentDebt)
                                     </td>
                                     <td dir="ltr" class="fw-bold @(limit.AvailableDebt == 0 ? "text-danger" : "text-success")">
-                                        @limit.AvailableDebt.ToString("N2")
+                                        @MoneyFormatHelper.Format(limit.AvailableDebt)
                                     </td>
                                     <td>
                                         @if (limit.IsActive && limit.IsOverLimit)
@@ -382,14 +382,9 @@
                                     }
                                     else
                                     {
-                                        <select class="form-select"
-                                                @bind="currentLimit.AccountId">
-                                            <option value="0">انتخاب حساب</option>
-                                            @foreach (var account in accounts)
-                                            {
-                                                <option value="@account.Id">@account.AccountCode - @account.AccountName (@GetAccountTypeLabel(account))</option>
-                                            }
-                                        </select>
+                                        <AccountSearchSelect Accounts="@accounts"
+                                                             @bind-Value="currentLimit.AccountId"
+                                                             Placeholder="جستجوی حساب..." />
                                     }
                                 </div>
                                 <div class="col-md-6 mb-3">

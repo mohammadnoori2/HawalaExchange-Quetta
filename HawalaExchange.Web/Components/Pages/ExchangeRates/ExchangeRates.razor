@@ -187,8 +187,8 @@
                                     <td>
                                         <span class="customer-code">@rate.ToCurrencyCode</span>
                                     </td>
-                                    <td dir="ltr" class="fw-bold text-primary">@rate.BuyRate.ToString("N2")</td>
-                                    <td dir="ltr" class="fw-bold text-success">@rate.SellRate.ToString("N2")</td>
+                                    <td dir="ltr" class="fw-bold text-primary">@MoneyFormatHelper.Format(rate.BuyRate)</td>
+                                    <td dir="ltr" class="fw-bold text-success">@MoneyFormatHelper.Format(rate.SellRate)</td>
                                     <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(rate.EffectiveDate)</td>
                                     <td>@rate.CreatedByName</td>
                                     <td>

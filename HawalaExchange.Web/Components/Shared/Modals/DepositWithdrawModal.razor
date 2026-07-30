@@ -20,7 +20,7 @@
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
-                        @(IsEditMode ? "ویرایش واریز/برداشت" : "ثبت واریز/برداشت جدید")
+                        @(IsEditMode ? "ویرایش واریز/برداشت/پرداخت" : "ثبت واریز/برداشت/پرداخت جدید")
                     </h5>
 
                     <button type="button"
@@ -83,7 +83,7 @@
                                         <select class="form-select" @bind="CurrentOperation.OperationType">
                                             <option value="">انتخاب نوع</option>
                                             <option value="Deposit">واریز</option>
-                                            <option value="Withdraw">برداشت</option>
+                                            <option value="Withdraw">برداشت / پرداخت</option>
                                         </select>
                                     </div>
 
@@ -150,22 +150,9 @@
                                             حساب انتخاب‌شده <span class="text-danger">*</span>
                                         </label>
 
-                                        <select class="form-select" @bind="CurrentOperation.AccountId">
-                                            <option value="0">انتخاب حساب</option>
-                                            @if (SelectableAccounts != null && SelectableAccounts.Any())
-                                            {
-                                                @foreach (var account in SelectableAccounts)
-                                                {
-                                                    <option value="@account.Id">
-                                                        @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
-                                                    </option>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <option value="0" disabled>هیچ حسابی یافت نشد</option>
-                                            }
-                                        </select>
+                                        <AccountSearchSelect Accounts="@SelectableAccounts"
+                                                             @bind-Value="CurrentOperation.AccountId"
+                                                             Placeholder="جستجوی حساب..." />
 
                                         <small class="text-muted">
                                             این حساب می‌تواند مشتری، نماینده، حساب دیگر یا هر حساب غیر صندوق/بانک باشد.
@@ -177,22 +164,9 @@
                                             حساب صندوق/بانک <span class="text-danger">*</span>
                                         </label>
 
-                                        <select class="form-select" @bind="CurrentOperation.CashOrBankAccountId">
-                                            <option value="0">انتخاب حساب صندوق/بانک</option>
-                                            @if (CashBankAccounts != null && CashBankAccounts.Any())
-                                            {
-                                                @foreach (var account in CashBankAccounts)
-                                                {
-                                                    <option value="@account.Id">
-                                                        @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
-                                                    </option>
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <option value="0" disabled>هیچ حسابی یافت نشد</option>
-                                            }
-                                        </select>
+                                        <AccountSearchSelect Accounts="@CashBankAccounts"
+                                                             @bind-Value="CurrentOperation.CashOrBankAccountId"
+                                                             Placeholder="جستجوی حساب صندوق یا بانک..." />
 
                                         <small class="text-muted">
                                             معمولاً Cash یا Bank.
@@ -217,7 +191,7 @@
                                     else if (CurrentOperation.OperationType == "Withdraw")
                                     {
                                         <div class="mt-2">
-                                            در برداشت: حساب انتخاب‌شده بدهکار می‌شود و حساب صندوق/بانک طلبکار می‌شود.
+                                            در برداشت/پرداخت: حساب انتخاب‌شده بدهکار می‌شود و حساب صندوق/بانک طلبکار می‌شود.
                                         </div>
 
                                         <div class="mt-2" dir="ltr">
@@ -284,6 +258,7 @@
     [Parameter] public bool IsEditMode { get; set; } = false;
     [Parameter] public long EditId { get; set; } = 0;
     [Parameter] public CreateAccountMoneyOperationDto? EditData { get; set; }
+    [Parameter] public long? InitialAccountId { get; set; }
     [Parameter] public EventCallback<CreateAccountMoneyOperationDto> OnSaveSuccess { get; set; }
     [Parameter] public EventCallback<long> OnEditSuccess { get; set; }
 
@@ -395,13 +370,23 @@
 
         var defaultCash = CashBankAccounts.FirstOrDefault(x =>
             x.AccountType == "Cash");
+        var initialAccount = InitialAccountId.HasValue
+            ? AccountsList.FirstOrDefault(x => x.Id == InitialAccountId.Value)
+            : null;
+        var initialIsCashOrBank =
+            initialAccount?.AccountType == "Cash" ||
+            initialAccount?.AccountType == "Bank";
 
         CurrentOperation = new CreateAccountMoneyOperationDto
         {
             OperationType = "Deposit",
             CurrencyId = afn?.Id ?? 0,
-            CashOrBankAccountId = defaultCash?.Id ?? 0,
-            AccountId = 0,
+            CashOrBankAccountId = initialIsCashOrBank
+                ? initialAccount!.Id
+                : defaultCash?.Id ?? 0,
+            AccountId = initialIsCashOrBank
+                ? 0
+                : initialAccount?.Id ?? 0,
             Amount = 0,
             OperationDate = DateTime.UtcNow,
             Description = string.Empty

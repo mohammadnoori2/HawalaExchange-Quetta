@@ -39,22 +39,27 @@ namespace HawalaExchange.Application.DTOs
         public string? ReceiverAddress { get; set; }
         public long FromCurrencyId { get; set; }
         public string FromCurrencyCode { get; set; } = string.Empty;
+        public string FromCurrencyName { get; set; } = string.Empty;
         public decimal FromAmount { get; set; }
         public long ToCurrencyId { get; set; }
         public string ToCurrencyCode { get; set; } = string.Empty;
+        public string ToCurrencyName { get; set; } = string.Empty;
         public decimal? ToAmount { get; set; }
         public decimal? ExchangeRate { get; set; }
         public decimal? CommissionAmount { get; set; }
         public long? CommissionCurrencyId { get; set; }
         public string? CommissionCurrencyCode { get; set; }
+        public string? CommissionCurrencyName { get; set; }
         public decimal? AgentCommissionAmount { get; set; }
         public long? AgentCommissionCurrencyId { get; set; }
         public string? AgentCommissionCurrencyCode { get; set; }
+        public string? AgentCommissionCurrencyName { get; set; }
         public string? ReferenceNumber { get; set; }
         public string? Notes { get; set; }
         public string Status { get; set; } = "Pending";
         public string StatusName => Status switch
         {
+            "Pending" when HawalaType == "HawalaReceive" => "حواله‌های اجرا نشده",
             "Pending" => "در انتظار",
             "Paid" => "پرداخت شده",
             "Cancel" => "لغو شده",
@@ -68,6 +73,7 @@ namespace HawalaExchange.Application.DTOs
         public long? PaidFromAccountId { get; set; }
         public long? SourceHawalaId { get; set; }
         public bool IsSystemGenerated { get; set; }
+        public long? GeneratedSendHawalaNumber { get; set; }
         public string? PaymentLocation { get; set; }
         public DateTime? CancelledAt { get; set; }
         public long? CancelledBy { get; set; }
@@ -106,6 +112,7 @@ namespace HawalaExchange.Application.DTOs
         public string? Notes { get; set; }
         public string Status { get; set; } = "Pending";
         public string? PaymentLocation { get; set; }
+        public long? GeneratedSendHawalaNumber { get; set; }
     }
 
     public class UpdateHawalaDto
@@ -132,6 +139,7 @@ namespace HawalaExchange.Application.DTOs
         public string? ReferenceNumber { get; set; }
         public string? Notes { get; set; }
         public string? PaymentLocation { get; set; }
+        public long? GeneratedSendHawalaNumber { get; set; }
        
     }
 

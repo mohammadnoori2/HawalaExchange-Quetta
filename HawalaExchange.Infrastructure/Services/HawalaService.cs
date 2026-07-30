@@ -85,7 +85,10 @@
                     await _context.SaveChangesAsync();
 
                     // ثبت ورودی‌های دفتر کل
-                    await ProcessLedgerEntries(hawala, dto.FromAccountId);
+                    await ProcessLedgerEntries(
+                        hawala,
+                        dto.FromAccountId,
+                        dto.GeneratedSendHawalaNumber);
                     await _context.SaveChangesAsync();
 
                     await _auditLogService.LogAsync("CREATE", "Hawalas", hawala.Id, null, $"حواله {hawala.HawalaType} با شماره {hawala.Number} ایجاد شد", GetCurrentUserId());
@@ -112,6 +115,28 @@
                     _context.LedgerEntries.RemoveRange(ledgerEntries);
                 }
             }
+
+            private async Task<long?> ResolveExistingFromAccountIdAsync(Hawala hawala)
+            {
+                if (hawala.HawalaType == "HawalaReceive" || hawala.PaidFromAccountId.HasValue)
+                    return hawala.PaidFromAccountId;
+
+                if (hawala.HawalaType != "HawalaSend")
+                    return null;
+
+                return await _context.LedgerEntries
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.HawalaId == hawala.Id &&
+                        x.CurrencyId == hawala.FromCurrencyId &&
+                        x.BadehKar > 0 &&
+                        x.Description != null &&
+                        x.Description.Contains("مبلغ حواله"))
+                    .OrderBy(x => x.Id)
+                    .Select(x => (long?)x.AccountId)
+                    .FirstOrDefaultAsync();
+            }
+
             public async Task<long> GetNextNumberAsync(long correspondentId, string hawalaType)
             {
                 var lastNumber = await _context.Hawalas
@@ -135,7 +160,22 @@
                     .Include(h => h.PaidFromAccount)
                     .FirstOrDefaultAsync(h => h.Id == id);
 
-                return hawala == null ? null : _mapper.Map<HawalaDto>(hawala);
+                if (hawala == null)
+                    return null;
+
+                var result = _mapper.Map<HawalaDto>(hawala);
+                result.FromAccountId = await ResolveExistingFromAccountIdAsync(hawala);
+
+                if (!hawala.IsSystemGenerated)
+                {
+                    result.GeneratedSendHawalaNumber = await _context.Hawalas
+                        .AsNoTracking()
+                        .Where(x => x.SourceHawalaId == hawala.Id)
+                        .Select(x => (long?)x.Number)
+                        .FirstOrDefaultAsync();
+                }
+
+                return result;
             }
 
             public async Task<HawalaListResultDto> GetHawalasAsync(HawalaFilterDto filter)
@@ -260,20 +300,40 @@
                     if (hawala == null)
                         throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
 
-                    if (hawala.Status == "Paid")
-                        throw new InvalidOperationException("حواله پرداخت شده قابل ویرایش نیست.");
-
                     if (hawala.Status == "Cancel")
                         throw new InvalidOperationException("حواله لغو شده قابل ویرایش نیست.");
 
-                    // حذف لیجرهای قبلی
-                    await DeleteHawalaLedgerEntriesAsync(hawala.Id);
+                    if (hawala.IsSystemGenerated)
+                    {
+                        throw new InvalidOperationException(
+                            "حواله ارسالی خودکار باید از طریق حواله دریافتی اصلی ویرایش شود.");
+                    }
 
-                    // آپدیت خود حواله
+                    var fromAccountId =
+                        dto.FromAccountId ??
+                        await ResolveExistingFromAccountIdAsync(hawala);
+
+                    var generatedHawala = await _context.Hawalas
+                        .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
+                    var generatedHawalaNumber =
+                        dto.GeneratedSendHawalaNumber ??
+                        generatedHawala?.Number;
+
+                    if (generatedHawala != null)
+                    {
+                        await DeleteHawalaLedgerEntriesAsync(generatedHawala.Id);
+                        _context.Hawalas.Remove(generatedHawala);
+                    }
+
+                    await DeleteHawalaLedgerEntriesAsync(hawala.Id);
+                    await _context.SaveChangesAsync();
+
                     _mapper.Map(dto, hawala);
 
-                    // ایجاد دوباره لیجرها براساس معلومات جدید
-                    await ProcessLedgerEntries(hawala, dto.FromAccountId);
+                    await ProcessLedgerEntries(
+                        hawala,
+                        fromAccountId,
+                        generatedHawalaNumber);
 
                     await _context.SaveChangesAsync();
 
@@ -301,30 +361,46 @@
 
                 try
                 {
-                    var hawala = await _context.Hawalas
+                    var requestedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.Id == id);
 
-                    if (hawala == null)
+                    if (requestedHawala == null)
                         throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
 
-                    if (hawala.Status == "Paid")
-                        throw new InvalidOperationException("حواله پرداخت شده قابل حذف نیست.");
+                    var hawala = requestedHawala;
+                    if (requestedHawala.IsSystemGenerated &&
+                        requestedHawala.SourceHawalaId.HasValue)
+                    {
+                        hawala = await _context.Hawalas
+                            .FirstOrDefaultAsync(x => x.Id == requestedHawala.SourceHawalaId.Value)
+                            ?? requestedHawala;
+                    }
 
-                    // اول لیجرهای مربوط به حواله حذف شود
+                    var generatedHawala = await _context.Hawalas
+                        .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
+                    if (generatedHawala != null)
+                    {
+                        await DeleteHawalaLedgerEntriesAsync(generatedHawala.Id);
+                        _context.Hawalas.Remove(generatedHawala);
+                    }
+
                     await DeleteHawalaLedgerEntriesAsync(hawala.Id);
 
-                    // بعد خود حواله حذف شود
                     _context.Hawalas.Remove(hawala);
-                    await _fileService.DeleteFileAsync(hawala.SenderTazkiraImagePath);
-                    await _fileService.DeleteFileAsync(hawala.ReceiverTazkiraImagePath);
+                    if (!string.IsNullOrWhiteSpace(hawala.SenderTazkiraImagePath))
+                        await _fileService.DeleteFileAsync(hawala.SenderTazkiraImagePath);
+                    if (!string.IsNullOrWhiteSpace(hawala.ReceiverTazkiraImagePath))
+                        await _fileService.DeleteFileAsync(hawala.ReceiverTazkiraImagePath);
                     await _context.SaveChangesAsync();
 
                     await _auditLogService.LogAsync(
                         "DELETE",
                         "Hawalas",
-                        id,
+                        hawala.Id,
                         null,
-                        $"حواله با شناسه {id} و لیجرهای مربوطه حذف شد",
+                        generatedHawala == null
+                            ? $"حواله با شناسه {hawala.Id} و لیجرهای مربوطه حذف شد"
+                            : $"حواله با شناسه {hawala.Id}، حواله ارسالی خودکار و لیجرهای مربوطه حذف شدند",
                         GetCurrentUserId());
 
                     await transaction.CommitAsync();
@@ -561,12 +637,18 @@
             }
             // ===== منطق دفتر کل =====
 
-            private async Task ProcessLedgerEntries(Hawala hawala, long? fromAccountId)
+            private async Task ProcessLedgerEntries(
+                Hawala hawala,
+                long? fromAccountId,
+                long? generatedSendHawalaNumber = null)
             {
                 if (hawala.HawalaType == "HawalaSend")
                     await ProcessHawalaSendLedgerAsync(hawala, fromAccountId);
                 else if (hawala.HawalaType == "HawalaReceive")
-                    await ProcessHawalaReceiveLedgerAsync(hawala, fromAccountId);
+                    await ProcessHawalaReceiveLedgerAsync(
+                        hawala,
+                        fromAccountId,
+                        generatedSendHawalaNumber);
                 else
                     await ProcessHawalaOtherLedgerAsync(hawala);
             }
@@ -627,13 +709,19 @@
                 }
             }
 
-            private async Task ProcessHawalaReceiveLedgerAsync(Hawala hawala, long? fromAccountId)
+            private async Task ProcessHawalaReceiveLedgerAsync(
+                Hawala hawala,
+                long? fromAccountId,
+                long? generatedSendHawalaNumber = null)
             {
                 await ProcessHawalaReceivePendingLedgerAsync(hawala);
 
                 if (hawala.Status == "Paid")
                 {
-                    await ProcessHawalaReceivePaymentAsync(hawala, fromAccountId);
+                    await ProcessHawalaReceivePaymentAsync(
+                        hawala,
+                        fromAccountId,
+                        generatedSendHawalaNumber);
                 }
             }
             private async Task ProcessHawalaReceivePendingLedgerAsync(Hawala hawala)
@@ -693,7 +781,10 @@
                         description: $"حواله دریافتی {hawala.Id}: درآمد کمیشن");
                 }
             }
-            private async Task ProcessHawalaReceivePaymentAsync(Hawala hawala, long? paidFromAccountId)
+            private async Task ProcessHawalaReceivePaymentAsync(
+                Hawala hawala,
+                long? paidFromAccountId,
+                long? generatedSendHawalaNumber = null)
             {
                 if (!paidFromAccountId.HasValue)
                     throw new InvalidOperationException("برای پرداخت حواله دریافتی، انتخاب حساب پرداخت‌کننده الزامی است.");
@@ -712,14 +803,20 @@
                 var ledgerHawalaId = hawala.Id;
                 if (string.Equals(paidFromAccount.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase))
                 {
-                    var generatedSendHawala = await CreateGeneratedSendHawalaAsync(hawala, paidFromAccount);
+                    var generatedSendHawala = await CreateGeneratedSendHawalaAsync(
+                        hawala,
+                        paidFromAccount,
+                        generatedSendHawalaNumber);
                     ledgerHawalaId = generatedSendHawala.Id;
                 }
 
                 await ProcessHawalaReceivePaymentLedgerAsync(hawala, paidFromAccount, ledgerHawalaId);
             }
 
-            private async Task<Hawala> CreateGeneratedSendHawalaAsync(Hawala receivedHawala, Account paidFromAccount)
+            private async Task<Hawala> CreateGeneratedSendHawalaAsync(
+                Hawala receivedHawala,
+                Account paidFromAccount,
+                long? requestedNumber = null)
             {
                 if (!string.Equals(paidFromAccount.ReferenceType, "Correspondent", StringComparison.OrdinalIgnoreCase) ||
                     !paidFromAccount.ReferenceId.HasValue)
@@ -733,17 +830,40 @@
                     return existing;
 
                 var destinationCorrespondentId = paidFromAccount.ReferenceId.Value;
-                var lastNumber = await _context.Hawalas
-                    .Where(x => x.CorrespondentId == destinationCorrespondentId &&
-                                x.HawalaType == "HawalaSend")
-                    .OrderByDescending(x => x.Number)
-                    .Select(x => (long?)x.Number)
-                    .FirstOrDefaultAsync();
+                if (requestedNumber.HasValue && requestedNumber.Value <= 0)
+                    throw new InvalidOperationException("نمبر حواله ارسالی نمایندگی باید بزرگتر از صفر باشد.");
+
+                long generatedNumber;
+                if (requestedNumber.HasValue)
+                {
+                    generatedNumber = requestedNumber.Value;
+                }
+                else
+                {
+                    var lastNumber = await _context.Hawalas
+                        .Where(x => x.CorrespondentId == destinationCorrespondentId &&
+                                    x.HawalaType == "HawalaSend")
+                        .OrderByDescending(x => x.Number)
+                        .Select(x => (long?)x.Number)
+                        .FirstOrDefaultAsync();
+
+                    generatedNumber = (lastNumber ?? 0) + 1;
+                }
+
+                var numberExists = await _context.Hawalas.AnyAsync(x =>
+                    x.CorrespondentId == destinationCorrespondentId &&
+                    x.HawalaType == "HawalaSend" &&
+                    x.Number == generatedNumber);
+                if (numberExists)
+                {
+                    throw new InvalidOperationException(
+                        $"نمبر {generatedNumber} برای حواله ارسالی این نمایندگی قبلاً ثبت شده است.");
+                }
 
                 var now = DateTime.UtcNow;
                 var generatedHawala = new Hawala
                 {
-                    Number = (lastNumber ?? 0) + 1,
+                    Number = generatedNumber,
                     HawalaType = "HawalaSend",
                     Status = "Paid",
                     CorrespondentId = destinationCorrespondentId,
@@ -854,7 +974,7 @@
                     throw new InvalidOperationException("حساب پیش‌فرض برای حواله متفرقه یافت نشد.");
 
                 await CreateLedgerEntry(hawala.Id, defaultAccount.Id, hawala.FromCurrencyId, hawala.FromAmount, 0,
-                    $"حواله متفرقه {hawala.Id}: مبلغ {hawala.FromAmount} {hawala.FromCurrency?.Code}");
+                    $"حواله متفرقه {hawala.Id}: مبلغ {AmountValueHelper.Format(hawala.FromAmount)} {hawala.FromCurrency?.Code}");
             }
 
             private async Task CreateLedgerEntry(
@@ -915,6 +1035,12 @@
                     throw new InvalidOperationException("برای حواله دریافت، نمایندگی فرستنده الزامی است.");
                 if (dto.HawalaType == "HawalaReceive" && (dto.Number <= 0))
                     throw new InvalidOperationException("برای حواله آمد، شماره (نمبر) الزامی است.");
+                if (dto.AgentCommissionAmount > 0 &&
+                    (!dto.AgentCommissionCurrencyId.HasValue ||
+                     dto.AgentCommissionCurrencyId.Value <= 0))
+                {
+                    throw new InvalidOperationException("برای کارمزد نمایندگی، انتخاب ارز الزامی است.");
+                }
 
                 if (dto.HawalaType == "HawalaReceive" &&
                     dto.Status == "Paid" &&

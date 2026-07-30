@@ -5,7 +5,6 @@ using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using System.Globalization;
 
 namespace HawalaExchange.Application.Services;
 
@@ -335,9 +334,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
                 exchange.ToAmount);
         }
 
-        var formattedRate = quotation.Rate.ToString(
-            "0.00######",
-            CultureInfo.InvariantCulture);
+        var formattedRate = AmountValueHelper.Format(quotation.Rate);
 
         return $"{description} - نرخ تبدیل: 1 {quotation.BaseCurrencyCode} = {formattedRate} {quotation.QuoteCurrencyCode}";
     }
@@ -409,7 +406,6 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             to.Id, to.Code, to.QuotationPriority, exchange.ExchangeRate);
         exchange.RateBaseCurrencyId = conversion.BaseCurrencyId;
         exchange.RateQuoteCurrencyId = conversion.QuoteCurrencyId;
-        exchange.ToAmount = decimal.Round(conversion.ToAmount, to.DecimalPlaces);
     }
 
     private async Task DeleteLedgerEntriesAsync(long moneyExchangeOperationId)

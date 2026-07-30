@@ -1,0 +1,395 @@
+@page "/customers/{CustomerId:long}"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Components.Shared.Modals
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject ICustomerService CustomerService
+@inject IAccountService AccountService
+@inject IFileService FileService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(customer == null ? "مشاهده مشتری" : customer.FullName)</PageTitle>
+
+<div class="page-wrapper entity-details-page">
+    @if (isLoading)
+    {
+        <div class="entity-page-state">
+            <div class="spinner-border text-primary" role="status"></div>
+            <span>در حال بارگذاری مشتری...</span>
+        </div>
+    }
+    else if (customer == null || accountForView == null)
+    {
+        <div class="entity-page-state entity-page-error">
+            <h5>مشتری یافت نشد</h5>
+            <p>@pageError</p>
+            <button class="btn btn-primary" @onclick="BackToCustomers">بازگشت به مشتریان</button>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success entity-page-alert">
+                @successMessage
+                <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+            </div>
+        }
+
+        <AccountDetailsModal IsVisible="true"
+                             PageMode="true"
+                             Account="@accountForView"
+                             ViewTitle="مشاهده مشتری"
+                             ViewSubtitle="@($"{customer.FullName} · {customer.CustomerCode}")"
+                             EditButtonText="ویرایش مشتری"
+                             ArchiveButtonText="بایگانی مشتری"
+                             UnarchiveButtonText="خروج از بایگانی"
+                             BackButtonText="بازگشت"
+                             ShowAccountFacts="false"
+                             ShowFinancialActions="@(customerAccount != null)"
+                             ActionEntityArchived="@customer.IsArchived"
+                             IsVisibleChanged="HandleVisibilityChanged"
+                             OnEditRequested="OpenEdit"
+                             OnArchiveToggleRequested="OpenArchiveConfirmation">
+            <HeaderActions>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        @onclick="ViewTransactions">
+                    تراکنش‌ها
+                </button>
+            </HeaderActions>
+            <ProfileSummary>
+                <div class="entity-profile-grid mb-2">
+                    <div class="entity-profile-item"><span>کد مشتری</span><strong>@customer.CustomerCode</strong></div>
+                    <div class="entity-profile-item"><span>نام کامل</span><strong>@customer.FullName</strong></div>
+                    <div class="entity-profile-item"><span>نام پدر</span><strong>@(customer.FatherName ?? "—")</strong></div>
+                    <div class="entity-profile-item"><span>شماره تلفن</span><strong dir="ltr">@(customer.PhoneNumber ?? "—")</strong></div>
+                    <div class="entity-profile-item"><span>شماره تذکره</span><strong>@(customer.TazkiraNumber ?? "—")</strong></div>
+                    <div class="entity-profile-item"><span>آدرس</span><strong>@(customer.Address ?? "—")</strong></div>
+                    <div class="entity-profile-item">
+                        <span>وضعیت</span>
+                        <strong class="@(customer.IsArchived ? "text-danger" : "text-success")">
+                            @(customer.IsArchived ? "بایگانی" : "فعال")
+                        </strong>
+                    </div>
+                    <div class="entity-profile-item"><span>تاریخ ایجاد</span><strong dir="ltr">@PersianDateHelper.ToPersianDateTime12(customer.CreatedAt)</strong></div>
+                </div>
+                @if (customerAccount == null)
+                {
+                    <div class="alert alert-warning py-2 mb-2">برای این مشتری حسابی افتتاح نشده است؛ عملیات مالی در دسترس نیست.</div>
+                }
+            </ProfileSummary>
+        </AccountDetailsModal>
+    }
+</div>
+
+@if (showEditModal && customer != null)
+{
+    <div class="modal show d-block entity-action-overlay" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content entity-action-modal">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title">ویرایش مشتری</h5>
+                        <small>@customer.CustomerCode</small>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="CloseEdit"></button>
+                </div>
+                <div class="modal-body">
+                    @if (editErrors.Any())
+                    {
+                        <div class="alert alert-danger py-2">
+                            @foreach (var error in editErrors)
+                            {
+                                <div>@error</div>
+                            }
+                        </div>
+                    }
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">نام کامل</label>
+                            <input class="form-control" @bind="editModel.FullName" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">نام پدر</label>
+                            <input class="form-control" @bind="editModel.FatherName" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">شماره تلفن</label>
+                            <input class="form-control" @bind="editModel.PhoneNumber" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">شماره تذکره</label>
+                            <input class="form-control" @bind="editModel.TazkiraNumber" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">آدرس</label>
+                            <input class="form-control" @bind="editModel.Address" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">یادداشت</label>
+                            <textarea class="form-control" rows="2" @bind="editModel.Remarks"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">عکس مشتری</label>
+                            <InputFile class="form-control" OnChange="UploadPhoto" accept="image/*" />
+                            @if (!string.IsNullOrWhiteSpace(editModel.PhotoPath))
+                            {
+                                <a class="small d-inline-block mt-1" href="@FileService.GetFileUrl(editModel.PhotoPath)" target="_blank">مشاهده عکس فعلی</a>
+                            }
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">عکس تذکره</label>
+                            <InputFile class="form-control" OnChange="UploadTazkira" accept="image/*" />
+                            @if (!string.IsNullOrWhiteSpace(editModel.TazkiraImagePath))
+                            {
+                                <a class="small d-inline-block mt-1" href="@FileService.GetFileUrl(editModel.TazkiraImagePath)" target="_blank">مشاهده عکس فعلی</a>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light border" @onclick="CloseEdit">انصراف</button>
+                    <button class="btn btn-primary" disabled="@isSaving" @onclick="SaveEdit">
+                        @(isSaving ? "در حال ذخیره..." : "ذخیره تغییرات")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showArchiveConfirmation && customer != null)
+{
+    <div class="modal show d-block entity-action-overlay" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content entity-action-modal">
+                <div class="modal-header">
+                    <h5 class="modal-title">تأیید عملیات</h5>
+                    <button type="button" class="btn-close" @onclick="CloseArchiveConfirmation"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">@(customer.IsArchived ? "مشتری از بایگانی خارج شود؟" : "مشتری بایگانی شود؟")</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light border" @onclick="CloseArchiveConfirmation">انصراف</button>
+                    <button class="btn @(customer.IsArchived ? "btn-success" : "btn-danger")"
+                            disabled="@isSaving"
+                            @onclick="ToggleArchive">
+                        @(customer.IsArchived ? "خروج از بایگانی" : "بایگانی")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public long CustomerId { get; set; }
+
+    private CustomerDto? customer;
+    private AccountDto? customerAccount;
+    private AccountDto? accountForView;
+    private UpdateCustomerDto editModel = new();
+    private readonly List<string> editErrors = new();
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showEditModal;
+    private bool showArchiveConfirmation;
+    private string pageError = string.Empty;
+    private string successMessage = string.Empty;
+    private long? loadedCustomerId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loadedCustomerId == CustomerId)
+            return;
+
+        loadedCustomerId = CustomerId;
+        await LoadCustomer();
+    }
+
+    private async Task LoadCustomer()
+    {
+        try
+        {
+            isLoading = true;
+            pageError = string.Empty;
+            customer = await CustomerService.GetByIdAsync(CustomerId);
+            if (customer == null)
+            {
+                pageError = "مشتری مورد نظر وجود ندارد یا حذف شده است.";
+                return;
+            }
+
+            customerAccount = (await AccountService.GetByReferenceAsync("Customer", CustomerId)).FirstOrDefault();
+            accountForView = customerAccount ?? new AccountDto
+            {
+                Id = 0,
+                AccountCode = "—",
+                AccountName = customer.FullName,
+                AccountType = "Customer",
+                ReferenceType = "Customer",
+                ReferenceId = customer.Id,
+                IsActive = !customer.IsArchived,
+                IsArchived = customer.IsArchived,
+                CreatedAt = customer.CreatedAt
+            };
+        }
+        catch (Exception ex)
+        {
+            customer = null;
+            accountForView = null;
+            pageError = $"خطا در بارگذاری مشتری: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private Task HandleVisibilityChanged(bool visible)
+    {
+        if (!visible)
+            BackToCustomers();
+        return Task.CompletedTask;
+    }
+
+    private void BackToCustomers() => NavigationManager.NavigateTo("/customers");
+
+    private void ViewTransactions() => NavigationManager.NavigateTo($"/customers/{CustomerId}/transactions");
+
+    private Task OpenEdit(long _)
+    {
+        if (customer == null)
+            return Task.CompletedTask;
+
+        editErrors.Clear();
+        editModel = new UpdateCustomerDto
+        {
+            FullName = customer.FullName,
+            FatherName = customer.FatherName,
+            PhoneNumber = customer.PhoneNumber,
+            TazkiraNumber = customer.TazkiraNumber,
+            PhotoPath = customer.PhotoPath,
+            TazkiraImagePath = customer.TazkiraImagePath,
+            Address = customer.Address,
+            Remarks = customer.Remarks,
+            IsArchived = customer.IsArchived
+        };
+        showEditModal = true;
+        return Task.CompletedTask;
+    }
+
+    private void CloseEdit()
+    {
+        showEditModal = false;
+        editErrors.Clear();
+    }
+
+    private async Task SaveEdit()
+    {
+        if (customer == null)
+            return;
+
+        editErrors.Clear();
+        if (string.IsNullOrWhiteSpace(editModel.FullName))
+            editErrors.Add("نام کامل مشتری الزامی است.");
+        if (editErrors.Any())
+            return;
+
+        try
+        {
+            isSaving = true;
+            await CustomerService.UpdateAsync(customer.Id, editModel);
+            showEditModal = false;
+            successMessage = "تغییرات مشتری ذخیره شد.";
+            await LoadCustomer();
+        }
+        catch (Exception ex)
+        {
+            editErrors.Add($"ذخیره تغییرات انجام نشد: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task UploadPhoto(InputFileChangeEventArgs args)
+    {
+        var path = await UploadImage(args.File, "photos");
+        if (path != null)
+            editModel.PhotoPath = path;
+    }
+
+    private async Task UploadTazkira(InputFileChangeEventArgs args)
+    {
+        var path = await UploadImage(args.File, "tazkira");
+        if (path != null)
+            editModel.TazkiraImagePath = path;
+    }
+
+    private async Task<string?> UploadImage(IBrowserFile file, string category)
+    {
+        try
+        {
+            using var stream = file.OpenReadStream(10 * 1024 * 1024);
+            var result = await FileService.UploadFileAsync(stream, file.Name, $"customers/{category}");
+            if (result.Success)
+                return result.FilePath;
+
+            editErrors.Add(result.ErrorMessage ?? "آپلود عکس ناموفق بود.");
+        }
+        catch (Exception ex)
+        {
+            editErrors.Add($"خطا در آپلود عکس: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private Task OpenArchiveConfirmation(long _)
+    {
+        showArchiveConfirmation = true;
+        return Task.CompletedTask;
+    }
+
+    private void CloseArchiveConfirmation() => showArchiveConfirmation = false;
+
+    private async Task ToggleArchive()
+    {
+        if (customer == null)
+            return;
+
+        try
+        {
+            isSaving = true;
+            if (customer.IsArchived)
+            {
+                await CustomerService.UnarchiveAsync(customer.Id);
+                successMessage = "مشتری از بایگانی خارج شد.";
+            }
+            else
+            {
+                await CustomerService.ArchiveAsync(customer.Id);
+                successMessage = "مشتری بایگانی شد.";
+            }
+
+            showArchiveConfirmation = false;
+            await LoadCustomer();
+        }
+        catch (Exception ex)
+        {
+            pageError = $"عملیات بایگانی انجام نشد: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

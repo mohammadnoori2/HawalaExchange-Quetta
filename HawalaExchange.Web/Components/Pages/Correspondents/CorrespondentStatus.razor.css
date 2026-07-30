@@ -1,0 +1,138 @@
+.entity-details-page {
+    padding-top: .75rem;
+}
+
+.entity-page-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: .75rem;
+    min-height: 55vh;
+    color: #64748b;
+    text-align: center;
+}
+
+.entity-page-error {
+    max-width: 520px;
+    min-height: 280px;
+    margin: 3rem auto;
+    padding: 2rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 1rem;
+}
+
+.entity-page-alert {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1560px;
+    margin: 0 auto .65rem;
+    padding: .6rem .8rem;
+}
+
+.entity-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .35rem;
+}
+
+.entity-profile-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    min-width: 0;
+    padding: .4rem .55rem;
+    background: #fff;
+    border: 1px solid #e7ebf0;
+    border-radius: .5rem;
+}
+
+.entity-profile-item span {
+    color: #7b8798;
+    font-size: .7rem;
+    white-space: nowrap;
+}
+
+.entity-profile-item strong {
+    overflow: hidden;
+    font-size: .78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.correspondent-range-card {
+    scroll-margin-top: .75rem;
+    border: 1px solid #e5e7eb;
+}
+
+.correspondent-range-header {
+    padding: .65rem .85rem;
+}
+
+.correspondent-range-card .card-body {
+    padding: .75rem;
+}
+
+.correspondent-range-card .form-label {
+    margin-bottom: .25rem;
+    color: #64748b;
+    font-size: .72rem;
+    font-weight: 600;
+}
+
+.range-report-heading {
+    padding: .8rem;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: .5rem;
+}
+
+.range-report-heading h5 {
+    margin-bottom: .55rem;
+    font-size: .95rem;
+}
+
+.range-report-facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .5rem;
+    color: #475569;
+    font-size: .75rem;
+}
+
+.hawala-range-table {
+    min-width: 1120px;
+    font-size: .72rem;
+}
+
+.entity-action-overlay {
+    background: rgba(15, 23, 42, .38);
+    backdrop-filter: blur(3px);
+}
+
+.entity-action-modal {
+    overflow: hidden;
+    border: 0;
+    border-radius: .9rem;
+    box-shadow: 0 22px 60px rgba(15, 23, 42, .2);
+}
+
+.entity-action-modal .modal-header,
+.entity-action-modal .modal-footer {
+    padding: .75rem 1rem;
+    background: #fff;
+}
+
+.entity-action-modal .modal-header small {
+    color: #94a3b8;
+}
+
+@media (max-width: 900px) {
+    .entity-profile-grid,
+    .range-report-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

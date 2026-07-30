@@ -15,7 +15,7 @@
             <h5 class="page-title">
                 <i class="bi bi-journal-text"></i>
                 روزنامچه
-                <span class="page-subtitle">هر عملیات در یک ردیف و تمام ثبت‌های لیجر آن در بخش جزئیات</span>
+                <span class="page-subtitle">هر عملیات در یک ردیف و تمام ثبت‌های حسابداری آن در بخش جزئیات</span>
             </h5>
         </div>
 
@@ -36,6 +36,14 @@
                     <li>@error</li>
                 }
             </ul>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle me-1"></i>
+            @successMessage
         </div>
     }
 
@@ -80,13 +88,11 @@
                 </div>
                 <div class="col-xl-3 col-md-6">
                     <label class="form-label fw-bold">حساب</label>
-                    <select class="form-select" @bind="filterAccountName" @bind:event="oninput">
-                        <option value="">همه حساب‌ها</option>
-                        @foreach (var accountName in accountNames)
-                        {
-                            <option value="@accountName">@accountName</option>
-                        }
-                    </select>
+                    <SearchableTextSelect Items="@accountNames"
+                                          @bind-Value="filterAccountName"
+                                          Placeholder="جستجوی حساب..."
+                                          AllowClear="true"
+                                          ClearText="همه حساب‌ها" />
                 </div>
                 <div class="col-xl-3 col-md-6">
                     <label class="form-label fw-bold">ارز</label>
@@ -132,6 +138,128 @@
         </div>
     </div>
 
+    <div class="table-card cash-day-card mb-4">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <h6 class="mb-0 text-primary">
+                    <i class="bi bi-safe2"></i>
+                    موجودی صندوق
+                </h6>
+            </div>
+            <div class="table-card-header-right">
+                @if (IsSingleDay)
+                {
+                    <span class="badge-modern @(IsCashDayClosed ? "badge-success" : "badge-warning")">
+                        @(IsCashDayClosed ? "روز بسته شده" : "روز باز است")
+                    </span>
+                }
+            </div>
+        </div>
+        <div class="table-card-body">
+            @if (!IsSingleDay)
+            {
+                <div class="alert alert-info m-3">
+                    برای مشاهده و ویرایش موجودی آغاز صندوق، در فیلتر «از تاریخ» و «تا تاریخ» یک روز یکسان را انتخاب کنید.
+                </div>
+            }
+            else if (isCashLoading)
+            {
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                    <span class="text-muted me-2">در حال بارگذاری موجودی صندوق...</span>
+                </div>
+            }
+            else if (!cashDailyBalances.Any())
+            {
+                <div class="empty-state py-4">
+                    <i class="bi bi-safe"></i>
+                    <span class="text-muted">هنوز برای حساب صندوق هیچ معامله‌ای با ارز ثبت نشده است.</span>
+                </div>
+            }
+            else
+            {
+                <div class="cash-day-note">
+                    <div>
+                        <strong>تاریخ:</strong>
+                        @PersianDateHelper.ToPersianDate(SelectedCashDate)
+                    </div>
+                    <div>
+                        موجودی فعلی روز = موجودی آغاز + گردش بدهکار صندوق − گردش طلبکار صندوق
+                    </div>
+                </div>
+
+                <div class="table-scroll-wrapper">
+                    <table class="table-modern table-striped-modern cash-day-table">
+                        <thead>
+                            <tr>
+                                <th>صندوق</th>
+                                <th>ارز</th>
+                                <th>موجودی آغاز روز</th>
+                                <th>گردش خالص روز</th>
+                                <th>موجودی فعلی/پایان</th>
+                                <th>موجودی پایان ذخیره‌شده</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var balance in cashDailyBalances)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@balance.AccountName</strong>
+                                        <small class="d-block text-muted" dir="ltr">@balance.AccountCode</small>
+                                    </td>
+                                    <td><span class="badge-modern badge-info">@balance.CurrencyCode</span></td>
+                                    <td class="cash-opening-input">
+                                        <MoneyInput class="form-control form-control-sm"
+                                                    DecimalPlaces="@balance.DecimalPlaces"
+                                                    Value="@balance.OpeningBalance"
+                                                    ValueChanged="@((decimal value) => balance.OpeningBalance = value)"
+                                                    min="0" />
+                                    </td>
+                                    <td dir="ltr" class="@(balance.DailyMovement >= 0 ? "text-success" : "text-danger") fw-bold">
+                                        @MoneyFormatHelper.Format(balance.DailyMovement)
+                                    </td>
+                                    <td dir="ltr" class="fw-bold text-primary">
+                                        @MoneyFormatHelper.Format(balance.CurrentBalance)
+                                    </td>
+                                    <td dir="ltr">
+                                        @if (balance.IsClosed && balance.ClosingBalance.HasValue)
+                                        {
+                                            <span class="fw-bold text-success">
+                                                @MoneyFormatHelper.Format(balance.ClosingBalance.Value)
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">هنوز بسته نشده</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="cash-day-actions">
+                    <button class="btn-modern btn-primary-modern"
+                            @onclick="SaveCashOpeningBalances"
+                            disabled="@(isCashLoading || isLoading)">
+                        <i class="bi bi-save"></i>
+                        ذخیره تغییرات موجودی آغاز
+                    </button>
+                    <button class="btn-modern btn-success-modern"
+                            @onclick="CloseCashDay"
+                            disabled="@(isCashLoading || isLoading || SelectedCashDate > DateTime.Today)">
+                        <i class="bi bi-calendar2-check"></i>
+                        @(IsCashDayClosed
+                            ? "به‌روزرسانی پایان روز و انتقال به فردا"
+                            : "بستن روز و انتقال موجودی پایان به فردا")
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-6">
             <div class="stat-card">
@@ -150,7 +278,7 @@
                     <div class="stat-icon info"><i class="bi bi-list-ul"></i></div>
                     <div>
                         <div class="stat-number">@journal.Entries.Count</div>
-                        <div class="stat-label">ردیف‌های لیجر</div>
+                        <div class="stat-label">ثبت‌های حسابداری</div>
                     </div>
                 </div>
             </div>
@@ -184,7 +312,7 @@
             <div class="table-card-header-left">
                 <h6 class="mb-0 text-primary">
                     <i class="bi bi-bar-chart"></i>
-                    خلاصهٔ ردیف‌های لیجر به تفکیک ارز
+                    خلاصهٔ ثبت‌های حسابداری به تفکیک ارز
                 </h6>
             </div>
             <div class="table-card-header-right">
@@ -198,7 +326,7 @@
                         <tr>
                             <th>#</th>
                             <th>ارز</th>
-                            <th>تعداد ردیف لیجر</th>
+                            <th>تعداد ثبت</th>
                             <th>مجموع طلبکار</th>
                             <th>مجموع بدهکار</th>
                             <th>تفاوت</th>
@@ -220,9 +348,9 @@
                                     <td>@summaryIndex</td>
                                     <td><span class="badge-modern badge-info">@item.CurrencyCode</span></td>
                                     <td>@item.EntriesCount</td>
-                                    <td dir="ltr" class="fw-bold text-success">@item.TotalTalabKar.ToString("N2")</td>
-                                    <td dir="ltr" class="fw-bold text-danger">@item.TotalBadehKar.ToString("N2")</td>
-                                    <td dir="ltr" class="fw-bold">@((item.TotalTalabKar - item.TotalBadehKar).ToString("N2"))</td>
+                                    <td dir="ltr" class="fw-bold text-success">@MoneyFormatHelper.Format(item.TotalTalabKar)</td>
+                                    <td dir="ltr" class="fw-bold text-danger">@MoneyFormatHelper.Format(item.TotalBadehKar)</td>
+                                    <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(item.TotalTalabKar - item.TotalBadehKar)</td>
                                 </tr>
                                 summaryIndex++;
                             }
@@ -387,7 +515,7 @@
                     <div><span>نوع عملیات</span><strong>@selectedOperation.SourceType</strong></div>
                     <div><span>شماره سند</span><strong>@selectedOperation.DocumentNumber</strong></div>
                     <div><span>تعداد حساب</span><strong>@selectedOperation.AccountNames.Count</strong></div>
-                    <div><span>تعداد ثبت لیجر</span><strong>@selectedOperation.LedgerEntriesCount</strong></div>
+                    <div><span>تعداد ثبت حسابداری</span><strong>@selectedOperation.LedgerEntriesCount</strong></div>
                 </div>
 
                 @if (selectedOperation.SourceDetails.Any())
@@ -420,16 +548,16 @@
                             {
                                 <tr>
                                     <td><span class="badge-modern badge-info">@currency.CurrencyCode</span></td>
-                                    <td dir="ltr" class="text-success fw-bold">@currency.TotalTalabKar.ToString("N2")</td>
-                                    <td dir="ltr" class="text-danger fw-bold">@currency.TotalBadehKar.ToString("N2")</td>
-                                    <td dir="ltr">@((currency.TotalTalabKar - currency.TotalBadehKar).ToString("N2"))</td>
+                                    <td dir="ltr" class="text-success fw-bold">@MoneyFormatHelper.Format(currency.TotalTalabKar)</td>
+                                    <td dir="ltr" class="text-danger fw-bold">@MoneyFormatHelper.Format(currency.TotalBadehKar)</td>
+                                    <td dir="ltr">@MoneyFormatHelper.Format(currency.TotalTalabKar - currency.TotalBadehKar)</td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
 
-                <h6 class="journal-section-title">تمام ثبت‌های مرتبط در لیجر</h6>
+                <h6 class="journal-section-title">تمام ثبت‌های حسابداری مرتبط</h6>
                 <div class="table-responsive journal-ledger-table">
                     <table class="table table-bordered table-striped table-sm align-middle">
                         <thead>
@@ -457,10 +585,10 @@
                                     <td dir="ltr">@entry.AccountCode</td>
                                     <td>@entry.CurrencyCode</td>
                                     <td dir="ltr" class="text-success">
-                                        @(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")
+                                        @(entry.TalabKar > 0 ? MoneyFormatHelper.Format(entry.TalabKar) : "-")
                                     </td>
                                     <td dir="ltr" class="text-danger">
-                                        @(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")
+                                        @(entry.BadehKar > 0 ? MoneyFormatHelper.Format(entry.BadehKar) : "-")
                                     </td>
                                     <td>@(entry.Description ?? "-")</td>
                                 </tr>
@@ -493,8 +621,16 @@
     private List<string> sourceTypes = new();
     private List<string> accountNames = new();
     private List<string> currencyCodes = new();
+    private List<CashDailyBalanceDto> cashDailyBalances = new();
     private int pageSize = 20;
     private int currentPage = 1;
+    private bool isCashLoading;
+    private string successMessage = string.Empty;
+
+    private bool IsSingleDay => filterFromDate.Date == filterToDate.Date;
+    private DateTime SelectedCashDate => filterFromDate.Date;
+    private bool IsCashDayClosed =>
+        cashDailyBalances.Count > 0 && cashDailyBalances.All(x => x.IsClosed);
 
     private string _searchTerm = string.Empty;
     private string searchTerm
@@ -589,6 +725,7 @@
         {
             isLoading = true;
             validationErrors.Clear();
+            successMessage = string.Empty;
             selectedOperation = null;
             if (filterFromDate.Date > filterToDate.Date)
             {
@@ -597,6 +734,10 @@
             }
 
             journal = await JournalService.GetJournalAsync(filterFromDate, filterToDate);
+            if (IsSingleDay)
+                await LoadCashBalances();
+            else
+                cashDailyBalances.Clear();
             sourceTypes = journal.Operations
                 .Select(x => x.SourceType)
                 .Distinct()
@@ -632,6 +773,80 @@
         finally
         {
             isLoading = false;
+        }
+    }
+
+    private async Task LoadCashBalances()
+    {
+        try
+        {
+            isCashLoading = true;
+            cashDailyBalances = (await JournalService
+                    .GetCashDailyBalancesAsync(SelectedCashDate))
+                .ToList();
+        }
+        finally
+        {
+            isCashLoading = false;
+        }
+    }
+
+    private async Task SaveCashOpeningBalances()
+    {
+        try
+        {
+            isCashLoading = true;
+            validationErrors.Clear();
+            successMessage = string.Empty;
+            await JournalService.SaveCashOpeningBalancesAsync(
+                SelectedCashDate,
+                cashDailyBalances.Select(x => new UpdateCashOpeningBalanceDto
+                {
+                    AccountId = x.AccountId,
+                    CurrencyId = x.CurrencyId,
+                    OpeningBalance = x.OpeningBalance
+                }).ToList());
+            await LoadCashBalances();
+            successMessage = "موجودی آغاز روز صندوق با موفقیت ذخیره شد.";
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"ذخیره موجودی آغاز روز انجام نشد: {ex.Message}");
+        }
+        finally
+        {
+            isCashLoading = false;
+        }
+    }
+
+    private async Task CloseCashDay()
+    {
+        try
+        {
+            isCashLoading = true;
+            validationErrors.Clear();
+            successMessage = string.Empty;
+            await JournalService.SaveCashOpeningBalancesAsync(
+                SelectedCashDate,
+                cashDailyBalances.Select(x => new UpdateCashOpeningBalanceDto
+                {
+                    AccountId = x.AccountId,
+                    CurrencyId = x.CurrencyId,
+                    OpeningBalance = x.OpeningBalance
+                }).ToList());
+            await JournalService.CloseCashDayAsync(SelectedCashDate);
+            await LoadCashBalances();
+            successMessage =
+                $"روز بسته شد و موجودی پایان {PersianDateHelper.ToPersianDate(SelectedCashDate)} " +
+                $"به عنوان موجودی آغاز {PersianDateHelper.ToPersianDate(SelectedCashDate.AddDays(1))} تعیین گردید.";
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"بستن روز انجام نشد: {ex.Message}");
+        }
+        finally
+        {
+            isCashLoading = false;
         }
     }
 

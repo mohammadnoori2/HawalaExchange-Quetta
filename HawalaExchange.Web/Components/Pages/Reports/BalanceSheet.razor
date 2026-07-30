@@ -133,5 +133,7 @@
     private async Task PrintAsync() => await JSRuntime.InvokeVoidAsync("window.print");
 
     private static string FormatAmount(decimal amount) =>
-        amount < 0 ? $"({Math.Abs(amount):N2})" : amount.ToString("N2");
+        amount < 0
+            ? $"({MoneyFormatHelper.Format(Math.Abs(amount))})"
+            : MoneyFormatHelper.Format(amount);
 }

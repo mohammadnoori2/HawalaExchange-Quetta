@@ -214,29 +214,10 @@
                                     </td>
                                     <td>
                                         <div class="action-group justify-content-center">
-                                            <button class="action-btn action-btn-view" @onclick="() => ViewAccount(customer.Id)" title="مشاهده حساب">
-                                                <i class="bi bi-wallet2"></i>
-                                            </button>
-                                            @if (!customer.IsArchived)
-                                            {
-                                                <button class="action-btn action-btn-financial" @onclick="() => OpenFinancialModal(customer.Id, customer.FullName)" title="برداشت/واریز">
-                                                    <i class="bi bi-cash-coin"></i>
-                                                </button>
-                                                <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(customer.Id)" title="ویرایش">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                <button class="action-btn action-btn-archive" @onclick="() => ShowArchiveConfirm(customer.Id)" title="بایگانی">
-                                                    <i class="bi bi-archive"></i>
-                                                </button>
-                                            }
-                                            else
-                                            {
-                                                <button class="action-btn action-btn-unarchive" @onclick="() => ShowUnarchiveConfirm(customer.Id)" title="خروج از بایگانی">
-                                                    <i class="bi bi-arrow-counterclockwise"></i>
-                                                </button>
-                                            }
-                                            <button class="action-btn action-btn-transaction" @onclick="() => ViewTransactions(customer.Id)" title="تراکنش‌ها">
-                                                <i class="bi bi-journal"></i>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-primary px-3"
+                                                    @onclick="() => ViewAccount(customer.Id)">
+                                                مشاهده مشتری
                                             </button>
                                         </div>
                                     </td>
@@ -481,7 +462,7 @@
                                                     var account = accounts.FirstOrDefault(a => a.Id == item.OppositeAccountId);
                                                     <tr>
                                                         <td>@(currency?.Name ?? "نامشخص") (@(currency?.Code ?? ""))</td>
-                                                        <td class="fw-bold">@item.Amount.ToString("N2")</td>
+                                                        <td class="fw-bold">@MoneyFormatHelper.Format(item.Amount)</td>
                                                         <td>
                                                             <span class="badge-modern @(item.Direction == "Debit" ? "badge-danger" : "badge-success")">
                                                                 @(item.Direction == "Debit" ? "بدهکار" : "طلبکار")
@@ -531,13 +512,9 @@
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label fw-bold small">حساب طرف مقابل <span class="text-danger">*</span></label>
-                                        <select class="form-select" @bind="newInitialBalance.OppositeAccountId">
-                                            <option value="0">انتخاب حساب</option>
-                                            @foreach (var acc in accounts)
-                                            {
-                                                <option value="@acc.Id">@acc.AccountName</option>
-                                            }
-                                        </select>
+                                        <AccountSearchSelect Accounts="@accounts"
+                                                             @bind-Value="newInitialBalance.OppositeAccountId"
+                                                             Placeholder="جستجوی حساب طرف مقابل..." />
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label fw-bold small">توضیحات</label>
@@ -709,7 +686,7 @@
                                                 <tr>
                                                     <td><strong>@item.CurrencyCode</strong></td>
                                                     <td class="@(item.Balance >= 0 ? "text-success" : "text-danger") fw-bold fs-5">
-                                                        @item.Balance.ToString("N2")
+                                                        @MoneyFormatHelper.Format(item.Balance)
                                                     </td>
                                                     <td class="@(item.Balance >= 0 ? "text-success" : "text-danger") fw-bold fs-5">
                                                         @(item.Balance >= 0 ? "طلبکار" : "بدهکار")
@@ -766,8 +743,8 @@
                                                     <td>@entry.Id</td>
                                                     <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(entry.CreatedAt)</td>
                                                     <td><span class="badge-modern badge-info">@entry.CurrencyCode</span></td>
-                                                    <td class="text-success fw-bold">@(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")</td>
-                                                    <td class="text-danger fw-bold">@(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")</td>
+                                                    <td class="text-success fw-bold">@(entry.TalabKar > 0 ? MoneyFormatHelper.Format(entry.TalabKar) : "-")</td>
+                                                    <td class="text-danger fw-bold">@(entry.BadehKar > 0 ? MoneyFormatHelper.Format(entry.BadehKar) : "-")</td>
                                                     <td>@entry.Description</td>
                                                 </tr>
                                             }
@@ -844,13 +821,9 @@
                     <div class="row">
                         <div class="col-12 mb-3">
                             <label class="form-label fw-bold">حساب طرف مقابل <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="financialTransaction.AccountId">
-                                <option value="0">انتخاب حساب</option>
-                                @foreach (var acc in accounts)
-                                {
-                                    <option value="@acc.Id">@acc.AccountName (@acc.AccountCode)</option>
-                                }
-                            </select>
+                            <AccountSearchSelect Accounts="@accounts"
+                                                 @bind-Value="financialTransaction.AccountId"
+                                                 Placeholder="جستجوی حساب طرف مقابل..." />
                         </div>
                     </div>
 
@@ -1411,38 +1384,9 @@
     }
 
     // ===== مشاهده حساب =====
-    private async Task ViewAccount(long customerId)
+    private void ViewAccount(long customerId)
     {
-        try
-        {
-            balanceSummary.Clear();
-            ledgerEntries.Clear();
-            validationErrors.Clear();
-            isBalanceLoading = true;
-            isLedgerLoading = true;
-
-            selectedCustomer = await CustomerService.GetByIdAsync(customerId);
-            if (selectedCustomer == null)
-            {
-                validationErrors.Add("مشتری مورد نظر یافت نشد.");
-                isBalanceLoading = false;
-                isLedgerLoading = false;
-                StateHasChanged();
-                return;
-            }
-
-            showAccountModal = true;
-            StateHasChanged();
-
-            await LoadAccountData(selectedCustomer.Id);
-        }
-        catch (Exception ex)
-        {
-            validationErrors.Add($"خطا در بارگذاری اطلاعات حساب: {ex.Message}");
-            isBalanceLoading = false;
-            isLedgerLoading = false;
-            StateHasChanged();
-        }
+        NavigationManager.NavigateTo($"/customers/{customerId}");
     }
 
     private async Task LoadAccountData(long customerId)

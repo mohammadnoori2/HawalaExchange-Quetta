@@ -1,5 +1,6 @@
 ﻿
 using HawalaExchange.Domain.Entities;
+using HawalaExchange.Application.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<AccountMoneyOperation> AccountMoneyOperations { get; set; }
         public DbSet<MoneyExchangeOperation> MoneyExchangeOperations { get; set; }
         public DbSet<CompanySetting> CompanySettings { get; set; }
+        public DbSet<CashDailyBalance> CashDailyBalances { get; set; }
 
         public const string CurrencyInventoryAccountCode = "1201";
         public const string CurrencySaleLiabilityAccountCode = "2101";
@@ -131,6 +133,55 @@ namespace HawalaExchange.Infrastructure.Data
             {
                 await SaveChangesAsync(cancellationToken);
             }
+        }
+
+        /// <summary>
+        /// Creates the daily cash-balance snapshot table for existing installations.
+        /// This intentionally lives in the DbContext startup repair path so pulling the
+        /// project does not depend on adding a hand-written migration.
+        /// </summary>
+        public async Task EnsureCashDailyBalanceSchemaAsync(
+            CancellationToken cancellationToken = default)
+        {
+            if (!Database.IsRelational() ||
+                !string.Equals(
+                    Database.ProviderName,
+                    "Microsoft.EntityFrameworkCore.SqlServer",
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            await Database.ExecuteSqlRawAsync(
+                """
+                IF OBJECT_ID(N'[dbo].[CashDailyBalances]', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [dbo].[CashDailyBalances]
+                    (
+                        [Id] BIGINT IDENTITY(1,1) NOT NULL,
+                        [JournalDate] DATE NOT NULL,
+                        [AccountId] BIGINT NOT NULL,
+                        [CurrencyId] BIGINT NOT NULL,
+                        [OpeningBalance] DECIMAL(18,4) NOT NULL,
+                        [ClosingBalance] DECIMAL(18,4) NULL,
+                        [IsClosed] BIT NOT NULL
+                            CONSTRAINT [DF_CashDailyBalances_IsClosed] DEFAULT (0),
+                        [ClosedAt] DATETIME2 NULL,
+                        [CreatedAt] DATETIME2 NOT NULL
+                            CONSTRAINT [DF_CashDailyBalances_CreatedAt] DEFAULT (GETUTCDATE()),
+                        [ModifiedAt] DATETIME2 NULL,
+                        CONSTRAINT [PK_CashDailyBalances] PRIMARY KEY ([Id]),
+                        CONSTRAINT [FK_CashDailyBalances_Accounts_AccountId]
+                            FOREIGN KEY ([AccountId]) REFERENCES [dbo].[Accounts] ([Id]),
+                        CONSTRAINT [FK_CashDailyBalances_Currencies_CurrencyId]
+                            FOREIGN KEY ([CurrencyId]) REFERENCES [dbo].[Currencies] ([Id])
+                    );
+
+                    CREATE UNIQUE INDEX [IX_CashDailyBalances_JournalDate_AccountId_CurrencyId]
+                        ON [dbo].[CashDailyBalances] ([JournalDate], [AccountId], [CurrencyId]);
+                END;
+                """,
+                cancellationToken);
         }
 
         private Account AddSystemAccount(
@@ -328,7 +379,8 @@ namespace HawalaExchange.Infrastructure.Data
             var currencyCode = limit.Currency?.Code ?? limit.CurrencyId.ToString();
             throw new InvalidOperationException(
                 $"سقف بدهکاری حساب «{account.AccountName}» در ارز {currencyCode} تجاوز می‌شود. " +
-                $"سقف تعیین‌شده: {limit.BadehkarLimit:N2}، بدهکاری بعد از عملیات: {projectedDebt:N2}.");
+                $"سقف تعیین‌شده: {AmountValueHelper.Format(limit.BadehkarLimit)}، " +
+                $"بدهکاری بعد از عملیات: {AmountValueHelper.Format(projectedDebt)}.");
         }
 
         private static bool IsCustomerOrCorrespondentAccount(Account account) =>
@@ -492,6 +544,9 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<TransactionReport>().HasIndex(r => r.CreatedAt);
             modelBuilder.Entity<CommissionReport>().HasIndex(r => new { r.Date, r.BranchId });
             modelBuilder.Entity<TrialBalance>().HasIndex(r => new { r.AsOfDate, r.AccountId });
+            modelBuilder.Entity<CashDailyBalance>()
+                .HasIndex(x => new { x.JournalDate, x.AccountId, x.CurrencyId })
+                .IsUnique();
         }
 
         // ==========================================
@@ -509,6 +564,8 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.OperationType).HasDefaultValue("Treasury");
             modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ProfitStatus).HasDefaultValue("NotCalculated");
+            modelBuilder.Entity<CashDailyBalance>().Property(x => x.IsClosed).HasDefaultValue(false);
+            modelBuilder.Entity<CashDailyBalance>().Property(x => x.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
 
             modelBuilder.Entity<Hawala>()
                 .Property(x => x.Status)
@@ -638,6 +695,12 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<MoneyExchangeOperation>()
                 .Property(x => x.ExchangeRate)
                 .HasPrecision(18, 8);
+            modelBuilder.Entity<CashDailyBalance>()
+                .Property(x => x.OpeningBalance)
+                .HasPrecision(18, 4);
+            modelBuilder.Entity<CashDailyBalance>()
+                .Property(x => x.ClosingBalance)
+                .HasPrecision(18, 4);
         }
 
         // ==========================================
@@ -1040,6 +1103,18 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasOne(x => x.MoneyExchangeOperation)
                 .WithMany(x => x.LedgerEntries)
                 .HasForeignKey(x => x.MoneyExchangeOperationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CashDailyBalance>()
+                .HasOne(x => x.Account)
+                .WithMany()
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CashDailyBalance>()
+                .HasOne(x => x.Currency)
+                .WithMany()
+                .HasForeignKey(x => x.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
         }

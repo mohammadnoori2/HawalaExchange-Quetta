@@ -67,7 +67,7 @@
                     </div>
                     <div>
                         <div class="stat-number">@hawalas.Count</div>
-                        <div class="stat-label">تعداد اجرا نشده</div>
+                        <div class="stat-label">تعداد حواله‌های اجرا نشده</div>
                     </div>
                 </div>
             </div>
@@ -80,7 +80,7 @@
                         <i class="bi bi-cash-stack"></i>
                     </div>
                     <div>
-                        <div class="stat-number" dir="ltr">@hawalas.Sum(x => x.FromAmount).ToString("N2")</div>
+                        <div class="stat-number" dir="ltr">@MoneyFormatHelper.Format(hawalas.Sum(x => x.FromAmount))</div>
                         <div class="stat-label">مجموع مبلغ</div>
                     </div>
                 </div>
@@ -93,7 +93,7 @@
             <label class="form-label fw-bold"><i class="bi bi-search text-muted me-1"></i> جستجو</label>
             <input type="text"
                    class="form-control"
-                   placeholder="نمبر، مبلغ، فرستنده، گیرنده، مرجع..."
+                   placeholder="نمبر، مبلغ، فرستنده، گیرنده، نمبر متفرقه..."
                    @bind="searchTerm"
                    @bind:event="oninput" />
         </div>
@@ -229,11 +229,11 @@
                                     <td>@(hawala.CorrespondentName ?? "-")</td>
 
                                     <td dir="ltr" class="fw-bold text-primary">
-                                        @hawala.FromAmount.ToString("N2") @hawala.FromCurrencyCode
+                                        @MoneyFormatHelper.Format(hawala.FromAmount) @hawala.FromCurrencyCode
                                     </td>
 
                                     <td dir="ltr">
-                                        @(hawala.CommissionAmount?.ToString("N2") ?? "-")
+                                        @(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")
                                         @hawala.CommissionCurrencyCode
                                     </td>
 
@@ -339,16 +339,9 @@
                             حساب پرداخت‌کننده <span class="text-danger">*</span>
                         </label>
 
-                        <select class="form-select" @bind="selectedPaymentAccountId">
-                            <option value="0">انتخاب حساب پرداخت‌کننده</option>
-
-                            @foreach (var account in paymentAccounts)
-                            {
-                                <option value="@account.Id">
-                                    @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
-                                </option>
-                            }
-                        </select>
+                        <AccountSearchSelect Accounts="@paymentAccounts"
+                                             @bind-Value="selectedPaymentAccountId"
+                                             Placeholder="جستجوی حساب پرداخت‌کننده..." />
 
                         <small class="text-muted">
                             حساب انتخاب‌شده در لیجر طلبکار می‌شود.
@@ -466,7 +459,7 @@
                             <div class="info-card">
                                 <span class="info-label">مبلغ</span>
                                 <span class="info-value text-primary fw-bold" dir="ltr">
-                                    @selectedHawala.FromAmount.ToString("N2") @selectedHawala.FromCurrencyCode
+                                    @MoneyFormatHelper.Format(selectedHawala.FromAmount) @selectedHawala.FromCurrencyCode
                                 </span>
                             </div>
                         </div>
@@ -475,7 +468,7 @@
                             <div class="info-card">
                                 <span class="info-label">کارمزد</span>
                                 <span class="info-value" dir="ltr">
-                                    @(selectedHawala.CommissionAmount?.ToString("N2") ?? "-")
+                                    @(selectedHawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.CommissionAmount.Value) : "-")
                                     @selectedHawala.CommissionCurrencyCode
                                 </span>
                             </div>
@@ -994,9 +987,7 @@
                 return;
             }
 
-            var company = await CompanySettingService.GetAsync();
-
-            var text = HawalaShareHelper.BuildText(hawala, company);
+            var text = HawalaShareHelper.BuildText(hawala);
 
             var copied = await JS.InvokeAsync<bool>("hawalaTools.copyToClipboard", text);
 
@@ -1022,9 +1013,7 @@
                 return;
             }
 
-            var company = await CompanySettingService.GetAsync();
-
-            var text = HawalaShareHelper.BuildText(hawala, company);
+            var text = HawalaShareHelper.BuildText(hawala);
 
             var url = "https://wa.me/?text=" + Uri.EscapeDataString(text);
 
@@ -1048,9 +1037,7 @@
                 return;
             }
 
-            var company = await CompanySettingService.GetAsync();
-
-            var text = HawalaShareHelper.BuildText(hawala, company);
+            var text = HawalaShareHelper.BuildText(hawala);
 
             var receiptUrl = NavigationManager.BaseUri.TrimEnd('/');
 

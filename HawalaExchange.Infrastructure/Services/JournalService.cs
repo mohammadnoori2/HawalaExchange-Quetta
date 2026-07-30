@@ -39,8 +39,19 @@ public class JournalService : IJournalService
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
-        var entries = ledgerEntries.Select(ToEntryDto).ToList();
-        var operations = ledgerEntries
+        var cashOperationKeys = ledgerEntries
+            .Where(x => string.Equals(
+                x.Account?.AccountType,
+                "Cash",
+                StringComparison.OrdinalIgnoreCase))
+            .Select(GetOperationKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var cashRelatedEntries = ledgerEntries
+            .Where(x => cashOperationKeys.Contains(GetOperationKey(x)))
+            .ToList();
+
+        var entries = cashRelatedEntries.Select(ToEntryDto).ToList();
+        var operations = cashRelatedEntries
             .GroupBy(GetOperationKey)
             .Select(group => BuildOperation(group.Key, group))
             .OrderByDescending(x => x.CreatedAt)
@@ -71,6 +82,414 @@ public class JournalService : IJournalService
             Entries = entries,
             CurrencySummaries = summaries
         };
+    }
+
+    public async Task<IReadOnlyList<JournalOperationDto>> GetAccountOperationsAsync(long accountId)
+    {
+        var accountEntries = await _context.LedgerEntries
+            .AsNoTracking()
+            .Where(x => x.AccountId == accountId)
+            .ToListAsync();
+
+        if (accountEntries.Count == 0)
+            return Array.Empty<JournalOperationDto>();
+
+        var operationKeys = accountEntries
+            .Select(GetOperationKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var hawalaIds = accountEntries
+            .Where(x => x.HawalaId.HasValue)
+            .Select(x => x.HawalaId!.Value)
+            .ToHashSet();
+        var capitalIds = accountEntries
+            .Where(x => x.CapitalInvestmentId.HasValue)
+            .Select(x => x.CapitalInvestmentId!.Value)
+            .ToHashSet();
+        var expenseIds = accountEntries
+            .Where(x => x.ExpenseId.HasValue)
+            .Select(x => x.ExpenseId!.Value)
+            .ToHashSet();
+        var accountOperationIds = accountEntries
+            .Where(x => x.AccountMoneyOperationId.HasValue)
+            .Select(x => x.AccountMoneyOperationId!.Value)
+            .ToHashSet();
+        var exchangeIds = accountEntries
+            .Where(x => x.MoneyExchangeOperationId.HasValue)
+            .Select(x => x.MoneyExchangeOperationId!.Value)
+            .ToHashSet();
+        var transferIds = accountEntries
+            .Where(x => x.TransferId.HasValue)
+            .Select(x => x.TransferId!.Value)
+            .ToHashSet();
+        var transactionIds = accountEntries
+            .Where(x => x.TransactionId.HasValue)
+            .Select(x => x.TransactionId!.Value)
+            .ToHashSet();
+        var manualEntryIds = accountEntries
+            .Where(x =>
+                !x.HawalaId.HasValue &&
+                !x.CapitalInvestmentId.HasValue &&
+                !x.ExpenseId.HasValue &&
+                !x.AccountMoneyOperationId.HasValue &&
+                !x.MoneyExchangeOperationId.HasValue &&
+                !x.TransferId.HasValue &&
+                !x.TransactionId.HasValue)
+            .Select(x => x.Id)
+            .ToHashSet();
+
+        var relatedEntries = await _context.LedgerEntries
+            .AsNoTracking()
+            .Include(x => x.Account)
+            .Include(x => x.Currency)
+            .Where(x =>
+                manualEntryIds.Contains(x.Id) ||
+                (x.HawalaId.HasValue && hawalaIds.Contains(x.HawalaId.Value)) ||
+                (x.CapitalInvestmentId.HasValue && capitalIds.Contains(x.CapitalInvestmentId.Value)) ||
+                (x.ExpenseId.HasValue && expenseIds.Contains(x.ExpenseId.Value)) ||
+                (x.AccountMoneyOperationId.HasValue && accountOperationIds.Contains(x.AccountMoneyOperationId.Value)) ||
+                (x.MoneyExchangeOperationId.HasValue && exchangeIds.Contains(x.MoneyExchangeOperationId.Value)) ||
+                (x.TransferId.HasValue && transferIds.Contains(x.TransferId.Value)) ||
+                (x.TransactionId.HasValue && transactionIds.Contains(x.TransactionId.Value)))
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync();
+
+        var operations = relatedEntries
+            .Where(x => operationKeys.Contains(GetOperationKey(x)))
+            .GroupBy(GetOperationKey)
+            .Select(group => BuildOperation(group.Key, group))
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.SourceId)
+            .ToList();
+
+        await PopulateSourceDetailsAsync(operations);
+        return operations;
+    }
+
+    public async Task<IReadOnlyList<CashDailyBalanceDto>> GetCashDailyBalancesAsync(
+        DateTime journalDate)
+    {
+        var date = journalDate.Date;
+        var balances = await EnsureCashDailyBalancesAsync(date);
+        if (balances.Count == 0)
+            return Array.Empty<CashDailyBalanceDto>();
+
+        var movements = await GetCashMovementsAsync(
+            balances.Select(x => x.AccountId).Distinct().ToList(),
+            date,
+            date.AddDays(1));
+
+        return balances
+            .Select(balance =>
+            {
+                var key = (balance.AccountId, balance.CurrencyId);
+                var movement = movements.GetValueOrDefault(key);
+                return new CashDailyBalanceDto
+                {
+                    Id = balance.Id,
+                    JournalDate = balance.JournalDate,
+                    AccountId = balance.AccountId,
+                    AccountCode = balance.Account.AccountCode,
+                    AccountName = balance.Account.AccountName,
+                    CurrencyId = balance.CurrencyId,
+                    CurrencyCode = balance.Currency.Code,
+                    DecimalPlaces = balance.Currency.DecimalPlaces,
+                    OpeningBalance = balance.OpeningBalance,
+                    DailyMovement = movement,
+                    CurrentBalance = balance.OpeningBalance + movement,
+                    ClosingBalance = balance.ClosingBalance,
+                    IsClosed = balance.IsClosed
+                };
+            })
+            .OrderBy(x => x.AccountCode)
+            .ThenBy(x => x.CurrencyCode)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<CurrentCashBalanceDto>> GetCurrentCashBalancesAsync()
+    {
+        var balances = await GetCashDailyBalancesAsync(DateTime.Today);
+        return balances
+            .Select(x => new CurrentCashBalanceDto
+            {
+                AccountId = x.AccountId,
+                AccountCode = x.AccountCode,
+                AccountName = x.AccountName,
+                CurrencyId = x.CurrencyId,
+                CurrencyCode = x.CurrencyCode,
+                Balance = x.CurrentBalance
+            })
+            .OrderBy(x => x.AccountCode)
+            .ThenBy(x => x.CurrencyCode)
+            .ToList();
+    }
+
+    public async Task SaveCashOpeningBalancesAsync(
+        DateTime journalDate,
+        IReadOnlyCollection<UpdateCashOpeningBalanceDto> balances)
+    {
+        if (balances.Count == 0)
+            throw new InvalidOperationException("حداقل یک موجودی آغاز روز باید ارسال شود.");
+        if (balances.Any(x => x.OpeningBalance < 0))
+            throw new InvalidOperationException("موجودی آغاز روز نمی‌تواند منفی باشد.");
+
+        var date = journalDate.Date;
+        var existing = await EnsureCashDailyBalancesAsync(date);
+        var rows = existing.ToDictionary(x => (x.AccountId, x.CurrencyId));
+        var updates = balances
+            .GroupBy(x => (x.AccountId, x.CurrencyId))
+            .Select(x => x.Last())
+            .ToList();
+
+        foreach (var update in updates)
+        {
+            if (!rows.TryGetValue((update.AccountId, update.CurrencyId), out var row))
+                throw new InvalidOperationException("حساب صندوق یا ارز انتخاب‌شده معتبر نیست.");
+
+            row.OpeningBalance = update.OpeningBalance;
+            row.ModifiedAt = DateTime.UtcNow;
+        }
+
+        var closedRows = updates
+            .Select(x => rows[(x.AccountId, x.CurrencyId)])
+            .Where(x => x.IsClosed)
+            .ToList();
+        if (closedRows.Count > 0)
+        {
+            var movements = await GetCashMovementsAsync(
+                closedRows.Select(x => x.AccountId).Distinct().ToList(),
+                date,
+                date.AddDays(1));
+            foreach (var row in closedRows)
+            {
+                row.ClosingBalance =
+                    row.OpeningBalance +
+                    movements.GetValueOrDefault((row.AccountId, row.CurrencyId));
+            }
+        }
+
+        await _context.SaveChangesAsync();
+
+        if (closedRows.Count == 0)
+            return;
+
+        var tomorrowRows = await EnsureCashDailyBalancesAsync(date.AddDays(1));
+        var tomorrowByKey = tomorrowRows.ToDictionary(x => (x.AccountId, x.CurrencyId));
+        foreach (var row in closedRows)
+        {
+            if (tomorrowByKey.TryGetValue((row.AccountId, row.CurrencyId), out var tomorrow) &&
+                !tomorrow.IsClosed)
+            {
+                tomorrow.OpeningBalance = row.ClosingBalance ?? row.OpeningBalance;
+                tomorrow.ModifiedAt = DateTime.UtcNow;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task CloseCashDayAsync(DateTime journalDate)
+    {
+        var date = journalDate.Date;
+        if (date > DateTime.Today)
+            throw new InvalidOperationException("روز آینده را نمی‌توان بست.");
+
+        var balances = await EnsureCashDailyBalancesAsync(date);
+        if (balances.Count == 0)
+            throw new InvalidOperationException("هیچ حساب صندوق فعالی برای بستن روز وجود ندارد.");
+
+        var movements = await GetCashMovementsAsync(
+            balances.Select(x => x.AccountId).Distinct().ToList(),
+            date,
+            date.AddDays(1));
+        var closedAt = DateTime.UtcNow;
+        foreach (var balance in balances)
+        {
+            balance.ClosingBalance =
+                balance.OpeningBalance +
+                movements.GetValueOrDefault((balance.AccountId, balance.CurrencyId));
+            balance.IsClosed = true;
+            balance.ClosedAt = closedAt;
+            balance.ModifiedAt = closedAt;
+        }
+
+        await _context.SaveChangesAsync();
+
+        var tomorrowRows = await EnsureCashDailyBalancesAsync(date.AddDays(1));
+        var tomorrowByKey = tomorrowRows.ToDictionary(x => (x.AccountId, x.CurrencyId));
+        foreach (var balance in balances)
+        {
+            if (tomorrowByKey.TryGetValue((balance.AccountId, balance.CurrencyId), out var tomorrow) &&
+                !tomorrow.IsClosed)
+            {
+                tomorrow.OpeningBalance = balance.ClosingBalance ?? balance.OpeningBalance;
+                tomorrow.ModifiedAt = closedAt;
+            }
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task<List<CashDailyBalance>> EnsureCashDailyBalancesAsync(DateTime date)
+    {
+        date = date.Date;
+        var cashAccounts = await _context.Accounts
+            .AsNoTracking()
+            .Where(x => x.AccountType == "Cash" && !x.IsArchived)
+            .OrderBy(x => x.AccountCode)
+            .ToListAsync();
+        if (cashAccounts.Count == 0)
+            return new List<CashDailyBalance>();
+
+        var accountIds = cashAccounts.Select(x => x.Id).ToList();
+        var tradedPairs = await _context.LedgerEntries
+            .AsNoTracking()
+            .Where(x => accountIds.Contains(x.AccountId))
+            .Select(x => new { x.AccountId, x.CurrencyId })
+            .Distinct()
+            .ToListAsync();
+        if (tradedPairs.Count == 0)
+            return new List<CashDailyBalance>();
+
+        var tradedKeys = tradedPairs
+            .Select(x => (x.AccountId, x.CurrencyId))
+            .ToHashSet();
+        var currencyIds = tradedPairs
+            .Select(x => x.CurrencyId)
+            .Distinct()
+            .ToList();
+        var currencies = await _context.Currencies
+            .AsNoTracking()
+            .Where(x => currencyIds.Contains(x.Id))
+            .OrderBy(x => x.Code)
+            .ToListAsync();
+        var accountsById = cashAccounts.ToDictionary(x => x.Id);
+        var currenciesById = currencies.ToDictionary(x => x.Id);
+
+        var existing = await _context.CashDailyBalances
+            .Where(x =>
+                x.JournalDate == date &&
+                accountIds.Contains(x.AccountId) &&
+                currencyIds.Contains(x.CurrencyId))
+            .ToListAsync();
+        existing = existing
+            .Where(x => tradedKeys.Contains((x.AccountId, x.CurrencyId)))
+            .ToList();
+        var existingKeys = existing
+            .Select(x => (x.AccountId, x.CurrencyId))
+            .ToHashSet();
+
+        var hasMissingBalance = tradedKeys.Any(key => !existingKeys.Contains(key));
+        if (hasMissingBalance)
+        {
+            var priorSnapshots = await _context.CashDailyBalances
+                .AsNoTracking()
+                .Where(x =>
+                    x.JournalDate < date &&
+                    accountIds.Contains(x.AccountId) &&
+                    currencyIds.Contains(x.CurrencyId))
+                .OrderByDescending(x => x.JournalDate)
+                .ToListAsync();
+            var latestPriorByKey = priorSnapshots
+                .Where(x => tradedKeys.Contains((x.AccountId, x.CurrencyId)))
+                .GroupBy(x => (x.AccountId, x.CurrencyId))
+                .ToDictionary(x => x.Key, x => x.First());
+
+            var utcStart = date.ToUniversalTime();
+            var priorLedgerEntries = await _context.LedgerEntries
+                .AsNoTracking()
+                .Where(x => accountIds.Contains(x.AccountId) && x.CreatedAt < utcStart)
+                .Select(x => new
+                {
+                    x.AccountId,
+                    x.CurrencyId,
+                    x.BadehKar,
+                    x.TalabKar,
+                    x.CreatedAt
+                })
+                .ToListAsync();
+
+            foreach (var key in tradedKeys)
+            {
+                if (existingKeys.Contains(key) ||
+                    !accountsById.ContainsKey(key.AccountId) ||
+                    !currenciesById.ContainsKey(key.CurrencyId))
+                    continue;
+
+                decimal openingBalance;
+                if (latestPriorByKey.TryGetValue(key, out var prior))
+                {
+                    var priorUtcStart = prior.JournalDate.Date.ToUniversalTime();
+                    openingBalance = prior.OpeningBalance + priorLedgerEntries
+                        .Where(x =>
+                            x.AccountId == key.AccountId &&
+                            x.CurrencyId == key.CurrencyId &&
+                            x.CreatedAt >= priorUtcStart)
+                        .Sum(x => x.BadehKar - x.TalabKar);
+                }
+                else
+                {
+                    openingBalance = priorLedgerEntries
+                        .Where(x =>
+                            x.AccountId == key.AccountId &&
+                            x.CurrencyId == key.CurrencyId)
+                        .Sum(x => x.BadehKar - x.TalabKar);
+                }
+
+                _context.CashDailyBalances.Add(new CashDailyBalance
+                {
+                    JournalDate = date,
+                    AccountId = key.AccountId,
+                    CurrencyId = key.CurrencyId,
+                    OpeningBalance = openingBalance,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        var dailyBalances = await _context.CashDailyBalances
+            .Include(x => x.Account)
+            .Include(x => x.Currency)
+            .Where(x =>
+                x.JournalDate == date &&
+                accountIds.Contains(x.AccountId) &&
+                currencyIds.Contains(x.CurrencyId))
+            .ToListAsync();
+        return dailyBalances
+            .Where(x => tradedKeys.Contains((x.AccountId, x.CurrencyId)))
+            .OrderBy(x => x.Account.AccountCode)
+            .ThenBy(x => x.Currency.Code)
+            .ToList();
+    }
+
+    private async Task<Dictionary<(long AccountId, long CurrencyId), decimal>>
+        GetCashMovementsAsync(
+            IReadOnlyCollection<long> accountIds,
+            DateTime fromDate,
+            DateTime toDate)
+    {
+        var utcStart = fromDate.Date.ToUniversalTime();
+        var utcEnd = toDate.Date.ToUniversalTime();
+        var movements = await _context.LedgerEntries
+            .AsNoTracking()
+            .Where(x =>
+                accountIds.Contains(x.AccountId) &&
+                x.CreatedAt >= utcStart &&
+                x.CreatedAt < utcEnd)
+            .GroupBy(x => new { x.AccountId, x.CurrencyId })
+            .Select(group => new
+            {
+                group.Key.AccountId,
+                group.Key.CurrencyId,
+                Amount = group.Sum(x => x.BadehKar - x.TalabKar)
+            })
+            .ToListAsync();
+
+        return movements.ToDictionary(
+            x => (x.AccountId, x.CurrencyId),
+            x => x.Amount);
     }
 
     private static JournalEntryDto ToEntryDto(LedgerEntry entry) => new()
@@ -143,8 +562,8 @@ public class JournalService : IJournalService
 
         foreach (var operation in operations.Where(x => x.SourceType == "ثبت دستی"))
         {
-            Add(operation, "نوع ثبت", "ثبت مستقیم در لیجر");
-            Add(operation, "شناسه ردیف لیجر", operation.LedgerEntries[0].Id.ToString());
+            Add(operation, "نوع ثبت", "ثبت مستقیم حسابداری");
+            Add(operation, "شناسه ثبت", operation.LedgerEntries[0].Id.ToString());
         }
 
         foreach (var operation in operations)
@@ -193,7 +612,7 @@ public class JournalService : IJournalService
             Add(operation, "کمیسیون نماینده", Money(source.AgentCommissionAmount, source.AgentCommissionCurrency?.Code));
             Add(operation, "نماینده", source.Correspondent?.Name);
             Add(operation, "محل پرداخت", source.PaymentLocation?.Name);
-            Add(operation, "شماره مرجع", source.ReferenceNumber);
+            Add(operation, "نمبر متفرقه", source.ReferenceNumber);
             Add(operation, "یادداشت", source.Notes);
         }
     }
@@ -226,7 +645,7 @@ public class JournalService : IJournalService
             Add(operation, "ارز فروش / مبلغ پرداختی", Money(source.FromAmount, source.FromCurrency.Code));
             Add(operation, "حساب ارز خرید", source.ToAccount.AccountName);
             Add(operation, "ارز خرید / مبلغ دریافتی", Money(source.ToAmount, source.ToCurrency.Code));
-            Add(operation, "نرخ تبادله", source.ExchangeRate.ToString("N6"));
+            Add(operation, "نرخ تبادله", AmountValueHelper.Format(source.ExchangeRate));
             Add(operation, "کمیسیون", Money(source.CommissionAmount, source.ProfitCurrency?.Code));
             Add(operation, "هزینه خارجی", Money(source.ExternalFeeAmount, source.ProfitCurrency?.Code));
             Add(operation, "بهای تمام‌شده", Money(source.CostAmount, source.ProfitCurrency?.Code));
@@ -298,7 +717,7 @@ public class JournalService : IJournalService
 
     private async Task PopulateAccountOperationDetailsAsync(List<JournalOperationDto> operations)
     {
-        var ids = SourceIds(operations, "واریز / برداشت");
+        var ids = SourceIds(operations, "واریز / برداشت / پرداخت");
         if (ids.Count == 0)
             return;
 
@@ -310,13 +729,13 @@ public class JournalService : IJournalService
             .Where(x => ids.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id);
 
-        foreach (var operation in operations.Where(x => x.SourceType == "واریز / برداشت"))
+        foreach (var operation in operations.Where(x => x.SourceType == "واریز / برداشت / پرداخت"))
         {
             if (!operation.SourceId.HasValue ||
                 !sources.TryGetValue(operation.SourceId.Value, out var source))
                 continue;
 
-            Add(operation, "نوع عملیات", source.OperationType == "Deposit" ? "واریز" : source.OperationType == "Withdraw" ? "برداشت" : source.OperationType);
+            Add(operation, "نوع عملیات", source.OperationType == "Deposit" ? "واریز" : source.OperationType == "Withdraw" ? "برداشت / پرداخت" : source.OperationType);
             Add(operation, "تاریخ عملیات", source.OperationDate.ToString("yyyy/MM/dd HH:mm"));
             Add(operation, "مبلغ", Money(source.Amount, source.Currency.Code));
             Add(operation, "حساب طرف", source.Account.AccountName);
@@ -427,7 +846,7 @@ public class JournalService : IJournalService
         var accounts = operation.AccountNames.Count == 0
             ? "حساب نامشخص"
             : string.Join(" و ", operation.AccountNames.Take(3));
-        var suffix = $" و شامل {operation.LedgerEntriesCount:N0} ردیف لیجر است.";
+        const string suffix = ".";
 
         return operation.SourceType switch
         {
@@ -443,8 +862,8 @@ public class JournalService : IJournalService
             "مصرف" =>
                 $"مصرف «{Detail(operation, "عنوان مصرف", "بدون عنوان")}» به مبلغ {Detail(operation, "مبلغ مصرف", CurrencyMovement(operation))} از حساب {Detail(operation, "پرداخت از حساب", accounts)} پرداخت و در {Detail(operation, "حساب مصرف", "حساب مصرف")} ثبت شد{suffix}",
 
-            "واریز / برداشت" =>
-                $"{Detail(operation, "نوع عملیات", "واریز / برداشت")} شماره {operation.DocumentNumber} به مبلغ {Detail(operation, "مبلغ", CurrencyMovement(operation))} میان حساب {Detail(operation, "حساب طرف", accounts)} و {Detail(operation, "صندوق / بانک", "صندوق یا بانک")} ثبت شد{suffix}",
+            "واریز / برداشت / پرداخت" =>
+                $"{Detail(operation, "نوع عملیات", "واریز / برداشت / پرداخت")} شماره {operation.DocumentNumber} به مبلغ {Detail(operation, "مبلغ", CurrencyMovement(operation))} میان حساب {Detail(operation, "حساب طرف", accounts)} و {Detail(operation, "صندوق / بانک", "صندوق یا بانک")} ثبت شد{suffix}",
 
             "انتقال" =>
                 $"مبلغ {Detail(operation, "مبلغ انتقال", CurrencyMovement(operation))} از حساب {Detail(operation, "از حساب", "نامشخص")} به حساب {Detail(operation, "به حساب", "نامشخص")} با شماره مرجع {operation.DocumentNumber} انتقال شد{suffix}",
@@ -476,10 +895,10 @@ public class JournalService : IJournalService
         return string.Join("، ", operation.CurrencySummaries.Select(x =>
         {
             var debit = x.TotalBadehKar > 0
-                ? $"بدهکار {x.TotalBadehKar:N2}"
+                ? $"بدهکار {AmountValueHelper.Format(x.TotalBadehKar)}"
                 : string.Empty;
             var credit = x.TotalTalabKar > 0
-                ? $"طلبکار {x.TotalTalabKar:N2}"
+                ? $"طلبکار {AmountValueHelper.Format(x.TotalTalabKar)}"
                 : string.Empty;
             var separator = debit.Length > 0 && credit.Length > 0 ? " و " : string.Empty;
             return $"{x.CurrencyCode} {debit}{separator}{credit}".Trim();
@@ -488,11 +907,11 @@ public class JournalService : IJournalService
 
     private static string? Money(decimal? amount, string? currencyCode) =>
         amount.HasValue
-            ? $"{amount.Value:N2} {currencyCode}".Trim()
+            ? $"{AmountValueHelper.Format(amount.Value)} {currencyCode}".Trim()
             : null;
 
     private static string? Number(decimal? value) =>
-        value.HasValue ? value.Value.ToString("N6") : null;
+        value.HasValue ? AmountValueHelper.Format(value.Value) : null;
 
     private static string GetOperationKey(LedgerEntry entry)
     {
@@ -522,7 +941,7 @@ public class JournalService : IJournalService
         if (entry.ExpenseId.HasValue)
             return "مصرف";
         if (entry.AccountMoneyOperationId.HasValue)
-            return "واریز / برداشت";
+            return "واریز / برداشت / پرداخت";
         if (entry.MoneyExchangeOperationId.HasValue)
             return "تبدیل پول";
         if (entry.TransferId.HasValue)

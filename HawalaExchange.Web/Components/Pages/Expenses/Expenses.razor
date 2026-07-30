@@ -101,7 +101,7 @@
                         <i class="bi bi-coin"></i>
                     </div>
                     <div>
-                        <div class="stat-number">@filteredExpenses.Sum(e => e.Amount).ToString("N0")</div>
+                        <div class="stat-number">@MoneyFormatHelper.Format(filteredExpenses.Sum(e => e.Amount))</div>
                         <div class="stat-label">مجموع مصارف</div>
                     </div>
                 </div>
@@ -260,7 +260,7 @@
                                     </td>
 
                                     <td dir="ltr" class="fw-bold text-danger">
-                                        @expense.Amount.ToString("N2")
+                                        @MoneyFormatHelper.Format(expense.Amount)
                                     </td>
 
                                     <td>
@@ -474,15 +474,9 @@
                                         حساب مصرف <span class="text-danger">*</span>
                                     </label>
 
-                                    <select class="form-select" @bind="currentExpense.ExpenseAccountId">
-                                        <option value="0">انتخاب حساب مصرف</option>
-                                        @foreach (var account in expenseAccounts)
-                                        {
-                                            <option value="@account.Id">
-                                                @account.AccountName (@account.AccountCode)
-                                            </option>
-                                        }
-                                    </select>
+                                    <AccountSearchSelect Accounts="@expenseAccounts"
+                                                         @bind-Value="currentExpense.ExpenseAccountId"
+                                                         Placeholder="جستجوی حساب مصرف..." />
 
                                     <small class="text-muted">
                                         مثال: Office Expense, Rent Expense, Salary Expense
@@ -495,15 +489,9 @@
                                         حساب پرداخت‌کننده <span class="text-danger">*</span>
                                     </label>
 
-                                    <select class="form-select" @bind="currentExpense.PaidFromAccountId">
-                                        <option value="0">انتخاب حساب پرداخت‌کننده</option>
-                                        @foreach (var account in paymentAccounts)
-                                        {
-                                            <option value="@account.Id">
-                                                @account.AccountName (@account.AccountCode)
-                                            </option>
-                                        }
-                                    </select>
+                                    <AccountSearchSelect Accounts="@paymentAccounts"
+                                                         @bind-Value="currentExpense.PaidFromAccountId"
+                                                         Placeholder="جستجوی حساب پرداخت‌کننده..." />
 
                                     <small class="text-muted">
                                         معمولاً Cash یا Bank
@@ -611,7 +599,7 @@
                             <div class="info-card">
                                 <span class="info-label">مبلغ</span>
                                 <span class="info-value text-danger fw-bold">
-                                    @selectedExpense.Amount.ToString("N2")
+                                    @MoneyFormatHelper.Format(selectedExpense.Amount)
                                 </span>
                             </div>
                         </div>

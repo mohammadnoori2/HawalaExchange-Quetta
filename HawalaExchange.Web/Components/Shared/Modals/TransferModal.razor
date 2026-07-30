@@ -1,0 +1,261 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+
+@inject ITransferService TransferService
+@inject IAccountService AccountService
+@inject ICurrencyService CurrencyService
+
+@if (IsVisible)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.55); backdrop-filter: blur(4px);"
+         dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
+                        <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-arrow-left-right") me-2"></i>
+                        @(IsEditMode ? "ویرایش انتقال بین حساب‌ها" : "انتقال جدید بین حساب‌ها")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseAsync"></button>
+                </div>
+
+                <div class="modal-body">
+                    @if (ValidationErrors.Count > 0)
+                    {
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                @foreach (var error in ValidationErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (IsDataLoading)
+                    {
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary"></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">حساب مبدأ <span class="text-danger">*</span></label>
+                                <AccountSearchSelect Accounts="@Accounts"
+                                                     @bind-Value="CurrentTransfer.FromAccountId"
+                                                     Placeholder="جستجوی حساب مبدأ..." />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">حساب مقصد <span class="text-danger">*</span></label>
+                                <AccountSearchSelect Accounts="@Accounts"
+                                                     @bind-Value="CurrentTransfer.ToAccountId"
+                                                     Placeholder="جستجوی حساب مقصد..." />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
+                                <select class="form-select" @bind="CurrentTransfer.CurrencyId">
+                                    <option value="0">انتخاب ارز</option>
+                                    @foreach (var currency in Currencies)
+                                    {
+                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">مبلغ <span class="text-danger">*</span></label>
+                                <MoneyInput class="form-control"
+                                            @bind-Value="CurrentTransfer.Amount"
+                                            placeholder="مبلغ انتقال" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">روش انتقال <span class="text-danger">*</span></label>
+                                <select class="form-select" @bind="CurrentTransfer.TransferMethod">
+                                    <option value="">انتخاب روش</option>
+                                    <option value="Cash">نقدی</option>
+                                    <option value="Bank">بانکی</option>
+                                    <option value="Hawala">حواله</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">شماره مرجع</label>
+                                <input class="form-control" @bind="CurrentTransfer.ReferenceNumber" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-bold">توضیحات</label>
+                                <textarea class="form-control" rows="2" @bind="CurrentTransfer.Remarks"></textarea>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="CloseAsync">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <button type="button"
+                            class="btn-modern btn-primary-modern"
+                            disabled="@(IsLoading || IsDataLoading)"
+                            @onclick="SaveAsync">
+                        @if (IsLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save"></i>
+                        }
+                        ذخیره
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public bool IsEditMode { get; set; }
+    [Parameter] public long EditId { get; set; }
+    [Parameter] public CreateTransferDto? EditData { get; set; }
+    [Parameter] public long? InitialAccountId { get; set; }
+    [Parameter] public EventCallback<CreateTransferDto> OnSaveSuccess { get; set; }
+    [Parameter] public EventCallback<long> OnEditSuccess { get; set; }
+
+    private CreateTransferDto CurrentTransfer { get; set; } = new();
+    private List<AccountDto> Accounts { get; set; } = new();
+    private List<CurrencyDto> Currencies { get; set; } = new();
+    private List<string> ValidationErrors { get; } = new();
+    private bool IsLoading;
+    private bool IsDataLoading = true;
+    private bool wasVisible;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsVisible)
+        {
+            wasVisible = false;
+            return;
+        }
+
+        if (wasVisible)
+            return;
+
+        wasVisible = true;
+        ValidationErrors.Clear();
+        await LoadLookupsAsync();
+
+        if (IsEditMode && EditData != null)
+        {
+            CurrentTransfer = new CreateTransferDto
+            {
+                FromAccountId = EditData.FromAccountId,
+                ToAccountId = EditData.ToAccountId,
+                CurrencyId = EditData.CurrencyId,
+                Amount = EditData.Amount,
+                TransferMethod = EditData.TransferMethod,
+                ReferenceNumber = EditData.ReferenceNumber,
+                Remarks = EditData.Remarks
+            };
+        }
+        else
+        {
+            CurrentTransfer = new CreateTransferDto
+            {
+                FromAccountId = InitialAccountId ?? 0,
+                TransferMethod = "Cash"
+            };
+        }
+    }
+
+    private async Task LoadLookupsAsync()
+    {
+        try
+        {
+            IsDataLoading = true;
+            Accounts = (await AccountService.GetAllAsync())
+                .Where(x => !x.IsArchived)
+                .OrderBy(x => x.AccountCode)
+                .ToList();
+            Currencies = (await CurrencyService.GetActiveCurrenciesAsync())
+                .OrderBy(x => x.Code)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add($"خطا در بارگذاری اطلاعات: {ex.Message}");
+        }
+        finally
+        {
+            IsDataLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        ValidationErrors.Clear();
+        Validate();
+        if (ValidationErrors.Count > 0)
+            return;
+
+        try
+        {
+            IsLoading = true;
+            if (IsEditMode)
+            {
+                await TransferService.UpdateTransferAsync(EditId, new UpdateTransferDto
+                {
+                    FromAccountId = CurrentTransfer.FromAccountId,
+                    ToAccountId = CurrentTransfer.ToAccountId,
+                    CurrencyId = CurrentTransfer.CurrencyId,
+                    Amount = CurrentTransfer.Amount,
+                    TransferMethod = CurrentTransfer.TransferMethod,
+                    ReferenceNumber = CurrentTransfer.ReferenceNumber,
+                    Remarks = CurrentTransfer.Remarks
+                });
+                await OnEditSuccess.InvokeAsync(EditId);
+            }
+            else
+            {
+                await TransferService.CreateTransferAsync(CurrentTransfer);
+                await OnSaveSuccess.InvokeAsync(CurrentTransfer);
+            }
+
+            await CloseAsync();
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add(ex.Message);
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void Validate()
+    {
+        if (CurrentTransfer.FromAccountId <= 0)
+            ValidationErrors.Add("انتخاب حساب مبدأ الزامی است.");
+        if (CurrentTransfer.ToAccountId <= 0)
+            ValidationErrors.Add("انتخاب حساب مقصد الزامی است.");
+        if (CurrentTransfer.FromAccountId == CurrentTransfer.ToAccountId)
+            ValidationErrors.Add("حساب مبدأ و مقصد نمی‌توانند یکسان باشند.");
+        if (CurrentTransfer.CurrencyId <= 0)
+            ValidationErrors.Add("انتخاب ارز الزامی است.");
+        if (CurrentTransfer.Amount <= 0)
+            ValidationErrors.Add("مبلغ باید بزرگتر از صفر باشد.");
+        if (string.IsNullOrWhiteSpace(CurrentTransfer.TransferMethod))
+            ValidationErrors.Add("انتخاب روش انتقال الزامی است.");
+    }
+
+    private async Task CloseAsync()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+}

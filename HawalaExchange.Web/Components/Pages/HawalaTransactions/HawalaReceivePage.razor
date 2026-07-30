@@ -80,7 +80,7 @@
             </label>
 
             <input class="form-control"
-                   placeholder="نمبر، فرستنده، گیرنده، مرجع..."
+                   placeholder="نمبر، فرستنده، گیرنده، نمبر متفرقه..."
                    @bind="searchTerm"
                    @bind:event="oninput" />
         </div>
@@ -166,11 +166,11 @@
                                     <td>@(hawala.CorrespondentName ?? "-")</td>
 
                                     <td dir="ltr" class="fw-bold text-primary">
-                                        @hawala.FromAmount.ToString("N2") @hawala.FromCurrencyCode
+                                        @MoneyFormatHelper.Format(hawala.FromAmount) @hawala.FromCurrencyCode
                                     </td>
 
                                     <td dir="ltr">
-                                        @(hawala.CommissionAmount?.ToString("N2") ?? "-")
+                                        @(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")
                                         @hawala.CommissionCurrencyCode
                                     </td>
 
@@ -186,11 +186,12 @@
 
                                     <td class="text-center operation-cell">
                                         <HawalaOperationMenu Hawala="hawala"
-                                                             ShowEdit="false"
+                                                             ShowEdit="true"
                                                              ShowPay="true"
                                                              ShowCancel="true"
                                                              ShowDelete="true"
                                                              OnView="ViewHawala"
+                                                             OnEdit="OpenEditModal"
                                                              OnReceipt="OpenReceipt"
                                                              OnCopy="CopyHawalaInfo"
                                                              OnWhatsApp="ShareHawalaWhatsApp"
@@ -250,6 +251,13 @@
     </div>
 </div>
 
+<CreateHawalaModal IsVisible="@showEditModal"
+                   IsVisibleChanged="@((bool value) => { showEditModal = value; StateHasChanged(); })"
+                   IsEditMode="true"
+                   EditId="@editId"
+                   EditData="@editHawalaData"
+                   OnEditSuccess="@OnHawalaEdited" />
+
 @if (showPayModal)
 {
     <div class="modal show d-block modal-modern"
@@ -282,16 +290,9 @@
                             حساب پرداخت‌کننده <span class="text-danger">*</span>
                         </label>
 
-                        <select class="form-select" @bind="selectedPaymentAccountId">
-                            <option value="0">انتخاب حساب پرداخت‌کننده</option>
-
-                            @foreach (var account in paymentAccounts)
-                            {
-                                <option value="@account.Id">
-                                    @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
-                                </option>
-                            }
-                        </select>
+                        <AccountSearchSelect Accounts="@paymentAccounts"
+                                             @bind-Value="selectedPaymentAccountId"
+                                             Placeholder="جستجوی حساب پرداخت‌کننده..." />
 
                         <small class="text-muted">
                             حساب انتخاب‌شده در لیجر طلبکار می‌شود.
@@ -413,7 +414,7 @@
                             <div class="info-card">
                                 <span class="info-label">مبلغ</span>
                                 <span class="info-value text-primary fw-bold" dir="ltr">
-                                    @selectedHawala.FromAmount.ToString("N2") @selectedHawala.FromCurrencyCode
+                                    @MoneyFormatHelper.Format(selectedHawala.FromAmount) @selectedHawala.FromCurrencyCode
                                 </span>
                             </div>
                         </div>
@@ -422,7 +423,7 @@
                             <div class="info-card">
                                 <span class="info-label">مبلغ دریافتی/پرداختی</span>
                                 <span class="info-value text-success fw-bold" dir="ltr">
-                                    @(selectedHawala.ToAmount?.ToString("N2") ?? "-") @selectedHawala.ToCurrencyCode
+                                    @(selectedHawala.ToAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.ToAmount.Value) : "-") @selectedHawala.ToCurrencyCode
                                 </span>
                             </div>
                         </div>
@@ -431,7 +432,7 @@
                             <div class="info-card">
                                 <span class="info-label">کارمزد</span>
                                 <span class="info-value" dir="ltr">
-                                    @(selectedHawala.CommissionAmount?.ToString("N2") ?? "-")
+                                    @(selectedHawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.CommissionAmount.Value) : "-")
                                     @selectedHawala.CommissionCurrencyCode
                                 </span>
                             </div>
@@ -441,7 +442,7 @@
                             <div class="info-card">
                                 <span class="info-label">کارمزد نماینده</span>
                                 <span class="info-value" dir="ltr">
-                                    @(selectedHawala.AgentCommissionAmount?.ToString("N2") ?? "-")
+                                    @(selectedHawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.AgentCommissionAmount.Value) : "-")
                                     @selectedHawala.AgentCommissionCurrencyCode
                                 </span>
                             </div>
@@ -688,6 +689,7 @@
 
     private bool isLoading = false;
     private bool showPayModal = false;
+    private bool showEditModal = false;
     private bool showDetailModal = false;
     private bool showReceiptModal = false;
     private bool showCancelModal = false;
@@ -696,6 +698,8 @@
     private long payHawalaId = 0;
     private long payHawalaNumber = 0;
     private long selectedPaymentAccountId = 0;
+    private long editId = 0;
+    private CreateHawalaDto? editHawalaData;
     private List<CustomerDto> customers = new();
     private PayHawalaDto payDetails = new();
 
@@ -830,6 +834,85 @@
     {
         if (page >= 1 && page <= totalPages)
             currentPage = page;
+    }
+
+    private async Task OpenEditModal(long id)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var hawala = await HawalaService.GetHawalaByIdAsync(id);
+            var hawalaIdToEdit = id;
+
+            if (hawala?.IsSystemGenerated == true && hawala.SourceHawalaId.HasValue)
+            {
+                hawalaIdToEdit = hawala.SourceHawalaId.Value;
+                hawala = await HawalaService.GetHawalaByIdAsync(hawalaIdToEdit);
+            }
+
+            if (hawala == null)
+            {
+                validationErrors.Add("حواله برای ویرایش یافت نشد.");
+                return;
+            }
+
+            editHawalaData = new CreateHawalaDto
+            {
+                Number = hawala.Number,
+                HawalaType = hawala.HawalaType,
+                CorrespondentId = hawala.CorrespondentId,
+                SenderName = hawala.SenderName,
+                SenderFatherName = hawala.SenderFatherName,
+                SenderPhone = hawala.SenderPhone,
+                SenderTazkiraNumber = hawala.SenderTazkiraNumber,
+                SenderTazkiraImagePath = hawala.SenderTazkiraImagePath,
+                SenderAddress = hawala.SenderAddress,
+                ReceiverName = hawala.ReceiverName,
+                ReceiverFatherName = hawala.ReceiverFatherName,
+                ReceiverPhone = hawala.ReceiverPhone,
+                ReceiverTazkiraNumber = hawala.ReceiverTazkiraNumber,
+                ReceiverTazkiraImagePath = hawala.ReceiverTazkiraImagePath,
+                ReceiverAddress = hawala.ReceiverAddress,
+                FromCurrencyId = hawala.FromCurrencyId,
+                FromAmount = hawala.FromAmount,
+                ToCurrencyId = hawala.ToCurrencyId,
+                ToAmount = hawala.ToAmount,
+                ExchangeRate = hawala.ExchangeRate,
+                CommissionAmount = hawala.CommissionAmount,
+                CommissionCurrencyId = hawala.CommissionCurrencyId,
+                AgentCommissionAmount = hawala.AgentCommissionAmount,
+                AgentCommissionCurrencyId = hawala.AgentCommissionCurrencyId,
+                ReferenceNumber = hawala.ReferenceNumber,
+                Notes = hawala.Notes,
+                Status = hawala.Status,
+                PaymentLocationId = hawala.PaymentLocationId,
+                FromAccountId = hawala.FromAccountId,
+                GeneratedSendHawalaNumber = hawala.GeneratedSendHawalaNumber
+            };
+
+            editId = hawalaIdToEdit;
+            showEditModal = true;
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری حواله برای ویرایش: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnHawalaEdited(long id)
+    {
+        showEditModal = false;
+        editId = 0;
+        editHawalaData = null;
+        successMessage = "حواله با موفقیت ویرایش شد.";
+        await LoadData();
     }
 
     private async Task ViewHawala(long id)
@@ -979,9 +1062,7 @@
                 return;
             }
 
-            var company = await CompanySettingService.GetAsync();
-
-            var text = HawalaShareHelper.BuildText(hawala, company);
+            var text = HawalaShareHelper.BuildText(hawala);
 
             var copied = await JS.InvokeAsync<bool>("hawalaTools.copyToClipboard", text);
 
@@ -1007,9 +1088,7 @@
                 return;
             }
 
-            var company = await CompanySettingService.GetAsync();
-
-            var text = HawalaShareHelper.BuildText(hawala, company);
+            var text = HawalaShareHelper.BuildText(hawala);
 
             var url = "https://wa.me/?text=" + Uri.EscapeDataString(text);
 
@@ -1033,9 +1112,7 @@
                 return;
             }
 
-            var company = await CompanySettingService.GetAsync();
-
-            var text = HawalaShareHelper.BuildText(hawala, company);
+            var text = HawalaShareHelper.BuildText(hawala);
 
             var receiptUrl = NavigationManager.BaseUri.TrimEnd('/');
 

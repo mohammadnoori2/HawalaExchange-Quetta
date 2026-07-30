@@ -1,4 +1,5 @@
 ﻿@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Services
 @using HawalaExchange.Web.Helpers
 
 <div class="hawala-receipt" dir="rtl">
@@ -45,7 +46,7 @@
         </div>
 
         <div>
-            <strong>شماره مرجع:</strong>
+            <strong>نمبر متفرقه:</strong>
             @(Hawala.ReferenceNumber ?? "-")
         </div>
     </div>
@@ -80,27 +81,33 @@
         <div class="receipt-grid">
             <div>
                 <strong>مبلغ حواله:</strong>
-                <span dir="ltr">@Hawala.FromAmount.ToString("N2") @Hawala.FromCurrencyCode</span>
+                <span dir="ltr">@MoneyFormatHelper.Format(Hawala.FromAmount) @GetCurrencyName(Hawala.FromCurrencyName, Hawala.FromCurrencyCode)</span>
+            </div>
+
+            <div class="receipt-full">
+                <strong>مبلغ به حروف:</strong>
+                @DariNumberToWords.ToWords(Hawala.FromAmount)
+                @GetFromCurrencyName()
             </div>
 
             <div>
                 <strong>مبلغ دریافتی/پرداختی:</strong>
-                <span dir="ltr">@(Hawala.ToAmount?.ToString("N2") ?? "-") @Hawala.ToCurrencyCode</span>
+                <span dir="ltr">@(Hawala.ToAmount.HasValue ? MoneyFormatHelper.Format(Hawala.ToAmount.Value) : "-") @GetCurrencyName(Hawala.ToCurrencyName, Hawala.ToCurrencyCode)</span>
             </div>
 
             <div>
                 <strong>نرخ تبدیل:</strong>
-                @(Hawala.ExchangeRate?.ToString("N4") ?? "-")
+                @(Hawala.ExchangeRate.HasValue ? MoneyFormatHelper.Format(Hawala.ExchangeRate.Value) : "-")
             </div>
 
             <div>
                 <strong>کارمزد:</strong>
-                @(Hawala.CommissionAmount?.ToString("N2") ?? "-") @Hawala.CommissionCurrencyCode
+                @(Hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(Hawala.CommissionAmount.Value) : "-") @GetCurrencyName(Hawala.CommissionCurrencyName, Hawala.CommissionCurrencyCode)
             </div>
 
             <div>
                 <strong>کارمزد نماینده:</strong>
-                @(Hawala.AgentCommissionAmount?.ToString("N2") ?? "-") @Hawala.AgentCommissionCurrencyCode
+                @(Hawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(Hawala.AgentCommissionAmount.Value) : "-") @GetCurrencyName(Hawala.AgentCommissionCurrencyName, Hawala.AgentCommissionCurrencyCode)
             </div>
 
             <div>
@@ -278,5 +285,17 @@
             return Hawala.PaymentLocationAddress;
 
         return "-";
+    }
+
+    private string GetFromCurrencyName()
+    {
+        return GetCurrencyName(Hawala.FromCurrencyName, Hawala.FromCurrencyCode);
+    }
+
+    private static string GetCurrencyName(string? name, string? code)
+    {
+        return !string.IsNullOrWhiteSpace(name)
+            ? name
+            : code ?? "-";
     }
 }

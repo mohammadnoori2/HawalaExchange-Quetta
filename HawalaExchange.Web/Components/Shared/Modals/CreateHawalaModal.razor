@@ -2,6 +2,7 @@
 @using Microsoft.JSInterop
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
 @using Microsoft.AspNetCore.Components.Forms
 @using HawalaExchange.Web.Helpers
 @using HawalaExchange.Web.Components.Shared.Modals
@@ -11,7 +12,6 @@
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject IPaymentLocationService PaymentLocationService
-@inject ICompanySettingService CompanySettingService
 @inject IFileService FileService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
@@ -130,17 +130,19 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-person text-muted me-1"></i> وضعیت
                                     </label>
-                                    <select class="form-select" @bind="CurrentHawala.Status">
-                                        <option value="Pending">در انتظار</option>
+                                    <select class="form-select"
+                                            value="@CurrentHawala.Status"
+                                            @onchange="OnStatusChanged">
+                                        <option value="Pending">@(CurrentHawala.HawalaType == "HawalaReceive" ? "حواله‌های اجرا نشده" : "در انتظار")</option>
                                         <option value="Paid">پرداخت شده</option>
                                     </select>
                                 </div>
-                                <!-- شماره مرجع -->
+                                <!-- نمبر متفرقه -->
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-hash text-muted me-1"></i> شماره مرجع
+                                        <i class="bi bi-hash text-muted me-1"></i> نمبر متفرقه
                                     </label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.ReferenceNumber" placeholder="شماره مرجع" />
+                                    <input type="text" class="form-control" @bind="CurrentHawala.ReferenceNumber" placeholder="نمبر متفرقه" />
                                 </div>
                                 <!-- فیلد شماره (نمبر) -->
                                 <div class="col-md-4 mb-3">
@@ -353,7 +355,7 @@
 
 
                             <div class="row">
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-left-right text-muted me-1"></i> نرخ تبدیل
                                     </label>
@@ -368,13 +370,13 @@
                                         <small class="text-muted text-success">ارزها یکسان هستند، نرخ برابر ۱ است</small>
                                     }
                                 </div>
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-cash-stack text-muted me-1"></i> کارمزد
                                     </label>
                                     <NullableMoneyInput class="form-control" @bind-Value="CurrentHawala.CommissionAmount" placeholder="کارمزد" />
                                 </div>
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-coin text-muted me-1"></i> ارز کارمزد
                                     </label>
@@ -389,11 +391,29 @@
                                         }
                                     </select>
                                 </div>
-                                <div class="col-md-3 mb-3">
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-cash-stack text-muted me-1"></i> کارمزد نماینده
                                     </label>
                                     <NullableMoneyInput class="form-control" @bind-Value="CurrentHawala.AgentCommissionAmount" placeholder="کارمزد نماینده" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-coin text-muted me-1"></i> ارز کارمزد نمایندگی
+                                    </label>
+                                    <select class="form-select" @bind="CurrentHawala.AgentCommissionCurrencyId">
+                                        <option value="0">انتخاب ارز</option>
+                                        @if (CurrenciesList != null && CurrenciesList.Any())
+                                        {
+                                            @foreach (var currency in CurrenciesList)
+                                            {
+                                                <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                            }
+                                        }
+                                    </select>
                                 </div>
                             </div>
 
@@ -413,6 +433,8 @@
                                                        placeholder="جستجوی حساب مبدأ..."
                                                        value="@GetSelectedFromAccountText()"
                                                        @oninput="OnFromAccountSearchChanged"
+                                                       @onkeydown="OnFromAccountSearchKeyDown"
+                                                       @onkeydown:stopPropagation="true"
                                                        @onfocus="() => showFromAccountDropdown = true" />
                                             </div>
 
@@ -470,6 +492,8 @@
                                                        placeholder="جستجوی حساب پرداخت‌کننده..."
                                                        value="@GetSelectedFromAccountText()"
                                                        @oninput="OnFromAccountSearchChanged"
+                                                       @onkeydown="OnFromAccountSearchKeyDown"
+                                                       @onkeydown:stopPropagation="true"
                                                        @onfocus="() => showFromAccountDropdown = true" />
                                             </div>
 
@@ -508,6 +532,23 @@
                                         </div>
                                         <small class="text-muted">این حساب به مبلغ حواله بدهکار می‌شود.</small>
                                     </div>
+                                    @if (ShouldShowGeneratedSendHawalaNumber())
+                                    {
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label fw-bold">
+                                                <i class="bi bi-hash text-muted me-1"></i>
+                                                نمبر حواله ارسالی نمایندگی <span class="text-danger">*</span>
+                                            </label>
+                                            <input type="number"
+                                                   min="1"
+                                                   class="form-control"
+                                                   @bind="CurrentHawala.GeneratedSendHawalaNumber"
+                                                   placeholder="نمبر حواله ارسالی" />
+                                            <small class="text-muted">
+                                                حواله پرداخت‌شده با این نمبر، به عنوان حواله ارسالی همین نمایندگی ثبت می‌شود.
+                                            </small>
+                                        </div>
+                                    }
                                 </div>
                             }
 
@@ -635,18 +676,29 @@
                     <div class="border rounded-3 p-3 mb-4" style="background: #f8f9fa;">
                         <h6 class="text-primary fw-bold mb-3"><i class="bi bi-currency-exchange me-2"></i>اطلاعات مالی</h6>
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <span class="text-muted d-block small">مبلغ حواله</span>
-                                <span class="fw-bold">@CreatedHawala.FromAmount.ToString("N0") @GetCurrencyCode(CreatedHawala.FromCurrencyId)</span>
+                                <span class="fw-bold">@MoneyFormatHelper.Format(CreatedHawala.FromAmount) @GetCurrencyName(CreatedHawala.FromCurrencyId)</span>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <span class="text-muted d-block small">مبلغ دریافت‌شده</span>
-                                <span class="fw-bold">@(CreatedHawala.ToAmount?.ToString("N0") ?? "0") @GetCurrencyCode(CreatedHawala.ToCurrencyId)</span>
+                                <span class="fw-bold">@(CreatedHawala.ToAmount.HasValue ? MoneyFormatHelper.Format(CreatedHawala.ToAmount.Value) : "0") @GetCurrencyName(CreatedHawala.ToCurrencyId)</span>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <span class="text-muted d-block small">کارمزد</span>
-                                <span class="fw-bold">@(CreatedHawala.CommissionAmount?.ToString("N0") ?? "0") @GetCurrencyCode(CreatedHawala.CommissionCurrencyId)</span>
+                                <span class="fw-bold">@(CreatedHawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(CreatedHawala.CommissionAmount.Value) : "0") @GetCurrencyName(CreatedHawala.CommissionCurrencyId)</span>
                             </div>
+                            <div class="col-md-3">
+                                <span class="text-muted d-block small">کارمزد نمایندگی</span>
+                                <span class="fw-bold">@(CreatedHawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(CreatedHawala.AgentCommissionAmount.Value) : "0") @GetCurrencyName(CreatedHawala.AgentCommissionCurrencyId)</span>
+                            </div>
+                        </div>
+                        <div class="mt-3 pt-3 border-top">
+                            <span class="text-muted d-block small">مبلغ به حروف</span>
+                            <span class="fw-semibold">
+                                @DariNumberToWords.ToWords(CreatedHawala.FromAmount)
+                                @GetCurrencyName(CreatedHawala.FromCurrencyId)
+                            </span>
                         </div>
                     </div>
 
@@ -681,7 +733,7 @@
                                 </span>
                             </div>
                             <div class="col-md-4">
-                                <span class="text-muted d-block small">شماره مرجع</span>
+                                <span class="text-muted d-block small">نمبر متفرقه</span>
                                 <span class="fw-semibold">@(CreatedHawala.ReferenceNumber ?? "-")</span>
                             </div>
                         </div>
@@ -768,6 +820,8 @@
     [Parameter] public bool IsEditMode { get; set; } = false;
     [Parameter] public long EditId { get; set; } = 0;
     [Parameter] public CreateHawalaDto? EditData { get; set; }
+    [Parameter] public long? InitialCorrespondentId { get; set; }
+    [Parameter] public string? InitialHawalaType { get; set; }
     [Parameter] public EventCallback<CreateHawalaDto> OnSaveSuccess { get; set; }
     [Parameter] public EventCallback<long> OnEditSuccess { get; set; }
 
@@ -885,12 +939,19 @@
                 Notes = EditData.Notes,
                 Status = EditData.Status,
                 PaymentLocationId = EditData.PaymentLocationId,
-                FromAccountId = EditData.FromAccountId
+                FromAccountId = EditData.FromAccountId,
+                GeneratedSendHawalaNumber = EditData.GeneratedSendHawalaNumber
             };
         }
         else if (!IsEditMode)
         {
             ResetHawala();
+            CurrentHawala.CorrespondentId = InitialCorrespondentId;
+            if (!string.IsNullOrWhiteSpace(InitialHawalaType))
+            {
+                CurrentHawala.HawalaType = InitialHawalaType;
+                CurrentHawala.Status = InitialHawalaType == "HawalaSend" ? "Paid" : "Pending";
+            }
         }
 
         ValidationErrors.Clear();
@@ -901,6 +962,7 @@
         if (!IsEditMode && CurrentHawala.CorrespondentId.HasValue && !string.IsNullOrEmpty(CurrentHawala.HawalaType))
         {
             await GetSuggestedNumber();
+            await GetSuggestedGeneratedSendHawalaNumberAsync();
         }
     }
 
@@ -966,8 +1028,7 @@
         try
         {
             ShareErrorMessage = string.Empty;
-            var company = await CompanySettingService.GetAsync();
-            var text = HawalaShareHelper.BuildText(CreatedHawalaDetails, company);
+            var text = HawalaShareHelper.BuildText(CreatedHawalaDetails);
             var url = "https://wa.me/?text=" + Uri.EscapeDataString(text);
 
             await JS.InvokeVoidAsync("hawalaTools.openShareUrl", url);
@@ -989,8 +1050,7 @@
         try
         {
             ShareErrorMessage = string.Empty;
-            var company = await CompanySettingService.GetAsync();
-            var text = HawalaShareHelper.BuildText(CreatedHawalaDetails, company);
+            var text = HawalaShareHelper.BuildText(CreatedHawalaDetails);
             var receiptUrl = NavigationManager.BaseUri.TrimEnd('/');
             var telegramAppUrl =
                 "tg://msg_url" +
@@ -1049,10 +1109,10 @@
     {
         var correspondentName = GetCorrespondentName(hawala.CorrespondentId);
         var hawalaTypeName = GetHawalaTypeName(hawala.HawalaType);
-        var fromCurrencyCode = GetCurrencyCode(hawala.FromCurrencyId);
-        var toCurrencyCode = GetCurrencyCode(hawala.ToCurrencyId);
-        var commissionCurrencyCode = GetCurrencyCode(hawala.CommissionCurrencyId);
-        var agentCommissionCurrencyCode = GetCurrencyCode(hawala.AgentCommissionCurrencyId);
+        var fromCurrencyName = GetCurrencyName(hawala.FromCurrencyId);
+        var toCurrencyName = GetCurrencyName(hawala.ToCurrencyId);
+        var commissionCurrencyName = GetCurrencyName(hawala.CommissionCurrencyId);
+        var agentCommissionCurrencyName = GetCurrencyName(hawala.AgentCommissionCurrencyId);
         var paymentLocationName = GetPaymentLocationName(hawala.PaymentLocationId);
         var currentDate = PersianDateHelper.ToPersianDateTime12(DateTime.Now);
 
@@ -1235,7 +1295,7 @@
 
                 <!-- وضعیت -->
                 <div class='receipt-status-row'>
-                    <div><strong>وضعیت:</strong> <span class='receipt-badge receipt-badge-success'>در انتظار</span></div>
+                    <div><strong>وضعیت:</strong> <span class='receipt-badge receipt-badge-success'>{(hawala.HawalaType == "HawalaReceive" ? "حواله‌های اجرا نشده" : "در انتظار")}</span></div>
                     <div><strong>نوع:</strong> {hawalaTypeName}</div>
                     <div><strong>نماینده:</strong> {correspondentName}</div>
                 </div>
@@ -1268,12 +1328,13 @@
                 <div class='receipt-section'>
                     <h6>معلومات حواله</h6>
                     <div class='receipt-grid'>
-                        <div><span class='receipt-label'>مبلغ حواله:</span> <span class='receipt-amount'>{hawala.FromAmount.ToString("N0")}</span> <span class='receipt-currency'>{fromCurrencyCode}</span></div>
-                        <div><span class='receipt-label'>مبلغ دریافتی:</span> <span class='receipt-amount'>{(hawala.ToAmount ?? 0).ToString("N0")}</span> <span class='receipt-currency'>{toCurrencyCode}</span></div>
-                        <div><span class='receipt-label'>نرخ تبدیل:</span> <span class='receipt-value'>{hawala.ExchangeRate?.ToString("N4") ?? "-"}</span></div>
-                        <div><span class='receipt-label'>کارمزد:</span> <span class='receipt-value'>{(hawala.CommissionAmount ?? 0).ToString("N0")}</span> <span class='receipt-currency'>{commissionCurrencyCode}</span></div>
-                        <div><span class='receipt-label'>کارمزد نماینده:</span> <span class='receipt-value'>{(hawala.AgentCommissionAmount ?? 0).ToString("N0")}</span> <span class='receipt-currency'>{agentCommissionCurrencyCode}</span></div>
-                        <div><span class='receipt-label'>شماره مرجع:</span> <span class='receipt-value'>{hawala.ReferenceNumber ?? "-"}</span></div>
+                        <div><span class='receipt-label'>مبلغ حواله:</span> <span class='receipt-amount'>{MoneyFormatHelper.Format(hawala.FromAmount)}</span> <span class='receipt-currency'>{fromCurrencyName}</span></div>
+                        <div class='receipt-full'><span class='receipt-label'>مبلغ به حروف:</span> <span class='receipt-value'>{DariNumberToWords.ToWords(hawala.FromAmount)} {fromCurrencyName}</span></div>
+                        <div><span class='receipt-label'>مبلغ دریافتی:</span> <span class='receipt-amount'>{MoneyFormatHelper.Format(hawala.ToAmount ?? 0)}</span> <span class='receipt-currency'>{toCurrencyName}</span></div>
+                        <div><span class='receipt-label'>نرخ تبدیل:</span> <span class='receipt-value'>{(hawala.ExchangeRate.HasValue ? MoneyFormatHelper.Format(hawala.ExchangeRate.Value) : "-")}</span></div>
+                        <div><span class='receipt-label'>کارمزد:</span> <span class='receipt-value'>{MoneyFormatHelper.Format(hawala.CommissionAmount ?? 0)}</span> <span class='receipt-currency'>{commissionCurrencyName}</span></div>
+                        <div><span class='receipt-label'>کارمزد نماینده:</span> <span class='receipt-value'>{MoneyFormatHelper.Format(hawala.AgentCommissionAmount ?? 0)}</span> <span class='receipt-currency'>{agentCommissionCurrencyName}</span></div>
+                        <div><span class='receipt-label'>نمبر متفرقه:</span> <span class='receipt-value'>{hawala.ReferenceNumber ?? "-"}</span></div>
                         <div class='receipt-full'><span class='receipt-label'>محل پرداخت:</span> <span class='receipt-value'>{paymentLocationName}</span></div>
                     </div>
                 </div>
@@ -1436,6 +1497,13 @@
         return currency?.Code ?? "-";
     }
 
+    private string GetCurrencyName(long? currencyId)
+    {
+        if (!currencyId.HasValue) return "-";
+        var currency = CurrenciesList.FirstOrDefault(c => c.Id == currencyId.Value);
+        return currency?.Name ?? currency?.Code ?? "-";
+    }
+
     private string GetPaymentLocationName(long? paymentLocationId)
     {
         if (!paymentLocationId.HasValue) return "-";
@@ -1510,6 +1578,18 @@
             ValidationErrors.Add("برای حواله دریافت، انتخاب نماینده فرستنده الزامی است.");
         if (CurrentHawala.HawalaType == "HawalaSend" && CurrentHawala.FromAccountId == null)
             ValidationErrors.Add("برای حواله ارسال، انتخاب حساب مبدأ الزامی است.");
+        if (CurrentHawala.AgentCommissionAmount > 0 &&
+            (!CurrentHawala.AgentCommissionCurrencyId.HasValue ||
+             CurrentHawala.AgentCommissionCurrencyId.Value <= 0))
+        {
+            ValidationErrors.Add("برای کارمزد نمایندگی، انتخاب ارز الزامی است.");
+        }
+        if (ShouldShowGeneratedSendHawalaNumber() &&
+            (!CurrentHawala.GeneratedSendHawalaNumber.HasValue ||
+             CurrentHawala.GeneratedSendHawalaNumber.Value <= 0))
+        {
+            ValidationErrors.Add("نمبر حواله ارسالی نمایندگی الزامی است.");
+        }
         if (CurrentHawala.Number <= 0)
             ValidationErrors.Add("نمبر حواله الزامی است");
 
@@ -1524,7 +1604,8 @@
         if (CurrentHawala.ExchangeRate.HasValue && CurrentHawala.ExchangeRate.Value > 0 &&
             CurrentHawala.FromAmount > 0 && !CurrentHawala.ToAmount.HasValue)
         {
-            CurrentHawala.ToAmount = Math.Round(CurrentHawala.FromAmount * CurrentHawala.ExchangeRate.Value, 2);
+            CurrentHawala.ToAmount = AmountValueHelper.RoundConvertedAmount(
+                CurrentHawala.FromAmount * CurrentHawala.ExchangeRate.Value);
         }
 
         if (ValidationErrors.Any())
@@ -1561,7 +1642,8 @@
                     AgentCommissionCurrencyId = CurrentHawala.AgentCommissionCurrencyId,
                     ReferenceNumber = CurrentHawala.ReferenceNumber,
                     Notes = CurrentHawala.Notes,
-                    PaymentLocationId = CurrentHawala.PaymentLocationId
+                    PaymentLocationId = CurrentHawala.PaymentLocationId,
+                    GeneratedSendHawalaNumber = CurrentHawala.GeneratedSendHawalaNumber
 
                 };
                 await HawalaService.UpdateHawalaAsync(EditId, updateDto);
@@ -1630,8 +1712,31 @@
     private async Task OnHawalaTypeChanged(ChangeEventArgs e)
     {
         CurrentHawala.HawalaType = e?.Value?.ToString() ?? string.Empty;
+        if (!IsEditMode)
+        {
+            CurrentHawala.Status =
+                CurrentHawala.HawalaType == "HawalaSend" ? "Paid" : "Pending";
+        }
         CurrentHawala.Number = 0;
+        CurrentHawala.GeneratedSendHawalaNumber = null;
         await GetSuggestedNumber();
+        await GetSuggestedGeneratedSendHawalaNumberAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnStatusChanged(ChangeEventArgs e)
+    {
+        CurrentHawala.Status = e?.Value?.ToString() ?? "Pending";
+
+        if (CurrentHawala.Status == "Paid")
+        {
+            await GetSuggestedGeneratedSendHawalaNumberAsync();
+        }
+        else
+        {
+            CurrentHawala.GeneratedSendHawalaNumber = null;
+        }
+
         StateHasChanged();
     }
 
@@ -1736,7 +1841,8 @@
         {
             if (CurrentHawala.ExchangeRate.HasValue && CurrentHawala.ExchangeRate.Value > 0)
             {
-                CurrentHawala.ToAmount = Math.Round(CurrentHawala.FromAmount * CurrentHawala.ExchangeRate.Value, 2);
+                CurrentHawala.ToAmount = AmountValueHelper.RoundConvertedAmount(
+                    CurrentHawala.FromAmount * CurrentHawala.ExchangeRate.Value);
             }
         }
         else if (CalculationMode == "AmountToRate")
@@ -1761,16 +1867,84 @@
     {
         fromAccountSearchText = e.Value?.ToString() ?? "";
         CurrentHawala.FromAccountId = null;
+        CurrentHawala.GeneratedSendHawalaNumber = null;
         showFromAccountDropdown = true;
         StateHasChanged();
     }
 
-    private void SelectFromAccount(AccountDto account)
+    private async Task OnFromAccountSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            showFromAccountDropdown = false;
+            return;
+        }
+
+        if (e.Key != "Enter")
+            return;
+
+        var matches = FilteredFromAccounts.Take(2).ToList();
+        if (matches.Count == 1)
+            await SelectFromAccount(matches[0]);
+    }
+
+    private async Task SelectFromAccount(AccountDto account)
     {
         CurrentHawala.FromAccountId = account.Id;
+        CurrentHawala.GeneratedSendHawalaNumber = null;
         fromAccountSearchText = "";
         showFromAccountDropdown = false;
+
+        await GetSuggestedGeneratedSendHawalaNumberAsync();
         StateHasChanged();
+    }
+
+    private bool ShouldShowGeneratedSendHawalaNumber()
+    {
+        if (CurrentHawala.HawalaType != "HawalaReceive" ||
+            CurrentHawala.Status != "Paid" ||
+            !CurrentHawala.FromAccountId.HasValue)
+        {
+            return false;
+        }
+
+        var account = AccountsList.FirstOrDefault(x => x.Id == CurrentHawala.FromAccountId.Value);
+        return account != null &&
+               string.Equals(account.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task GetSuggestedGeneratedSendHawalaNumberAsync()
+    {
+        if (!ShouldShowGeneratedSendHawalaNumber())
+        {
+            CurrentHawala.GeneratedSendHawalaNumber = null;
+            return;
+        }
+
+        var selectedAccountId = CurrentHawala.FromAccountId!.Value;
+        var account = AccountsList.First(x => x.Id == selectedAccountId);
+        if (!string.Equals(account.ReferenceType, "Correspondent", StringComparison.OrdinalIgnoreCase) ||
+            !account.ReferenceId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            var nextNumber = await HawalaService.GetNextNumberAsync(
+                account.ReferenceId.Value,
+                "HawalaSend");
+
+            if (CurrentHawala.FromAccountId == selectedAccountId &&
+                ShouldShowGeneratedSendHawalaNumber())
+            {
+                CurrentHawala.GeneratedSendHawalaNumber = nextNumber > 0 ? nextNumber : 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add($"خطا در دریافت نمبر حواله ارسالی نمایندگی: {ex.Message}");
+        }
     }
 
     private string GetSelectedFromAccountText()

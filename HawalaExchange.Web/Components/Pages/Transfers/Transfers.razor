@@ -216,7 +216,7 @@
                                     <td>
                                         <span class="badge-modern badge-info">@transfer.CurrencyCode</span>
                                     </td>
-                                    <td dir="ltr" class="fw-bold text-primary">@transfer.Amount.ToString("N2")</td>
+                                    <td dir="ltr" class="fw-bold text-primary">@MoneyFormatHelper.Format(transfer.Amount)</td>
                                     <td>
                                         <span class="badge-modern @GetTransferMethodBadge(transfer.TransferMethod)">
                                             @GetTransferMethodName(transfer.TransferMethod)
@@ -351,27 +351,17 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-right-circle text-muted me-1"></i> حساب مبدأ <span class="text-danger">*</span>
                                     </label>
-                                    <select class="form-select"
-                                            @bind="currentTransfer.FromAccountId">
-                                        <option value="0">انتخاب حساب مبدأ</option>
-                                        @foreach (var account in accounts)
-                                        {
-                                            <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
-                                        }
-                                    </select>
+                                    <AccountSearchSelect Accounts="@accounts"
+                                                         @bind-Value="currentTransfer.FromAccountId"
+                                                         Placeholder="جستجوی حساب مبدأ..." />
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-left-circle text-muted me-1"></i> حساب مقصد <span class="text-danger">*</span>
                                     </label>
-                                    <select class="form-select"
-                                            @bind="currentTransfer.ToAccountId">
-                                        <option value="0">انتخاب حساب مقصد</option>
-                                        @foreach (var account in accounts)
-                                        {
-                                            <option value="@account.Id">@account.AccountCode - @account.AccountName</option>
-                                        }
-                                    </select>
+                                    <AccountSearchSelect Accounts="@accounts"
+                                                         @bind-Value="currentTransfer.ToAccountId"
+                                                         Placeholder="جستجوی حساب مقصد..." />
                                 </div>
                             </div>
 
@@ -491,7 +481,7 @@
                         <div class="col-md-6">
                             <div class="info-card">
                                 <span class="info-label">مبلغ</span>
-                                <span class="info-value text-primary fw-bold">@selectedTransfer.Amount.ToString("N2")</span>
+                                <span class="info-value text-primary fw-bold">@MoneyFormatHelper.Format(selectedTransfer.Amount)</span>
                             </div>
                         </div>
                     </div>

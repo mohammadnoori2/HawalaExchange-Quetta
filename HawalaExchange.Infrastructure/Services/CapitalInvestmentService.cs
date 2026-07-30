@@ -93,7 +93,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
                 "CapitalInvestments",
                 capitalInvestment.Id,
                 null,
-                $"ثبت سرمایه به مبلغ {capitalInvestment.Amount}",
+                $"ثبت سرمایه به مبلغ {AmountValueHelper.Format(capitalInvestment.Amount)}",
                 GetCurrentUserId());
 
             await dbTransaction.CommitAsync();
@@ -149,7 +149,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
                 "CapitalInvestments",
                 capitalInvestment.Id,
                 null,
-                $"ویرایش ثبت سرمایه به مبلغ {capitalInvestment.Amount}",
+                $"ویرایش ثبت سرمایه به مبلغ {AmountValueHelper.Format(capitalInvestment.Amount)}",
                 GetCurrentUserId());
 
             await dbTransaction.CommitAsync();
@@ -187,7 +187,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
                 "CapitalInvestments",
                 capitalInvestment.Id,
                 null,
-                $"حذف ثبت سرمایه به مبلغ {capitalInvestment.Amount}",
+                $"حذف ثبت سرمایه به مبلغ {AmountValueHelper.Format(capitalInvestment.Amount)}",
                 GetCurrentUserId());
 
             await dbTransaction.CommitAsync();

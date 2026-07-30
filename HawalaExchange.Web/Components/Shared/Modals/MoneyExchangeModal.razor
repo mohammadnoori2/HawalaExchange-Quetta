@@ -140,22 +140,9 @@
                                                     حساب ارز فروش <span class="text-danger">*</span>
                                                 </label>
 
-                                                <select class="form-select" @bind="CurrentExchange.FromAccountId">
-                                                    <option value="0">انتخاب حساب</option>
-                                                    @if (AccountsList != null && AccountsList.Any())
-                                                    {
-                                                        @foreach (var account in AvailableAccounts)
-                                                        {
-                                                            <option value="@account.Id">
-                                                                @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
-                                                            </option>
-                                                        }
-                                                    }
-                                                    else
-                                                    {
-                                                        <option value="0" disabled>هیچ حسابی یافت نشد</option>
-                                                    }
-                                                </select>
+                                                <AccountSearchSelect Accounts="@AvailableAccounts"
+                                                                     @bind-Value="CurrentExchange.FromAccountId"
+                                                                     Placeholder="جستجوی حساب ارز فروش..." />
                                             </div>
 
                                             <div class="mb-3">
@@ -210,22 +197,9 @@
                                                     حساب ارز خرید <span class="text-danger">*</span>
                                                 </label>
 
-                                                <select class="form-select" @bind="CurrentExchange.ToAccountId">
-                                                    <option value="0">انتخاب حساب</option>
-                                                    @if (AccountsList != null && AccountsList.Any())
-                                                    {
-                                                        @foreach (var account in AvailableAccounts)
-                                                        {
-                                                            <option value="@account.Id">
-                                                                @account.AccountName (@account.AccountCode - @GetAccountTypeName(account.AccountType))
-                                                            </option>
-                                                        }
-                                                    }
-                                                    else
-                                                    {
-                                                        <option value="0" disabled>هیچ حسابی یافت نشد</option>
-                                                    }
-                                                </select>
+                                                <AccountSearchSelect Accounts="@AvailableAccounts"
+                                                                     @bind-Value="CurrentExchange.ToAccountId"
+                                                                     Placeholder="جستجوی حساب ارز خرید..." />
                                             </div>
 
                                             <div class="mb-3">
@@ -356,6 +330,7 @@
     [Parameter] public bool IsEditMode { get; set; } = false;
     [Parameter] public long EditId { get; set; } = 0;
     [Parameter] public CreateMoneyExchangeOperationDto? EditData { get; set; }
+    [Parameter] public long? InitialAccountId { get; set; }
     [Parameter] public EventCallback<CreateMoneyExchangeOperationDto> OnSaveSuccess { get; set; }
     [Parameter] public EventCallback<long> OnEditSuccess { get; set; }
 
@@ -511,17 +486,26 @@
 
         var cash = AccountsList.FirstOrDefault(x =>
             x.AccountType == "Cash");
+        var initialAccount = InitialAccountId.HasValue
+            ? AccountsList.FirstOrDefault(x => x.Id == InitialAccountId.Value)
+            : null;
+        var isCustomerExchange = initialAccount?.AccountType == "Customer";
+        var selectedAccount =
+            isCustomerExchange ||
+            initialAccount?.AccountType is "Cash" or "Bank"
+                ? initialAccount
+                : cash;
 
         CurrentExchange = new CreateMoneyExchangeOperationDto
         {
-            FromAccountId = cash?.Id ?? 0,
-            ToAccountId = cash?.Id ?? 0,
+            FromAccountId = selectedAccount?.Id ?? 0,
+            ToAccountId = selectedAccount?.Id ?? 0,
             FromCurrencyId = afn?.Id ?? 0,
             ToCurrencyId = usd?.Id ?? 0,
             FromAmount = 0,
             ToAmount = 0,
             ExchangeRate = 0,
-            OperationType = "Treasury",
+            OperationType = isCustomerExchange ? "Customer" : "Treasury",
             ProfitCurrencyId = DefaultProfitCurrencyId,
             CommissionAmount = 0,
             ExternalFeeAmount = 0,
@@ -739,7 +723,7 @@
             result = CurrencyQuotationCalculator.ConvertFromAmount(
                 from.Id, from.Code, from.QuotationPriority, CurrentExchange.FromAmount,
                 to.Id, to.Code, to.QuotationPriority, CurrentExchange.ExchangeRate);
-            CurrentExchange.ToAmount = Math.Round(result.ToAmount, to.DecimalPlaces);
+            CurrentExchange.ToAmount = AmountValueHelper.RoundConvertedAmount(result.ToAmount);
         }
         else
         {
@@ -752,10 +736,10 @@
             result = CurrencyQuotationCalculator.ConvertFromAmount(
                 to.Id, to.Code, to.QuotationPriority, CurrentExchange.ToAmount,
                 from.Id, from.Code, from.QuotationPriority, CurrentExchange.ExchangeRate);
-            CurrentExchange.FromAmount = Math.Round(result.ToAmount, from.DecimalPlaces);
+            CurrentExchange.FromAmount = AmountValueHelper.RoundConvertedAmount(result.ToAmount);
         }
 
-        RateMeaning = $"1 {result.BaseCurrencyCode} = {CurrentExchange.ExchangeRate:N8} {result.QuoteCurrencyCode}";
+        RateMeaning = $"1 {result.BaseCurrencyCode} = {MoneyFormatHelper.Format(CurrentExchange.ExchangeRate)} {result.QuoteCurrencyCode}";
     }
 
     private void ClearCalculatedAmount()

@@ -5,6 +5,8 @@ namespace HawalaExchange.Application.Interfaces.Services
     public interface ITransferService
     {
         Task<TransferDto> CreateTransferAsync(CreateTransferDto createDto);
+        Task<TransferDto> UpdateTransferAsync(long id, UpdateTransferDto updateDto);
+        Task DeleteTransferAsync(long id);
         Task<IEnumerable<TransferDto>> GetTransfersByAccountAsync(long accountId);
         Task<IEnumerable<TransferDto>> GetTransfersByMethodAsync(string transferMethod);
         Task<TransferDto?> GetTransferByIdAsync(long id);

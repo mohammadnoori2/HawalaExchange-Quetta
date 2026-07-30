@@ -30,4 +30,15 @@ namespace HawalaExchange.Application.DTOs
         public string? ReferenceNumber { get; set; }
         public string? Remarks { get; set; }
     }
+
+    public class UpdateTransferDto
+    {
+        public long FromAccountId { get; set; }
+        public long ToAccountId { get; set; }
+        public long CurrencyId { get; set; }
+        public decimal Amount { get; set; }
+        public string TransferMethod { get; set; } = string.Empty;
+        public string? ReferenceNumber { get; set; }
+        public string? Remarks { get; set; }
+    }
 }

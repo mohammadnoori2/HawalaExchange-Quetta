@@ -149,7 +149,7 @@
                             <div class="col-md-3">
                                 <div class="info-card" style="border-right: 4px solid var(--success-color);">
                                     <span class="info-label">سود خالص</span>
-                                    <span class="info-value text-success">@dailyReport.NetIncome.ToString("N2")</span>
+                                    <span class="info-value text-success">@MoneyFormatHelper.Format(dailyReport.NetIncome)</span>
                                 </div>
                             </div>
                         </div>
@@ -166,10 +166,10 @@
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td class="fw-bold text-primary">@dailyReport.TotalSendAmount.ToString("N2")</td>
-                                        <td class="fw-bold text-success">@dailyReport.TotalReceiveAmount.ToString("N2")</td>
-                                        <td class="fw-bold text-warning">@dailyReport.TotalCommission.ToString("N2")</td>
-                                        <td class="fw-bold text-danger">@dailyReport.TotalExpenses.ToString("N2")</td>
+                                        <td class="fw-bold text-primary">@MoneyFormatHelper.Format(dailyReport.TotalSendAmount)</td>
+                                        <td class="fw-bold text-success">@MoneyFormatHelper.Format(dailyReport.TotalReceiveAmount)</td>
+                                        <td class="fw-bold text-warning">@MoneyFormatHelper.Format(dailyReport.TotalCommission)</td>
+                                        <td class="fw-bold text-danger">@MoneyFormatHelper.Format(dailyReport.TotalExpenses)</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -263,10 +263,10 @@
                                             <td>@r.SenderName</td>
                                             <td>@r.ReceiverName</td>
                                             <td>@r.FromCurrency</td>
-                                            <td dir="ltr">@r.FromAmount.ToString("N2")</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.FromAmount)</td>
                                             <td>@r.ToCurrency</td>
-                                            <td dir="ltr">@r.ToAmount.ToString("N2")</td>
-                                            <td dir="ltr">@r.Commission.ToString("N2")</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.ToAmount)</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.Commission)</td>
                                             <td>@GetStatusBadge(r.Status)</td>
                                             <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(r.CreatedAt)</td>
                                         </tr>
@@ -343,16 +343,16 @@
                                         <tr>
                                             <td dir="ltr">@PersianDateHelper.ToPersianDate(r.Date)</td>
                                             <td>@r.BranchName</td>
-                                            <td dir="ltr">@r.TotalCommission.ToString("N2")</td>
-                                            <td dir="ltr">@r.TotalAgentCommission.ToString("N2")</td>
-                                            <td dir="ltr" class="fw-bold text-success">@r.NetCommission.ToString("N2")</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.TotalCommission)</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.TotalAgentCommission)</td>
+                                            <td dir="ltr" class="fw-bold text-success">@MoneyFormatHelper.Format(r.NetCommission)</td>
                                         </tr>
                                     }
                                     <tr class="table-active fw-bold">
                                         <td colspan="2">مجموع</td>
-                                        <td>@commissionReports.Sum(x => x.TotalCommission).ToString("N2")</td>
-                                        <td>@commissionReports.Sum(x => x.TotalAgentCommission).ToString("N2")</td>
-                                        <td class="text-success">@commissionReports.Sum(x => x.NetCommission).ToString("N2")</td>
+                                        <td>@MoneyFormatHelper.Format(commissionReports.Sum(x => x.TotalCommission))</td>
+                                        <td>@MoneyFormatHelper.Format(commissionReports.Sum(x => x.TotalAgentCommission))</td>
+                                        <td class="text-success">@MoneyFormatHelper.Format(commissionReports.Sum(x => x.NetCommission))</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -423,9 +423,9 @@
                                         <tr>
                                             <td><span class="customer-code">@r.AccountCode</span></td>
                                             <td>@r.AccountName</td>
-                                            <td class="text-danger">@r.TotalDebit.ToString("N2")</td>
-                                            <td class="text-success">@r.TotalCredit.ToString("N2")</td>
-                                            <td class="fw-bold">@r.Balance.ToString("N2")</td>
+                                            <td class="text-danger">@MoneyFormatHelper.Format(r.TotalDebit)</td>
+                                            <td class="text-success">@MoneyFormatHelper.Format(r.TotalCredit)</td>
+                                            <td class="fw-bold">@MoneyFormatHelper.Format(r.Balance)</td>
                                             <td>
                                                 <span class="badge-modern @(r.BalanceType == "Debit" ? "badge-danger" : "badge-success")">
                                                     @(r.BalanceType == "Debit" ? "بدهکار" : "بستانکار")
@@ -510,8 +510,8 @@
                                             <td>@GetTransactionTypeName(r.TransactionType)</td>
                                             <td>@r.SenderName</td>
                                             <td>@r.ReceiverName</td>
-                                            <td dir="ltr">@r.FromAmount.ToString("N2")</td>
-                                            <td dir="ltr">@r.Commission.ToString("N2")</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.FromAmount)</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.Commission)</td>
                                             <td>@GetStatusBadge(r.Status)</td>
                                             <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(r.CreatedAt)</td>
                                         </tr>
@@ -593,8 +593,8 @@
                                             <td>@GetTransactionTypeName(r.TransactionType)</td>
                                             <td>@r.SenderName</td>
                                             <td>@r.ReceiverName</td>
-                                            <td dir="ltr">@r.FromAmount.ToString("N2")</td>
-                                            <td dir="ltr">@r.Commission.ToString("N2")</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.FromAmount)</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.Commission)</td>
                                             <td>@GetStatusBadge(r.Status)</td>
                                             <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(r.CreatedAt)</td>
                                         </tr>

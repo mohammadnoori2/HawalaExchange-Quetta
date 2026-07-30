@@ -1,0 +1,76 @@
+.accounts-page-compact .page-header {
+    margin-bottom: .65rem;
+}
+
+.account-summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .4rem;
+    padding: .45rem .6rem;
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: .65rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.account-summary-strip > div {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    min-width: 0;
+    padding: .15rem .5rem;
+    border-left: 1px solid var(--border-color, #e5e7eb);
+}
+
+.account-summary-strip > div:last-child {
+    border-left: 0;
+}
+
+.account-summary-strip span {
+    color: var(--text-muted, #6b7280);
+    font-size: .76rem;
+}
+
+.account-summary-strip strong {
+    font-size: 1rem;
+}
+
+.accounts-page-compact .table-card-header {
+    padding: .55rem .75rem;
+}
+
+.accounts-page-compact .table-card-footer {
+    padding: .45rem .75rem;
+}
+
+.accounts-table-compact thead th {
+    padding: .48rem .65rem;
+    white-space: nowrap;
+}
+
+.accounts-table-compact tbody td {
+    padding: .42rem .65rem;
+    font-size: .82rem;
+}
+
+.accounts-table-compact tbody tr:hover {
+    transform: none;
+}
+
+.account-view-button {
+    min-width: 92px;
+    padding: .22rem .55rem;
+    white-space: nowrap;
+    font-size: .76rem;
+}
+
+@media (max-width: 768px) {
+    .account-summary-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .account-summary-strip > div {
+        border-left: 0;
+    }
+}

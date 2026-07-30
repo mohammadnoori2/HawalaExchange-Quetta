@@ -12,7 +12,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
-<div class="page-wrapper">
+<div class="page-wrapper accounts-page-compact">
     <!-- هدر صفحه -->
     <div class="page-header">
         <div>
@@ -29,60 +29,12 @@
         </div>
     </div>
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-wallet2"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@accounts.Count</div>
-                        <div class="stat-label">تعداد حساب‌ها</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@accounts.Count(a => !a.IsArchived)</div>
-                        <div class="stat-label">حساب‌های فعال</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-warning">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning">
-                        <i class="bi bi-archive"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@accounts.Count(a => a.IsArchived)</div>
-                        <div class="stat-label">بایگانی شده</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-tags"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@accounts.Select(a => a.AccountType).Distinct().Count()</div>
-                        <div class="stat-label">انواع حساب</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- خلاصه فشرده -->
+    <div class="account-summary-strip mb-2" aria-label="خلاصه حساب‌ها">
+        <div><span>مجموع</span><strong>@accounts.Count</strong></div>
+        <div><span>فعال</span><strong class="text-success">@accounts.Count(a => !a.IsArchived)</strong></div>
+        <div><span>بایگانی</span><strong class="text-warning">@accounts.Count(a => a.IsArchived)</strong></div>
+        <div><span>نوع حساب</span><strong>@accounts.Select(a => a.AccountType).Distinct().Count()</strong></div>
     </div>
 
     <!-- کارت جدول -->
@@ -137,7 +89,7 @@
 
         <div class="table-card-body">
             <div class="table-scroll-wrapper">
-                <table class="table-modern table-striped-modern">
+                <table class="table-modern table-striped-modern accounts-table-compact">
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
@@ -253,25 +205,12 @@
                                         }
                                     </td>
                                     <td>
-                                        <div class="action-group justify-content-center">
-                                            <button class="action-btn action-btn-view" @onclick="() => ViewAccount(account.Id)" title="مشاهده">
-                                                <i class="bi bi-eye"></i>
+                                        <div class="d-flex justify-content-center">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-primary account-view-button"
+                                                    @onclick="() => ViewAccount(account.Id)">
+                                                مشاهده حساب
                                             </button>
-                                            @if (!account.IsArchived)
-                                            {
-                                                <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(account.Id)" title="ویرایش">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                <button class="action-btn action-btn-archive" @onclick="() => ShowArchiveConfirm(account.Id)" title="بایگانی">
-                                                    <i class="bi bi-archive"></i>
-                                                </button>
-                                            }
-                                            else
-                                            {
-                                                <button class="action-btn action-btn-unarchive" @onclick="() => ShowUnarchiveConfirm(account.Id)" title="خروج از بایگانی">
-                                                    <i class="bi bi-arrow-counterclockwise"></i>
-                                                </button>
-                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -509,7 +448,7 @@
                                                     var currency = currencies.FirstOrDefault(c => c.Id == item.CurrencyId);
                                                     <tr>
                                                         <td>@(currency?.Name ?? "نامشخص") (@(currency?.Code ?? ""))</td>
-                                                        <td>@item.Amount.ToString("N2")</td>
+                                                        <td>@MoneyFormatHelper.Format(item.Amount)</td>
                                                         <td>
                                                             <span class="badge-modern @(item.Direction == "Debit" ? "badge-danger" : "badge-success")">
                                                                 @(item.Direction == "Debit" ? "بدهکار" : "بستانکار")
@@ -532,9 +471,9 @@
                                                             var totalDebit = initialBalances.Where(b => b.Direction == "Debit").Sum(b => b.Amount);
                                                             var totalCredit = initialBalances.Where(b => b.Direction == "Credit").Sum(b => b.Amount);
                                                         }
-                                                        <span class="text-danger">بدهکار: @totalDebit.ToString("N2")</span>
+                                                        <span class="text-danger">بدهکار: @MoneyFormatHelper.Format(totalDebit)</span>
                                                         |
-                                                        <span class="text-success">بستانکار: @totalCredit.ToString("N2")</span>
+                                                        <span class="text-success">بستانکار: @MoneyFormatHelper.Format(totalCredit)</span>
                                                     </td>
                                                 </tr>
                                             </tfoot>
@@ -658,10 +597,6 @@
 <!-- ============================================================ -->
 <!-- کامپوننت مودال جزییات حساب -->
 <!-- ============================================================ -->
-<AccountDetailsModal IsVisible="@showAccountModal"
-                     IsVisibleChanged="@((bool value) => { showAccountModal = value; StateHasChanged(); })"
-                     Account="@selectedAccount" />
-
 @code {
     // ===== لیست‌های اصلی =====
     private List<AccountDto> accounts = new();
@@ -700,7 +635,7 @@
     }
 
     // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
-    private int pageSize = 10;
+    private int pageSize = 20;
     private int currentPage = 1;
     private string sortColumn = "CreatedAt";
     private bool sortAscending = false;
@@ -754,6 +689,8 @@
     private bool isEditMode = false;
     private bool isLoading = false;
     private long editId = 0;
+    private bool returnToAccountDetailsAfterEdit = false;
+    private bool returnToAccountDetailsAfterArchive = false;
 
     // ===== اطلاعات عملیات بایگانی =====
     private long confirmId = 0;
@@ -988,6 +925,7 @@
 
     private void OpenCreateModal()
     {
+        returnToAccountDetailsAfterEdit = false;
         currentAccount = new CreateAccountDto();
         isEditMode = false;
         editId = 0;
@@ -1042,12 +980,20 @@
     private void CloseModal()
     {
         showModal = false;
+        if (returnToAccountDetailsAfterEdit && selectedAccount != null)
+            showAccountModal = true;
+
+        returnToAccountDetailsAfterEdit = false;
         StateHasChanged();
     }
 
     private void CloseConfirmModal()
     {
         showConfirmModal = false;
+        if (returnToAccountDetailsAfterArchive && selectedAccount != null)
+            showAccountModal = true;
+
+        returnToAccountDetailsAfterArchive = false;
         StateHasChanged();
     }
 
@@ -1079,6 +1025,8 @@
         {
             isLoading = true;
             StateHasChanged();
+            var shouldReturnToDetails = isEditMode && returnToAccountDetailsAfterEdit;
+            var accountIdToReopen = editId;
 
             if (isEditMode)
             {
@@ -1104,6 +1052,11 @@
 
             showModal = false;
             await LoadAccounts();
+
+            if (shouldReturnToDetails)
+                await ReopenAccountDetails(accountIdToReopen);
+
+            returnToAccountDetailsAfterEdit = false;
         }
         catch (InvalidOperationException ex)
         {
@@ -1142,6 +1095,9 @@
 
     private async Task ConfirmAction()
     {
+        var accountIdToReopen = confirmId;
+        var shouldReturnToDetails = returnToAccountDetailsAfterArchive;
+
         try
         {
             if (confirmActionType == "archive")
@@ -1157,42 +1113,56 @@
 
             showConfirmModal = false;
             await LoadAccounts();
+
+            if (shouldReturnToDetails)
+                await ReopenAccountDetails(accountIdToReopen);
         }
         catch (Exception ex)
         {
             validationErrors.Add($"خطا در عملیات: {ex.Message}");
             showConfirmModal = false;
+            if (shouldReturnToDetails && selectedAccount != null)
+                showAccountModal = true;
         }
         finally
         {
+            returnToAccountDetailsAfterArchive = false;
             StateHasChanged();
         }
     }
 
     // ========== متد مشاهده حساب ==========
 
-    private async Task ViewAccount(long accountId)
+    private void ViewAccount(long accountId)
     {
-        try
-        {
-            validationErrors.Clear();
+        NavigationManager.NavigateTo($"/accounts/{accountId}");
+    }
 
-            selectedAccount = await AccountService.GetByIdAsync(accountId);
-            if (selectedAccount == null)
-            {
-                validationErrors.Add("حساب مورد نظر یافت نشد.");
-                StateHasChanged();
-                return;
-            }
+    private async Task EditAccountFromDetails(long accountId)
+    {
+        showAccountModal = false;
+        returnToAccountDetailsAfterEdit = true;
+        await OpenEditModal(accountId);
+    }
 
-            showAccountModal = true;
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            validationErrors.Add($"خطا در بارگذاری اطلاعات حساب: {ex.Message}");
-            StateHasChanged();
-        }
+    private Task ToggleArchiveFromDetails(long accountId)
+    {
+        showAccountModal = false;
+        returnToAccountDetailsAfterArchive = true;
+
+        var account = accounts.FirstOrDefault(x => x.Id == accountId) ?? selectedAccount;
+        if (account?.IsArchived == true)
+            ShowUnarchiveConfirm(accountId);
+        else
+            ShowArchiveConfirm(accountId);
+
+        return Task.CompletedTask;
+    }
+
+    private async Task ReopenAccountDetails(long accountId)
+    {
+        selectedAccount = await AccountService.GetByIdAsync(accountId);
+        showAccountModal = selectedAccount != null;
     }
 
     // ========== توابع کمکی ==========

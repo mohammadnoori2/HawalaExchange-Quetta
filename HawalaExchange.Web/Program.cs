@@ -149,6 +149,7 @@ public partial class Program
             {
                 var context = services.GetRequiredService<ApplicationDbContext>();
                 context.Database.Migrate();
+                context.EnsureCashDailyBalanceSchemaAsync().GetAwaiter().GetResult();
                 context.EnsureSystemAccountsAsync().GetAwaiter().GetResult();
 
                 var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();

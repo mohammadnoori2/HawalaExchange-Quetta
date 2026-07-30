@@ -125,10 +125,10 @@
                                     </td>
 
                                     <td dir="ltr" class="fw-bold text-primary">
-                                        @item.Amount.ToString("N2")
+                                        @MoneyFormatHelper.Format(item.Amount)
                                     </td>
                                     <td dir="ltr">
-                                        @((item.ProfitCurrencyAmount ?? 0).ToString("N2"))
+                                        @MoneyFormatHelper.Format(item.ProfitCurrencyAmount ?? 0)
                                         <span class="badge-modern badge-info">@item.ProfitCurrencyCode</span>
                                     </td>
 
@@ -268,16 +268,9 @@
                                         حساب دریافت‌کننده <span class="text-danger">*</span>
                                     </label>
 
-                                    <select class="form-select" @bind="model.ReceivingAccountId">
-                                        <option value="0">انتخاب حساب</option>
-
-                                        @foreach (var account in receivingAccounts)
-                                        {
-                                            <option value="@account.Id">
-                                                @account.AccountName (@account.AccountCode)
-                                            </option>
-                                        }
-                                    </select>
+                                    <AccountSearchSelect Accounts="@receivingAccounts"
+                                                         @bind-Value="model.ReceivingAccountId"
+                                                         Placeholder="جستجوی حساب دریافت‌کننده..." />
 
                                     <small class="text-muted">معمولاً Cash یا Bank</small>
                                 </div>
@@ -287,16 +280,9 @@
                                         حساب سرمایه <span class="text-danger">*</span>
                                     </label>
 
-                                    <select class="form-select" @bind="model.CapitalAccountId">
-                                        <option value="0">انتخاب حساب</option>
-
-                                        @foreach (var account in capitalAccounts)
-                                        {
-                                            <option value="@account.Id">
-                                                @account.AccountName (@account.AccountCode)
-                                            </option>
-                                        }
-                                    </select>
+                                    <AccountSearchSelect Accounts="@capitalAccounts"
+                                                         @bind-Value="model.CapitalAccountId"
+                                                         Placeholder="جستجوی حساب سرمایه..." />
 
                                     <small class="text-muted">معمولاً Owner Capital</small>
                                 </div>

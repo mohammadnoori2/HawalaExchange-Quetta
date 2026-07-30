@@ -42,7 +42,7 @@
                 ارسال تلگرام
             </button>
 
-            @if (ShowEdit && Hawala.Status != "Paid" && Hawala.Status != "Cancel")
+            @if (ShowEdit && Hawala.Status != "Cancel")
             {
                 <div class="operation-menu-divider"></div>
 
@@ -56,7 +56,7 @@
             {
                 <button type="button" class="operation-menu-item" role="menuitem" @onclick="PayAsync">
                     <i class="bi bi-check-circle text-success"></i>
-                    پرداخت حواله
+                    @PayButtonText
                 </button>
             }
 
@@ -68,7 +68,7 @@
                 </button>
             }
 
-            @if (ShowDelete && Hawala.Status != "Paid")
+            @if (ShowDelete)
             {
                 <div class="operation-menu-divider"></div>
 
@@ -88,6 +88,7 @@
     [Parameter] public bool ShowPay { get; set; } = true;
     [Parameter] public bool ShowCancel { get; set; } = true;
     [Parameter] public bool ShowDelete { get; set; } = true;
+    [Parameter] public string PayButtonText { get; set; } = "پرداخت حواله";
 
     [Parameter] public EventCallback<long> OnView { get; set; }
     [Parameter] public EventCallback<long> OnReceipt { get; set; }

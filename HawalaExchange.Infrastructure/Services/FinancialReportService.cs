@@ -372,10 +372,14 @@ public class FinancialReportService : IFinancialReportService
     {
         var warnings = new List<string>();
         var balances = GetConvertedBalances(entries, reporting, warnings);
+        var counterpartyBalances = balances
+            .Where(x => TypeIs(x.AccountType, "Customer") ||
+                        TypeIs(x.AccountType, "Correspondent"))
+            .ToList();
 
-        result.TopDebtors = balances
-            .Where(x => TypeIs(x.AccountType, "Customer") && x.DebitBalance > 0)
-            .GroupBy(x => new { x.AccountId, x.AccountName })
+        result.TopDebtors = counterpartyBalances
+            .Where(x => x.DebitBalance > 0)
+            .GroupBy(x => new { x.AccountId, x.AccountName, x.AccountType })
             .Select(x => new DashboardDebtorDto
             {
                 AccountId = x.Key.AccountId,
@@ -383,14 +387,39 @@ public class FinancialReportService : IFinancialReportService
                 Initial = string.IsNullOrWhiteSpace(x.Key.AccountName)
                     ? "؟"
                     : x.Key.AccountName.Trim()[..1],
+                AccountTypeName = TypeIs(x.Key.AccountType, "Correspondent")
+                    ? "نمایندگی"
+                    : "مشتری",
                 Amount = x.Sum(v => v.DebitBalance)
             })
             .OrderByDescending(x => x.Amount)
             .Take(10)
             .ToList();
+
+        result.TopCreditors = counterpartyBalances
+            .Where(x => x.CreditBalance > 0)
+            .GroupBy(x => new { x.AccountId, x.AccountName, x.AccountType })
+            .Select(x => new DashboardDebtorDto
+            {
+                AccountId = x.Key.AccountId,
+                Name = x.Key.AccountName,
+                Initial = string.IsNullOrWhiteSpace(x.Key.AccountName)
+                    ? "؟"
+                    : x.Key.AccountName.Trim()[..1],
+                AccountTypeName = TypeIs(x.Key.AccountType, "Correspondent")
+                    ? "نمایندگی"
+                    : "مشتری",
+                Amount = x.Sum(v => v.CreditBalance)
+            })
+            .OrderByDescending(x => x.Amount)
+            .Take(10)
+            .ToList();
+
         result.TotalCustomerReceivables = balances
             .Where(x => TypeIs(x.AccountType, "Customer"))
             .Sum(x => x.DebitBalance);
+        result.TotalCounterpartyReceivables = counterpartyBalances.Sum(x => x.DebitBalance);
+        result.TotalCounterpartyPayables = counterpartyBalances.Sum(x => x.CreditBalance);
 
         var liquidity = balances
             .Where(x => (TypeIs(x.AccountType, "Cash") || TypeIs(x.AccountType, "Bank")) &&

@@ -60,7 +60,10 @@ public class DashboardSummaryDto
     public decimal NetProfit { get; set; }
     public List<DashboardRateDto> Rates { get; set; } = new();
     public List<DashboardDebtorDto> TopDebtors { get; set; } = new();
+    public List<DashboardDebtorDto> TopCreditors { get; set; } = new();
     public decimal TotalCustomerReceivables { get; set; }
+    public decimal TotalCounterpartyReceivables { get; set; }
+    public decimal TotalCounterpartyPayables { get; set; }
     public List<DashboardLiquidityDto> Liquidity { get; set; } = new();
     public List<DashboardSeriesPointDto> DailyActivities { get; set; } = new();
     public List<DashboardSeriesPointDto> WeeklyProfit { get; set; } = new();
@@ -80,6 +83,7 @@ public class DashboardDebtorDto
     public long AccountId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Initial { get; set; } = string.Empty;
+    public string AccountTypeName { get; set; } = string.Empty;
     public decimal Amount { get; set; }
 }
 

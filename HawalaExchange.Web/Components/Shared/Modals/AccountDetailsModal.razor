@@ -2,19 +2,67 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @inject ILedgerService LedgerService
+@inject IJournalService JournalService
+@inject IMoneyExchangeOperationService MoneyExchangeOperationService
+@inject IAccountMoneyOperationService AccountMoneyOperationService
+@inject ITransferService TransferService
 
 @if (IsVisible && Account != null)
 {
-    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header" style="background: linear-gradient(135deg, #0dcaf0, #0a9ec4);">
-                    <h5 class="modal-title text-white">
-                        <i class="bi bi-wallet2 me-2"></i> جزئیات حساب
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="Close"></button>
+    <div class="@(PageMode ? "account-view-page" : "modal show d-block modal-modern")"
+         tabindex="-1"
+         style="@(PageMode ? null : "background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);")"
+         dir="rtl">
+        <div class="@(PageMode ? "account-view-page-shell" : "modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable account-view-dialog")">
+            <div class="@(PageMode ? "account-view-page-content" : "modal-content account-view-modal")">
+                <div class="@(PageMode ? "account-view-page-header" : "modal-header account-view-header")">
+                    <div class="account-view-title">
+                        <h5 class="@(PageMode ? "mb-0" : "modal-title text-white mb-0")">@ViewTitle</h5>
+                        <small>@(string.IsNullOrWhiteSpace(ViewSubtitle) ? $"{Account.AccountName} · {Account.AccountCode}" : ViewSubtitle)</small>
+                    </div>
+                    <div class="account-view-header-actions">
+                        @HeaderActions
+                        @if (PageMode && ShowFinancialActions && !ActionArchived)
+                        {
+                            <button type="button" class="btn btn-sm btn-primary" @onclick="OpenCreateExchange">
+                                تبادله اسعار
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateTransfer">
+                                انتقال بین حساب
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
+                                واریز، برداشت و پرداخت
+                            </button>
+                        }
+                        @if (!ActionArchived && OnEditRequested.HasDelegate)
+                        {
+                            <button type="button"
+                                    class="btn btn-sm @(PageMode ? "btn-outline-primary" : "btn-light")"
+                                    @onclick="RequestEditAsync">
+                                @EditButtonText
+                            </button>
+                        }
+                        @if (OnArchiveToggleRequested.HasDelegate)
+                        {
+                            <button type="button"
+                                    class="btn btn-sm @(ActionArchived ? "btn-outline-success" : (PageMode ? "btn-outline-danger" : "btn-warning"))"
+                                    @onclick="RequestArchiveToggleAsync">
+                                @(ActionArchived ? UnarchiveButtonText : ArchiveButtonText)
+                            </button>
+                        }
+                        @if (PageMode)
+                        {
+                            <button type="button" class="btn btn-sm btn-light border" @onclick="Close">
+                                @BackButtonText
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn-close btn-close-white" @onclick="Close"></button>
+                        }
+                    </div>
                 </div>
-                <div class="modal-body">
+                <div class="@(PageMode ? "account-view-page-body" : "modal-body")">
                     @if (ValidationErrors.Any())
                     {
                         <div class="alert alert-danger">
@@ -27,76 +75,67 @@
                             </ul>
                         </div>
                     }
+                    @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle me-1"></i> @SuccessMessage
+                        </div>
+                    }
+
+                    @ProfileSummary
 
                     <!-- اطلاعات خلاصه حساب -->
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-3 col-6">
-                            <div class="info-card">
-                                <span class="info-label">کد حساب</span>
-                                <span class="info-value">@Account.AccountCode</span>
+                    @if (ShowAccountFacts)
+                    {
+                        <div class="account-facts-grid mb-2">
+                            <div class="account-fact">
+                                <span>کد حساب</span>
+                                <strong>@Account.AccountCode</strong>
+                            </div>
+                            <div class="account-fact">
+                                <span>نام حساب</span>
+                                <strong>@Account.AccountName</strong>
+                            </div>
+                            <div class="account-fact">
+                                <span>نوع حساب</span>
+                                <strong>@GetAccountTypeName(Account.AccountType)</strong>
+                            </div>
+                            <div class="account-fact">
+                                <span>وضعیت</span>
+                                @if (Account.IsArchived)
+                                {
+                                    <strong class="text-warning">بایگانی شده</strong>
+                                }
+                                else
+                                {
+                                    <strong class="text-success">فعال</strong>
+                                }
+                            </div>
+                            <div class="account-fact">
+                                <span>نوع مرجع</span>
+                                <strong>@(string.IsNullOrEmpty(Account.ReferenceType) ? "—" : GetReferenceTypeName(Account.ReferenceType))</strong>
+                            </div>
+                            <div class="account-fact">
+                                <span>شناسه مرجع</span>
+                                <strong>@(Account.ReferenceId?.ToString() ?? "—")</strong>
+                            </div>
+                            <div class="account-fact">
+                                <span>سری کد</span>
+                                @{
+                                    var prefix = Account.AccountCode.Length > 0 ? Account.AccountCode[0].ToString() : "";
+                                }
+                                <strong>سری @prefix</strong>
+                            </div>
+                            <div class="account-fact">
+                                <span>تاریخ ایجاد</span>
+                                <strong dir="ltr">@PersianDateHelper.ToPersianDateTime12(Account.CreatedAt)</strong>
                             </div>
                         </div>
-                        <div class="col-md-3 col-6">
-                            <div class="info-card">
-                                <span class="info-label">نام حساب</span>
-                                <span class="info-value">@Account.AccountName</span>
-                            </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                            <div class="info-card">
-                                <span class="info-label">نوع حساب</span>
-                                <span class="info-value">@GetAccountTypeName(Account.AccountType)</span>
-                            </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                            <div class="info-card">
-                                <span class="info-label">وضعیت</span>
-                                <span class="info-value">
-                                    @if (Account.IsArchived)
-                                    {
-                                        <span class="badge-modern badge-archived">بایگانی شده</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge-modern badge-active">فعال</span>
-                                    }
-                                </span>
-                            </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                            <div class="info-card">
-                                <span class="info-label">نوع مرجع</span>
-                                <span class="info-value">@(string.IsNullOrEmpty(Account.ReferenceType) ? "—" : GetReferenceTypeName(Account.ReferenceType))</span>
-                            </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                            <div class="info-card">
-                                <span class="info-label">شناسه مرجع</span>
-                                <span class="info-value">@(Account.ReferenceId?.ToString() ?? "—")</span>
-                            </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                            <div class="info-card">
-                                <span class="info-label">سری کد</span>
-                                <span class="info-value">
-                                    @{
-                                        var prefix = Account.AccountCode.Length > 0 ? Account.AccountCode[0].ToString() : "";
-                                    }
-                                    <span class="badge-modern badge-info">سری @prefix</span>
-                                </span>
-                            </div>
-                        </div>
-                        <div class="col-md-3 col-6">
-                            <div class="info-card">
-                                <span class="info-label">تاریخ ایجاد</span>
-                                <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDateTime12(Account.CreatedAt)</span>
-                            </div>
-                        </div>
-                    </div>
+                    }
 
                     <!-- جمع‌بندی موجودی -->
-                    <div class="modern-card mb-4">
-                        <div class="card-header" style="background: linear-gradient(135deg, #28a745, #1a7a3a);">
+                    <div class="modern-card account-balance-card mb-2">
+                        <div class="card-header">
                             <h6 class="text-white">
                                 <i class="bi bi-calculator me-2"></i> جمع‌بندی موجودی به تفکیک ارز
                             </h6>
@@ -112,32 +151,17 @@
                             }
                             else if (BalanceSummary.Any())
                             {
-                                <div class="table-scroll-wrapper">
-                                    <table class="table-modern">
-                                        <thead>
-                                            <tr>
-                                                <th>واحد پولی</th>
-                                                <th>وضعیت</th>
-                                                <th>مقدار</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach (var item in BalanceSummary)
-                                            {
-                                                var status = item.Balance > 0 ? "طلبکار" : (item.Balance < 0 ? "بدهکار" : "تسویه");
-                                                var badgeClass = item.Balance > 0 ? "badge-success" : (item.Balance < 0 ? "badge-danger" : "badge-secondary");
-                                                <tr>
-                                                    <td><strong>@item.CurrencyCode</strong></td>
-                                                    <td>
-                                                        <span class="badge-modern @badgeClass">@status</span>
-                                                    </td>
-                                                    <td class="fw-bold fs-5 @(item.Balance != 0 ? (item.Balance > 0 ? "text-success" : "text-danger") : "text-muted")">
-                                                        @Math.Abs(item.Balance).ToString("N2")
-                                                    </td>
-                                                </tr>
-                                            }
-                                        </tbody>
-                                    </table>
+                                <div class="account-balance-grid">
+                                    @foreach (var item in BalanceSummary)
+                                    {
+                                        var status = item.Balance > 0 ? "طلبکار" : (item.Balance < 0 ? "بدهکار" : "تسویه");
+                                        var valueClass = item.Balance > 0 ? "text-success" : (item.Balance < 0 ? "text-danger" : "text-muted");
+                                        <div class="account-balance-item">
+                                            <strong>@item.CurrencyCode</strong>
+                                            <span class="@valueClass">@MoneyFormatHelper.Format(Math.Abs(item.Balance))</span>
+                                            <small>@status</small>
+                                        </div>
+                                    }
                                 </div>
                             }
                             else
@@ -150,15 +174,55 @@
                         </div>
                     </div>
 
-                    <!-- لیست تراکنش‌های دفتر کل -->
-                    <div class="modern-card">
-                        <div class="card-header" style="background: linear-gradient(135deg, #6c757d, #5a6268);">
+                    @AdditionalContent
+
+                    <!-- عملیات مرتبط با حساب -->
+                    <div class="modern-card account-operations-card">
+                        <div class="card-header">
                             <h6 class="text-white">
-                                <i class="bi bi-list-ul me-2"></i> لیست تراکنش‌های دفتر کل
+                                <i class="bi bi-list-ul me-2"></i> معاملات و عملیات حساب
                             </h6>
                         </div>
                         <div class="card-body">
-                            @if (IsLedgerLoading)
+                            @if (!PageMode)
+                            {
+                                <div class="account-operation-actions d-flex flex-wrap gap-2 mb-2">
+                                    <button class="btn btn-sm btn-primary" @onclick="OpenCreateExchange">
+                                        <i class="bi bi-currency-exchange"></i> تبادله اسعار
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateTransfer">
+                                        <i class="bi bi-arrow-left-right"></i> انتقال بین حساب
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
+                                        <i class="bi bi-cash-stack"></i> واریز، برداشت و پرداخت
+                                    </button>
+                                </div>
+                            }
+
+                            <div class="account-operation-filters d-flex flex-wrap gap-1 border-top border-bottom py-2 mb-2">
+                                <button class="btn btn-sm @(OperationFilter == "All" ? "btn-dark" : "btn-outline-dark")"
+                                        @onclick='() => SetOperationFilter("All")'>
+                                    همه معاملات
+                                </button>
+                                <button class="btn btn-sm @(OperationFilter == "تبدیل پول" ? "btn-primary" : "btn-outline-primary")"
+                                        @onclick='() => SetOperationFilter("تبدیل پول")'>
+                                    تبادله اسعار
+                                </button>
+                                <button class="btn btn-sm @(OperationFilter == "انتقال" ? "btn-warning" : "btn-outline-warning")"
+                                        @onclick='() => SetOperationFilter("انتقال")'>
+                                    انتقال بین حساب
+                                </button>
+                                <button class="btn btn-sm @(OperationFilter == "واریز / برداشت / پرداخت" ? "btn-success" : "btn-outline-success")"
+                                        @onclick='() => SetOperationFilter("واریز / برداشت / پرداخت")'>
+                                    واریز، برداشت و پرداخت
+                                </button>
+                                <button class="btn btn-sm @(OperationFilter == "Other" ? "btn-secondary" : "btn-outline-secondary")"
+                                        @onclick='() => SetOperationFilter("Other")'>
+                                    سایر عملیات
+                                </button>
+                            </div>
+
+                            @if (IsOperationsLoading)
                             {
                                 <div class="text-center py-3">
                                     <div class="spinner-border text-primary" role="status">
@@ -166,42 +230,61 @@
                                     </div>
                                 </div>
                             }
-                            else if (LedgerEntries.Any())
+                            else if (FilteredOperations.Any())
                             {
-                                <div class="table-scroll-wrapper">
-                                    <table class="table-modern table-striped-modern">
-                                        <thead>
-                                            <tr>
-                                                <th>#</th>
-                                                <th>تاریخ</th>
-                                                <th>شماره تراکنش</th>
-                                                <th>نوع تراکنش</th>
-                                                <th>واحد پولی</th>
-                                                <th>طلبکار</th>
-                                                <th>بدهکار</th>
-                                                <th>توضیحات</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach (var entry in LedgerEntries)
+                                <div class="account-operation-list d-flex flex-column gap-2">
+                                    @foreach (var operation in FilteredOperations)
+                                    {
+                                        <article class="account-operation-row border rounded-3 p-2 bg-white">
+                                            <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
+                                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                                    <span class="badge-modern @GetOperationBadge(operation.SourceType)">
+                                                        @operation.SourceType
+                                                    </span>
+                                                    <span class="text-muted small" dir="ltr">
+                                                        @PersianDateHelper.ToPersianDateTime12(operation.CreatedAt)
+                                                    </span>
+                                                    <span class="text-muted small">شماره @operation.DocumentNumber</span>
+                                                </div>
+
+                                                @if (CanModifyOperation(operation))
+                                                {
+                                                    <div class="action-group">
+                                                        <button class="action-btn action-btn-edit"
+                                                                title="ویرایش"
+                                                                @onclick="() => EditOperationAsync(operation)">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        <button class="action-btn action-btn-delete"
+                                                                title="حذف"
+                                                                @onclick="() => AskDeleteOperation(operation)">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                }
+                                            </div>
+
+                                            <p class="mb-1 fw-semibold">@operation.SummarySentence</p>
+
+                                            @if (operation.SourceDetails.Any())
                                             {
-                                                <tr>
-                                                    <td>@entry.Id</td>
-                                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(entry.CreatedAt)</td>
-                                                    <td>@entry.TransactionNo</td>
-                                                    <td>
-                                                        <span class="badge-modern @GetTransactionTypeBadge(entry.TransactionType)">
-                                                            @GetTransactionTypeName(entry.TransactionType)
-                                                        </span>
-                                                    </td>
-                                                    <td><span class="badge-modern badge-info">@entry.CurrencyCode</span></td>
-                                                    <td class="text-success fw-bold">@(entry.TalabKar > 0 ? entry.TalabKar.ToString("N2") : "-")</td>
-                                                    <td class="text-danger fw-bold">@(entry.BadehKar > 0 ? entry.BadehKar.ToString("N2") : "-")</td>
-                                                    <td>@entry.Description</td>
-                                                </tr>
+                                                <details>
+                                                    <summary class="text-primary small" style="cursor:pointer">نمایش جزئیات عملیات</summary>
+                                                    <div class="row g-2 mt-2">
+                                                        @foreach (var detail in operation.SourceDetails)
+                                                        {
+                                                            <div class="col-md-6">
+                                                                <div class="bg-light rounded p-2">
+                                                                    <span class="text-muted small">@detail.Label:</span>
+                                                                    <strong class="ms-1">@detail.Value</strong>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </details>
                                             }
-                                        </tbody>
-                                    </table>
+                                        </article>
+                                    }
                                 </div>
                             }
                             else
@@ -214,9 +297,58 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+}
+
+<MoneyExchangeModal IsVisible="@showExchangeModal"
+                    IsVisibleChanged="@((bool value) => showExchangeModal = value)"
+                    IsEditMode="@isExchangeEditMode"
+                    EditId="@operationEditId"
+                    EditData="@exchangeEditData"
+                    InitialAccountId="@Account?.Id"
+                    OnSaveSuccess="@OnExchangeSaved"
+                    OnEditSuccess="@OnOperationEdited" />
+
+<DepositWithdrawModal IsVisible="@showAccountOperationModal"
+                      IsVisibleChanged="@((bool value) => showAccountOperationModal = value)"
+                      IsEditMode="@isAccountOperationEditMode"
+                      EditId="@operationEditId"
+                      EditData="@accountOperationEditData"
+                      InitialAccountId="@Account?.Id"
+                      OnSaveSuccess="@OnAccountOperationSaved"
+                      OnEditSuccess="@OnOperationEdited" />
+
+<TransferModal IsVisible="@showTransferModal"
+               IsVisibleChanged="@((bool value) => showTransferModal = value)"
+               IsEditMode="@isTransferEditMode"
+               EditId="@operationEditId"
+               EditData="@transferEditData"
+               InitialAccountId="@Account?.Id"
+               OnSaveSuccess="@OnTransferSaved"
+               OnEditSuccess="@OnOperationEdited" />
+
+@if (showDeleteOperationModal && operationToDelete != null)
+{
+    <div class="modal show d-block modal-modern"
+         tabindex="-1"
+         style="background-color: rgba(0,0,0,0.6);"
+         dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header modal-header-danger">
+                    <h5 class="modal-title text-white">تأیید حذف معامله</h5>
+                    <button class="btn-close btn-close-white" @onclick="CancelDeleteOperation"></button>
+                </div>
+                <div class="modal-body">
+                    <p>آیا این عملیات و تمام ثبت‌های حسابداری مرتبط با آن حذف گردد؟</p>
+                    <p class="mb-0 fw-semibold">@operationToDelete.SummarySentence</p>
+                </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn-modern btn-light-modern" @onclick="Close">
-                        <i class="bi bi-x-circle"></i> بستن
+                    <button class="btn-modern btn-light-modern" @onclick="CancelDeleteOperation">انصراف</button>
+                    <button class="btn-modern btn-danger-modern" @onclick="ConfirmDeleteOperationAsync">
+                        <i class="bi bi-trash"></i> حذف
                     </button>
                 </div>
             </div>
@@ -229,20 +361,73 @@
     [Parameter] public bool IsVisible { get; set; }
     [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
     [Parameter] public AccountDto? Account { get; set; }
+    [Parameter] public bool PageMode { get; set; }
+    [Parameter] public string ViewTitle { get; set; } = "مشاهده حساب";
+    [Parameter] public string? ViewSubtitle { get; set; }
+    [Parameter] public string EditButtonText { get; set; } = "ویرایش حساب";
+    [Parameter] public string ArchiveButtonText { get; set; } = "بایگانی حساب";
+    [Parameter] public string UnarchiveButtonText { get; set; } = "خروج از بایگانی";
+    [Parameter] public string BackButtonText { get; set; } = "بازگشت";
+    [Parameter] public bool ShowAccountFacts { get; set; } = true;
+    [Parameter] public bool ShowFinancialActions { get; set; } = true;
+    [Parameter] public bool? ActionEntityArchived { get; set; }
+    [Parameter] public RenderFragment? HeaderActions { get; set; }
+    [Parameter] public RenderFragment? ProfileSummary { get; set; }
+    [Parameter] public RenderFragment? AdditionalContent { get; set; }
+    [Parameter] public EventCallback<long> OnEditRequested { get; set; }
+    [Parameter] public EventCallback<long> OnArchiveToggleRequested { get; set; }
 
-    // ===== متغیرها =====
     private List<string> ValidationErrors { get; set; } = new();
+    private string SuccessMessage { get; set; } = string.Empty;
     private bool IsBalanceLoading { get; set; } = false;
-    private bool IsLedgerLoading { get; set; } = false;
+    private bool IsOperationsLoading { get; set; } = false;
     private List<BalanceDto> BalanceSummary { get; set; } = new();
-    private List<LedgerEntryDto> LedgerEntries { get; set; } = new();
+    private List<JournalOperationDto> Operations { get; set; } = new();
+    private string OperationFilter { get; set; } = "All";
 
-    // ===== متدها =====
+    private bool showExchangeModal;
+    private bool isExchangeEditMode;
+    private CreateMoneyExchangeOperationDto? exchangeEditData;
+    private bool showAccountOperationModal;
+    private bool isAccountOperationEditMode;
+    private CreateAccountMoneyOperationDto? accountOperationEditData;
+    private bool showTransferModal;
+    private bool isTransferEditMode;
+    private CreateTransferDto? transferEditData;
+    private long operationEditId;
+    private bool showDeleteOperationModal;
+    private JournalOperationDto? operationToDelete;
+    private long? loadedAccountId;
+    private bool wasVisible;
+    private bool ActionArchived => ActionEntityArchived ?? Account?.IsArchived ?? false;
+
+    private IReadOnlyList<JournalOperationDto> FilteredOperations =>
+        OperationFilter switch
+        {
+            "All" => Operations,
+            "Other" => Operations
+                .Where(x => x.SourceType is not "تبدیل پول" and
+                                            not "انتقال" and
+                                            not "واریز / برداشت / پرداخت")
+                .ToList(),
+            _ => Operations.Where(x => x.SourceType == OperationFilter).ToList()
+        };
 
     protected override async Task OnParametersSetAsync()
     {
-        if (IsVisible && Account != null)
+        if (!IsVisible || Account == null)
         {
+            wasVisible = false;
+            return;
+        }
+
+        var shouldLoad = !wasVisible || loadedAccountId != Account.Id;
+        wasVisible = true;
+        loadedAccountId = Account.Id;
+
+        if (shouldLoad)
+        {
+            OperationFilter = "All";
             await LoadAccountData(Account.Id);
         }
     }
@@ -252,15 +437,15 @@
         try
         {
             IsBalanceLoading = true;
-            IsLedgerLoading = true;
+            IsOperationsLoading = true;
             ValidationErrors.Clear();
             StateHasChanged();
 
             var balanceResult = await LedgerService.GetAccountBalancesAsync(accountId);
             BalanceSummary = balanceResult.ToList();
 
-            var ledgerResult = await LedgerService.GetEntriesByAccountAsync(accountId);
-            LedgerEntries = ledgerResult.ToList();
+            var operationsResult = await JournalService.GetAccountOperationsAsync(accountId);
+            Operations = operationsResult.ToList();
         }
         catch (Exception ex)
         {
@@ -269,19 +454,194 @@
         finally
         {
             IsBalanceLoading = false;
-            IsLedgerLoading = false;
+            IsOperationsLoading = false;
             StateHasChanged();
+        }
+    }
+
+    private void SetOperationFilter(string filter)
+    {
+        OperationFilter = filter;
+    }
+
+    private async Task RequestEditAsync()
+    {
+        if (Account != null)
+            await OnEditRequested.InvokeAsync(Account.Id);
+    }
+
+    private async Task RequestArchiveToggleAsync()
+    {
+        if (Account != null)
+            await OnArchiveToggleRequested.InvokeAsync(Account.Id);
+    }
+
+    private void OpenCreateExchange()
+    {
+        isExchangeEditMode = false;
+        operationEditId = 0;
+        exchangeEditData = null;
+        showExchangeModal = true;
+    }
+
+    private void OpenCreateAccountOperation()
+    {
+        isAccountOperationEditMode = false;
+        operationEditId = 0;
+        accountOperationEditData = null;
+        showAccountOperationModal = true;
+    }
+
+    private void OpenCreateTransfer()
+    {
+        isTransferEditMode = false;
+        operationEditId = 0;
+        transferEditData = null;
+        showTransferModal = true;
+    }
+
+    private async Task EditOperationAsync(JournalOperationDto operation)
+    {
+        if (!operation.SourceId.HasValue)
+            return;
+
+        try
+        {
+            ValidationErrors.Clear();
+            operationEditId = operation.SourceId.Value;
+
+            if (operation.SourceType == "تبدیل پول")
+            {
+                var source = await MoneyExchangeOperationService.GetByIdAsync(operationEditId)
+                    ?? throw new KeyNotFoundException("تبادله اسعار یافت نشد.");
+                exchangeEditData = new CreateMoneyExchangeOperationDto
+                {
+                    ExchangeDate = source.ExchangeDate,
+                    FromAccountId = source.FromAccountId,
+                    FromCurrencyId = source.FromCurrencyId,
+                    FromAmount = source.FromAmount,
+                    ToAccountId = source.ToAccountId,
+                    ToCurrencyId = source.ToCurrencyId,
+                    ToAmount = source.ToAmount,
+                    ExchangeRate = source.ExchangeRate,
+                    OperationType = source.OperationType,
+                    ProfitCurrencyId = source.ProfitCurrencyId ?? 0,
+                    CommissionAmount = source.CommissionAmount,
+                    ExternalFeeAmount = source.ExternalFeeAmount,
+                    Description = source.Description
+                };
+                isExchangeEditMode = true;
+                showExchangeModal = true;
+            }
+            else if (operation.SourceType == "واریز / برداشت / پرداخت")
+            {
+                var source = await AccountMoneyOperationService.GetByIdAsync(operationEditId)
+                    ?? throw new KeyNotFoundException("عملیات واریز یا برداشت یافت نشد.");
+                accountOperationEditData = new CreateAccountMoneyOperationDto
+                {
+                    OperationType = source.OperationType,
+                    OperationDate = source.OperationDate,
+                    AccountId = source.AccountId,
+                    CashOrBankAccountId = source.CashOrBankAccountId,
+                    CurrencyId = source.CurrencyId,
+                    Amount = source.Amount,
+                    Description = source.Description
+                };
+                isAccountOperationEditMode = true;
+                showAccountOperationModal = true;
+            }
+            else if (operation.SourceType == "انتقال")
+            {
+                var source = await TransferService.GetTransferByIdAsync(operationEditId)
+                    ?? throw new KeyNotFoundException("انتقال یافت نشد.");
+                transferEditData = new CreateTransferDto
+                {
+                    FromAccountId = source.FromAccountId,
+                    ToAccountId = source.ToAccountId,
+                    CurrencyId = source.CurrencyId,
+                    Amount = source.Amount,
+                    TransferMethod = source.TransferMethod,
+                    ReferenceNumber = source.ReferenceNumber,
+                    Remarks = source.Remarks
+                };
+                isTransferEditMode = true;
+                showTransferModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add($"خطا در بازکردن معامله: {ex.Message}");
+        }
+    }
+
+    private void AskDeleteOperation(JournalOperationDto operation)
+    {
+        operationToDelete = operation;
+        showDeleteOperationModal = true;
+    }
+
+    private void CancelDeleteOperation()
+    {
+        showDeleteOperationModal = false;
+        operationToDelete = null;
+    }
+
+    private async Task ConfirmDeleteOperationAsync()
+    {
+        if (operationToDelete?.SourceId is not long sourceId || Account == null)
+            return;
+
+        try
+        {
+            if (operationToDelete.SourceType == "تبدیل پول")
+                await MoneyExchangeOperationService.DeleteAsync(sourceId);
+            else if (operationToDelete.SourceType == "واریز / برداشت / پرداخت")
+                await AccountMoneyOperationService.DeleteAsync(sourceId);
+            else if (operationToDelete.SourceType == "انتقال")
+                await TransferService.DeleteTransferAsync(sourceId);
+            else
+                throw new InvalidOperationException("حذف این نوع عملیات از بخش حساب پشتیبانی نمی‌شود.");
+
+            SuccessMessage = "معامله و تمام ثبت‌های حسابداری مرتبط با موفقیت حذف شد.";
+            CancelDeleteOperation();
+            await LoadAccountData(Account.Id);
+        }
+        catch (Exception ex)
+        {
+            CancelDeleteOperation();
+            ValidationErrors.Add($"خطا در حذف معامله: {ex.Message}");
+        }
+    }
+
+    private Task OnExchangeSaved(CreateMoneyExchangeOperationDto _) => ReloadOperationsAsync();
+
+    private Task OnAccountOperationSaved(CreateAccountMoneyOperationDto _) => ReloadOperationsAsync();
+
+    private Task OnTransferSaved(CreateTransferDto _) => ReloadOperationsAsync();
+
+    private Task OnOperationEdited(long _) => ReloadOperationsAsync();
+
+    private async Task ReloadOperationsAsync()
+    {
+        if (Account != null)
+        {
+            SuccessMessage = "عملیات با موفقیت ذخیره شد.";
+            await LoadAccountData(Account.Id);
         }
     }
 
     private async Task Close()
     {
+        showExchangeModal = false;
+        showAccountOperationModal = false;
+        showTransferModal = false;
+        CancelDeleteOperation();
+        wasVisible = false;
+        loadedAccountId = null;
         IsVisible = false;
         await IsVisibleChanged.InvokeAsync(false);
         StateHasChanged();
     }
-
-    // ===== توابع کمکی =====
 
     private string GetAccountTypeName(string type)
     {
@@ -308,33 +668,21 @@
         };
     }
 
-    private string GetTransactionTypeBadge(string type)
-    {
-        return type?.ToLower() switch
-        {
-            "exchange" => "badge-primary",
-            "hawalasend" => "badge-info",
-            "hawalareceive" => "badge-success",
-            "transfer" => "badge-warning",
-            "expense" => "badge-danger",
-            "adjustment" => "badge-secondary",
-            "openingbalance" => "badge-dark",
-            _ => "badge-light"
-        };
-    }
+    private static bool CanModifyOperation(JournalOperationDto operation) =>
+        operation.SourceId.HasValue &&
+        operation.SourceType is "تبدیل پول" or "انتقال" or "واریز / برداشت / پرداخت";
 
-    private string GetTransactionTypeName(string type)
+    private static string GetOperationBadge(string sourceType)
     {
-        return type?.ToLower() switch
+        return sourceType switch
         {
-            "exchange" => "تبدیل ارز",
-            "hawalasend" => "حواله فرستاده",
-            "hawalareceive" => "حواله دریافت",
-            "transfer" => "انتقال",
-            "expense" => "هزینه",
-            "adjustment" => "تعدیل",
-            "openingbalance" => "موجودی اولیه",
-            _ => type ?? "نامشخص"
+            "تبدیل پول" => "badge-primary",
+            "انتقال" => "badge-warning",
+            "واریز / برداشت / پرداخت" => "badge-success",
+            "حواله" => "badge-info",
+            "مصرف" => "badge-danger",
+            "ثبت سرمایه" => "badge-dark",
+            _ => "badge-secondary"
         };
     }
 }

@@ -1,0 +1,327 @@
+@page "/accounts/{AccountId:long}"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Components.Shared.Modals
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IAccountService AccountService
+@inject ICustomerService CustomerService
+@inject ICorrespondentService CorrespondentService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(account == null ? "مشاهده حساب" : account.AccountName)</PageTitle>
+
+<div class="page-wrapper account-details-page">
+    @if (isLoading)
+    {
+        <div class="account-page-state">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">در حال بارگذاری...</span>
+            </div>
+            <span>در حال بارگذاری حساب...</span>
+        </div>
+    }
+    else if (account == null)
+    {
+        <div class="account-page-state account-page-state-error">
+            <h5>حساب یافت نشد</h5>
+            <p>@(string.IsNullOrWhiteSpace(pageError) ? "حساب مورد نظر وجود ندارد یا حذف شده است." : pageError)</p>
+            <button type="button" class="btn btn-primary" @onclick="BackToAccounts">بازگشت به حساب‌ها</button>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success account-page-alert" role="alert">
+                @successMessage
+                <button type="button" class="btn-close" aria-label="بستن" @onclick="() => successMessage = string.Empty"></button>
+            </div>
+        }
+
+        <AccountDetailsModal IsVisible="true"
+                             PageMode="true"
+                             Account="@account"
+                             IsVisibleChanged="HandleDetailsVisibilityChanged"
+                             OnEditRequested="OpenEditModal"
+                             OnArchiveToggleRequested="OpenArchiveConfirmation" />
+    }
+</div>
+
+@if (showEditModal && account != null)
+{
+    <div class="modal show d-block account-action-overlay" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content account-action-modal">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title">ویرایش حساب</h5>
+                        <small>@account.AccountCode</small>
+                    </div>
+                    <button type="button" class="btn-close" aria-label="بستن" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (editErrors.Any())
+                    {
+                        <div class="alert alert-danger py-2">
+                            @foreach (var error in editErrors)
+                            {
+                                <div>@error</div>
+                            }
+                        </div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">نام حساب</label>
+                        <input class="form-control" @bind="editModel.AccountName" />
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-md-5">
+                            <label class="form-label">نوع مرجع</label>
+                            <select class="form-select"
+                                    @bind="editModel.ReferenceType"
+                                    @bind:after="OnEditReferenceTypeChanged">
+                                <option value="">بدون مرجع</option>
+                                <option value="Customer">مشتری</option>
+                                <option value="Correspondent">نماینده</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label">مرجع</label>
+                            @if (editModel.ReferenceType == "Customer")
+                            {
+                                <select class="form-select" @bind="editModel.ReferenceId">
+                                    <option value="">انتخاب مشتری</option>
+                                    @foreach (var customer in customers.Where(x => !x.IsArchived))
+                                    {
+                                        <option value="@customer.Id">@customer.FullName (@customer.CustomerCode)</option>
+                                    }
+                                </select>
+                            }
+                            else if (editModel.ReferenceType == "Correspondent")
+                            {
+                                <select class="form-select" @bind="editModel.ReferenceId">
+                                    <option value="">انتخاب نماینده</option>
+                                    @foreach (var correspondent in correspondents.Where(x => !x.IsArchived))
+                                    {
+                                        <option value="@correspondent.Id">@correspondent.Name (@correspondent.Code)</option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+                                <input class="form-control" value="بدون مرجع" disabled />
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" @onclick="CloseEditModal">انصراف</button>
+                    <button type="button" class="btn btn-primary" disabled="@isSaving" @onclick="SaveAccountEdit">
+                        @(isSaving ? "در حال ذخیره..." : "ذخیره تغییرات")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showArchiveConfirmation && account != null)
+{
+    <div class="modal show d-block account-action-overlay" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content account-action-modal">
+                <div class="modal-header">
+                    <h5 class="modal-title">تأیید عملیات</h5>
+                    <button type="button" class="btn-close" aria-label="بستن" @onclick="CloseArchiveConfirmation"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">
+                        @(account.IsArchived
+                            ? "این حساب از بایگانی خارج شود؟"
+                            : "این حساب بایگانی شود؟")
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" @onclick="CloseArchiveConfirmation">انصراف</button>
+                    <button type="button"
+                            class="btn @(account.IsArchived ? "btn-success" : "btn-danger")"
+                            disabled="@isSaving"
+                            @onclick="ToggleArchive">
+                        @(account.IsArchived ? "خروج از بایگانی" : "بایگانی")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public long AccountId { get; set; }
+
+    private AccountDto? account;
+    private List<CustomerDto> customers = new();
+    private List<CorrespondentDto> correspondents = new();
+    private UpdateAccountDto editModel = new();
+    private List<string> editErrors = new();
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showEditModal;
+    private bool showArchiveConfirmation;
+    private string pageError = string.Empty;
+    private string successMessage = string.Empty;
+    private long? loadedAccountId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loadedAccountId == AccountId)
+            return;
+
+        loadedAccountId = AccountId;
+        await LoadPageData();
+    }
+
+    private async Task LoadPageData()
+    {
+        try
+        {
+            isLoading = true;
+            pageError = string.Empty;
+
+            account = await AccountService.GetByIdAsync(AccountId);
+            customers = (await CustomerService.GetAllAsync()).ToList();
+            correspondents = (await CorrespondentService.GetAllAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            account = null;
+            pageError = $"خطا در بارگذاری حساب: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private Task HandleDetailsVisibilityChanged(bool isVisible)
+    {
+        if (!isVisible)
+            BackToAccounts();
+
+        return Task.CompletedTask;
+    }
+
+    private void BackToAccounts()
+    {
+        NavigationManager.NavigateTo("/accounts");
+    }
+
+    private Task OpenEditModal(long accountId)
+    {
+        if (account == null || account.Id != accountId)
+            return Task.CompletedTask;
+
+        editErrors.Clear();
+        editModel = new UpdateAccountDto
+        {
+            AccountName = account.AccountName,
+            IsActive = account.IsActive,
+            IsArchived = account.IsArchived,
+            ReferenceType = account.ReferenceType,
+            ReferenceId = account.ReferenceId
+        };
+        showEditModal = true;
+        return Task.CompletedTask;
+    }
+
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+        editErrors.Clear();
+    }
+
+    private void OnEditReferenceTypeChanged()
+    {
+        editModel.ReferenceId = null;
+    }
+
+    private async Task SaveAccountEdit()
+    {
+        if (account == null)
+            return;
+
+        editErrors.Clear();
+        if (string.IsNullOrWhiteSpace(editModel.AccountName))
+            editErrors.Add("نام حساب الزامی است.");
+
+        if (!string.IsNullOrWhiteSpace(editModel.ReferenceType) && !editModel.ReferenceId.HasValue)
+            editErrors.Add("مرجع حساب را انتخاب کنید.");
+
+        if (editErrors.Any())
+            return;
+
+        try
+        {
+            isSaving = true;
+            await AccountService.UpdateAsync(account.Id, editModel);
+            account = await AccountService.GetByIdAsync(account.Id);
+            showEditModal = false;
+            successMessage = "تغییرات حساب ذخیره شد.";
+        }
+        catch (Exception ex)
+        {
+            editErrors.Add($"ذخیره تغییرات انجام نشد: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private Task OpenArchiveConfirmation(long accountId)
+    {
+        if (account != null && account.Id == accountId)
+            showArchiveConfirmation = true;
+
+        return Task.CompletedTask;
+    }
+
+    private void CloseArchiveConfirmation()
+    {
+        showArchiveConfirmation = false;
+    }
+
+    private async Task ToggleArchive()
+    {
+        if (account == null)
+            return;
+
+        try
+        {
+            isSaving = true;
+            if (account.IsArchived)
+            {
+                await AccountService.UnarchiveAsync(account.Id);
+                successMessage = "حساب از بایگانی خارج شد.";
+            }
+            else
+            {
+                await AccountService.ArchiveAsync(account.Id);
+                successMessage = "حساب بایگانی شد.";
+            }
+
+            account = await AccountService.GetByIdAsync(account.Id);
+            showArchiveConfirmation = false;
+        }
+        catch (Exception ex)
+        {
+            pageError = $"عملیات بایگانی انجام نشد: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

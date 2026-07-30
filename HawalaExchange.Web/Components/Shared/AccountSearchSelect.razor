@@ -1,0 +1,189 @@
+@using HawalaExchange.Application.DTOs
+
+<div class="searchable-dropdown">
+    <div class="searchable-dropdown-input" @onclick="Open">
+        <input type="text"
+               class="@CssClass"
+               value="@DisplayText"
+               placeholder="@Placeholder"
+               autocomplete="off"
+               disabled="@Disabled"
+               @oninput="HandleInputAsync"
+               @onfocus="Open"
+               @onblur="Close"
+               @onkeydown="HandleKeyDownAsync"
+               @onkeydown:stopPropagation="true" />
+    </div>
+
+    @if (isOpen && !Disabled)
+    {
+        <div class="searchable-dropdown-menu">
+            @if (AllowClear)
+            {
+                <button type="button"
+                        class="searchable-dropdown-item searchable-dropdown-clear"
+                        @onmousedown:preventDefault="true"
+                        @onclick="ClearAsync">
+                    <i class="bi bi-x-circle me-1"></i>
+                    @ClearText
+                </button>
+            }
+
+            @if (!MatchingAccounts.Any())
+            {
+                <div class="searchable-dropdown-item text-muted">حسابی یافت نشد</div>
+            }
+            else
+            {
+                @foreach (var account in MatchingAccounts.Take(MaxResults))
+                {
+                    <div class="searchable-dropdown-item"
+                         @onmousedown:preventDefault="true"
+                         @onclick="() => SelectAsync(account)">
+                        <div class="fw-bold">@account.AccountName</div>
+                        <small class="text-muted">
+                            @account.AccountCode - @GetAccountTypeName(account.AccountType)
+                        </small>
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IEnumerable<AccountDto>? Accounts { get; set; }
+    [Parameter] public long Value { get; set; }
+    [Parameter] public EventCallback<long> ValueChanged { get; set; }
+    [Parameter] public EventCallback<AccountDto> OnSelected { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "جستجوی حساب...";
+    [Parameter] public string CssClass { get; set; } = "form-control";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool AllowClear { get; set; }
+    [Parameter] public string ClearText { get; set; } = "همه حساب‌ها";
+    [Parameter] public int MaxResults { get; set; } = 30;
+
+    private string searchText = string.Empty;
+    private bool isOpen;
+    private bool hasObservedValue;
+    private long lastObservedValue;
+
+    private List<AccountDto> AccountList =>
+        (Accounts ?? Array.Empty<AccountDto>()).ToList();
+
+    private IEnumerable<AccountDto> MatchingAccounts =>
+        string.IsNullOrWhiteSpace(searchText)
+            ? AccountList
+            : AccountList.Where(account =>
+                Contains(account.AccountName, searchText) ||
+                Contains(account.AccountCode, searchText) ||
+                Contains(GetAccountTypeName(account.AccountType), searchText));
+
+    private string DisplayText
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(searchText))
+                return searchText;
+
+            var selected = AccountList.FirstOrDefault(x => x.Id == Value);
+            return selected == null
+                ? string.Empty
+                : $"{selected.AccountName} ({selected.AccountCode})";
+        }
+    }
+
+    private void Open()
+    {
+        if (!Disabled)
+            isOpen = true;
+    }
+
+    private void Close()
+    {
+        searchText = string.Empty;
+        isOpen = false;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!hasObservedValue)
+        {
+            lastObservedValue = Value;
+            hasObservedValue = true;
+            return;
+        }
+
+        if (lastObservedValue == Value)
+            return;
+
+        lastObservedValue = Value;
+        searchText = string.Empty;
+        isOpen = false;
+    }
+
+    private async Task HandleInputAsync(ChangeEventArgs args)
+    {
+        searchText = args.Value?.ToString() ?? string.Empty;
+        isOpen = true;
+
+        if (Value != 0)
+        {
+            Value = 0;
+            lastObservedValue = 0;
+            await ValueChanged.InvokeAsync(0);
+        }
+    }
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape")
+        {
+            isOpen = false;
+            return;
+        }
+
+        if (args.Key != "Enter")
+            return;
+
+        var matches = MatchingAccounts.Take(2).ToList();
+        if (matches.Count == 1)
+            await SelectAsync(matches[0]);
+    }
+
+    private async Task SelectAsync(AccountDto account)
+    {
+        Value = account.Id;
+        lastObservedValue = account.Id;
+        searchText = string.Empty;
+        isOpen = false;
+        await ValueChanged.InvokeAsync(account.Id);
+        await OnSelected.InvokeAsync(account);
+    }
+
+    private async Task ClearAsync()
+    {
+        Value = 0;
+        lastObservedValue = 0;
+        searchText = string.Empty;
+        isOpen = false;
+        await ValueChanged.InvokeAsync(0);
+    }
+
+    private static bool Contains(string? value, string term) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Contains(term, StringComparison.OrdinalIgnoreCase);
+
+    private static string GetAccountTypeName(string? type) =>
+        type?.ToLowerInvariant() switch
+        {
+            "cash" => "صندوق",
+            "bank" => "بانک",
+            "customer" => "مشتری",
+            "correspondent" => "نمایندگی",
+            "income" => "درآمد",
+            "expense" => "مصرف",
+            "equity" => "سرمایه",
+            _ => type ?? "نامشخص"
+        };
+}

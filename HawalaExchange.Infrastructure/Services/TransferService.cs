@@ -106,7 +106,124 @@ namespace HawalaExchange.Application.Services
             }
         }
 
-        
+        public async Task<TransferDto> UpdateTransferAsync(long id, UpdateTransferDto updateDto)
+        {
+            await ValidateTransferAsync(
+                updateDto.FromAccountId,
+                updateDto.ToAccountId,
+                updateDto.CurrencyId,
+                updateDto.Amount,
+                updateDto.TransferMethod);
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var transfer = await _context.Transfers
+                    .FirstOrDefaultAsync(x => x.Id == id);
+                if (transfer == null)
+                    throw new KeyNotFoundException($"انتقال با شناسه {id} یافت نشد.");
+
+                var ledgerEntries = await _context.LedgerEntries
+                    .Where(x => x.TransferId == id)
+                    .ToListAsync();
+                if (ledgerEntries.Count > 0)
+                    _context.LedgerEntries.RemoveRange(ledgerEntries);
+
+                _mapper.Map(updateDto, transfer);
+                await _context.SaveChangesAsync();
+
+                await CreateTransferLedgerEntriesAsync(transfer);
+                await transaction.CommitAsync();
+
+                return await GetTransferByIdAsync(id)
+                    ?? throw new InvalidOperationException("انتقال ویرایش شد، اما دوباره یافت نشد.");
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        public async Task DeleteTransferAsync(long id)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var transfer = await _context.Transfers
+                    .FirstOrDefaultAsync(x => x.Id == id);
+                if (transfer == null)
+                    throw new KeyNotFoundException($"انتقال با شناسه {id} یافت نشد.");
+
+                var ledgerEntries = await _context.LedgerEntries
+                    .Where(x => x.TransferId == id)
+                    .ToListAsync();
+                if (ledgerEntries.Count > 0)
+                    _context.LedgerEntries.RemoveRange(ledgerEntries);
+
+                _context.Transfers.Remove(transfer);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        private async Task CreateTransferLedgerEntriesAsync(Transfer transfer)
+        {
+            await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
+            {
+                TransferId = transfer.Id,
+                AccountId = transfer.FromAccountId,
+                CurrencyId = transfer.CurrencyId,
+                TalabKar = transfer.Amount,
+                BadehKar = 0,
+                Description = $"انتقال به حساب {transfer.ToAccountId}"
+            });
+
+            await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
+            {
+                TransferId = transfer.Id,
+                AccountId = transfer.ToAccountId,
+                CurrencyId = transfer.CurrencyId,
+                TalabKar = 0,
+                BadehKar = transfer.Amount,
+                Description = $"انتقال از حساب {transfer.FromAccountId}"
+            });
+        }
+
+        private async Task ValidateTransferAsync(
+            long fromAccountId,
+            long toAccountId,
+            long currencyId,
+            decimal amount,
+            string transferMethod)
+        {
+            if (fromAccountId <= 0)
+                throw new InvalidOperationException("شناسه حساب مبدأ معتبر نیست.");
+            if (toAccountId <= 0)
+                throw new InvalidOperationException("شناسه حساب مقصد معتبر نیست.");
+            if (fromAccountId == toAccountId)
+                throw new InvalidOperationException("حساب مبدأ و مقصد نمی‌توانند یکسان باشند.");
+            if (currencyId <= 0)
+                throw new InvalidOperationException("شناسه ارز معتبر نیست.");
+            if (amount <= 0)
+                throw new InvalidOperationException("مبلغ انتقال باید بزرگتر از صفر باشد.");
+            if (string.IsNullOrWhiteSpace(transferMethod) ||
+                !ValidTransferMethods.Contains(transferMethod))
+                throw new InvalidOperationException("روش انتقال معتبر نیست.");
+            if (!await _context.Accounts.AnyAsync(x => x.Id == fromAccountId))
+                throw new InvalidOperationException("حساب مبدأ وجود ندارد.");
+            if (!await _context.Accounts.AnyAsync(x => x.Id == toAccountId))
+                throw new InvalidOperationException("حساب مقصد وجود ندارد.");
+            if (!await _context.Currencies.AnyAsync(x => x.Id == currencyId))
+                throw new InvalidOperationException("ارز انتخاب‌شده وجود ندارد.");
+        }
 
         public async Task<IEnumerable<TransferDto>> GetTransfersByAccountAsync(long accountId)
         {

@@ -1,14 +1,15 @@
 using System.Globalization;
 using System.Text;
+using HawalaExchange.Application.Services;
 
 namespace HawalaExchange.Web.Helpers;
 
 public static class MoneyFormatHelper
 {
-    public static string Format(decimal value, int decimalPlaces = 2) =>
-        value.ToString($"N{Math.Clamp(decimalPlaces, 0, 8)}", CultureInfo.InvariantCulture);
+    public static string Format(decimal value, int decimalPlaces = 8) =>
+        AmountValueHelper.Format(value, decimalPlaces);
 
-    public static string Format(decimal? value, int decimalPlaces = 2) =>
+    public static string Format(decimal? value, int decimalPlaces = 8) =>
         value.HasValue ? Format(value.Value, decimalPlaces) : string.Empty;
 
     public static string FormatWhileTyping(string? value, int decimalPlaces = 2)

@@ -20,7 +20,7 @@
         <div>
             <h5 class="page-title">
                 <i class="bi bi-arrow-down-up"></i>
-                واریز / برداشت
+                واریز / برداشت / پرداخت
                 <span class="page-subtitle">ثبت و مدیریت واریز و برداشت حساب‌ها در دفتر کل</span>
             </h5>
         </div>
@@ -140,7 +140,7 @@
                             @bind:event="oninput">
                         <option value="">همه عملیات</option>
                         <option value="Deposit">واریز</option>
-                        <option value="Withdraw">برداشت</option>
+                        <option value="Withdraw">برداشت / پرداخت</option>
                     </select>
                 </div>
 
@@ -276,7 +276,7 @@
                                     </td>
 
                                     <td dir="ltr" class="fw-bold @(item.OperationType == "Deposit" ? "text-success" : "text-danger")">
-                                        @item.Amount.ToString("N2")
+                                        @MoneyFormatHelper.Format(item.Amount)
                                     </td>
 
                                     <td>
@@ -439,7 +439,7 @@
                             <div class="info-card">
                                 <span class="info-label">مبلغ</span>
                                 <span class="info-value fw-bold" dir="ltr">
-                                    @selectedOperation.Amount.ToString("N2")
+                                    @MoneyFormatHelper.Format(selectedOperation.Amount)
                                 </span>
                             </div>
                         </div>
@@ -975,7 +975,7 @@
         return operationType switch
         {
             "Deposit" => "واریز",
-            "Withdraw" => "برداشت",
+            "Withdraw" => "برداشت / پرداخت",
             _ => operationType
         };
     }

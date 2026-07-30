@@ -665,11 +665,11 @@
                                         <tr>
                                             <td>@(i + 1)</td>
                                             <td>@d.FromCurrencyCode</td>
-                                            <td>@d.FromAmount?.ToString("N2")</td>
+                                            <td>@(d.FromAmount.HasValue ? MoneyFormatHelper.Format(d.FromAmount.Value) : "-")</td>
                                             <td>@d.ToCurrencyCode</td>
-                                            <td>@d.ToAmount?.ToString("N2")</td>
-                                            <td>@d.ExchangeRate?.ToString("N4")</td>
-                                            <td>@d.CommissionAmount.ToString("N2")</td>
+                                            <td>@(d.ToAmount.HasValue ? MoneyFormatHelper.Format(d.ToAmount.Value) : "-")</td>
+                                            <td>@(d.ExchangeRate.HasValue ? MoneyFormatHelper.Format(d.ExchangeRate.Value) : "-")</td>
+                                            <td>@MoneyFormatHelper.Format(d.CommissionAmount)</td>
                                             <td>@d.SenderName</td>
                                             <td>@d.ReceiverName</td>
                                         </tr>

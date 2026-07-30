@@ -77,6 +77,7 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.ToAccountName, opt => opt.MapFrom(src => src.ToAccount.AccountName))
                 .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code));
             CreateMap<CreateTransferDto, Transfer>();
+            CreateMap<UpdateTransferDto, Transfer>();
 
             // ===== Expense =====
             // ===== Expense =====
@@ -284,12 +285,18 @@ namespace HawalaSystem.Mappings
             CreateMap<Hawala, HawalaDto>()
                .ForMember(dest => dest.CorrespondentName, opt => opt.MapFrom(src => src.Correspondent != null ? src.Correspondent.Name : null))
                .ForMember(dest => dest.FromCurrencyCode, opt => opt.MapFrom(src => src.FromCurrency != null ? src.FromCurrency.Code : ""))
+               .ForMember(dest => dest.FromCurrencyName, opt => opt.MapFrom(src => src.FromCurrency != null ? src.FromCurrency.Name : ""))
                .ForMember(dest => dest.ToCurrencyCode, opt => opt.MapFrom(src => src.ToCurrency != null ? src.ToCurrency.Code : ""))
+               .ForMember(dest => dest.ToCurrencyName, opt => opt.MapFrom(src => src.ToCurrency != null ? src.ToCurrency.Name : ""))
                .ForMember(dest => dest.CommissionCurrencyCode, opt => opt.MapFrom(src => src.CommissionCurrency != null ? src.CommissionCurrency.Code : null))
+               .ForMember(dest => dest.CommissionCurrencyName, opt => opt.MapFrom(src => src.CommissionCurrency != null ? src.CommissionCurrency.Name : null))
                .ForMember(dest => dest.AgentCommissionCurrencyCode, opt => opt.MapFrom(src => src.AgentCommissionCurrency != null ? src.AgentCommissionCurrency.Code : null))
+               .ForMember(dest => dest.AgentCommissionCurrencyName, opt => opt.MapFrom(src => src.AgentCommissionCurrency != null ? src.AgentCommissionCurrency.Name : null))
                .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser != null ? src.CreatedByUser.FullName : ""))
                .ForMember(dest => dest.HawalaTypeName, opt => opt.Ignore())
                .ForMember(dest => dest.StatusName, opt => opt.Ignore())
+               .ForMember(dest => dest.FromAccountId, opt => opt.Ignore())
+               .ForMember(dest => dest.GeneratedSendHawalaNumber, opt => opt.Ignore())
                .ForMember(dest => dest.PaymentLocationName, opt => opt.MapFrom(src => src.PaymentLocation != null ? src.PaymentLocation.Name : null))
                .ForMember(dest => dest.PaymentLocationAddress, opt => opt.MapFrom(src => src.PaymentLocation != null ? src.PaymentLocation.Address : null));
 

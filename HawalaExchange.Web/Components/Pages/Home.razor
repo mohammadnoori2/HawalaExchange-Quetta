@@ -8,6 +8,7 @@
 @inject ICurrencyService CurrencyService
 @inject ICompanySettingService CompanySettingService
 @inject IFinancialReportService FinancialReportService
+@inject IJournalService JournalService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
@@ -53,8 +54,8 @@
                 <div class="rate-card">
                     <div class="rate-pair">@rate.Pair</div>
                     <div class="rate-value">
-                        <span>خرید @rate.BuyRate.ToString("N4")</span>
-                        <span>فروش @rate.SellRate.ToString("N4")</span>
+                        <span>خرید @MoneyFormatHelper.Format(rate.BuyRate)</span>
+                        <span>فروش @MoneyFormatHelper.Format(rate.SellRate)</span>
                     </div>
                     <div class="rate-change">@PersianDateHelper.ToPersianDate(rate.EffectiveDate)</div>
                 </div>
@@ -83,7 +84,61 @@
         <div class="stat-box">
             <span class="stat-icon">📊</span>
             <span class="stat-label">مفاد خالص</span>
-            <span class="stat-value">@NetProfit.ToString("N2") @selectedCurrency</span>
+            <span class="stat-value">@MoneyFormatHelper.Format(NetProfit) @selectedCurrency</span>
+        </div>
+    </div>
+
+    <div class="table-card mb-4">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <h6 class="mb-0 text-primary">
+                    <i class="bi bi-safe2"></i>
+                    موجودی فعلی صندوق‌ها
+                </h6>
+            </div>
+            <div class="table-card-header-right">
+                <a class="btn btn-sm btn-outline-primary" href="/daily-journal">
+                    مدیریت آغاز و پایان روز
+                </a>
+            </div>
+        </div>
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <table class="table-modern table-striped-modern">
+                    <thead>
+                        <tr>
+                            <th>صندوق</th>
+                            <th>کُد حساب</th>
+                            <th>ارز</th>
+                            <th>موجودی فعلی</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!currentCashBalances.Any())
+                        {
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    هنوز برای حساب صندوق هیچ معامله‌ای با ارز ثبت نشده است.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var balance in currentCashBalances)
+                            {
+                                <tr>
+                                    <td class="fw-bold">@balance.AccountName</td>
+                                    <td dir="ltr">@balance.AccountCode</td>
+                                    <td><span class="badge-modern badge-info">@balance.CurrencyCode</span></td>
+                                    <td dir="ltr" class="fw-bold @(balance.Balance >= 0 ? "text-success" : "text-danger")">
+                                        @MoneyFormatHelper.Format(balance.Balance)
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -106,7 +161,7 @@
         <div class="provision-card">
             <div class="provision-label">مفاد/ضرر واقعی دوره (@selectedCurrency)</div>
             <div class="provision-amount @(NetProfit >= 0 ? "text-success" : "text-danger")">
-                @NetProfit.ToString("N2")
+                @MoneyFormatHelper.Format(NetProfit)
             </div>
             <div class="provision-sub">از حساب‌های عواید و مصارف لیجر</div>
             <a class="btn btn-sm btn-outline-primary mt-3" href="/reports/profit-loss">
@@ -116,31 +171,52 @@
 
         <div class="top-remain-card">
             <div class="top-remain-header">
-                <span class="top-remain-title">بیشترین طلب از مشتریان</span>
-                <span class="top-remain-sub">
-                    مجموع طلب به @selectedCurrency: @(dashboard?.TotalCustomerReceivables.ToString("N2") ?? "0.00")
-                </span>
+                <div class="top-remain-heading">
+                    <span class="top-remain-title">@CounterpartyListTitle</span>
+                    <span class="top-remain-sub">
+                        مجموع به @selectedCurrency: @MoneyFormatHelper.Format(CurrentCounterpartyTotal)
+                    </span>
+                </div>
+                <div class="top-remain-switch" role="group" aria-label="انتخاب نوع مانده حساب">
+                    <button type="button"
+                            class="top-remain-switch-btn @(counterpartyListMode == "debtors" ? "active debtors" : null)"
+                            aria-pressed="@(counterpartyListMode == "debtors")"
+                            @onclick="ShowTopDebtors">
+                        بدهکاران
+                    </button>
+                    <button type="button"
+                            class="top-remain-switch-btn @(counterpartyListMode == "creditors" ? "active creditors" : null)"
+                            aria-pressed="@(counterpartyListMode == "creditors")"
+                            @onclick="ShowTopCreditors">
+                        طلبکاران
+                    </button>
+                </div>
             </div>
             <div class="top-remain-list">
                 <div class="remain-header-row">
                     <span>نام حساب</span>
-                    <span>پروفایل</span>
+                    <span>نوع حساب</span>
                     <span>مبلغ</span>
                 </div>
-                @if (dashboard?.TopDebtors.Any() == true)
+                @if (CurrentCounterpartyItems.Any())
                 {
-                    @foreach (var item in dashboard.TopDebtors)
+                    @foreach (var item in CurrentCounterpartyItems)
                     {
                         <div class="remain-item">
-                            <span class="remain-name">@item.Name</span>
-                            <span class="remain-initial">@item.Initial</span>
-                            <span class="remain-amount">@item.Amount.ToString("N2")</span>
+                            <span class="remain-name">
+                                <span class="remain-initial">@item.Initial</span>
+                                <span>@item.Name</span>
+                            </span>
+                            <span class="remain-account-type">@item.AccountTypeName</span>
+                            <span class="remain-amount @(counterpartyListMode == "debtors" ? "debtors" : "creditors")">
+                                @MoneyFormatHelper.Format(item.Amount)
+                            </span>
                         </div>
                     }
                 }
                 else
                 {
-                    <div class="remain-item">طلب بدهکار از مشتریان موجود نیست.</div>
+                    <div class="remain-empty">@CounterpartyEmptyMessage</div>
                 }
             </div>
         </div>
@@ -258,6 +334,7 @@
     private string selectedCurrency = "AFN";
     private string lastActivityTime = "--:--:--";
     private string liquidityFilter = "all";
+    private string counterpartyListMode = "debtors";
     private string? errorMessage;
     private bool isLoading;
     private bool chartsRendered;
@@ -267,8 +344,25 @@
     private List<CurrencyDto> currencies = new();
     private DashboardSummaryDto? dashboard;
     private List<DashboardLiquidityDto> currentLiquidityItems = new();
+    private List<CurrentCashBalanceDto> currentCashBalances = new();
 
     private decimal NetProfit => dashboard?.NetProfit ?? 0;
+    private IReadOnlyList<DashboardDebtorDto> CurrentCounterpartyItems =>
+        counterpartyListMode == "creditors"
+            ? dashboard?.TopCreditors ?? []
+            : dashboard?.TopDebtors ?? [];
+    private decimal CurrentCounterpartyTotal =>
+        counterpartyListMode == "creditors"
+            ? dashboard?.TotalCounterpartyPayables ?? 0
+            : dashboard?.TotalCounterpartyReceivables ?? 0;
+    private string CounterpartyListTitle =>
+        counterpartyListMode == "creditors"
+            ? "بیشترین طلبکاران"
+            : "بیشترین بدهکاران";
+    private string CounterpartyEmptyMessage =>
+        counterpartyListMode == "creditors"
+            ? "حساب طلبکاری موجود نیست."
+            : "حساب بدهکاری موجود نیست.";
 
     protected override async Task OnInitializedAsync()
     {
@@ -314,6 +408,7 @@
                 startDate,
                 endDate,
                 currency.Id);
+            currentCashBalances = (await JournalService.GetCurrentCashBalancesAsync()).ToList();
             lastActivityTime = dashboard.LastActivityAt.HasValue
                 ? PersianDateHelper.ToPersianDateTime12(dashboard.LastActivityAt.Value)
                 : "--:--:--";
@@ -325,6 +420,7 @@
             errorMessage = $"داشبورد بارگذاری نشد: {ex.Message}";
             dashboard = null;
             currentLiquidityItems.Clear();
+            currentCashBalances.Clear();
         }
         finally
         {
@@ -399,6 +495,8 @@
     private Task SetAll() => SetLiquidityFilterAsync("all");
     private Task SetTreasury() => SetLiquidityFilterAsync("treasury");
     private Task SetBank() => SetLiquidityFilterAsync("bank");
+    private void ShowTopDebtors() => counterpartyListMode = "debtors";
+    private void ShowTopCreditors() => counterpartyListMode = "creditors";
 
     private void NavigateToPendingHawalas() => NavigationManager.NavigateTo("/hawala-pending");
     private void OpenHawalaModal() => showHawalaModal = true;

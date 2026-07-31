@@ -327,9 +327,23 @@
                 </div>
 
                 <div class="modal-body">
-                    <div class="alert alert-info">
-                        پرداخت حواله نمبر:
-                        <strong>@payHawalaNumber</strong>
+                    <div class="alert alert-info mb-3">
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <span class="d-block small text-muted">نمبر حواله</span>
+                                <strong>@payHawalaNumber</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="d-block small text-muted">نام فرستنده</span>
+                                <strong>@(payHawala?.SenderName ?? "-")</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <span class="d-block small text-muted">مقدار حواله</span>
+                                <strong dir="ltr">
+                                    @(payHawala == null ? "-" : $"{MoneyFormatHelper.Format(payHawala.FromAmount)} {payHawala.FromCurrencyCode}")
+                                </strong>
+                            </div>
+                        </div>
                     </div>
 
                     <ReceiverPaymentFields Model="payDetails" Customers="customers" />
@@ -670,6 +684,7 @@
 
     private long payHawalaId = 0;
     private long payHawalaNumber = 0;
+    private HawalaDto? payHawala;
     private long selectedPaymentAccountId = 0;
     private List<CustomerDto> customers = new();
     private PayHawalaDto payDetails = new();
@@ -891,6 +906,7 @@
         payHawalaNumber = hawalaNumber;
         selectedPaymentAccountId = 0;
         var hawala = hawalas.FirstOrDefault(x => x.Id == hawalaId);
+        payHawala = hawala;
         payDetails = CreatePayDetails(hawala);
         validationErrors.Clear();
         successMessage = string.Empty;
@@ -902,6 +918,7 @@
         showPayModal = false;
         payHawalaId = 0;
         payHawalaNumber = 0;
+        payHawala = null;
         selectedPaymentAccountId = 0;
         payDetails = new PayHawalaDto();
     }

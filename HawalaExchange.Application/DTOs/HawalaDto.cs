@@ -127,6 +127,7 @@ namespace HawalaExchange.Application.DTOs
         public string? SenderFatherName { get; set; }
         public string? SenderPhone { get; set; }
         public string? SenderTazkiraNumber { get; set; }
+        public string? SenderTazkiraImagePath { get; set; }
         public string? SenderAddress { get; set; }
         public string? ReceiverName { get; set; }
         public string? ReceiverFatherName { get; set; }

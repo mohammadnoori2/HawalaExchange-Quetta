@@ -44,6 +44,7 @@
                     ValidateCreateHawala(dto);
 
                     var hawala = _mapper.Map<Hawala>(dto);
+                    await NormalizeHawalaConversionAsync(hawala);
                     hawala.CreatedAt = DateTime.UtcNow;
                     hawala.CreatedBy = GetCurrentUserId();
                     hawala.Status = dto.Status ?? "Pending";
@@ -309,6 +310,9 @@
                             "حواله ارسالی خودکار باید از طریق حواله دریافتی اصلی ویرایش شود.");
                     }
 
+                    var oldSenderTazkiraImagePath = hawala.SenderTazkiraImagePath;
+                    var oldReceiverTazkiraImagePath = hawala.ReceiverTazkiraImagePath;
+
                     var fromAccountId =
                         dto.FromAccountId ??
                         await ResolveExistingFromAccountIdAsync(hawala);
@@ -329,6 +333,7 @@
                     await _context.SaveChangesAsync();
 
                     ApplyUpdate(hawala, dto);
+                    await NormalizeHawalaConversionAsync(hawala);
                     await ValidateUpdatedHawalaAsync(hawala);
 
                     await ProcessLedgerEntries(
@@ -347,6 +352,12 @@
                         GetCurrentUserId());
 
                     await transaction.CommitAsync();
+
+                    await DeleteReplacedTazkiraImagesAsync(
+                        oldSenderTazkiraImagePath,
+                        oldReceiverTazkiraImagePath,
+                        hawala.SenderTazkiraImagePath,
+                        hawala.ReceiverTazkiraImagePath);
 
                     return _mapper.Map<HawalaDto>(hawala);
                 }
@@ -373,11 +384,13 @@
                 hawala.SenderFatherName = dto.SenderFatherName;
                 hawala.SenderPhone = dto.SenderPhone;
                 hawala.SenderTazkiraNumber = dto.SenderTazkiraNumber;
+                hawala.SenderTazkiraImagePath = dto.SenderTazkiraImagePath;
                 hawala.SenderAddress = dto.SenderAddress;
                 hawala.ReceiverName = dto.ReceiverName;
                 hawala.ReceiverFatherName = dto.ReceiverFatherName;
                 hawala.ReceiverPhone = dto.ReceiverPhone;
                 hawala.ReceiverTazkiraNumber = dto.ReceiverTazkiraNumber;
+                hawala.ReceiverTazkiraImagePath = dto.ReceiverTazkiraImagePath;
                 hawala.ReceiverAddress = dto.ReceiverAddress;
                 hawala.ToAmount = dto.ToAmount;
                 hawala.ExchangeRate = dto.ExchangeRate;
@@ -387,6 +400,65 @@
                 hawala.AgentCommissionCurrencyId = dto.AgentCommissionCurrencyId;
                 hawala.ReferenceNumber = dto.ReferenceNumber;
                 hawala.Notes = dto.Notes;
+            }
+
+            private async Task DeleteReplacedTazkiraImagesAsync(
+                string? oldSenderPath,
+                string? oldReceiverPath,
+                string? currentSenderPath,
+                string? currentReceiverPath)
+            {
+                var currentPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (!string.IsNullOrWhiteSpace(currentSenderPath))
+                    currentPaths.Add(currentSenderPath);
+                if (!string.IsNullOrWhiteSpace(currentReceiverPath))
+                    currentPaths.Add(currentReceiverPath);
+
+                var oldPaths = new[] { oldSenderPath, oldReceiverPath }
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Select(path => path!)
+                    .Distinct(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var oldPath in oldPaths)
+                {
+                    if (!currentPaths.Contains(oldPath))
+                        await _fileService.DeleteFileAsync(oldPath);
+                }
+            }
+
+            private async Task NormalizeHawalaConversionAsync(Hawala hawala)
+            {
+                var currencies = await _context.Currencies
+                    .Where(x => (x.Id == hawala.FromCurrencyId || x.Id == hawala.ToCurrencyId) && x.IsActive)
+                    .ToDictionaryAsync(x => x.Id);
+
+                if (!currencies.TryGetValue(hawala.FromCurrencyId, out var fromCurrency) ||
+                    !currencies.TryGetValue(hawala.ToCurrencyId, out var toCurrency))
+                {
+                    throw new InvalidOperationException("ارز مبدأ یا مقصد معتبر و فعال نیست.");
+                }
+
+                if (fromCurrency.Id == toCurrency.Id)
+                {
+                    hawala.ExchangeRate = 1;
+                    hawala.ToAmount = hawala.FromAmount;
+                    return;
+                }
+
+                if (!hawala.ExchangeRate.HasValue || hawala.ExchangeRate.Value <= 0)
+                    throw new InvalidOperationException("نرخ تبدیل باید بزرگتر از صفر باشد.");
+
+                var conversion = CurrencyQuotationCalculator.ConvertFromAmount(
+                    fromCurrency.Id,
+                    fromCurrency.Code,
+                    fromCurrency.QuotationPriority,
+                    hawala.FromAmount,
+                    toCurrency.Id,
+                    toCurrency.Code,
+                    toCurrency.QuotationPriority,
+                    hawala.ExchangeRate.Value);
+
+                hawala.ToAmount = AmountValueHelper.RoundConvertedAmount(conversion.ToAmount);
             }
 
             private async Task ValidateUpdatedHawalaAsync(Hawala hawala)

@@ -244,13 +244,26 @@
 @if (showCancelModal)
 {
     <div class="modal show d-block correspondent-hawala-overlay" tabindex="-1" dir="rtl">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content correspondent-hawala-modal">
                 <div class="modal-header">
                     <h5 class="modal-title">لغو حواله</h5>
                     <button type="button" class="btn-close" @onclick="CloseCancel"></button>
                 </div>
                 <div class="modal-body">
+                    <label class="form-label fw-bold">نوع لغو</label>
+                    <div class="d-grid gap-2 mb-3">
+                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
+                            <input type="radio" name="cancelModeCorrespondent" checked="@cancelIncludesCommission"
+                                   @onchange="() => cancelIncludesCommission = true" />
+                            <span><strong>لغو با کارمزد</strong><br /><small class="text-muted">مبلغ حواله و تمام کارمزدها معکوس می‌شوند.</small></span>
+                        </label>
+                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
+                            <input type="radio" name="cancelModeCorrespondent" checked="@(!cancelIncludesCommission)"
+                                   @onchange="() => cancelIncludesCommission = false" />
+                            <span><strong>لغو بدون کارمزد</strong><br /><small class="text-muted">فقط مبلغ حواله معکوس می‌شود و کارمزد باقی می‌ماند.</small></span>
+                        </label>
+                    </div>
                     <label class="form-label">دلیل لغو</label>
                     <textarea class="form-control" rows="3" @bind="cancelReason"></textarea>
                 </div>
@@ -324,6 +337,7 @@
     private bool showCancelModal;
     private long cancelId;
     private string cancelReason = string.Empty;
+    private bool cancelIncludesCommission = true;
     private bool showDeleteModal;
     private long deleteId;
     private long deleteHawalaNumber;
@@ -631,6 +645,7 @@
     {
         cancelId = id;
         cancelReason = string.Empty;
+        cancelIncludesCommission = true;
         showCancelModal = true;
     }
 
@@ -638,6 +653,7 @@
     {
         showCancelModal = false;
         cancelReason = string.Empty;
+        cancelIncludesCommission = true;
     }
 
     private async Task ConfirmCancelAsync()
@@ -650,7 +666,11 @@
         try
         {
             actionLoading = true;
-            await HawalaService.CancelHawalaAsync(cancelId, cancelReason.Trim());
+            await HawalaService.CancelHawalaAsync(cancelId, new CancelHawalaDto
+            {
+                CancelReason = cancelReason.Trim(),
+                ReverseCommission = cancelIncludesCommission
+            });
             CloseCancel();
             successMessage = "حواله لغو شد.";
             await LoadHawalasAsync();

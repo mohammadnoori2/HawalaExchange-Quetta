@@ -13,6 +13,7 @@ namespace HawalaExchange.Application.DTOs
         public string? Address { get; set; }
         public bool IsArchived { get; set; }
         public DateTime CreatedAt { get; set; }
+        public bool CanDelete { get; set; }
     }
 
     public class CreateBranchDto

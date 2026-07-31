@@ -60,7 +60,7 @@
                 </button>
             }
 
-            @if (ShowCancel && Hawala.Status == "Pending")
+            @if (ShowCancel && Hawala.Status != "Cancel")
             {
                 <button type="button" class="operation-menu-item" role="menuitem" @onclick="CancelAsync">
                     <i class="bi bi-x-circle text-danger"></i>

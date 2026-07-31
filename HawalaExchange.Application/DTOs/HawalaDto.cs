@@ -117,6 +117,10 @@ namespace HawalaExchange.Application.DTOs
 
     public class UpdateHawalaDto
     {
+        public long? CorrespondentId { get; set; }
+        public long? FromCurrencyId { get; set; }
+        public decimal? FromAmount { get; set; }
+        public long? ToCurrencyId { get; set; }
         public long? PaymentLocationId { get; set; }
         public long? FromAccountId { get; set; }
         public string? SenderName { get; set; }
@@ -152,6 +156,12 @@ namespace HawalaExchange.Application.DTOs
         public string? ReceiverTazkiraNumber { get; set; }
         public string? ReceiverTazkiraImagePath { get; set; }
         public string? ReceiverAddress { get; set; }
+    }
+
+    public class CancelHawalaDto
+    {
+        public string CancelReason { get; set; } = string.Empty;
+        public bool ReverseCommission { get; set; } = true;
     }
 
     public class HawalaFilterDto

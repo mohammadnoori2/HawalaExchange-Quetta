@@ -572,6 +572,19 @@
                 </div>
 
                 <div class="modal-body">
+                    <p class="fw-bold mb-2">نوع لغو را انتخاب کنید:</p>
+                    <div class="d-grid gap-2 mb-3">
+                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
+                            <input type="radio" name="cancelModePending" checked="@cancelIncludesCommission"
+                                   @onchange="() => cancelIncludesCommission = true" />
+                            <span><strong>لغو با کارمزد</strong><br /><small class="text-muted">مبلغ حواله و تمام کارمزدها در لیجر معکوس می‌شوند.</small></span>
+                        </label>
+                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
+                            <input type="radio" name="cancelModePending" checked="@(!cancelIncludesCommission)"
+                                   @onchange="() => cancelIncludesCommission = false" />
+                            <span><strong>لغو بدون کارمزد</strong><br /><small class="text-muted">فقط مبلغ حواله معکوس می‌شود و کارمزدهای ثبت‌شده باقی می‌مانند.</small></span>
+                        </label>
+                    </div>
                     <p>دلیل لغو حواله را وارد کنید:</p>
 
                     <textarea class="form-control"
@@ -664,6 +677,7 @@
     private long cancelId = 0;
     private long deleteId = 0;
     private string cancelReason = string.Empty;
+    private bool cancelIncludesCommission = true;
 
     private string searchTerm = string.Empty;
     private long filterCorrespondentId = 0;
@@ -1058,6 +1072,7 @@
     {
         cancelId = id;
         cancelReason = string.Empty;
+        cancelIncludesCommission = true;
         validationErrors.Clear();
         successMessage = string.Empty;
         showCancelModal = true;
@@ -1068,6 +1083,7 @@
         showCancelModal = false;
         cancelId = 0;
         cancelReason = string.Empty;
+        cancelIncludesCommission = true;
     }
 
     private async Task ConfirmCancel()
@@ -1085,7 +1101,11 @@
         {
             isLoading = true;
 
-            await HawalaService.CancelHawalaAsync(cancelId, cancelReason);
+            await HawalaService.CancelHawalaAsync(cancelId, new CancelHawalaDto
+            {
+                CancelReason = cancelReason,
+                ReverseCommission = cancelIncludesCommission
+            });
 
             successMessage = "حواله با موفقیت لغو شد.";
 

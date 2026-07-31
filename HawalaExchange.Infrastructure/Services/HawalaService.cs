@@ -328,7 +328,8 @@
                     await DeleteHawalaLedgerEntriesAsync(hawala.Id);
                     await _context.SaveChangesAsync();
 
-                    _mapper.Map(dto, hawala);
+                    ApplyUpdate(hawala, dto);
+                    await ValidateUpdatedHawalaAsync(hawala);
 
                     await ProcessLedgerEntries(
                         hawala,
@@ -353,6 +354,71 @@
                 {
                     await transaction.RollbackAsync();
                     throw;
+                }
+            }
+
+            private static void ApplyUpdate(Hawala hawala, UpdateHawalaDto dto)
+            {
+                if (dto.CorrespondentId.HasValue)
+                    hawala.CorrespondentId = dto.CorrespondentId;
+                if (dto.FromCurrencyId.HasValue)
+                    hawala.FromCurrencyId = dto.FromCurrencyId.Value;
+                if (dto.FromAmount.HasValue)
+                    hawala.FromAmount = dto.FromAmount.Value;
+                if (dto.ToCurrencyId.HasValue)
+                    hawala.ToCurrencyId = dto.ToCurrencyId.Value;
+
+                hawala.PaymentLocationId = dto.PaymentLocationId;
+                hawala.SenderName = dto.SenderName;
+                hawala.SenderFatherName = dto.SenderFatherName;
+                hawala.SenderPhone = dto.SenderPhone;
+                hawala.SenderTazkiraNumber = dto.SenderTazkiraNumber;
+                hawala.SenderAddress = dto.SenderAddress;
+                hawala.ReceiverName = dto.ReceiverName;
+                hawala.ReceiverFatherName = dto.ReceiverFatherName;
+                hawala.ReceiverPhone = dto.ReceiverPhone;
+                hawala.ReceiverTazkiraNumber = dto.ReceiverTazkiraNumber;
+                hawala.ReceiverAddress = dto.ReceiverAddress;
+                hawala.ToAmount = dto.ToAmount;
+                hawala.ExchangeRate = dto.ExchangeRate;
+                hawala.CommissionAmount = dto.CommissionAmount;
+                hawala.CommissionCurrencyId = dto.CommissionCurrencyId;
+                hawala.AgentCommissionAmount = dto.AgentCommissionAmount;
+                hawala.AgentCommissionCurrencyId = dto.AgentCommissionCurrencyId;
+                hawala.ReferenceNumber = dto.ReferenceNumber;
+                hawala.Notes = dto.Notes;
+            }
+
+            private async Task ValidateUpdatedHawalaAsync(Hawala hawala)
+            {
+                if (hawala.FromAmount <= 0)
+                    throw new InvalidOperationException("مبلغ حواله باید بزرگتر از صفر باشد.");
+                if (hawala.FromCurrencyId <= 0 || hawala.ToCurrencyId <= 0)
+                    throw new InvalidOperationException("انتخاب ارز مبدأ و مقصد الزامی است.");
+                if ((hawala.HawalaType == "HawalaSend" || hawala.HawalaType == "HawalaReceive") &&
+                    !hawala.CorrespondentId.HasValue)
+                {
+                    throw new InvalidOperationException("انتخاب نمایندگی برای حواله الزامی است.");
+                }
+                if (hawala.CommissionAmount < 0 || hawala.AgentCommissionAmount < 0)
+                    throw new InvalidOperationException("مقدار کارمزد نمی‌تواند منفی باشد.");
+                if (hawala.CommissionAmount > 0 &&
+                    (!hawala.CommissionCurrencyId.HasValue || hawala.CommissionCurrencyId.Value <= 0))
+                    throw new InvalidOperationException("انتخاب ارز کارمزد الزامی است.");
+                if (hawala.AgentCommissionAmount > 0 &&
+                    (!hawala.AgentCommissionCurrencyId.HasValue || hawala.AgentCommissionCurrencyId.Value <= 0))
+                    throw new InvalidOperationException("انتخاب ارز کارمزد نمایندگی الزامی است.");
+
+                var duplicateNumber = await _context.Hawalas.AnyAsync(x =>
+                    x.Id != hawala.Id &&
+                    x.CorrespondentId == hawala.CorrespondentId &&
+                    x.HawalaType == hawala.HawalaType &&
+                    x.Number == hawala.Number);
+
+                if (duplicateNumber)
+                {
+                    throw new InvalidOperationException(
+                        $"شماره {hawala.Number} برای این نوع حواله و نمایندگی قبلاً ثبت شده است.");
                 }
             }
             public async Task DeleteHawalaAsync(long id)
@@ -590,30 +656,62 @@
                     throw;
                 }
             }
-            public async Task<HawalaDto> CancelHawalaAsync(long id, string cancelReason)
+            public async Task<HawalaDto> CancelHawalaAsync(long id, CancelHawalaDto cancellation)
             {
-                using var transaction = await _context.Database.BeginTransactionAsync();
+                using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
                 try
                 {
-                    var hawala = await _context.Hawalas
+                    var requestedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.Id == id);
 
-                    if (hawala == null)
+                    if (requestedHawala == null)
                         throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
 
-                    if (hawala.Status == "Paid")
-                        throw new InvalidOperationException("حواله پرداخت شده قابل لغو نیست.");
+                    var hawala = requestedHawala;
+                    if (requestedHawala.IsSystemGenerated && requestedHawala.SourceHawalaId.HasValue)
+                    {
+                        hawala = await _context.Hawalas
+                            .FirstOrDefaultAsync(x => x.Id == requestedHawala.SourceHawalaId.Value)
+                            ?? requestedHawala;
+                    }
 
                     if (hawala.Status == "Cancel")
                         throw new InvalidOperationException("حواله قبلاً لغو شده است.");
 
-                    await DeleteHawalaLedgerEntriesAsync(hawala.Id);
+                    if (string.IsNullOrWhiteSpace(cancellation.CancelReason))
+                        throw new InvalidOperationException("دلیل لغو حواله الزامی است.");
+
+                    var generatedHawala = await _context.Hawalas
+                        .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
+
+                    var affectedHawalaIds = new List<long> { hawala.Id };
+                    if (generatedHawala != null)
+                        affectedHawalaIds.Add(generatedHawala.Id);
+
+                    await CreateCancellationLedgerEntriesAsync(
+                        affectedHawalaIds,
+                        cancellation.ReverseCommission);
+
+                    var previousStatus = hawala.Status;
+                    var now = DateTime.UtcNow;
+                    var cancelledBy = GetCurrentUserId();
+                    var cancellationMode = cancellation.ReverseCommission
+                        ? "لغو با کارمزد"
+                        : "لغو بدون کارمزد";
 
                     hawala.Status = "Cancel";
-                    hawala.CancelledAt = DateTime.UtcNow;
-                    hawala.CancelledBy = GetCurrentUserId();
-                    hawala.CancelReason = cancelReason;
+                    hawala.CancelledAt = now;
+                    hawala.CancelledBy = cancelledBy;
+                    hawala.CancelReason = $"{cancellationMode}: {cancellation.CancelReason.Trim()}";
+
+                    if (generatedHawala != null)
+                    {
+                        generatedHawala.Status = "Cancel";
+                        generatedHawala.CancelledAt = now;
+                        generatedHawala.CancelledBy = cancelledBy;
+                        generatedHawala.CancelReason = hawala.CancelReason;
+                    }
 
                     await _context.SaveChangesAsync();
 
@@ -621,9 +719,9 @@
                         "CANCEL",
                         "Hawalas",
                         hawala.Id,
-                        "Pending",
-                        "Cancel",
-                        GetCurrentUserId());
+                        previousStatus,
+                        $"Cancel ({cancellationMode})",
+                        cancelledBy);
 
                     await transaction.CommitAsync();
 
@@ -634,6 +732,44 @@
                     await transaction.RollbackAsync();
                     throw;
                 }
+            }
+
+            private async Task CreateCancellationLedgerEntriesAsync(
+                IReadOnlyCollection<long> hawalaIds,
+                bool reverseCommission)
+            {
+                var originalEntries = await _context.LedgerEntries
+                    .AsNoTracking()
+                    .Where(entry => entry.HawalaId.HasValue && hawalaIds.Contains(entry.HawalaId.Value))
+                    .OrderBy(entry => entry.Id)
+                    .ToListAsync();
+
+                if (!reverseCommission)
+                {
+                    originalEntries = originalEntries
+                        .Where(entry => !IsCommissionLedgerEntry(entry))
+                        .ToList();
+                }
+
+                var cancellationMode = reverseCommission ? "با کارمزد" : "بدون کارمزد";
+                foreach (var entry in originalEntries)
+                {
+                    await CreateLedgerEntry(
+                        entry.HawalaId!.Value,
+                        entry.AccountId,
+                        entry.CurrencyId,
+                        talabKar: entry.BadehKar,
+                        badehKar: entry.TalabKar,
+                        description: $"لغو حواله {cancellationMode} - معکوس سند {entry.Id}: {entry.Description}");
+                }
+            }
+
+            private static bool IsCommissionLedgerEntry(LedgerEntry entry)
+            {
+                var description = entry.Description ?? string.Empty;
+                return description.Contains("کارمزد", StringComparison.OrdinalIgnoreCase) ||
+                       description.Contains("کمیشن", StringComparison.OrdinalIgnoreCase) ||
+                       description.Contains("commission", StringComparison.OrdinalIgnoreCase);
             }
             // ===== منطق دفتر کل =====
 

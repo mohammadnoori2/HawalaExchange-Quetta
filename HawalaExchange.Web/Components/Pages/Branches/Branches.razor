@@ -233,6 +233,12 @@
                                                     <i class="bi bi-arrow-counterclockwise"></i>
                                                 </button>
                                             }
+                                            @if (branch.CanDelete)
+                                            {
+                                                <button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(branch.Id)" title="حذف نمایندگی">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -715,6 +721,15 @@
         StateHasChanged();
     }
 
+    private void ShowDeleteConfirm(long id)
+    {
+        confirmId = id;
+        confirmActionType = "delete";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این نمایندگی را برای همیشه حذف کنید؟";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
     private async Task ConfirmAction()
     {
         try
@@ -728,6 +743,11 @@
             {
                 await BranchService.UnarchiveAsync(confirmId);
                 successMessage = "شعبه با موفقیت از بایگانی خارج شد";
+            }
+            else if (confirmActionType == "delete")
+            {
+                await BranchService.DeleteAsync(confirmId);
+                successMessage = "نمایندگی با موفقیت حذف شد";
             }
 
             showConfirmModal = false;

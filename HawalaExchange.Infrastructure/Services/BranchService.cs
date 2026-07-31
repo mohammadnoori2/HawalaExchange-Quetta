@@ -24,6 +24,45 @@ namespace HawalaExchange.Application.Services
             return _mapper.Map<IEnumerable<BranchDto>>(entities);
         }
 
+        public override async Task<IEnumerable<BranchDto>> GetAllAsync()
+        {
+            var entities = await _dbSet.AsNoTracking().ToListAsync();
+            var branchIds = entities.Select(b => b.Id).ToList();
+
+            var transactionBranchIds = await _context.Transactions
+                .Where(t => branchIds.Contains(t.BranchId))
+                .Select(t => t.BranchId)
+                .Distinct()
+                .ToListAsync();
+
+            var userBranchIds = await _context.Users
+                .Where(u => branchIds.Contains(u.BranchId))
+                .Select(u => u.BranchId)
+                .Distinct()
+                .ToListAsync();
+
+            var reportBranchIds = await _context.DailyReports
+                .Where(r => branchIds.Contains(r.BranchId))
+                .Select(r => r.BranchId)
+                .Concat(_context.CommissionReports
+                    .Where(r => branchIds.Contains(r.BranchId))
+                    .Select(r => r.BranchId))
+                .Distinct()
+                .ToListAsync();
+
+            var blockedBranchIds = transactionBranchIds
+                .Concat(userBranchIds)
+                .Concat(reportBranchIds)
+                .ToHashSet();
+
+            return entities.Select(entity =>
+            {
+                var dto = _mapper.Map<BranchDto>(entity);
+                dto.CanDelete = !blockedBranchIds.Contains(entity.Id);
+                return dto;
+            }).ToList();
+        }
+
         protected override async Task ValidateCreateAsync(Branch entity, CreateBranchDto dto)
         {
             if (await _dbSet.AnyAsync(b => b.Code == entity.Code))
@@ -49,6 +88,24 @@ namespace HawalaExchange.Application.Services
             entity.IsArchived = false;
             await _context.SaveChangesAsync();
             return _mapper.Map<BranchDto>(entity);
+        }
+
+        protected override async Task ValidateDeleteAsync(Branch entity)
+        {
+            if (await _context.Transactions.AnyAsync(t => t.BranchId == entity.Id))
+                throw new InvalidOperationException(
+                    "این نمایندگی دارای معامله، حواله یا تراکنش ثبت‌شده است و قابل حذف نیست؛ می‌توانید آن را بایگانی کنید.");
+
+            if (await _context.Users.AnyAsync(u => u.BranchId == entity.Id))
+                throw new InvalidOperationException(
+                    "این نمایندگی دارای کاربر وابسته است. ابتدا کاربر را به نمایندگی دیگری انتقال دهید.");
+
+            var hasReports = await _context.DailyReports.AnyAsync(r => r.BranchId == entity.Id) ||
+                             await _context.CommissionReports.AnyAsync(r => r.BranchId == entity.Id);
+
+            if (hasReports)
+                throw new InvalidOperationException(
+                    "این نمایندگی دارای گزارش ثبت‌شده است و قابل حذف نیست؛ می‌توانید آن را بایگانی کنید.");
         }
     }
 }

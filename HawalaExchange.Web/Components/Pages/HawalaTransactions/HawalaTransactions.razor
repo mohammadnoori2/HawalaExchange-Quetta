@@ -742,6 +742,19 @@
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseCancelModal()"></button>
                 </div>
                 <div class="modal-body">
+                    <p class="fs-6 fw-bold mb-2">نوع لغو را انتخاب کنید:</p>
+                    <div class="d-grid gap-2 mb-3">
+                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
+                            <input type="radio" name="cancelModeAll" checked="@cancelIncludesCommission"
+                                   @onchange="() => cancelIncludesCommission = true" />
+                            <span><strong>لغو با کارمزد</strong><br /><small class="text-muted">مبلغ حواله و تمام کارمزدها در لیجر معکوس می‌شوند.</small></span>
+                        </label>
+                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
+                            <input type="radio" name="cancelModeAll" checked="@(!cancelIncludesCommission)"
+                                   @onchange="() => cancelIncludesCommission = false" />
+                            <span><strong>لغو بدون کارمزد</strong><br /><small class="text-muted">فقط مبلغ حواله معکوس می‌شود و کارمزدهای ثبت‌شده باقی می‌مانند.</small></span>
+                        </label>
+                    </div>
                     <p class="fs-6">دلیل لغو حواله را وارد کنید:</p>
                     <textarea class="form-control" @bind="cancelReason" rows="3" placeholder="دلیل لغو ..."></textarea>
                 </div>
@@ -838,6 +851,7 @@
     private long cancelId = 0;
     private long deleteId = 0;
     private string cancelReason = "";
+    private bool cancelIncludesCommission = true;
 
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
@@ -1319,6 +1333,7 @@
     {
         cancelId = id;
         cancelReason = "";
+        cancelIncludesCommission = true;
         showCancelModal = true;
         StateHasChanged();
     }
@@ -1327,6 +1342,7 @@
     {
         showCancelModal = false;
         cancelReason = "";
+        cancelIncludesCommission = true;
         StateHasChanged();
     }
 
@@ -1434,7 +1450,11 @@
                 return;
             }
 
-            await HawalaService.CancelHawalaAsync(cancelId, cancelReason);
+            await HawalaService.CancelHawalaAsync(cancelId, new CancelHawalaDto
+            {
+                CancelReason = cancelReason,
+                ReverseCommission = cancelIncludesCommission
+            });
             successMessage = "حواله با موفقیت لغو شد.";
             showCancelModal = false;
             await LoadHawalas();

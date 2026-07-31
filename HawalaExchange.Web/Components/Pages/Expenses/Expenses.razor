@@ -121,7 +121,7 @@
 
                     <input type="text"
                            class="search-input"
-                           placeholder="جستجو: عنوان، ارز، حساب، توضیحات..."
+                           placeholder="جستجو: کتگوری، ارز، حساب، توضیحات..."
                            @bind="searchTerm"
                            @bind:event="oninput" />
 
@@ -177,7 +177,7 @@
 
                             <th class="sortable-header @(sortColumn == "Title" ? "active" : "")"
                                 @onclick="@(() => SortBy("Title"))">
-                                عنوان
+                                کتگوری مصرف
                                 @if (sortColumn == "Title")
                                 {
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
@@ -418,13 +418,20 @@
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-tag text-muted me-1"></i>
-                                        عنوان مصرف <span class="text-danger">*</span>
+                                        کتگوری مصرف <span class="text-danger">*</span>
                                     </label>
 
-                                    <input type="text"
-                                           class="form-control"
-                                           @bind="currentExpense.Title"
-                                           placeholder="مثلاً کرایه دفتر" />
+                                    <select class="form-select" @bind="currentExpense.Title">
+                                        <option value="">انتخاب کتگوری مصرف</option>
+                                        @if (HasLegacyExpenseCategory)
+                                        {
+                                            <option value="@currentExpense.Title">@currentExpense.Title (کتگوری قبلی)</option>
+                                        }
+                                        @foreach (var category in expenseCategories)
+                                        {
+                                            <option value="@category">@category</option>
+                                        }
+                                    </select>
                                 </div>
 
                                 <div class="col-md-2 mb-3">
@@ -848,6 +855,31 @@
 
     private CreateExpenseDto currentExpense = new();
 
+    private static readonly IReadOnlyList<string> expenseCategories = new[]
+    {
+        "مصارف خوراکه و پذیرایی",
+        "معاشات و امتیازات کارمندان",
+        "کرایه دکان یا دفتر",
+        "برق و آب",
+        "انترنت و مخابرات",
+        "لوازم و قرطاسیه دفتر",
+        "ترانسپورت و رفت‌وآمد",
+        "ترمیم و نگهداری تجهیزات",
+        "امنیت و محافظت",
+        "نظافت و خدمات",
+        "جواز و تمدید اسناد",
+        "مالیات و محصول",
+        "فیس بانکی و انتقالات",
+        "اعلانات و بازاریابی",
+        "استهلاک دارایی‌ها",
+        "زیان نوسانات اسعار",
+        "سایر مصارف"
+    };
+
+    private bool HasLegacyExpenseCategory =>
+        !string.IsNullOrWhiteSpace(currentExpense.Title) &&
+        !expenseCategories.Contains(currentExpense.Title, StringComparer.Ordinal);
+
     private DateTime expenseDateLocal = DateTime.Now;
 
     protected override async Task OnInitializedAsync()
@@ -1069,7 +1101,7 @@
         successMessage = string.Empty;
 
         if (string.IsNullOrWhiteSpace(currentExpense.Title))
-            validationErrors.Add("عنوان مصرف الزامی است.");
+            validationErrors.Add("انتخاب کتگوری مصرف الزامی است.");
 
         if (currentExpense.Amount <= 0)
             validationErrors.Add("مبلغ باید بزرگتر از صفر باشد.");

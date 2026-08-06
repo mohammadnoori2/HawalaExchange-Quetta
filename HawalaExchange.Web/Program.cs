@@ -110,7 +110,9 @@ public partial class Program
         // ============================================================
         // 8. Email Sender
         // ============================================================
-        builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+        builder.Services.Configure<SmtpEmailOptions>(
+            builder.Configuration.GetSection(SmtpEmailOptions.SectionName));
+        builder.Services.AddSingleton<IEmailSender<ApplicationUser>, SmtpIdentityEmailSender>();
 
         var app = builder.Build();
 

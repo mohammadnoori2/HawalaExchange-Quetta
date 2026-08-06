@@ -1,8 +1,9 @@
 document.addEventListener("click", (event) => {
-    const toggle = event.target.closest("#login-password-toggle");
+    const toggle = event.target.closest("[data-password-toggle], #login-password-toggle");
     if (!toggle) return;
 
-    const passwordInput = document.getElementById("login-password");
+    const targetId = toggle.dataset.passwordTarget || "login-password";
+    const passwordInput = document.getElementById(targetId);
     if (!passwordInput) return;
 
     const shouldShow = passwordInput.type === "password";

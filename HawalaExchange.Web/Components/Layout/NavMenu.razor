@@ -64,7 +64,7 @@
                 </div>
                 <div class="sub-menu" id="hawalaSubMenu">
                     <NavLink class="nav-link-custom sub-link" href="/hawala-transactions">
-                        <span class="bi bi-pencil-square"></span> ثبت ولیست حواله‌ها
+                        <span class="bi bi-pencil-square"></span> ثبت و لیست حواله‌ها
                     </NavLink>
                     <NavLink class="nav-link-custom sub-link" href="/hawala-receive">
                         <span class="bi bi-download"></span> حواله‌های دریافتی
@@ -142,7 +142,7 @@
                         <span class="bi bi-shop"></span> شعبه‌ها
                     </NavLink>
                     <NavLink class="nav-link-custom sub-link" href="/payment-locations">
-                        <span class="bi bi-shop"></span> محل های پرداخت
+                        <span class="bi bi-geo-alt"></span> محل‌های پرداخت
                     </NavLink>
                     <AuthorizeView Roles="Admin,Manager">
                         <NavLink class="nav-link-custom sub-link" href="/users">
@@ -170,15 +170,21 @@
             <!-- گزارش‌ها -->
             <AuthorizeView Roles="Admin">
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link-custom" href="/reports">
+                    <div class="nav-link-custom nav-link-toggle" onclick="toggleSubMenu('reportsSubMenu', this)">
                         <span class="bi bi-pie-chart"></span> گزارش‌ها
-                    </NavLink>
-                    <div class="submenu open">
+                        <span class="toggle-icon">
+                            <i class="bi bi-chevron-down"></i>
+                        </span>
+                    </div>
+                    <div class="sub-menu" id="reportsSubMenu">
+                        <NavLink class="nav-link-custom sub-link" href="/reports">
+                            <span class="bi bi-bar-chart"></span> گزارش‌های عمومی
+                        </NavLink>
                         <NavLink class="nav-link-custom sub-link" href="/reports/balance-sheet">
                             <span class="bi bi-bank2"></span> بیلانس شیت
                         </NavLink>
                         <NavLink class="nav-link-custom sub-link" href="/reports/profit-loss">
-                            <span class="bi bi-graph-up-arrow"></span> مفاد و ضرر
+                            <span class="bi bi-graph-up-arrow"></span> سود و زیان
                         </NavLink>
                     </div>
                 </div>

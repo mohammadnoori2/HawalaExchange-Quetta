@@ -2,14 +2,17 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    min-height: 100vh;
+    background: var(--app-bg, #f4f7fb);
 }
 
 main {
     flex: 1;
+    min-width: 0;
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    background: var(--surface, #fff);
 }
 
 .top-row {
@@ -52,10 +55,12 @@ main {
     }
 
     .sidebar {
-        width: 250px;
+        width: var(--sidebar-width, 280px);
+        min-width: var(--sidebar-width, 280px);
         height: 100vh;
         position: sticky;
         top: 0;
+        z-index: 1030;
     }
 
     .top-row {

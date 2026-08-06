@@ -644,27 +644,29 @@
     {
         get
         {
-            // مرتب‌سازی
-            var sorted = filteredAccounts;
+            // حساب صندوق اصلی همیشه اول، سپس سایر حساب‌های سیستمی و بعد حساب‌های وابسته.
+            // مرتب‌سازی انتخابی کاربر فقط داخل هر گروه اعمال می‌شود.
+            var prioritized = filteredAccounts.OrderBy(GetAccountDisplayPriority);
+            List<AccountDto> sorted;
             switch (sortColumn)
             {
                 case "AccountCode":
-                    sorted = sortAscending ? filteredAccounts.OrderBy(a => a.AccountCode).ToList() : filteredAccounts.OrderByDescending(a => a.AccountCode).ToList();
+                    sorted = sortAscending ? prioritized.ThenBy(a => a.AccountCode).ToList() : prioritized.ThenByDescending(a => a.AccountCode).ToList();
                     break;
                 case "AccountName":
-                    sorted = sortAscending ? filteredAccounts.OrderBy(a => a.AccountName).ToList() : filteredAccounts.OrderByDescending(a => a.AccountName).ToList();
+                    sorted = sortAscending ? prioritized.ThenBy(a => a.AccountName).ToList() : prioritized.ThenByDescending(a => a.AccountName).ToList();
                     break;
                 case "AccountType":
-                    sorted = sortAscending ? filteredAccounts.OrderBy(a => a.AccountType).ToList() : filteredAccounts.OrderByDescending(a => a.AccountType).ToList();
+                    sorted = sortAscending ? prioritized.ThenBy(a => a.AccountType).ToList() : prioritized.ThenByDescending(a => a.AccountType).ToList();
                     break;
                 case "ReferenceType":
-                    sorted = sortAscending ? filteredAccounts.OrderBy(a => a.ReferenceType).ToList() : filteredAccounts.OrderByDescending(a => a.ReferenceType).ToList();
+                    sorted = sortAscending ? prioritized.ThenBy(a => a.ReferenceType).ToList() : prioritized.ThenByDescending(a => a.ReferenceType).ToList();
                     break;
                 case "CreatedAt":
-                    sorted = sortAscending ? filteredAccounts.OrderBy(a => a.CreatedAt).ToList() : filteredAccounts.OrderByDescending(a => a.CreatedAt).ToList();
+                    sorted = sortAscending ? prioritized.ThenBy(a => a.CreatedAt).ToList() : prioritized.ThenByDescending(a => a.CreatedAt).ToList();
                     break;
                 default:
-                    sorted = filteredAccounts.OrderByDescending(a => a.CreatedAt).ToList();
+                    sorted = prioritized.ThenByDescending(a => a.CreatedAt).ToList();
                     break;
             }
 
@@ -1166,6 +1168,24 @@
     }
 
     // ========== توابع کمکی ==========
+
+    private static int GetAccountDisplayPriority(AccountDto account)
+    {
+        if (IsMainCashAccount(account))
+            return 0;
+
+        return IsSystemAccount(account) ? 1 : 2;
+    }
+
+    private static bool IsMainCashAccount(AccountDto account) =>
+        IsSystemAccount(account) &&
+        (string.Equals(account.AccountCode, "1001", StringComparison.OrdinalIgnoreCase) ||
+         (string.Equals(account.AccountType, "Cash", StringComparison.OrdinalIgnoreCase) &&
+          string.Equals(account.AccountName?.Trim(), "صندوق", StringComparison.OrdinalIgnoreCase)));
+
+    private static bool IsSystemAccount(AccountDto account) =>
+        string.IsNullOrWhiteSpace(account.ReferenceType) &&
+        !account.ReferenceId.HasValue;
 
     private string GetAccountTypeBadge(string type)
     {

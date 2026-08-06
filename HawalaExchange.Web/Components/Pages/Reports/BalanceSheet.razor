@@ -33,6 +33,7 @@
         <div class="filter-field">
             <label>تاریخ گزارش</label>
             <PersianDatePicker @bind-Value="asOfDate"
+                               @bind-Value:after="LoadAsync"
                                IncludeTime="false"
                                CssClass="form-control" />
         </div>

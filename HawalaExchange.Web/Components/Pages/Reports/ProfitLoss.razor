@@ -33,12 +33,14 @@
         <div class="filter-field">
             <label>از تاریخ</label>
             <PersianDatePicker @bind-Value="fromDate"
+                               @bind-Value:after="LoadAsync"
                                IncludeTime="false"
                                CssClass="form-control" />
         </div>
         <div class="filter-field">
             <label>تا تاریخ</label>
             <PersianDatePicker @bind-Value="toDate"
+                               @bind-Value:after="LoadAsync"
                                IncludeTime="false"
                                CssClass="form-control" />
         </div>

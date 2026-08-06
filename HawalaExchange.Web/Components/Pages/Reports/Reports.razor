@@ -99,11 +99,11 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-date text-muted me-1"></i> تاریخ</label>
-                            <PersianDatePicker @bind-Value="dailyDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="dailyDate" @bind-Value:after="LoadDailyReport" IncludeTime="false" />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
-                            <select class="form-select" @bind="dailyBranchId">
+                            <select class="form-select" @bind="dailyBranchId" @bind:after="LoadDailyReport">
                                 <option value="0">همه شعبه‌ها</option>
                                 @foreach (var b in branches)
                                 {
@@ -194,15 +194,15 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <PersianDatePicker @bind-Value="txnFromDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="txnFromDate" @bind-Value:after="LoadTransactionReport" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <PersianDatePicker @bind-Value="txnToDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="txnToDate" @bind-Value:after="LoadTransactionReport" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
-                            <select class="form-select" @bind="txnBranchId">
+                            <select class="form-select" @bind="txnBranchId" @bind:after="LoadTransactionReport">
                                 <option value="0">همه</option>
                                 @foreach (var b in branches)
                                 {
@@ -212,7 +212,7 @@
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-circle text-muted me-1"></i> وضعیت</label>
-                            <select class="form-select" @bind="txnStatus">
+                            <select class="form-select" @bind="txnStatus" @bind:after="LoadTransactionReport">
                                 <option value="">همه</option>
                                 <option value="Pending">در انتظار</option>
                                 <option value="Paid">پرداخت شده</option>
@@ -294,15 +294,15 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <PersianDatePicker @bind-Value="commFromDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="commFromDate" @bind-Value:after="LoadCommissionReport" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <PersianDatePicker @bind-Value="commToDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="commToDate" @bind-Value:after="LoadCommissionReport" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
-                            <select class="form-select" @bind="commBranchId">
+                            <select class="form-select" @bind="commBranchId" @bind:after="LoadCommissionReport">
                                 <option value="0">همه</option>
                                 @foreach (var b in branches)
                                 {
@@ -377,11 +377,11 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-date text-muted me-1"></i> تاریخ (تا)</label>
-                            <PersianDatePicker @bind-Value="tbAsOfDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="tbAsOfDate" @bind-Value:after="LoadTrialBalance" IncludeTime="false" />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
-                            <select class="form-select" @bind="tbBranchId">
+                            <select class="form-select" @bind="tbBranchId" @bind:after="LoadTrialBalance">
                                 <option value="0">همه</option>
                                 @foreach (var b in branches)
                                 {
@@ -456,7 +456,7 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-person text-muted me-1"></i> مشتری</label>
-                            <select class="form-select" @bind="custCustomerId">
+                            <select class="form-select" @bind="custCustomerId" @bind:after="LoadCustomerReport">
                                 <option value="0">انتخاب مشتری</option>
                                 @foreach (var c in customers)
                                 {
@@ -466,11 +466,11 @@
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <PersianDatePicker @bind-Value="custFromDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="custFromDate" @bind-Value:after="LoadCustomerReport" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <PersianDatePicker @bind-Value="custToDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="custToDate" @bind-Value:after="LoadCustomerReport" IncludeTime="false" />
                         </div>
                         <div class="col-md-5 d-flex align-items-end gap-2">
                             <button class="btn-modern btn-primary-modern" @onclick="LoadCustomerReport">
@@ -539,7 +539,7 @@
                     <div class="row g-3 mb-3 align-items-end">
                         <div class="col-md-3">
                             <label class="form-label fw-bold"><i class="bi bi-globe text-muted me-1"></i> نماینده</label>
-                            <select class="form-select" @bind="corrCorrespondentId">
+                            <select class="form-select" @bind="corrCorrespondentId" @bind:after="LoadCorrespondentReport">
                                 <option value="0">انتخاب نماینده</option>
                                 @foreach (var c in correspondents)
                                 {
@@ -549,11 +549,11 @@
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <PersianDatePicker @bind-Value="corrFromDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="corrFromDate" @bind-Value:after="LoadCorrespondentReport" IncludeTime="false" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <PersianDatePicker @bind-Value="corrToDate" IncludeTime="false" />
+                            <PersianDatePicker @bind-Value="corrToDate" @bind-Value:after="LoadCorrespondentReport" IncludeTime="false" />
                         </div>
                         <div class="col-md-5 d-flex align-items-end gap-2">
                             <button class="btn-modern btn-primary-modern" @onclick="LoadCorrespondentReport">

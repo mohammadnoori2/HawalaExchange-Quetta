@@ -82,14 +82,8 @@
             <input class="form-control"
                    placeholder="نمبر، فرستنده، گیرنده، نمبر متفرقه..."
                    @bind="searchTerm"
-                   @bind:event="oninput" />
-        </div>
-
-        <div class="col-md-2">
-            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilter">
-                <i class="bi bi-search"></i>
-                فیلتر
-            </button>
+                   @bind:event="oninput"
+                   @bind:after="SearchLocal" />
         </div>
 
         <div class="col-md-2">
@@ -810,11 +804,6 @@
             isLoading = false;
             StateHasChanged();
         }
-    }
-
-    private async Task ApplyFilter()
-    {
-        await LoadData();
     }
 
     private async Task ResetFilter()

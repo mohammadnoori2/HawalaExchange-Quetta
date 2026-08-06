@@ -95,11 +95,12 @@
                    class="form-control"
                    placeholder="نمبر، مبلغ، فرستنده، گیرنده، نمبر متفرقه..."
                    @bind="searchTerm"
-                   @bind:event="oninput" />
+                   @bind:event="oninput"
+                   @bind:after="OnFilterChangedAsync" />
         </div>
         <div class="col-md-3">
             <label class="form-label fw-bold"><i class="bi bi-person text-muted me-1"></i> نماینده</label>
-            <select class="form-select" @bind="filterCorrespondentId">
+            <select class="form-select" @bind="filterCorrespondentId" @bind:after="OnFilterChangedAsync">
                 <option value="0">همه نمایندگان</option>
                 @foreach (var correspondent in correspondents)
                 {
@@ -109,7 +110,7 @@
         </div>
         <div class="col-md-3">
             <label class="form-label fw-bold"><i class="bi bi-geo-alt text-muted me-1"></i> محل پرداخت</label>
-            <select class="form-select" @bind="filterPaymentLocationId">
+            <select class="form-select" @bind="filterPaymentLocationId" @bind:after="OnFilterChangedAsync">
                 <option value="0">همه محل‌ها</option>
                 @foreach (var location in paymentLocations)
                 {
@@ -119,7 +120,7 @@
         </div>
         <div class="col-md-3">
             <label class="form-label fw-bold"><i class="bi bi-coin text-muted me-1"></i> ارز مبلغ</label>
-            <select class="form-select" @bind="filterCurrencyId">
+            <select class="form-select" @bind="filterCurrencyId" @bind:after="OnFilterChangedAsync">
                 <option value="0">همه ارزها</option>
                 @foreach (var currency in currencies)
                 {
@@ -129,24 +130,21 @@
         </div>
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-cash text-muted me-1"></i> حداقل مبلغ</label>
-            <NullableMoneyInput class="form-control" @bind-Value="filterMinAmount" placeholder="از مبلغ" />
+            <NullableMoneyInput class="form-control" @bind-Value="filterMinAmount" @bind-Value:after="OnFilterChangedAsync" placeholder="از مبلغ" />
         </div>
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-cash-stack text-muted me-1"></i> حداکثر مبلغ</label>
-            <NullableMoneyInput class="form-control" @bind-Value="filterMaxAmount" placeholder="تا مبلغ" />
+            <NullableMoneyInput class="form-control" @bind-Value="filterMaxAmount" @bind-Value:after="OnFilterChangedAsync" placeholder="تا مبلغ" />
         </div>
         <div class="col-md-3">
             <label class="form-label fw-bold"><i class="bi bi-calendar-event text-muted me-1"></i> از تاریخ ثبت</label>
-            <PersianDatePicker @bind-Value="filterFromDate" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
+            <PersianDatePicker @bind-Value="filterFromDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
         </div>
         <div class="col-md-3">
             <label class="form-label fw-bold"><i class="bi bi-calendar-check text-muted me-1"></i> تا تاریخ ثبت</label>
-            <PersianDatePicker @bind-Value="filterToDate" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
+            <PersianDatePicker @bind-Value="filterToDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
         </div>
         <div class="col-md-2 d-flex gap-2">
-            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilters">
-                <i class="bi bi-search"></i> فیلتر
-            </button>
             <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters">
                 <i class="bi bi-arrow-clockwise"></i> بازنشانی
             </button>
@@ -703,6 +701,7 @@
     private DateTime filterFromDate = DateTime.MinValue;
     private DateTime filterToDate = DateTime.MinValue;
     private string filterValidationError = string.Empty;
+    private CancellationTokenSource? filterChangeCts;
 
     private int pageSize = 10;
     private int currentPage = 1;
@@ -835,8 +834,21 @@
         }
     }
 
-    private async Task ApplyFilters()
+    private async Task OnFilterChangedAsync()
     {
+        filterChangeCts?.Cancel();
+        filterChangeCts?.Dispose();
+        filterChangeCts = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(150, filterChangeCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
         filterValidationError = string.Empty;
 
         if (filterMinAmount.HasValue && filterMaxAmount.HasValue &&

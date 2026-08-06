@@ -201,7 +201,19 @@
 @code {
     private List<PaymentLocationDto> paymentLocations = new();
     private List<PaymentLocationDto> filteredLocations = new();
-    private string searchTerm = "";
+    private string _searchTerm = "";
+    private string searchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            if (_searchTerm == value)
+                return;
+
+            _searchTerm = value;
+            ApplySearch();
+        }
+    }
     private bool isLoading = false;
     private bool showModal = false;
     private bool showDeleteModal = false;

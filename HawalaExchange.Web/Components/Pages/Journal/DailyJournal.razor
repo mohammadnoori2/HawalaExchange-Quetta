@@ -67,12 +67,14 @@
                 <div class="col-xl-2 col-md-4">
                     <label class="form-label fw-bold">از تاریخ</label>
                     <PersianDatePicker @bind-Value="filterFromDate"
+                                       @bind-Value:after="ApplyFilters"
                                        IncludeTime="false"
                                        Placeholder="تاریخ شروع" />
                 </div>
                 <div class="col-xl-2 col-md-4">
                     <label class="form-label fw-bold">تا تاریخ</label>
                     <PersianDatePicker @bind-Value="filterToDate"
+                                       @bind-Value:after="ApplyFilters"
                                        IncludeTime="false"
                                        Placeholder="تاریخ پایان" />
                 </div>

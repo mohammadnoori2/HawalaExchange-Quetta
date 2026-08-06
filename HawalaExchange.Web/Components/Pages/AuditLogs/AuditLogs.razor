@@ -117,6 +117,7 @@
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
             <PersianDatePicker @bind-Value="fromDate"
+                               @bind-Value:after="OnFilterChangedAsync"
                                IncludeTime="true"
                                AllowEmpty="true"
                                Placeholder="انتخاب تاریخ و زمان" />
@@ -124,13 +125,14 @@
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
             <PersianDatePicker @bind-Value="toDate"
+                               @bind-Value:after="OnFilterChangedAsync"
                                IncludeTime="true"
                                AllowEmpty="true"
                                Placeholder="انتخاب تاریخ و زمان" />
         </div>
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-person text-muted me-1"></i> کاربر</label>
-            <select class="form-select" @bind="filterUserId" @bind:event="oninput">
+            <select class="form-select" @bind="filterUserId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه کاربران</option>
                 @foreach (var user in users)
                 {
@@ -140,7 +142,7 @@
         </div>
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-tag text-muted me-1"></i> عملیات</label>
-            <select class="form-select" @bind="filterAction" @bind:event="oninput">
+            <select class="form-select" @bind="filterAction" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه عملیات</option>
                 <option value="CREATE">ایجاد</option>
                 <option value="UPDATE">ویرایش</option>
@@ -151,12 +153,9 @@
         </div>
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-table text-muted me-1"></i> جدول</label>
-            <input type="text" class="form-control" placeholder="نام جدول" @bind="filterTable" @bind:event="oninput" />
+            <input type="text" class="form-control" placeholder="نام جدول" @bind="filterTable" @bind:event="oninput" @bind:after="OnFilterChangedAsync" />
         </div>
         <div class="col-md-2 d-flex gap-2">
-            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilters">
-                <i class="bi bi-search"></i> فیلتر
-            </button>
             <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
@@ -171,7 +170,7 @@
                 <div class="search-modern">
                     <span class="search-icon"><i class="bi bi-search"></i></span>
                     <input type="text" class="search-input" placeholder="جستجو در لاگ‌ها (جدول، مقدار)..."
-                           @bind="searchTerm" @bind:event="oninput" />
+                           @bind="searchTerm" @bind:event="oninput" @bind:after="OnFilterChangedAsync" />
                     <button class="search-btn" @onclick="ClearSearch">
                         <i class="bi bi-x-lg"></i>
                     </button>
@@ -502,6 +501,7 @@
     private bool isLoading = false;
     private bool showDetailModal = false;
     private AuditLogDto? selectedLog = null;
+    private CancellationTokenSource? filterChangeCts;
 
     protected override async Task OnInitializedAsync()
     {
@@ -592,10 +592,23 @@
         }
     }
 
-    private void ApplyFilters()
+    private async Task OnFilterChangedAsync()
     {
+        filterChangeCts?.Cancel();
+        filterChangeCts?.Dispose();
+        filterChangeCts = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(150, filterChangeCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
         currentPage = 1;
-        _ = LoadLogs();
+        await LoadLogs();
     }
 
     private void ResetFilters()

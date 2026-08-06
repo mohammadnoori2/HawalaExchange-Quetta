@@ -93,11 +93,11 @@
         <div class="col-md-3">
             <label class="form-label fw-bold"><i class="bi bi-search text-muted me-1"></i> جستجو</label>
             <input type="text" class="form-control" placeholder="نام، نام کاربری، ایمیل..."
-                   @bind="searchTerm" @bind:event="oninput" />
+                   @bind="searchTerm" @bind:event="oninput" @bind:after="OnFilterChangedAsync" />
         </div>
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-tag text-muted me-1"></i> نقش</label>
-            <select class="form-select" @bind="filterRole" @bind:event="oninput">
+            <select class="form-select" @bind="filterRole" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه نقش‌ها</option>
                 @foreach (var role in roles)
                 {
@@ -107,7 +107,7 @@
         </div>
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-circle text-muted me-1"></i> وضعیت</label>
-            <select class="form-select" @bind="filterStatus" @bind:event="oninput">
+            <select class="form-select" @bind="filterStatus" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه</option>
                 <option value="true">فعال</option>
                 <option value="false">غیرفعال</option>
@@ -115,7 +115,7 @@
         </div>
         <div class="col-md-2">
             <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
-            <select class="form-select" @bind="filterBranchId" @bind:event="oninput">
+            <select class="form-select" @bind="filterBranchId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="0">همه شعبه‌ها</option>
                 @foreach (var branch in branches)
                 {
@@ -124,9 +124,6 @@
             </select>
         </div>
         <div class="col-md-3 d-flex gap-2">
-            <button class="btn-modern btn-primary-modern w-100" @onclick="ApplyFilters">
-                <i class="bi bi-search"></i> فیلتر
-            </button>
             <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
@@ -777,6 +774,7 @@
     private string successMessage = string.Empty;
     private string? userNameDisplay;
     private UserDto? viewUser = null;
+    private CancellationTokenSource? filterChangeCts;
 
     private CreateUserDto currentUser = new();
 
@@ -900,8 +898,21 @@
         }
     }
 
-    private async Task ApplyFilters()
+    private async Task OnFilterChangedAsync()
     {
+        filterChangeCts?.Cancel();
+        filterChangeCts?.Dispose();
+        filterChangeCts = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(150, filterChangeCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
         currentPage = 1;
         await LoadUsers();
     }

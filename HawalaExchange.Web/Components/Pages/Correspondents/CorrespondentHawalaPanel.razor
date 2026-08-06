@@ -49,10 +49,9 @@
                    placeholder="جستجو با نمبر، نام یا مبلغ..."
                    @bind="searchTerm"
                    @bind:event="oninput"
-                   @onkeydown="HandleSearchKey" />
-            <button class="btn btn-outline-secondary" type="button" @onclick="SearchAsync">جستجو</button>
+                   @bind:after="OnFilterChangedAsync" />
         </div>
-        <select class="form-select form-select-sm" value="@statusFilter" @onchange="ChangeStatusAsync">
+        <select class="form-select form-select-sm" @bind="statusFilter" @bind:after="OnFilterChangedAsync">
             <option value="">همه وضعیت‌ها</option>
             <option value="Pending">@(HawalaType == "HawalaReceive" ? "حواله‌های اجرا نشده" : "در انتظار")</option>
             <option value="Paid">پرداخت شده</option>
@@ -312,6 +311,7 @@
     private string successMessage = string.Empty;
     private string searchTerm = string.Empty;
     private string statusFilter = string.Empty;
+    private CancellationTokenSource? filterChangeCts;
     private int currentPage = 1;
     private const int PageSize = 8;
     private int totalCount;
@@ -714,21 +714,21 @@
         }
     }
 
-    private async Task HandleSearchKey(KeyboardEventArgs args)
+    private async Task OnFilterChangedAsync()
     {
-        if (args.Key == "Enter")
-            await SearchAsync();
-    }
+        filterChangeCts?.Cancel();
+        filterChangeCts?.Dispose();
+        filterChangeCts = new CancellationTokenSource();
 
-    private async Task SearchAsync()
-    {
-        currentPage = 1;
-        await LoadHawalasAsync();
-    }
+        try
+        {
+            await Task.Delay(150, filterChangeCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
 
-    private async Task ChangeStatusAsync(ChangeEventArgs args)
-    {
-        statusFilter = args.Value?.ToString() ?? string.Empty;
         currentPage = 1;
         await LoadHawalasAsync();
     }

@@ -81,6 +81,7 @@ public partial class Program
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<CurrentTenant>();
         builder.Services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<CurrentTenant>());
+        builder.Services.AddScoped<IDbContextFactory<ApplicationDbContext>, TenantDbContextFactory>();
         builder.Services.AddScoped<CircuitHandler, TenantCircuitHandler>();
         builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, TenantUserClaimsPrincipalFactory>();
 

@@ -6,9 +6,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HawalaExchange.Infrastructure.Services;
 
-public sealed class SubscriptionAccessService(ApplicationDbContext context) : ISubscriptionAccessService
+public sealed class SubscriptionAccessService(IDbContextFactory<ApplicationDbContext> contextFactory) : ISubscriptionAccessService
 {
     public async Task<SubscriptionAccessDto> GetAccessAsync(long tenantId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await GetAccessAsync(context, tenantId, cancellationToken);
+    }
+
+    private static async Task<SubscriptionAccessDto> GetAccessAsync(
+        ApplicationDbContext context,
+        long tenantId,
+        CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         var subscription = await context.TenantSubscriptions
@@ -76,7 +85,8 @@ public sealed class SubscriptionAccessService(ApplicationDbContext context) : IS
 
     public async Task EnsureUserCapacityAsync(long tenantId, CancellationToken cancellationToken = default)
     {
-        var plan = await GetWritablePlanAsync(tenantId, cancellationToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var plan = await GetWritablePlanAsync(context, tenantId, cancellationToken);
         if (plan.MaxUsers <= 0) return;
         var count = await context.Users.IgnoreQueryFilters()
             .CountAsync(x => x.TenantId == tenantId && !x.IsPlatformUser && x.IsActive, cancellationToken);
@@ -86,7 +96,8 @@ public sealed class SubscriptionAccessService(ApplicationDbContext context) : IS
 
     public async Task EnsureBranchCapacityAsync(long tenantId, CancellationToken cancellationToken = default)
     {
-        var plan = await GetWritablePlanAsync(tenantId, cancellationToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var plan = await GetWritablePlanAsync(context, tenantId, cancellationToken);
         if (plan.MaxBranches <= 0) return;
         var count = await context.Branches.IgnoreQueryFilters()
             .CountAsync(x => x.TenantId == tenantId && !x.IsArchived, cancellationToken);
@@ -96,7 +107,8 @@ public sealed class SubscriptionAccessService(ApplicationDbContext context) : IS
 
     public async Task EnsureMonthlyTransactionCapacityAsync(long tenantId, CancellationToken cancellationToken = default)
     {
-        var plan = await GetWritablePlanAsync(tenantId, cancellationToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var plan = await GetWritablePlanAsync(context, tenantId, cancellationToken);
         if (plan.MaxMonthlyTransactions <= 0) return;
         var now = DateTime.UtcNow;
         var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -108,7 +120,8 @@ public sealed class SubscriptionAccessService(ApplicationDbContext context) : IS
 
     public async Task EnsureDocumentCapacityAsync(long tenantId, long incomingBytes, CancellationToken cancellationToken = default)
     {
-        var plan = await GetWritablePlanAsync(tenantId, cancellationToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var plan = await GetWritablePlanAsync(context, tenantId, cancellationToken);
         if (!plan.IncludesDocumentManagement)
             throw new InvalidOperationException("مدیریت اسناد در پلن فعلی فعال نیست.");
         if (plan.MaxStorageBytes <= 0) return;
@@ -119,9 +132,13 @@ public sealed class SubscriptionAccessService(ApplicationDbContext context) : IS
             throw new InvalidOperationException("فضای ذخیره‌سازی پلن تکمیل شده است.");
     }
 
-    private async Task<SubscriptionPlan> GetWritablePlanAsync(long tenantId, CancellationToken cancellationToken)
+    private static async Task<SubscriptionPlan> GetWritablePlanAsync(
+        ApplicationDbContext context,
+        long tenantId,
+        CancellationToken cancellationToken)
     {
-        await EnsureCanWriteAsync(tenantId, cancellationToken);
+        var access = await GetAccessAsync(context, tenantId, cancellationToken);
+        if (!access.CanWrite) throw new InvalidOperationException(access.Message);
         return await context.TenantSubscriptions.AsNoTracking()
             .Where(x => x.TenantId == tenantId)
             .OrderByDescending(x => x.StartAt).ThenByDescending(x => x.Id)

@@ -84,6 +84,9 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<BillingNumberSequence> BillingNumberSequences { get; set; }
         public DbSet<TenantUsageSnapshot> TenantUsageSnapshots { get; set; }
         public DbSet<PlatformAuditLog> PlatformAuditLogs { get; set; }
+        public DbSet<SaasAutomationSettings> SaasAutomationSettings { get; set; }
+        public DbSet<SaasNotification> SaasNotifications { get; set; }
+        public DbSet<SaasAutomationRun> SaasAutomationRuns { get; set; }
         public DbSet<Branch> Branches { get; set; }
         public DbSet<Customer> Customers { get; set; }
         public DbSet<Correspondent> Correspondents { get; set; }
@@ -736,6 +739,25 @@ namespace HawalaExchange.Infrastructure.Data
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(x => new { x.CreatedAt, x.Action });
                 entity.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            });
+
+            modelBuilder.Entity<SaasAutomationSettings>(entity =>
+            {
+                entity.ToTable(table => table.HasCheckConstraint("CK_SaasAutomationSettings_Values", "[Id] = 1 AND [RunIntervalMinutes] >= 5 AND [ExpiryWarningDays] > 0 AND [GracePeriodDays] >= 0 AND [QuotaWarningPercent] BETWEEN 1 AND 100"));
+            });
+            modelBuilder.Entity<SaasNotification>(entity =>
+            {
+                entity.HasIndex(x => x.DeduplicationKey).IsUnique();
+                entity.HasIndex(x => new { x.ReadAt, x.Severity, x.CreatedAt });
+                entity.HasIndex(x => new { x.TenantId, x.CreatedAt });
+                entity.HasOne(x => x.Tenant).WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Subscription).WithMany().HasForeignKey(x => x.SubscriptionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Invoice).WithMany().HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<SaasAutomationRun>(entity =>
+            {
+                entity.HasIndex(x => x.RunKey).IsUnique();
+                entity.HasIndex(x => new { x.StartedAt, x.Status });
             });
         }
 

@@ -131,6 +131,9 @@ public partial class Program
         builder.Services.AddScoped<ISaasBillingService, SaasBillingService>();
         builder.Services.AddScoped<ISubscriptionAccessService, SubscriptionAccessService>();
         builder.Services.AddScoped<IPlatformUserService, PlatformUserService>();
+        builder.Services.AddScoped<ISaasAutomationService, SaasAutomationService>();
+        builder.Services.AddSingleton<IPlatformMessageSender, SmtpPlatformMessageSender>();
+        builder.Services.AddHostedService<SaasAutomationWorker>();
         // ============================================================
         // 8. Email Sender
         // ============================================================

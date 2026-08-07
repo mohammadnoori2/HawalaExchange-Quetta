@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
@@ -132,6 +133,7 @@ public partial class Program
         builder.Services.AddScoped<ISubscriptionAccessService, SubscriptionAccessService>();
         builder.Services.AddScoped<IPlatformUserService, PlatformUserService>();
         builder.Services.AddScoped<ISaasAutomationService, SaasAutomationService>();
+        builder.Services.AddScoped<ISaasReportingService, SaasReportingService>();
         builder.Services.AddSingleton<IPlatformMessageSender, SmtpPlatformMessageSender>();
         builder.Services.AddHostedService<SaasAutomationWorker>();
         // ============================================================
@@ -167,6 +169,26 @@ public partial class Program
 
         // ✅ Map Identity Endpoints
         app.MapAdditionalIdentityEndpoints();
+
+        app.MapGet("/api/platform/reports/excel", async (
+            ISaasReportingService reportingService,
+            DateTime? fromDate,
+            DateTime? toDate,
+            long? planId,
+            SubscriptionStatus? status,
+            string? currencyCode,
+            string? search,
+            string? sortBy,
+            bool sortDescending,
+            CancellationToken cancellationToken) =>
+        {
+            var file = await reportingService.ExportExcelAsync(new SaasReportFilterDto
+            {
+                FromDate = fromDate, ToDate = toDate, PlanId = planId, Status = status,
+                CurrencyCode = currencyCode, Search = search, SortBy = sortBy ?? "name", SortDescending = sortDescending
+            }, cancellationToken);
+            return Results.File(file.Content, file.ContentType, file.FileName);
+        }).RequireAuthorization("PlatformAccess");
 
         // ============================================================
         // 10. Seed Data

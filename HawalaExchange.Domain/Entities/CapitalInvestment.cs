@@ -1,8 +1,9 @@
 ﻿namespace HawalaExchange.Domain.Entities;
 
-public class CapitalInvestment
+public class CapitalInvestment : ITenantEntity
 {
     public long Id { get; set; }
+    public long TenantId { get; set; }
 
     public long CurrencyId { get; set; }
 

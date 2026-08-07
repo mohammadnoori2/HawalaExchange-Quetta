@@ -3,8 +3,11 @@
 @layout BlankLayout
 @using System.ComponentModel.DataAnnotations
 @using HawalaExchange.Domain.Entities
+@using HawalaExchange.Infrastructure.Data
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
 @inject ILogger<Login> Logger
@@ -210,8 +213,19 @@
             errorMessage = null;
             StateHasChanged();
 
-            var result = await SignInManager.PasswordSignInAsync(
-                Input.UserName,
+            var localUserName = Input.UserName.Trim();
+            var user = await DbContext.Users
+                .IgnoreQueryFilters()
+                .Include(x => x.Tenant)
+                .SingleOrDefaultAsync(x =>
+                    x.LocalUserName == localUserName &&
+                    x.Tenant.IsActive &&
+                    x.IsActive);
+
+            var result = user is null
+                ? SignInResult.Failed
+                : await SignInManager.PasswordSignInAsync(
+                user,
                 Input.Password,
                 Input.RememberMe,
                 lockoutOnFailure: true);

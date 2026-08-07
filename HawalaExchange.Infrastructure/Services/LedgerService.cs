@@ -101,7 +101,7 @@ namespace HawalaExchange.Application.Services
         public async Task<IEnumerable<LedgerEntryDto>> GetCustomerLedgerAsync(long customerId)
         {
             var account = await _context.Accounts
-                .FirstOrDefaultAsync(a => a.ReferenceType == "Customer" && a.ReferenceId == customerId);
+                .FirstOrDefaultAsync(a => a.CustomerId == customerId);
 
             if (account == null)
                 return Enumerable.Empty<LedgerEntryDto>();
@@ -112,7 +112,7 @@ namespace HawalaExchange.Application.Services
         public async Task<IEnumerable<LedgerEntryDto>> GetCorrespondentLedgerAsync(long correspondentId)
         {
             var account = await _context.Accounts
-                .FirstOrDefaultAsync(a => a.ReferenceType == "Correspondent" && a.ReferenceId == correspondentId);
+                .FirstOrDefaultAsync(a => a.CorrespondentId == correspondentId);
 
             if (account == null)
                 return Enumerable.Empty<LedgerEntryDto>();

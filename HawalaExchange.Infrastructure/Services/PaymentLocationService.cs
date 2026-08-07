@@ -145,10 +145,6 @@ namespace HawalaExchange.Application.Services
             return _mapper.Map<PaymentLocationDto>(entity);
         }
 
-        private long GetCurrentUserId()
-        {
-            // در پروژه واقعی از Claim دریافت کنید
-            return 1;
-        }
+        private long GetCurrentUserId() => _context.RequireCurrentUserId();
     }
 }

@@ -633,8 +633,7 @@
 
                 var correspondentAccountId = await _context.Accounts
                     .AsNoTracking()
-                    .Where(a => a.ReferenceType == "Correspondent" &&
-                                a.ReferenceId == filter.CorrespondentId)
+                    .Where(a => a.CorrespondentId == filter.CorrespondentId)
                     .Select(a => (long?)a.Id)
                     .FirstOrDefaultAsync();
 
@@ -874,7 +873,7 @@
                     throw new InvalidOperationException("برای حواله ارسالی، انتخاب نماینده مقصد الزامی است.");
 
                 var correspondentAccount = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.ReferenceType == "Correspondent" && a.ReferenceId == hawala.CorrespondentId);
+                    .FirstOrDefaultAsync(a => a.CorrespondentId == hawala.CorrespondentId);
                 if (correspondentAccount == null)
                     throw new InvalidOperationException("حساب نماینده مقصد یافت نشد.");
 
@@ -939,8 +938,7 @@
 
                 var correspondentAccount = await _context.Accounts
                     .FirstOrDefaultAsync(a =>
-                        a.ReferenceType == "Correspondent" &&
-                        a.ReferenceId == hawala.CorrespondentId);
+                        a.CorrespondentId == hawala.CorrespondentId);
 
                 if (correspondentAccount == null)
                     throw new InvalidOperationException("حساب نماینده فرستنده یافت نشد.");
@@ -1026,8 +1024,7 @@
                 Account paidFromAccount,
                 long? requestedNumber = null)
             {
-                if (!string.Equals(paidFromAccount.ReferenceType, "Correspondent", StringComparison.OrdinalIgnoreCase) ||
-                    !paidFromAccount.ReferenceId.HasValue)
+                if (!paidFromAccount.CorrespondentId.HasValue)
                 {
                     throw new InvalidOperationException("حساب پرداخت‌کننده به نمایندگی معتبری مرتبط نیست.");
                 }
@@ -1037,7 +1034,7 @@
                 if (existing != null)
                     return existing;
 
-                var destinationCorrespondentId = paidFromAccount.ReferenceId.Value;
+                var destinationCorrespondentId = paidFromAccount.CorrespondentId.Value;
                 if (requestedNumber.HasValue && requestedNumber.Value <= 0)
                     throw new InvalidOperationException("نمبر حواله ارسالی نمایندگی باید بزرگتر از صفر باشد.");
 
@@ -1177,7 +1174,8 @@
             private async Task ProcessHawalaOtherLedgerAsync(Hawala hawala)
             {
                 var defaultAccount = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.AccountType == "Cash" && a.ReferenceId == null);
+                    .FirstOrDefaultAsync(a => a.AccountType == "Cash" &&
+                                              a.CustomerId == null && a.CorrespondentId == null);
                 if (defaultAccount == null)
                     throw new InvalidOperationException("حساب پیش‌فرض برای حواله متفرقه یافت نشد.");
 
@@ -1258,7 +1256,7 @@
                 }
             }
 
-            private long GetCurrentUserId() => 1;
+            private long GetCurrentUserId() => _context.RequireCurrentUserId();
             private async Task<Account> GetOrCreatePendingHawalaAccountAsync()
             {
                 const string accountCode = ApplicationDbContext.PendingHawalaAccountCode;

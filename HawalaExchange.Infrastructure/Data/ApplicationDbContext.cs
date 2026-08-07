@@ -1,20 +1,74 @@
 ﻿
 using HawalaExchange.Domain.Entities;
+using HawalaExchange.Application.Interfaces;
 using HawalaExchange.Application.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace HawalaExchange.Infrastructure.Data
 {
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<long>, long>
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+        private readonly ICurrentTenant _currentTenant;
+        private long? tenantOverride;
+
+        public ApplicationDbContext(
+            DbContextOptions<ApplicationDbContext> options,
+            ICurrentTenant currentTenant)
             : base(options)
         {
+            _currentTenant = currentTenant;
+        }
+
+        public long CurrentTenantId => tenantOverride ?? _currentTenant.TenantId;
+        public long CurrentUserId => _currentTenant.UserId;
+
+        public void PrepareTenantEntity(ITenantEntity entity)
+        {
+            var tenantId = CurrentTenantId;
+            if (tenantId <= 0)
+                throw new InvalidOperationException("صرافی جاری تشخیص داده نشد. لطفاً دوباره وارد سیستم شوید.");
+
+            if (entity.TenantId == 0)
+                entity.TenantId = tenantId;
+            else if (entity.TenantId != tenantId)
+                throw new InvalidOperationException("عملیات روی داده‌های صرافی دیگر مجاز نیست.");
+        }
+
+        public long RequireCurrentUserId()
+        {
+            var userId = CurrentUserId;
+            return userId > 0
+                ? userId
+                : throw new InvalidOperationException("کاربر جاری تشخیص داده نشد. لطفاً دوباره وارد سیستم شوید.");
+        }
+
+        public async Task<long> GetDefaultBranchIdAsync(CancellationToken cancellationToken = default)
+        {
+            var branchId = await Branches
+                .AsNoTracking()
+                .OrderByDescending(x => x.Code == "HQ")
+                .ThenBy(x => x.Id)
+                .Select(x => (long?)x.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return branchId ?? throw new InvalidOperationException("برای صرافی جاری هیچ شعبه‌ای تعریف نشده است.");
+        }
+
+        public IDisposable UseTenantScope(long tenantId)
+        {
+            if (tenantId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(tenantId));
+
+            var previous = tenantOverride;
+            tenantOverride = tenantId;
+            return new TenantScope(() => tenantOverride = previous);
         }
 
         // ===== DbSets موجود =====
+        public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Branch> Branches { get; set; }
         public DbSet<Customer> Customers { get; set; }
         public DbSet<Correspondent> Correspondents { get; set; }
@@ -30,10 +84,6 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<Document> Documents { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Hawala> Hawalas { get; set; }
-        public DbSet<DailyReport> DailyReports { get; set; }
-        public DbSet<TransactionReport> TransactionReports { get; set; }
-        public DbSet<CommissionReport> CommissionReports { get; set; }
-        public DbSet<TrialBalance> TrialBalances { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
 
         public DbSet<CapitalInvestment> CapitalInvestments { get; set; }
@@ -51,7 +101,9 @@ namespace HawalaExchange.Infrastructure.Data
         /// It also separates the historical 2101 collision between currency-sale
         /// liabilities and pending incoming hawalas.
         /// </summary>
-        public async Task EnsureSystemAccountsAsync(CancellationToken cancellationToken = default)
+        public async Task EnsureSystemAccountsAsync(
+            long tenantId,
+            CancellationToken cancellationToken = default)
         {
             var systemCodes = new[]
             {
@@ -60,7 +112,8 @@ namespace HawalaExchange.Infrastructure.Data
                 PendingHawalaAccountCode
             };
             var accounts = await Accounts
-                .Where(x => systemCodes.Contains(x.AccountCode))
+                .IgnoreQueryFilters()
+                .Where(x => x.TenantId == tenantId && systemCodes.Contains(x.AccountCode))
                 .ToListAsync(cancellationToken);
 
             var inventoryAccount = accounts.FirstOrDefault(
@@ -85,14 +138,17 @@ namespace HawalaExchange.Infrastructure.Data
             }
 
             inventoryAccount ??= AddSystemAccount(
+                tenantId,
                 CurrencyInventoryAccountCode,
                 "موجودی ارز به بهای تمام‌شده",
                 "Asset");
             liabilityAccount ??= AddSystemAccount(
+                tenantId,
                 CurrencySaleLiabilityAccountCode,
                 "تعهد فروش ارز",
                 "Liability");
             pendingHawalaAccount ??= AddSystemAccount(
+                tenantId,
                 PendingHawalaAccountCode,
                 "حواله‌های اجرا نشده",
                 "PendingHawala");
@@ -112,7 +168,9 @@ namespace HawalaExchange.Infrastructure.Data
             await SaveChangesAsync(cancellationToken);
 
             var hawalaEntriesOnLiability = await LedgerEntries
+                .IgnoreQueryFilters()
                 .Where(x =>
+                    x.TenantId == tenantId &&
                     x.AccountId == liabilityAccount.Id &&
                     x.HawalaId != null &&
                     x.MoneyExchangeOperationId == null)
@@ -121,7 +179,9 @@ namespace HawalaExchange.Infrastructure.Data
                 entry.AccountId = pendingHawalaAccount.Id;
 
             var exchangeEntriesOnPendingHawala = await LedgerEntries
+                .IgnoreQueryFilters()
                 .Where(x =>
+                    x.TenantId == tenantId &&
                     x.AccountId == pendingHawalaAccount.Id &&
                     x.MoneyExchangeOperationId != null)
                 .ToListAsync(cancellationToken);
@@ -135,62 +195,15 @@ namespace HawalaExchange.Infrastructure.Data
             }
         }
 
-        /// <summary>
-        /// Creates the daily cash-balance snapshot table for existing installations.
-        /// This intentionally lives in the DbContext startup repair path so pulling the
-        /// project does not depend on adding a hand-written migration.
-        /// </summary>
-        public async Task EnsureCashDailyBalanceSchemaAsync(
-            CancellationToken cancellationToken = default)
-        {
-            if (!Database.IsRelational() ||
-                !string.Equals(
-                    Database.ProviderName,
-                    "Microsoft.EntityFrameworkCore.SqlServer",
-                    StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            await Database.ExecuteSqlRawAsync(
-                """
-                IF OBJECT_ID(N'[dbo].[CashDailyBalances]', N'U') IS NULL
-                BEGIN
-                    CREATE TABLE [dbo].[CashDailyBalances]
-                    (
-                        [Id] BIGINT IDENTITY(1,1) NOT NULL,
-                        [JournalDate] DATE NOT NULL,
-                        [AccountId] BIGINT NOT NULL,
-                        [CurrencyId] BIGINT NOT NULL,
-                        [OpeningBalance] DECIMAL(18,4) NOT NULL,
-                        [ClosingBalance] DECIMAL(18,4) NULL,
-                        [IsClosed] BIT NOT NULL
-                            CONSTRAINT [DF_CashDailyBalances_IsClosed] DEFAULT (0),
-                        [ClosedAt] DATETIME2 NULL,
-                        [CreatedAt] DATETIME2 NOT NULL
-                            CONSTRAINT [DF_CashDailyBalances_CreatedAt] DEFAULT (GETUTCDATE()),
-                        [ModifiedAt] DATETIME2 NULL,
-                        CONSTRAINT [PK_CashDailyBalances] PRIMARY KEY ([Id]),
-                        CONSTRAINT [FK_CashDailyBalances_Accounts_AccountId]
-                            FOREIGN KEY ([AccountId]) REFERENCES [dbo].[Accounts] ([Id]),
-                        CONSTRAINT [FK_CashDailyBalances_Currencies_CurrencyId]
-                            FOREIGN KEY ([CurrencyId]) REFERENCES [dbo].[Currencies] ([Id])
-                    );
-
-                    CREATE UNIQUE INDEX [IX_CashDailyBalances_JournalDate_AccountId_CurrencyId]
-                        ON [dbo].[CashDailyBalances] ([JournalDate], [AccountId], [CurrencyId]);
-                END;
-                """,
-                cancellationToken);
-        }
-
         private Account AddSystemAccount(
+            long tenantId,
             string accountCode,
             string accountName,
             string accountType)
         {
             var account = new Account
             {
+                TenantId = tenantId,
                 AccountCode = accountCode,
                 AccountName = accountName,
                 AccountType = accountType,
@@ -217,6 +230,7 @@ namespace HawalaExchange.Infrastructure.Data
 
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
+            AssignAndValidateTenantIds();
             ValidateAccountDebtLimits();
             return base.SaveChanges(acceptAllChangesOnSuccess);
         }
@@ -225,6 +239,7 @@ namespace HawalaExchange.Infrastructure.Data
             bool acceptAllChangesOnSuccess,
             CancellationToken cancellationToken = default)
         {
+            AssignAndValidateTenantIds();
             await ValidateAccountDebtLimitsAsync(cancellationToken);
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
@@ -385,7 +400,7 @@ namespace HawalaExchange.Infrastructure.Data
 
         private static bool IsCustomerOrCorrespondentAccount(Account account) =>
             account.AccountType is "Customer" or "Correspondent" or "مشتری" or "نماینده" or "نمایندگی" ||
-            account.ReferenceType is "Customer" or "Correspondent";
+            account.CustomerId.HasValue || account.CorrespondentId.HasValue;
 
         private sealed record LedgerBalanceChange(
             long AccountId,
@@ -396,14 +411,16 @@ namespace HawalaExchange.Infrastructure.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            ConfigureIdentityTables(modelBuilder);
+            ConfigureIdentity(modelBuilder);
             ConfigureIndexes(modelBuilder);
             ConfigureDefaultValues(modelBuilder);
             ConfigureDecimalPrecision(modelBuilder);
             ConfigureLedgerConstraints(modelBuilder);
             ConfigureRelationships(modelBuilder);
-            ConfigureReportEntities(modelBuilder);
             ConfigureHawalaEntity(modelBuilder);
             SeedData(modelBuilder);
+            ConfigureTenantFilters(modelBuilder);
             modelBuilder.Entity<LedgerEntry>()
                 .HasOne(x => x.Hawala)
                 .WithMany()
@@ -438,6 +455,42 @@ namespace HawalaExchange.Infrastructure.Data
                     .HasForeignKey(x => x.DefaultProfitCurrencyId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
+
+            // Must run after every relationship has been configured.
+            ConfigureTenantForeignKeys(modelBuilder);
+        }
+
+        private void AssignAndValidateTenantIds()
+        {
+            foreach (var entry in ChangeTracker.Entries<ITenantEntity>())
+            {
+                if (entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                    PrepareTenantEntity(entry.Entity);
+            }
+        }
+
+        private sealed class TenantScope(Action onDispose) : IDisposable
+        {
+            private Action? dispose = onDispose;
+            public void Dispose() => Interlocked.Exchange(ref dispose, null)?.Invoke();
+        }
+
+        private void ConfigureTenantFilters(ModelBuilder modelBuilder)
+        {
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes()
+                         .Where(x => typeof(ITenantEntity).IsAssignableFrom(x.ClrType)))
+            {
+                var parameter = Expression.Parameter(entityType.ClrType, "entity");
+                var tenantId = Expression.Property(parameter, nameof(ITenantEntity.TenantId));
+                var currentTenantId = Expression.Property(
+                    Expression.Constant(this),
+                    nameof(CurrentTenantId));
+                var filter = Expression.Lambda(
+                    Expression.Equal(tenantId, currentTenantId),
+                    parameter);
+
+                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(filter);
+            }
         }
 
         // ==========================================
@@ -488,11 +541,20 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureIdentity(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<Tenant>(entity =>
+            {
+                entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            });
+
             // تنظیمات ApplicationUser
             modelBuilder.Entity<ApplicationUser>(entity =>
             {
                 entity.ToTable("Users");
-                entity.HasIndex(u => u.UserName).IsUnique();
+                entity.Property(u => u.LocalUserName).HasMaxLength(256).IsRequired();
+                entity.HasIndex(u => u.LocalUserName).IsUnique();
+                entity.HasIndex(u => u.NormalizedEmail)
+                    .IsUnique()
+                    .HasFilter("[NormalizedEmail] IS NOT NULL");
                 entity.Property(u => u.FullName).HasMaxLength(200);
                 entity.Property(u => u.IsActive).HasDefaultValue(true);
                 entity.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
@@ -501,6 +563,11 @@ namespace HawalaExchange.Infrastructure.Data
                 entity.HasOne(u => u.Branch)
                     .WithMany(b => b.Users)
                     .HasForeignKey(u => u.BranchId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(u => u.Tenant)
+                    .WithMany(t => t.Users)
+                    .HasForeignKey(u => u.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
@@ -517,36 +584,58 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureIndexes(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Branch>().HasIndex(x => x.Code).IsUnique();
-            modelBuilder.Entity<Customer>().HasIndex(x => x.CustomerCode).IsUnique();
-            modelBuilder.Entity<Correspondent>().HasIndex(x => x.Code).IsUnique();
-            modelBuilder.Entity<Currency>().HasIndex(x => x.Code).IsUnique();
-            modelBuilder.Entity<Account>().HasIndex(x => x.AccountCode).IsUnique();
-            modelBuilder.Entity<Transaction>().HasIndex(x => x.TransactionNo).IsUnique();
-            modelBuilder.Entity<AccountBadehkarLimit>().HasIndex(x => new { x.AccountId, x.CurrencyId }).IsUnique();
-            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.AccountId, x.CurrencyId });
-            modelBuilder.Entity<LedgerEntry>().HasIndex(x => x.TransactionId);
-            modelBuilder.Entity<ExchangeRate>().HasIndex(x => new { x.FromCurrencyId, x.ToCurrencyId, x.EffectiveDate });
-            modelBuilder.Entity<Document>().HasIndex(x => new { x.EntityType, x.EntityId });
-            modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TableName, x.RecordId });
-            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.HawalaType, x.Status });
+            modelBuilder.Entity<Branch>().HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            modelBuilder.Entity<Customer>().HasIndex(x => new { x.TenantId, x.CustomerCode }).IsUnique();
+            modelBuilder.Entity<Correspondent>().HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            modelBuilder.Entity<Currency>().HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            modelBuilder.Entity<Account>().HasIndex(x => new { x.TenantId, x.AccountCode }).IsUnique();
+            modelBuilder.Entity<Account>()
+                .HasIndex(x => new { x.TenantId, x.CustomerId })
+                .IsUnique()
+                .HasFilter("[CustomerId] IS NOT NULL");
+            modelBuilder.Entity<Account>()
+                .HasIndex(x => new { x.TenantId, x.CorrespondentId })
+                .IsUnique()
+                .HasFilter("[CorrespondentId] IS NOT NULL");
+            modelBuilder.Entity<Transaction>().HasIndex(x => new { x.TenantId, x.TransactionNo }).IsUnique();
+            modelBuilder.Entity<Transaction>().HasIndex(x => new { x.TenantId, x.CreatedAt, x.Status });
+            modelBuilder.Entity<AccountBadehkarLimit>().HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId }).IsUnique();
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.TransactionId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.HawalaId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.TransferId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.CapitalInvestmentId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.ExpenseId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.AccountMoneyOperationId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.MoneyExchangeOperationId });
+            modelBuilder.Entity<ExchangeRate>().HasIndex(x => new { x.TenantId, x.FromCurrencyId, x.ToCurrencyId, x.EffectiveDate });
+            modelBuilder.Entity<Document>().HasIndex(x => new { x.TenantId, x.TransactionId });
+            modelBuilder.Entity<Document>().HasIndex(x => new { x.TenantId, x.CustomerId });
+            modelBuilder.Entity<Document>().HasIndex(x => new { x.TenantId, x.CorrespondentId });
+            modelBuilder.Entity<Document>().HasIndex(x => new { x.TenantId, x.AccountId });
+            modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.TableName, x.RecordId });
+            modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.HawalaType, x.Status });
             modelBuilder.Entity<Hawala>()
-                .HasIndex(x => new { x.CorrespondentId, x.HawalaType, x.Number })
+                .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.Number })
                 .IsUnique();
             modelBuilder.Entity<Hawala>()
-                .HasIndex(x => x.SourceHawalaId)
+                .HasIndex(x => new { x.TenantId, x.SourceHawalaId })
                 .IsUnique()
                 .HasFilter("[SourceHawalaId] IS NOT NULL");
-            modelBuilder.Entity<Hawala>().HasIndex(x => x.ReferenceNumber);
-            modelBuilder.Entity<Hawala>().HasIndex(x => x.CreatedAt);
-            modelBuilder.Entity<DailyReport>().HasIndex(r => new { r.Date, r.BranchId });
-            modelBuilder.Entity<TransactionReport>().HasIndex(r => r.TransactionNo);
-            modelBuilder.Entity<TransactionReport>().HasIndex(r => r.CreatedAt);
-            modelBuilder.Entity<CommissionReport>().HasIndex(r => new { r.Date, r.BranchId });
-            modelBuilder.Entity<TrialBalance>().HasIndex(r => new { r.AsOfDate, r.AccountId });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.ReferenceNumber });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.CreatedAt });
             modelBuilder.Entity<CashDailyBalance>()
-                .HasIndex(x => new { x.JournalDate, x.AccountId, x.CurrencyId })
+                .HasIndex(x => new { x.TenantId, x.JournalDate, x.AccountId, x.CurrencyId })
                 .IsUnique();
+
+            modelBuilder.Entity<Expense>().HasIndex(x => new { x.TenantId, x.ExpenseDate });
+            modelBuilder.Entity<AccountMoneyOperation>().HasIndex(x => new { x.TenantId, x.OperationDate });
+            modelBuilder.Entity<MoneyExchangeOperation>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+            modelBuilder.Entity<CapitalInvestment>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+
+            modelBuilder.Entity<CompanySetting>().HasIndex(x => x.TenantId).IsUnique();
         }
 
         // ==========================================
@@ -575,21 +664,6 @@ namespace HawalaExchange.Infrastructure.Data
                 .Property(x => x.CreatedAt)
                 .HasDefaultValueSql("GETUTCDATE()");
 
-            modelBuilder.Entity<DailyReport>()
-                .Property(r => r.CreatedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
-
-            modelBuilder.Entity<TransactionReport>()
-                .Property(r => r.ReportGeneratedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
-
-            modelBuilder.Entity<CommissionReport>()
-                .Property(r => r.CreatedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
-
-            modelBuilder.Entity<TrialBalance>()
-                .Property(r => r.CreatedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
         }
 
         // ==========================================
@@ -646,37 +720,6 @@ namespace HawalaExchange.Infrastructure.Data
                 .Property(x => x.AgentCommissionAmount)
                 .HasPrecision(18, 4);
 
-            modelBuilder.Entity<DailyReport>()
-                .Property(r => r.TotalSendAmount).HasPrecision(18, 4);
-            modelBuilder.Entity<DailyReport>()
-                .Property(r => r.TotalReceiveAmount).HasPrecision(18, 4);
-            modelBuilder.Entity<DailyReport>()
-                .Property(r => r.TotalCommission).HasPrecision(18, 4);
-            modelBuilder.Entity<DailyReport>()
-                .Property(r => r.TotalExpenses).HasPrecision(18, 4);
-            modelBuilder.Entity<DailyReport>()
-                .Property(r => r.NetIncome).HasPrecision(18, 4);
-
-            modelBuilder.Entity<TransactionReport>()
-                .Property(r => r.FromAmount).HasPrecision(18, 4);
-            modelBuilder.Entity<TransactionReport>()
-                .Property(r => r.ToAmount).HasPrecision(18, 4);
-            modelBuilder.Entity<TransactionReport>()
-                .Property(r => r.Commission).HasPrecision(18, 4);
-
-            modelBuilder.Entity<CommissionReport>()
-                .Property(r => r.TotalCommission).HasPrecision(18, 4);
-            modelBuilder.Entity<CommissionReport>()
-                .Property(r => r.TotalAgentCommission).HasPrecision(18, 4);
-            modelBuilder.Entity<CommissionReport>()
-                .Property(r => r.NetCommission).HasPrecision(18, 4);
-
-            modelBuilder.Entity<TrialBalance>()
-                .Property(r => r.TotalDebit).HasPrecision(18, 4);
-            modelBuilder.Entity<TrialBalance>()
-                .Property(r => r.TotalCredit).HasPrecision(18, 4);
-            modelBuilder.Entity<TrialBalance>()
-                .Property(r => r.Balance).HasPrecision(18, 4);
             modelBuilder.Entity<CapitalInvestment>()
                 .Property(x => x.Amount)
                 .HasPrecision(18, 4);
@@ -718,6 +761,65 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasCheckConstraint(
                     "CK_LedgerEntries_OnlyOneSide",
                     "([TalabKar] > 0 AND [BadehKar] = 0) OR ([TalabKar] = 0 AND [BadehKar] > 0)");
+
+            modelBuilder.Entity<LedgerEntry>()
+                .ToTable(t => t.HasCheckConstraint(
+                    "CK_LedgerEntries_AtMostOneSource",
+                    "(CASE WHEN [TransactionId] IS NULL THEN 0 ELSE 1 END + " +
+                    "CASE WHEN [HawalaId] IS NULL THEN 0 ELSE 1 END + " +
+                    "CASE WHEN [TransferId] IS NULL THEN 0 ELSE 1 END + " +
+                    "CASE WHEN [CapitalInvestmentId] IS NULL THEN 0 ELSE 1 END + " +
+                    "CASE WHEN [ExpenseId] IS NULL THEN 0 ELSE 1 END + " +
+                    "CASE WHEN [AccountMoneyOperationId] IS NULL THEN 0 ELSE 1 END + " +
+                    "CASE WHEN [MoneyExchangeOperationId] IS NULL THEN 0 ELSE 1 END) <= 1"));
+        }
+
+        private static void ConfigureTenantForeignKeys(ModelBuilder modelBuilder)
+        {
+            var tenantEntityTypes = modelBuilder.Model.GetEntityTypes()
+                .Where(x => typeof(ITenantEntity).IsAssignableFrom(x.ClrType))
+                .ToList();
+
+            foreach (var entityType in tenantEntityTypes)
+            {
+                var tenantProperty = entityType.FindProperty(nameof(ITenantEntity.TenantId));
+                var primaryKey = entityType.FindPrimaryKey();
+                if (tenantProperty is null || primaryKey is null || primaryKey.Properties.Count != 1)
+                    continue;
+
+                if (entityType.FindKey(new[] { tenantProperty, primaryKey.Properties[0] }) is null)
+                    entityType.AddKey(new[] { tenantProperty, primaryKey.Properties[0] });
+            }
+
+            foreach (var dependentType in tenantEntityTypes)
+            {
+                var dependentTenant = dependentType.FindProperty(nameof(ITenantEntity.TenantId));
+                if (dependentTenant is null)
+                    continue;
+
+                foreach (var foreignKey in dependentType.GetForeignKeys().ToList())
+                {
+                    var principalType = foreignKey.PrincipalEntityType;
+                    if (!typeof(ITenantEntity).IsAssignableFrom(principalType.ClrType) ||
+                        foreignKey.Properties.Contains(dependentTenant))
+                        continue;
+
+                    var principalTenant = principalType.FindProperty(nameof(ITenantEntity.TenantId));
+                    if (principalTenant is null)
+                        continue;
+
+                    var principalProperties = new[] { principalTenant }
+                        .Concat(foreignKey.PrincipalKey.Properties)
+                        .ToList();
+                    var principalKey = principalType.FindKey(principalProperties)
+                        ?? principalType.AddKey(principalProperties);
+                    var dependentProperties = new[] { dependentTenant }
+                        .Concat(foreignKey.Properties)
+                        .ToList();
+
+                    foreignKey.SetProperties(dependentProperties, principalKey);
+                }
+            }
         }
 
         // ==========================================
@@ -725,6 +827,38 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureRelationships(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<Document>().HasOne(x => x.Transaction).WithMany(x => x.Documents)
+                .HasForeignKey(x => x.TransactionId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Document>().HasOne(x => x.Customer).WithMany()
+                .HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Document>().HasOne(x => x.Correspondent).WithMany()
+                .HasForeignKey(x => x.CorrespondentId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Document>().HasOne(x => x.Account).WithMany()
+                .HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<Document>().ToTable(t => t.HasCheckConstraint(
+                "CK_Documents_ExactlyOneOwner",
+                "(CASE WHEN [TransactionId] IS NULL THEN 0 ELSE 1 END + " +
+                "CASE WHEN [CustomerId] IS NULL THEN 0 ELSE 1 END + " +
+                "CASE WHEN [CorrespondentId] IS NULL THEN 0 ELSE 1 END + " +
+                "CASE WHEN [AccountId] IS NULL THEN 0 ELSE 1 END) = 1"));
+
+            modelBuilder.Entity<Account>()
+                .HasOne(x => x.Customer)
+                .WithMany()
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Account>()
+                .HasOne(x => x.Correspondent)
+                .WithMany()
+                .HasForeignKey(x => x.CorrespondentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Account>()
+                .ToTable(t => t.HasCheckConstraint(
+                    "CK_Accounts_OneOwner",
+                    "[CustomerId] IS NULL OR [CorrespondentId] IS NULL"));
+
             // Transaction <-> CreatedByUser
             modelBuilder.Entity<Transaction>()
                 .HasOne(t => t.CreatedByUser)
@@ -775,25 +909,25 @@ namespace HawalaExchange.Infrastructure.Data
 
             modelBuilder.Entity<TransactionDetail>()
                 .HasOne(td => td.FromCurrency)
-                .WithMany()
+                .WithMany(c => c.FromTransactions)
                 .HasForeignKey(td => td.FromCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<TransactionDetail>()
                 .HasOne(td => td.ToCurrency)
-                .WithMany()
+                .WithMany(c => c.ToTransactions)
                 .HasForeignKey(td => td.ToCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<TransactionDetail>()
                 .HasOne(td => td.CommissionCurrency)
-                .WithMany()
+                .WithMany(c => c.CommissionTransactions)
                 .HasForeignKey(td => td.CommissionCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<TransactionDetail>()
                 .HasOne(td => td.AgentCommissionCurrency)
-                .WithMany()
+                .WithMany(c => c.AgentCommissionTransactions)
                 .HasForeignKey(td => td.AgentCommissionCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -837,7 +971,7 @@ namespace HawalaExchange.Infrastructure.Data
 
             modelBuilder.Entity<Transfer>()
                 .HasOne(t => t.Currency)
-                .WithMany()
+                .WithMany(c => c.Transfers)
                 .HasForeignKey(t => t.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -848,7 +982,7 @@ namespace HawalaExchange.Infrastructure.Data
 
             modelBuilder.Entity<Expense>()
                 .HasOne(x => x.Currency)
-                .WithMany()
+                .WithMany(c => c.Expenses)
                 .HasForeignKey(x => x.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -875,13 +1009,13 @@ namespace HawalaExchange.Infrastructure.Data
             // ExchangeRate relationships...
             modelBuilder.Entity<ExchangeRate>()
                 .HasOne(er => er.FromCurrency)
-                .WithMany()
+                .WithMany(c => c.FromExchangeRates)
                 .HasForeignKey(er => er.FromCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<ExchangeRate>()
                 .HasOne(er => er.ToCurrency)
-                .WithMany()
+                .WithMany(c => c.ToExchangeRates)
                 .HasForeignKey(er => er.ToCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -978,30 +1112,6 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasForeignKey(h => h.CancelledBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Report relationships...
-            modelBuilder.Entity<DailyReport>()
-                .HasOne(r => r.Branch)
-                .WithMany()
-                .HasForeignKey(r => r.BranchId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<TransactionReport>()
-                .HasOne(r => r.Transaction)
-                .WithMany()
-                .HasForeignKey(r => r.TransactionId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            modelBuilder.Entity<CommissionReport>()
-                .HasOne(r => r.Branch)
-                .WithMany()
-                .HasForeignKey(r => r.BranchId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<TrialBalance>()
-                .HasOne(r => r.Account)
-                .WithMany()
-                .HasForeignKey(r => r.AccountId)
-                .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<CapitalInvestment>()
                 .HasOne(x => x.Currency)
                 .WithMany()
@@ -1146,18 +1256,6 @@ namespace HawalaExchange.Infrastructure.Data
         }
 
         // ==========================================
-        // تنظیمات اختصاصی گزارش‌ها
-        // ==========================================
-        private static void ConfigureReportEntities(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<DailyReport>()
-                .HasCheckConstraint("CK_DailyReport_TotalSendAmount_NonNegative", "[TotalSendAmount] >= 0");
-
-            modelBuilder.Entity<DailyReport>()
-                .HasCheckConstraint("CK_DailyReport_TotalReceiveAmount_NonNegative", "[TotalReceiveAmount] >= 0");
-        }
-
-        // ==========================================
         // داده‌های اولیه (Seed Data)
         // ==========================================
         private static void SeedData(ModelBuilder modelBuilder)
@@ -1168,6 +1266,7 @@ namespace HawalaExchange.Infrastructure.Data
                 new Branch
                 {
                     Id = 1,
+                    TenantId = 1,
                     Code = "MAIN",
                     Name = "شعبه اصلی",
                     PhoneNumber = null,
@@ -1177,22 +1276,32 @@ namespace HawalaExchange.Infrastructure.Data
                 }
             );
 
+            modelBuilder.Entity<Tenant>().HasData(
+                new Tenant
+                {
+                    Id = 1,
+                    Name = "صرافی پیش‌فرض",
+                    IsActive = true,
+                    CreatedAt = createdAt
+                }
+            );
+
             modelBuilder.Entity<Currency>().HasData(
-                new Currency { Id = 1, Code = "AFN", Name = "افغانی", Symbol = "؋", DecimalPlaces = 2, QuotationPriority = 60, IsActive = true },
-                new Currency { Id = 2, Code = "USD", Name = "دالر امریکایی", Symbol = "$", DecimalPlaces = 2, QuotationPriority = 20, IsActive = true },
-                new Currency { Id = 3, Code = "EUR", Name = "یورو", Symbol = "€", DecimalPlaces = 2, QuotationPriority = 10, IsActive = true },
-                new Currency { Id = 4, Code = "AED", Name = "درهم عربی", Symbol = "د.إ", DecimalPlaces = 2, QuotationPriority = 30, IsActive = true },
-                new Currency { Id = 5, Code = "IRR", Name = "ریال ایرانی", Symbol = "﷼", DecimalPlaces = 2, QuotationPriority = 50, IsActive = true },
-                new Currency { Id = 6, Code = "PKR", Name = "روپیه پاکستانی", Symbol = "₨", DecimalPlaces = 2, QuotationPriority = 40, IsActive = true }
+                new Currency { Id = 1, TenantId = 1, Code = "AFN", Name = "افغانی", Symbol = "؋", DecimalPlaces = 2, QuotationPriority = 60, IsActive = true },
+                new Currency { Id = 2, TenantId = 1, Code = "USD", Name = "دالر امریکایی", Symbol = "$", DecimalPlaces = 2, QuotationPriority = 20, IsActive = true },
+                new Currency { Id = 3, TenantId = 1, Code = "EUR", Name = "یورو", Symbol = "€", DecimalPlaces = 2, QuotationPriority = 10, IsActive = true },
+                new Currency { Id = 4, TenantId = 1, Code = "AED", Name = "درهم عربی", Symbol = "د.إ", DecimalPlaces = 2, QuotationPriority = 30, IsActive = true },
+                new Currency { Id = 5, TenantId = 1, Code = "IRR", Name = "ریال ایرانی", Symbol = "﷼", DecimalPlaces = 2, QuotationPriority = 50, IsActive = true },
+                new Currency { Id = 6, TenantId = 1, Code = "PKR", Name = "روپیه پاکستانی", Symbol = "₨", DecimalPlaces = 2, QuotationPriority = 40, IsActive = true }
             );
 
             modelBuilder.Entity<Account>().HasData(
-                new Account { Id = 1, AccountCode = "1001", AccountName = "صندوق", AccountType = "Cash", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 2, AccountCode = "1101", AccountName = "بانک", AccountType = "Bank", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 3, AccountCode = "3001", AccountName = "درآمد کمیسیون حواله", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 4, AccountCode = "3002", AccountName = "درآمد تبادل", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 5, AccountCode = "4001", AccountName = "هزینه دفتر", AccountType = "Expense", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
-                new Account { Id = 6, AccountCode = "5001", AccountName = "سرمایه مالک", AccountType = "Equity", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt }
+                new Account { Id = 1, TenantId = 1, AccountCode = "1001", AccountName = "صندوق", AccountType = "Cash", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 2, TenantId = 1, AccountCode = "1101", AccountName = "بانک", AccountType = "Bank", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 3, TenantId = 1, AccountCode = "3001", AccountName = "درآمد کمیسیون حواله", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 4, TenantId = 1, AccountCode = "3002", AccountName = "درآمد تبادل", AccountType = "Income", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 5, TenantId = 1, AccountCode = "4001", AccountName = "هزینه دفتر", AccountType = "Expense", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt },
+                new Account { Id = 6, TenantId = 1, AccountCode = "5001", AccountName = "سرمایه مالک", AccountType = "Equity", ReferenceType = null, ReferenceId = null, IsArchived = false, CreatedAt = createdAt }
             );
         }
     }

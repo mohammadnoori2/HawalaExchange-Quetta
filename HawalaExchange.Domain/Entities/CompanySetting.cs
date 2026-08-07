@@ -4,11 +4,16 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities;
 
 [Table("CompanySettings")]
-public class CompanySetting
+public class CompanySetting : ITenantEntity
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public long Id { get; set; }
+
+    public long TenantId { get; set; }
+
+    [ForeignKey(nameof(TenantId))]
+    public Tenant Tenant { get; set; } = null!;
 
     [Required]
     [MaxLength(200)]

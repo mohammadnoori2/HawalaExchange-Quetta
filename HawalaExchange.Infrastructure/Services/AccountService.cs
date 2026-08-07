@@ -32,6 +32,7 @@ namespace HawalaExchange.Application.Services
 
             // ۲. ایجاد یک حساب (فقط یک بار)
             var entity = _mapper.Map<Account>(createDto);
+            _context.PrepareTenantEntity(entity);
             entity.CreatedAt = DateTime.UtcNow;
 
             await _dbSet.AddAsync(entity); // ✅ فقط یک بار
@@ -45,10 +46,10 @@ namespace HawalaExchange.Application.Services
                 {
                     TransactionNo = await GenerateOpeningTransactionNumberAsync(),
                     TransactionType = "OpeningBalance",
-                    BranchId = 1,
+                    BranchId = await _context.GetDefaultBranchIdAsync(),
                     Status = "Paid",
                     Remarks = $"موجودی اولیه برای حساب {entity.AccountName} (کد: {entity.AccountCode})",
-                    CreatedBy = GetCurrentUserId(),
+                    CreatedBy = _context.RequireCurrentUserId(),
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -79,21 +80,14 @@ namespace HawalaExchange.Application.Services
 
                 // ثبت در AuditLog
                 await _auditLogService.LogAsync("CREATE", "Transactions", openingTransaction.Id, null,
-                    $"تراکنش موجودی اولیه برای حساب {entity.AccountName} ایجاد شد", GetCurrentUserId());
+                    $"تراکنش موجودی اولیه برای حساب {entity.AccountName} ایجاد شد", _context.RequireCurrentUserId());
             }
 
             // ثبت در AuditLog برای حساب
             await _auditLogService.LogAsync("CREATE", "Accounts", entity.Id, null,
-                $"حساب {entity.AccountName} با کد {entity.AccountCode} ایجاد شد", GetCurrentUserId());
+                $"حساب {entity.AccountName} با کد {entity.AccountCode} ایجاد شد", _context.RequireCurrentUserId());
 
             return _mapper.Map<AccountDto>(entity);
-        }
-
-        // متد کمکی برای دریافت کاربر جاری (می‌توانید از IHttpContextAccessor استفاده کنید)
-        private long GetCurrentUserId()
-        {
-            // در اینجا می‌توانید از Claim یا سرویس کاربر جاری استفاده کنید
-            return 1; // فعلاً مقدار ثابت
         }
 
         public async Task<AccountDto?> GetByAccountCodeAsync(string accountCode)
@@ -113,7 +107,10 @@ namespace HawalaExchange.Application.Services
         public async Task<IEnumerable<AccountDto>> GetByReferenceAsync(string referenceType, long referenceId)
         {
             var entities = await _dbSet
-                .Where(a => a.ReferenceType == referenceType && a.ReferenceId == referenceId && !a.IsArchived)
+                .Where(a =>
+                    ((referenceType == "Customer" && a.CustomerId == referenceId) ||
+                     (referenceType == "Correspondent" && a.CorrespondentId == referenceId)) &&
+                    !a.IsArchived)
                 .ToListAsync();
             return _mapper.Map<IEnumerable<AccountDto>>(entities);
         }

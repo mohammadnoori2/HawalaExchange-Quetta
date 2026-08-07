@@ -14,7 +14,7 @@ namespace HawalaExchange.Infrastructure.Data
             // ==========================================
             // 1. ایجاد نقش‌ها
             // ==========================================
-            string[] roleNames = { "Admin", "Manager", "Cashier", "Supervisor" };
+            string[] roleNames = { "SuperAdmin", "Admin", "Manager", "Cashier", "Supervisor" };
 
             foreach (var roleName in roleNames)
             {
@@ -28,13 +28,34 @@ namespace HawalaExchange.Infrastructure.Data
             }
 
             // ==========================================
-            // 2. ایجاد شعبه پیش‌فرض (اگر وجود ندارد)
+            // 2. ایجاد صرافی و شعبه پیش‌فرض (اگر وجود ندارد)
             // ==========================================
-            var branch = await context.Branches.FirstOrDefaultAsync(b => b.Code == "MAIN");
+            var tenant = await context.Tenants
+                .IgnoreQueryFilters()
+                .OrderBy(x => x.Id)
+                .FirstOrDefaultAsync();
+            if (tenant == null)
+            {
+                tenant = new Tenant
+                {
+                    Name = "صرافی پیش‌فرض",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                context.Tenants.Add(tenant);
+                await context.SaveChangesAsync();
+            }
+
+            using var tenantScope = context.UseTenantScope(tenant.Id);
+
+            var branch = await context.Branches
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(b => b.TenantId == tenant.Id && b.Code == "MAIN");
             if (branch == null)
             {
                 branch = new Branch
                 {
+                    TenantId = tenant.Id,
                     Code = "MAIN",
                     Name = "شعبه اصلی",
                     Address = "آدرس شعبه اصلی",
@@ -49,28 +70,39 @@ namespace HawalaExchange.Infrastructure.Data
             // ==========================================
             // 3. ایجاد کاربر ادمین
             // ==========================================
-            var adminUser = await userManager.FindByNameAsync("admin");
+            var adminUser = await context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant.Id && x.LocalUserName == "admin");
             if (adminUser == null)
             {
-                var user = new ApplicationUser
+                adminUser = new ApplicationUser
                 {
-                    UserName = "admin",
+                    TenantId = tenant.Id,
+                    LocalUserName = "admin",
+                    UserName = $"{tenant.Id}:admin",
                     Email = "admin@hawalaexchange.com",
                     FullName = "مدیر سیستم",
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
-                    BranchId = branch.Id // ✅ استفاده از Branch ایجاد شده
+                    BranchId = branch.Id
                 };
 
-                var result = await userManager.CreateAsync(user, "Admin@123");
-                if (result.Succeeded)
-                {
-                    await userManager.AddToRoleAsync(user, "Admin");
-                }
-                else
+                var result = await userManager.CreateAsync(adminUser, "Admin@123");
+                if (!result.Succeeded)
                 {
                     var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                     throw new Exception($"Failed to create admin user: {errors}");
+                }
+            }
+
+            foreach (var role in new[] { "Admin", "SuperAdmin" })
+            {
+                if (!await userManager.IsInRoleAsync(adminUser, role))
+                {
+                    var result = await userManager.AddToRoleAsync(adminUser, role);
+                    if (!result.Succeeded)
+                        throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
                 }
             }
         }

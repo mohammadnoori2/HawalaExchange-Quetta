@@ -1,8 +1,9 @@
 ﻿namespace HawalaExchange.Domain.Entities;
 
-public class Expense
+public class Expense : ITenantEntity
 {
     public long Id { get; set; }
+    public long TenantId { get; set; }
 
     public DateTime ExpenseDate { get; set; }
 

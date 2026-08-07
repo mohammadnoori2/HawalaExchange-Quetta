@@ -22,8 +22,8 @@ public class AccountBadehkarLimitService
             .Where(x =>
                 x.Account!.AccountType == "Customer" ||
                 x.Account.AccountType == "Correspondent" ||
-                x.Account.ReferenceType == "Customer" ||
-                x.Account.ReferenceType == "Correspondent")
+                x.Account.CustomerId != null ||
+                x.Account.CorrespondentId != null)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync();
         return await ToDtosAsync(entities);
@@ -60,8 +60,8 @@ public class AccountBadehkarLimitService
                 x.CurrencyId == currencyId &&
                 (x.Account!.AccountType == "Customer" ||
                  x.Account.AccountType == "Correspondent" ||
-                 x.Account.ReferenceType == "Customer" ||
-                 x.Account.ReferenceType == "Correspondent"))
+                 x.Account.CustomerId != null ||
+                 x.Account.CorrespondentId != null))
             .OrderByDescending(x => x.Id)
             .ToListAsync();
         return await ToDtosAsync(entities);
@@ -74,8 +74,8 @@ public class AccountBadehkarLimitService
                 x.IsActive &&
                 (x.Account!.AccountType == "Customer" ||
                  x.Account.AccountType == "Correspondent" ||
-                 x.Account.ReferenceType == "Customer" ||
-                 x.Account.ReferenceType == "Correspondent"))
+                 x.Account.CustomerId != null ||
+                 x.Account.CorrespondentId != null))
             .OrderByDescending(x => x.Id)
             .ToListAsync();
         return await ToDtosAsync(entities);
@@ -126,7 +126,7 @@ public class AccountBadehkarLimitService
             AccountId = createDto.AccountId,
             CurrencyId = createDto.CurrencyId,
             BadehkarLimit = createDto.BadehkarLimit,
-            CreatedBy = 1,
+            CreatedBy = _context.RequireCurrentUserId(),
             CreatedAt = DateTime.UtcNow,
             IsActive = true
         };
@@ -239,14 +239,14 @@ public class AccountBadehkarLimitService
 
     private static bool IsEligibleAccount(Account account) =>
         account.AccountType is "Customer" or "Correspondent" or "مشتری" or "نماینده" or "نمایندگی" ||
-        account.ReferenceType is "Customer" or "Correspondent";
+        account.CustomerId.HasValue || account.CorrespondentId.HasValue;
 
     private static string GetAccountTypeLabel(Account? account)
     {
         if (account == null)
             return "-";
         if (account.AccountType is "Correspondent" or "نماینده" or "نمایندگی" ||
-            account.ReferenceType == "Correspondent")
+            account.CorrespondentId.HasValue)
             return "نمایندگی";
         return "مشتری";
     }

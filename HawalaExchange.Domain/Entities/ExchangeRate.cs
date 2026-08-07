@@ -6,11 +6,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities
 {
     [Table("ExchangeRates")]
-    public class ExchangeRate
+    public class ExchangeRate : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+
+        public long TenantId { get; set; }
 
         [Required]
         public long FromCurrencyId { get; set; }

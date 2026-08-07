@@ -5,11 +5,16 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities
 {
     [Table("Branches")]
-    public class Branch
+    public class Branch : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+
+        public long TenantId { get; set; }
+
+        [ForeignKey(nameof(TenantId))]
+        public virtual Tenant Tenant { get; set; } = null!;
 
         [Required]
         [MaxLength(20)]

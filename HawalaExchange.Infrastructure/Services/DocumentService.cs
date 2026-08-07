@@ -70,7 +70,11 @@ namespace HawalaExchange.Application.Services
         public async Task<IEnumerable<DocumentDto>> GetDocumentsByEntityAsync(string entityType, long entityId)
         {
             var docs = await _context.Documents
-                .Where(d => d.EntityType == entityType && d.EntityId == entityId)
+                .Where(d =>
+                    (entityType == "Transaction" && d.TransactionId == entityId) ||
+                    (entityType == "Customer" && d.CustomerId == entityId) ||
+                    (entityType == "Correspondent" && d.CorrespondentId == entityId) ||
+                    (entityType == "Account" && d.AccountId == entityId))
                 .ToListAsync();
             return _mapper.Map<IEnumerable<DocumentDto>>(docs);
         }
@@ -111,7 +115,11 @@ namespace HawalaExchange.Application.Services
         public async Task<IEnumerable<DocumentDto>> GetDocumentsByTypeAsync(string entityType)
         {
             var docs = await _context.Documents
-                .Where(d => d.EntityType == entityType)
+                .Where(d =>
+                    (entityType == "Transaction" && d.TransactionId != null) ||
+                    (entityType == "Customer" && d.CustomerId != null) ||
+                    (entityType == "Correspondent" && d.CorrespondentId != null) ||
+                    (entityType == "Account" && d.AccountId != null))
                 .ToListAsync();
             return _mapper.Map<IEnumerable<DocumentDto>>(docs);
         }

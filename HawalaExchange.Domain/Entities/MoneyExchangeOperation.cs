@@ -1,8 +1,9 @@
 ﻿namespace HawalaExchange.Domain.Entities;
 
-public class MoneyExchangeOperation
+public class MoneyExchangeOperation : ITenantEntity
 {
     public long Id { get; set; }
+    public long TenantId { get; set; }
 
     public DateTime ExchangeDate { get; set; }
 

@@ -585,5 +585,5 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         };
     }
 
-    private long GetCurrentUserId() => 1;
+    private long GetCurrentUserId() => _context.RequireCurrentUserId();
 }

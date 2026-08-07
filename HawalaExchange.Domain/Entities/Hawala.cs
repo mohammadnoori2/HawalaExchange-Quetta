@@ -5,11 +5,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities
 {
     [Table("Hawalas")]
-    public class Hawala
+    public class Hawala : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+
+        public long TenantId { get; set; }
 
         [Required]
         public long Number { get; set; } // Unique Hawala number
@@ -98,6 +100,9 @@ namespace HawalaExchange.Domain.Entities
         public string Status { get; set; } = "Pending";
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         [Required]
         public long CreatedBy { get; set; }

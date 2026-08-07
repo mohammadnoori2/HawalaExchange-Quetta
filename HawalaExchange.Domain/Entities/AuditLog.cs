@@ -5,11 +5,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities
 {
     [Table("AuditLogs")]
-    public class AuditLog
+    public class AuditLog : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+
+        public long TenantId { get; set; }
 
         public long? UserId { get; set; }
 

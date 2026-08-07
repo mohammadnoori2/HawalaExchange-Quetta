@@ -18,9 +18,8 @@ namespace HawalaExchange.Application.Services
             // Map DTO to entity
             var entity = _mapper.Map<ExchangeRate>(createDto);
 
-            // ✅ Set the CreatedBy field (temporary hardcoded to user ID 1)
-            // Replace this with the actual logged-in user ID from your auth system
-            entity.CreatedBy = 1;
+            entity.CreatedBy = _context.RequireCurrentUserId();
+            _context.PrepareTenantEntity(entity);
 
             // Validate (checks that from/to currencies are different)
             await ValidateCreateAsync(entity, createDto);

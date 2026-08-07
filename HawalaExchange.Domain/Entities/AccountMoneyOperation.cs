@@ -1,8 +1,9 @@
 ﻿namespace HawalaExchange.Domain.Entities;
 
-public class AccountMoneyOperation
+public class AccountMoneyOperation : ITenantEntity
 {
     public long Id { get; set; }
+    public long TenantId { get; set; }
 
     // Deposit / Withdraw
     public string OperationType { get; set; } = string.Empty;

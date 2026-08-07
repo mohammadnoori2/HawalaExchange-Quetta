@@ -4,11 +4,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities
 {
     [Table("PaymentLocations")]
-    public class PaymentLocation
+    public class PaymentLocation : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+
+        public long TenantId { get; set; }
 
         [Required]
         [MaxLength(200)]

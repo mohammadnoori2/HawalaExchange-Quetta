@@ -195,10 +195,10 @@ namespace HawalaExchange.Application.Services
             {
                 TransactionNo = await GenerateOpeningTransactionNumberAsync(),
                 TransactionType = "OpeningBalance",
-                BranchId = 1,
+                BranchId = await _context.GetDefaultBranchIdAsync(),
                 Status = "Paid",
                 Remarks = $"موجودی اولیه برای نماینده {correspondentName} (کد: {correspondentCode})",
-                CreatedBy = GetCurrentUserId(),
+                CreatedBy = _context.RequireCurrentUserId(),
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -285,6 +285,5 @@ namespace HawalaExchange.Application.Services
             return $"OP-{datePart}-{nextNumber:D4}";
         }
 
-        private long GetCurrentUserId() => 1;
     }
 }

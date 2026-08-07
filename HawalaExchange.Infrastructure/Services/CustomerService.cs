@@ -219,10 +219,10 @@ namespace HawalaExchange.Application.Services
             {
                 TransactionNo = await GenerateOpeningTransactionNumberAsync(),
                 TransactionType = "OpeningBalance",
-                BranchId = 1,
+                BranchId = await _context.GetDefaultBranchIdAsync(),
                 Status = "Paid",
                 Remarks = $"موجودی اولیه برای مشتری {customerName} (کد: {customerCode})",
-                CreatedBy = GetCurrentUserId(),
+                CreatedBy = _context.RequireCurrentUserId(),
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -318,11 +318,5 @@ namespace HawalaExchange.Application.Services
             return $"OP-{datePart}-{nextNumber:D4}";
         }
 
-        private long GetCurrentUserId()
-        {
-            // در اینجا می‌توانید از Claim یا سرویس کاربر جاری استفاده کنید
-            // برای نمونه، مقدار ۱ را برمی‌گردانیم (در پروژه واقعی باید از HttpContext یا IUserService دریافت کنید)
-            return 1;
-        }
     }
 }

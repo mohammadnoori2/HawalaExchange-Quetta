@@ -320,5 +320,5 @@ public class CapitalInvestmentService : ICapitalInvestmentService
             throw new InvalidOperationException("ارز محاسبه سود معتبر نیست.");
     }
 
-    private long GetCurrentUserId() => 1;
+    private long GetCurrentUserId() => _context.RequireCurrentUserId();
 }

@@ -1,0 +1,291 @@
+@page "/tenants"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@inject ITenantAdministrationService TenantService
+@inject ICurrentTenant CurrentTenant
+@rendermode InteractiveServer
+
+<PageTitle>مدیریت صرافی‌ها</PageTitle>
+
+<div class="page-wrapper">
+    <div class="page-header">
+        <div>
+            <h5 class="page-title"><i class="bi bi-buildings"></i> مدیریت صرافی‌ها</h5>
+            <span class="page-subtitle">هر صرافی داده‌ها، شعبه‌ها و کاربران مستقل دارد</span>
+        </div>
+        <button class="btn-modern btn-primary-modern" @onclick="OpenCreate">
+            <i class="bi bi-plus-circle"></i> صرافی جدید
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
+    }
+
+    <div class="modern-card mb-3">
+        <div class="card-body">
+            <div class="input-group-modern">
+                <span class="input-icon"><i class="bi bi-search"></i></span>
+                <input class="form-control-modern" value="@searchTerm" @oninput="OnSearchChanged"
+                       placeholder="جستجو بر اساس نام صرافی..." />
+            </div>
+        </div>
+    </div>
+
+    <div class="modern-card">
+        <div class="table-responsive">
+            <table class="table modern-table mb-0">
+                <thead>
+                    <tr>
+                        <th>نام صرافی</th>
+                        <th>شعبه‌ها</th>
+                        <th>کاربران</th>
+                        <th>تاریخ ایجاد</th>
+                        <th>وضعیت</th>
+                        <th class="text-center">عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr><td colspan="6" class="text-center py-5">در حال بارگذاری...</td></tr>
+                    }
+                    else if (!FilteredTenants.Any())
+                    {
+                        <tr><td colspan="6" class="text-center py-5 text-muted">صرافی‌ای یافت نشد.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var tenant in FilteredTenants)
+                        {
+                            <tr>
+                                <td class="fw-bold">
+                                    @tenant.Name
+                                    @if (tenant.Id == CurrentTenant.TenantId)
+                                    {
+                                        <span class="badge-modern badge-info ms-1">صرافی جاری</span>
+                                    }
+                                </td>
+                                <td>@tenant.BranchCount</td>
+                                <td>@tenant.UserCount</td>
+                                <td>@tenant.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                                <td>
+                                    <span class="badge-modern @(tenant.IsActive ? "badge-success" : "badge-secondary")">
+                                        @(tenant.IsActive ? "فعال" : "غیرفعال")
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEdit(tenant)">
+                                        <i class="bi bi-pencil-square"></i> مدیریت
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@if (showCreate)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">ایجاد صرافی مستقل</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreate"></button>
+                </div>
+                <EditForm EditContext="createEditContext" FormName="create-tenant">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <ValidationSummary class="text-danger" />
+                        <div class="alert alert-info py-2">
+                            نام کاربری و ایمیل مدیر باید در کل سیستم یکتا باشند.
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label" for="tenant-name">نام صرافی</label>
+                                <input id="tenant-name" class="form-control" @bind="createModel.Name" @bind:event="oninput" />
+                                <ValidationMessage For="@(() => createModel.Name)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="tenant-admin-name">نام مدیر</label>
+                                <input id="tenant-admin-name" class="form-control" @bind="createModel.AdminFullName" @bind:event="oninput" />
+                                <ValidationMessage For="@(() => createModel.AdminFullName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="tenant-admin-user">نام کاربری مدیر</label>
+                                <input id="tenant-admin-user" class="form-control" autocomplete="off" @bind="createModel.AdminUserName" @bind:event="oninput" />
+                                <ValidationMessage For="@(() => createModel.AdminUserName)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="tenant-admin-email">ایمیل مدیر</label>
+                                <input id="tenant-admin-email" type="email" class="form-control" @bind="createModel.AdminEmail" @bind:event="oninput" />
+                                <ValidationMessage For="@(() => createModel.AdminEmail)" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="tenant-admin-password">رمز عبور مدیر</label>
+                                <input id="tenant-admin-password" type="password" class="form-control" autocomplete="new-password" @bind="createModel.AdminPassword" @bind:event="oninput" />
+                                <ValidationMessage For="@(() => createModel.AdminPassword)" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-modern btn-light-modern" @onclick="CloseCreate">انصراف</button>
+                        <button type="button" class="btn-modern btn-primary-modern" disabled="@isSaving" @onclick="CreateAsync">
+                            @(isSaving ? "در حال ایجاد..." : "ایجاد صرافی")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showEdit)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">مدیریت صرافی</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEdit"></button>
+                </div>
+                <EditForm EditContext="updateEditContext" FormName="update-tenant">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <ValidationSummary class="text-danger" />
+                        <div class="mb-3">
+                            <label class="form-label" for="edit-tenant-name">نام صرافی</label>
+                            <input id="edit-tenant-name" class="form-control" @bind="updateModel.Name" @bind:event="oninput" />
+                            <ValidationMessage For="@(() => updateModel.Name)" />
+                        </div>
+                        <div class="form-check form-switch">
+                            <InputCheckbox id="edit-tenant-active" class="form-check-input" @bind-Value="updateModel.IsActive" disabled="@(editingTenantId == CurrentTenant.TenantId)" />
+                            <label class="form-check-label" for="edit-tenant-active">صرافی فعال باشد</label>
+                        </div>
+                        @if (editingTenantId == CurrentTenant.TenantId)
+                        {
+                            <div class="form-text">برای جلوگیری از قطع دسترسی، صرافی جاری قابل غیرفعال‌سازی نیست.</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-modern btn-light-modern" @onclick="CloseEdit">انصراف</button>
+                        <button type="button" class="btn-modern btn-primary-modern" disabled="@isSaving" @onclick="UpdateAsync">
+                            @(isSaving ? "در حال ذخیره..." : "ذخیره تغییرات")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TenantDto> tenants = [];
+    private CreateTenantDto createModel = new();
+    private UpdateTenantDto updateModel = new();
+    private EditContext createEditContext = default!;
+    private EditContext updateEditContext = default!;
+    private long editingTenantId;
+    private string searchTerm = string.Empty;
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showCreate;
+    private bool showEdit;
+    private bool isError;
+    private string? message;
+
+    private IEnumerable<TenantDto> FilteredTenants => string.IsNullOrWhiteSpace(searchTerm)
+        ? tenants
+        : tenants.Where(x => x.Name.Contains(searchTerm.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        tenants = (await TenantService.GetAllAsync()).ToList();
+        isLoading = false;
+    }
+
+    private void OnSearchChanged(ChangeEventArgs args)
+    {
+        searchTerm = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void OpenCreate()
+    {
+        createModel = new CreateTenantDto();
+        createEditContext = new EditContext(createModel);
+        message = null;
+        showCreate = true;
+    }
+
+    private void CloseCreate() => showCreate = false;
+
+    private void OpenEdit(TenantDto tenant)
+    {
+        editingTenantId = tenant.Id;
+        updateModel = new UpdateTenantDto { Name = tenant.Name, IsActive = tenant.IsActive };
+        updateEditContext = new EditContext(updateModel);
+        message = null;
+        showEdit = true;
+    }
+
+    private void CloseEdit() => showEdit = false;
+
+    private async Task CreateAsync()
+    {
+        if (!createEditContext.Validate()) return;
+
+        try
+        {
+            isSaving = true;
+            var created = await TenantService.CreateAsync(createModel);
+            message = $"صرافی «{created.Name}» ایجاد شد و اکنون مدیر آن می‌تواند فقط با نام کاربری وارد شود.";
+            isError = false;
+            showCreate = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            isError = true;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (!updateEditContext.Validate()) return;
+
+        try
+        {
+            isSaving = true;
+            var updated = await TenantService.UpdateAsync(editingTenantId, updateModel);
+            message = $"اطلاعات صرافی «{updated.Name}» ذخیره شد.";
+            isError = false;
+            showEdit = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            isError = true;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

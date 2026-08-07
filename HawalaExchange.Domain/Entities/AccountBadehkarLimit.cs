@@ -5,11 +5,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities
 {
     [Table("AccountBadehkarLimits")]
-    public class AccountBadehkarLimit
+    public class AccountBadehkarLimit : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+
+        public long TenantId { get; set; }
 
         [Required]
         public long AccountId { get; set; }

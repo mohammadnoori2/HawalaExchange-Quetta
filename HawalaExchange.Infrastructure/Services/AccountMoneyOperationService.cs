@@ -329,5 +329,5 @@ public class AccountMoneyOperationService : IAccountMoneyOperationService
             : "ثبت برداشت";
     }
 
-    private long GetCurrentUserId() => 1;
+    private long GetCurrentUserId() => _context.RequireCurrentUserId();
 }

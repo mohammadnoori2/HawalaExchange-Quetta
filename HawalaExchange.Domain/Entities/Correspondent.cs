@@ -5,11 +5,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities
 {
     [Table("Correspondents")]
-    public class Correspondent
+    public class Correspondent : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+
+        public long TenantId { get; set; }
 
         [Required]
         [MaxLength(50)]
@@ -37,6 +39,9 @@ namespace HawalaExchange.Domain.Entities
         public string? Remarks { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         // Navigation Properties
         public virtual ICollection<TransactionDetail>? TransactionDetails { get; set; }

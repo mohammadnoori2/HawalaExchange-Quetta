@@ -357,6 +357,6 @@ namespace HawalaExchange.Application.Services
                 throw new InvalidOperationException("حساب مصرف و حساب پرداخت‌کننده نمی‌تواند یکی باشد.");
         }
 
-        private long GetCurrentUserId() => 1;
+        private long GetCurrentUserId() => _context.RequireCurrentUserId();
     }
 }

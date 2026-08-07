@@ -3,8 +3,10 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace HawalaExchange.Domain.Entities
 {
-    public class ApplicationUser : IdentityUser<long>
+    public class ApplicationUser : IdentityUser<long>, ITenantEntity
     {
+        public long TenantId { get; set; }
+        public string LocalUserName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public long BranchId { get; set; }
         public bool IsActive { get; set; } = true;
@@ -16,6 +18,9 @@ namespace HawalaExchange.Domain.Entities
         // Navigation Properties
         [ForeignKey(nameof(BranchId))]
         public virtual Branch? Branch { get; set; }
+
+        [ForeignKey(nameof(TenantId))]
+        public virtual Tenant Tenant { get; set; } = null!;
 
         public virtual ICollection<Transaction>? CreatedTransactions { get; set; }
         public virtual ICollection<Transaction>? CancelledTransactions { get; set; }

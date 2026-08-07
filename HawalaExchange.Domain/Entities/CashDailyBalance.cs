@@ -4,11 +4,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities;
 
 [Table("CashDailyBalances")]
-public class CashDailyBalance
+public class CashDailyBalance : ITenantEntity
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public long Id { get; set; }
+
+    public long TenantId { get; set; }
 
     public DateTime JournalDate { get; set; }
 

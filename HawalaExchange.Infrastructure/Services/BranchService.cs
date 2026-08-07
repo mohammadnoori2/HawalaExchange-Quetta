@@ -41,18 +41,8 @@ namespace HawalaExchange.Application.Services
                 .Distinct()
                 .ToListAsync();
 
-            var reportBranchIds = await _context.DailyReports
-                .Where(r => branchIds.Contains(r.BranchId))
-                .Select(r => r.BranchId)
-                .Concat(_context.CommissionReports
-                    .Where(r => branchIds.Contains(r.BranchId))
-                    .Select(r => r.BranchId))
-                .Distinct()
-                .ToListAsync();
-
             var blockedBranchIds = transactionBranchIds
                 .Concat(userBranchIds)
-                .Concat(reportBranchIds)
                 .ToHashSet();
 
             return entities.Select(entity =>
@@ -100,12 +90,6 @@ namespace HawalaExchange.Application.Services
                 throw new InvalidOperationException(
                     "این نمایندگی دارای کاربر وابسته است. ابتدا کاربر را به نمایندگی دیگری انتقال دهید.");
 
-            var hasReports = await _context.DailyReports.AnyAsync(r => r.BranchId == entity.Id) ||
-                             await _context.CommissionReports.AnyAsync(r => r.BranchId == entity.Id);
-
-            if (hasReports)
-                throw new InvalidOperationException(
-                    "این نمایندگی دارای گزارش ثبت‌شده است و قابل حذف نیست؛ می‌توانید آن را بایگانی کنید.");
         }
     }
 }

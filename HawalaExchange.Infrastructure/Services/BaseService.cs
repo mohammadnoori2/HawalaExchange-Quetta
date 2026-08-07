@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using HawalaExchange.Application.Interfaces.Services;
+using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
@@ -45,6 +46,8 @@ namespace HawalaExchange.Application.Services
         public virtual async Task<TDto> CreateAsync(TCreateDto createDto)
         {
             var entity = _mapper.Map<TEntity>(createDto);
+            if (entity is ITenantEntity tenantEntity)
+                _context.PrepareTenantEntity(tenantEntity);
             await ValidateCreateAsync(entity, createDto);
 
             await _dbSet.AddAsync(entity);

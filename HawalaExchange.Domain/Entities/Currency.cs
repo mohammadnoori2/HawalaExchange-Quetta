@@ -5,11 +5,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities
 {
     [Table("Currencies")]
-    public class Currency
+    public class Currency : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+
+        public long TenantId { get; set; }
 
         [Required]
         [MaxLength(10)]
@@ -30,6 +32,9 @@ namespace HawalaExchange.Domain.Entities
         public int QuotationPriority { get; set; } = 1000;
 
         public bool IsActive { get; set; } = true;
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         // Navigation Properties
         public virtual ICollection<TransactionDetail>? FromTransactions { get; set; }

@@ -7,8 +7,10 @@ using HawalaExchange.Infrastructure.Data;
 using HawalaExchange.Infrastructure.Services;
 using HawalaExchange.Web.Components;
 using HawalaExchange.Web.Components.Account;
+using HawalaExchange.Web.Services;
 using HawalaSystem.Mappings;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -48,6 +50,9 @@ public partial class Program
             options.Lockout.AllowedForNewUsers = true;
 
             // User settings
+            // نام‌های محلی می‌توانند فارسی باشند و نام canonical شامل ':' است.
+            options.User.AllowedUserNameCharacters = null;
+            // ایمیل و نام کاربری محلی فقط در محدوده هر صرافی یکتا هستند.
             options.User.RequireUniqueEmail = true;
             options.SignIn.RequireConfirmedAccount = false;
         })
@@ -63,6 +68,10 @@ public partial class Program
         builder.Services.AddAuthorization();
         builder.Services.AddCascadingAuthenticationState();
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<CurrentTenant>();
+        builder.Services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<CurrentTenant>());
+        builder.Services.AddScoped<CircuitHandler, TenantCircuitHandler>();
+        builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, TenantUserClaimsPrincipalFactory>();
 
         // ============================================================
         // 5. Identity Services for Blazor
@@ -107,6 +116,7 @@ public partial class Program
         builder.Services.AddScoped<ICurrencyCostService, CurrencyCostService>();
         builder.Services.AddScoped<IJournalService, JournalService>();
         builder.Services.AddScoped<ICompanySettingService, CompanySettingService>();
+        builder.Services.AddScoped<ITenantAdministrationService, TenantAdministrationService>();
         // ============================================================
         // 8. Email Sender
         // ============================================================
@@ -151,18 +161,25 @@ public partial class Program
             {
                 var context = services.GetRequiredService<ApplicationDbContext>();
                 context.Database.Migrate();
-                context.EnsureCashDailyBalanceSchemaAsync().GetAwaiter().GetResult();
-                context.EnsureSystemAccountsAsync().GetAwaiter().GetResult();
 
                 var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();
                 var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
                 SeedData.InitializeAsync(roleManager, userManager, context).Wait();
 
-                // Recalculate cost positions and recreate all exchange valuation ledger
-                // entries after migrations or application restarts.
+                var tenantIds = context.Tenants
+                    .AsNoTracking()
+                    .Where(x => x.IsActive)
+                    .Select(x => x.Id)
+                    .ToList();
                 var currencyCostService = services.GetRequiredService<ICurrencyCostService>();
-                currencyCostService.RebuildAsync().GetAwaiter().GetResult();
+                foreach (var tenantId in tenantIds)
+                {
+                    using var tenantScope = context.UseTenantScope(tenantId);
+                    context.EnsureSystemAccountsAsync(tenantId).GetAwaiter().GetResult();
+                    // Recalculate cost positions and valuation entries independently.
+                    currencyCostService.RebuildAsync().GetAwaiter().GetResult();
+                }
             }
             catch (Exception ex)
             {

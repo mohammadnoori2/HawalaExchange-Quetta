@@ -37,7 +37,7 @@ namespace HawalaExchange.Application.Services
             if (customer == null) return null;
 
             var account = await _context.Accounts
-                .FirstOrDefaultAsync(a => a.ReferenceType == "Customer" && a.ReferenceId == customerId);
+                .FirstOrDefaultAsync(a => a.CustomerId == customerId);
             if (account == null)
                 return new CustomerBalanceDto
                 {
@@ -75,7 +75,7 @@ namespace HawalaExchange.Application.Services
             if (correspondent == null) return null;
 
             var account = await _context.Accounts
-                .FirstOrDefaultAsync(a => a.ReferenceType == "Correspondent" && a.ReferenceId == correspondentId);
+                .FirstOrDefaultAsync(a => a.CorrespondentId == correspondentId);
             if (account == null)
                 return new CorrespondentBalanceDto
                 {

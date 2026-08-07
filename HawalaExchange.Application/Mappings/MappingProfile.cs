@@ -15,9 +15,14 @@ namespace HawalaSystem.Mappings
 
             // ===== User =====
             CreateMap<ApplicationUser, UserDto>()
+                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.LocalUserName))
                 .ForMember(dest => dest.BranchName, opt => opt.MapFrom(src => src.Branch.Name));
-            CreateMap<CreateUserDto, ApplicationUser>();
-            CreateMap<UpdateUserDto, ApplicationUser>();
+            CreateMap<CreateUserDto, ApplicationUser>()
+                .ForMember(dest => dest.UserName, opt => opt.Ignore())
+                .ForMember(dest => dest.LocalUserName, opt => opt.MapFrom(src => src.UserName));
+            CreateMap<UpdateUserDto, ApplicationUser>()
+                .ForMember(dest => dest.UserName, opt => opt.Ignore())
+                .ForMember(dest => dest.LocalUserName, opt => opt.Ignore());
 
             // ===== Customer =====
             CreateMap<Customer, CustomerDto>().ReverseMap();
@@ -35,9 +40,21 @@ namespace HawalaSystem.Mappings
             CreateMap<UpdateCurrencyDto, Currency>();
 
             // ===== Account =====
-            CreateMap<Account, AccountDto>().ReverseMap();
-            CreateMap<CreateAccountDto, Account>();
-            CreateMap<UpdateAccountDto, Account>();
+            CreateMap<Account, AccountDto>();
+            CreateMap<CreateAccountDto, Account>()
+                .ForMember(dest => dest.ReferenceType, opt => opt.Ignore())
+                .ForMember(dest => dest.ReferenceId, opt => opt.Ignore())
+                .ForMember(dest => dest.CustomerId, opt => opt.MapFrom(src =>
+                    src.ReferenceType == "Customer" ? src.ReferenceId : null))
+                .ForMember(dest => dest.CorrespondentId, opt => opt.MapFrom(src =>
+                    src.ReferenceType == "Correspondent" ? src.ReferenceId : null));
+            CreateMap<UpdateAccountDto, Account>()
+                .ForMember(dest => dest.ReferenceType, opt => opt.Ignore())
+                .ForMember(dest => dest.ReferenceId, opt => opt.Ignore())
+                .ForMember(dest => dest.CustomerId, opt => opt.MapFrom(src =>
+                    src.ReferenceType == "Customer" ? src.ReferenceId : null))
+                .ForMember(dest => dest.CorrespondentId, opt => opt.MapFrom(src =>
+                    src.ReferenceType == "Correspondent" ? src.ReferenceId : null));
 
             // ===== ExchangeRate =====
             CreateMap<ExchangeRate, ExchangeRateDto>()

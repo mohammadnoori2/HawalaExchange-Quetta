@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "Admin,Manager")]
 
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Interfaces
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.EntityFrameworkCore
@@ -12,6 +13,8 @@
 @inject IBranchService BranchService
 @inject NavigationManager NavigationManager
 @inject ILogger<Users> Logger
+@inject ICurrentTenant CurrentTenant
+@inject HawalaExchange.Infrastructure.Data.ApplicationDbContext DbContext
 @rendermode InteractiveServer
 
 
@@ -823,7 +826,7 @@
             {
                 var term = searchTerm.Trim().ToLower();
                 query = query.Where(u =>
-                    u.UserName != null && u.UserName.ToLower().Contains(term) ||
+                    u.LocalUserName.ToLower().Contains(term) ||
                     (u.FullName != null && u.FullName.ToLower().Contains(term)) ||
                     (u.Email != null && u.Email.ToLower().Contains(term)));
             }
@@ -846,9 +849,10 @@
                 query = query.Where(u => u.BranchId == filterBranchId);
             }
 
+            var entitySortColumn = sortColumn == "UserName" ? nameof(ApplicationUser.LocalUserName) : sortColumn;
             query = sortAscending
-                ? query.OrderBy(u => EF.Property<object>(u, sortColumn))
-                : query.OrderByDescending(u => EF.Property<object>(u, sortColumn));
+                ? query.OrderBy(u => EF.Property<object>(u, entitySortColumn))
+                : query.OrderByDescending(u => EF.Property<object>(u, entitySortColumn));
 
             var dbUsers = await query.ToListAsync();
             totalCount = dbUsers.Count;
@@ -867,7 +871,7 @@
                 newUsers.Add(new UserDto
                 {
                     Id = user.Id,
-                    UserName = user.UserName,
+                    UserName = user.LocalUserName,
                     Email = user.Email,
                     FullName = user.FullName,
                     BranchId = user.BranchId,
@@ -974,11 +978,11 @@
             if (user != null)
             {
                 var userRoles = await UserManager.GetRolesAsync(user);
-                userNameDisplay = user.UserName;
+                userNameDisplay = user.LocalUserName;
                 currentUser = new CreateUserDto
                 {
                     FullName = user.FullName,
-                    UserName = user.UserName,
+                    UserName = user.LocalUserName,
                     Email = user.Email,
                     BranchId = user.BranchId,
                     Role = userRoles.FirstOrDefault() ?? "Cashier",
@@ -1017,7 +1021,7 @@
                 viewUser = new UserDto
                 {
                     Id = user.Id,
-                    UserName = user.UserName,
+                    UserName = user.LocalUserName,
                     Email = user.Email,
                     FullName = user.FullName,
                     BranchId = user.BranchId,
@@ -1226,7 +1230,7 @@
         if (!isEditMode && string.IsNullOrWhiteSpace(currentUser.UserName))
             validationErrors.Add("نام کاربری الزامی است");
 
-        if (currentUser.BranchId == 0)
+        if (currentUser.BranchId is null or <= 0)
             validationErrors.Add("انتخاب شعبه الزامی است");
 
         if (string.IsNullOrWhiteSpace(currentUser.Role))
@@ -1255,6 +1259,27 @@
             isLoading = true;
             StateHasChanged();
 
+            var normalizedEmail = UserManager.NormalizeEmail(currentUser.Email.Trim());
+            var duplicateEmail = await DbContext.Users.IgnoreQueryFilters().AnyAsync(x =>
+                x.Id != editId && x.NormalizedEmail == normalizedEmail);
+            if (duplicateEmail)
+            {
+                validationErrors.Add("این ایمیل قبلاً در سیستم ثبت شده است.");
+                return;
+            }
+
+            if (!isEditMode)
+            {
+                var localUserName = currentUser.UserName.Trim();
+                var duplicateUserName = await DbContext.Users.IgnoreQueryFilters()
+                    .AnyAsync(x => x.LocalUserName == localUserName);
+                if (duplicateUserName)
+                {
+                    validationErrors.Add("این نام کاربری قبلاً در سیستم ثبت شده است.");
+                    return;
+                }
+            }
+
             if (isEditMode)
             {
                 var user = await UserManager.FindByIdAsync(editId.ToString());
@@ -1265,8 +1290,8 @@
                 }
 
                 user.FullName = currentUser.FullName;
-                user.BranchId = currentUser.BranchId ?? 1;
-                user.Email = currentUser.Email;
+                user.BranchId = currentUser.BranchId!.Value;
+                user.Email = currentUser.Email.Trim();
 
                 var currentRoles = await UserManager.GetRolesAsync(user);
                 await UserManager.RemoveFromRolesAsync(user, currentRoles);
@@ -1288,10 +1313,12 @@
             {
                 var user = new ApplicationUser
                 {
-                    UserName = currentUser.UserName,
-                    Email = currentUser.Email,
+                    TenantId = CurrentTenant.TenantId,
+                    LocalUserName = currentUser.UserName.Trim(),
+                    UserName = $"{CurrentTenant.TenantId}:{currentUser.UserName.Trim()}",
+                    Email = currentUser.Email.Trim(),
                     FullName = currentUser.FullName,
-                    BranchId = currentUser.BranchId ?? 1,
+                    BranchId = currentUser.BranchId!.Value,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 };

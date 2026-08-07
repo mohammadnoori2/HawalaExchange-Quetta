@@ -40,7 +40,8 @@ namespace HawalaExchange.Application.Services
                 transaction.TransactionNo = await GenerateTransactionNumberAsync(createDto.TransactionType);
                 transaction.Status = "Pending";
                 transaction.CreatedAt = DateTime.UtcNow;
-                transaction.CreatedBy = 1; // ✅ Set to current user ID (hardcoded for now)
+                transaction.CreatedBy = _context.RequireCurrentUserId();
+                _context.PrepareTenantEntity(transaction);
 
                 await _dbSet.AddAsync(transaction);
                 await _context.SaveChangesAsync();
@@ -238,13 +239,14 @@ namespace HawalaExchange.Application.Services
             foreach (var detail in details)
             {
                 var cashAccount = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.AccountType == "Cash" && a.ReferenceId == transaction.BranchId);
+                    .FirstOrDefaultAsync(a => a.AccountType == "Cash" &&
+                                              a.CustomerId == null && a.CorrespondentId == null);
 
                 var customerAccount = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.ReferenceType == "Customer" && a.ReferenceId == transaction.CustomerId);
+                    .FirstOrDefaultAsync(a => a.CustomerId == transaction.CustomerId);
 
                 var correspondentAccount = await _context.Accounts
-                    .FirstOrDefaultAsync(a => a.ReferenceType == "Correspondent" && a.ReferenceId == detail.CorrespondentId);
+                    .FirstOrDefaultAsync(a => a.CorrespondentId == detail.CorrespondentId);
 
                 var commissionAccount = await _context.Accounts
                     .FirstOrDefaultAsync(a => a.AccountType == "Income" && a.AccountName.Contains("Commission"));

@@ -5,11 +5,12 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace HawalaExchange.Domain.Entities
 {
     [Table("LedgerEntries")]
-    public class LedgerEntry
+    public class LedgerEntry : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+        public long TenantId { get; set; }
         public long? TransferId { get; set; }
         //[Required]
         public long? HawalaId { get; set; }
@@ -36,6 +37,9 @@ namespace HawalaExchange.Domain.Entities
         public string? Description { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         // Navigation Properties
         [ForeignKey(nameof(TransactionId))]

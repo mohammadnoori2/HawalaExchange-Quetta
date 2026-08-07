@@ -138,6 +138,11 @@
                     </span>
                 </div>
                 <div class="sub-menu" id="settingsSubMenu">
+                    <AuthorizeView Roles="SuperAdmin">
+                        <NavLink class="nav-link-custom sub-link" href="/tenants">
+                            <span class="bi bi-buildings"></span> صرافی‌ها
+                        </NavLink>
+                    </AuthorizeView>
                     <NavLink class="nav-link-custom sub-link" href="/branches">
                         <span class="bi bi-shop"></span> شعبه‌ها
                     </NavLink>
@@ -217,13 +222,13 @@
                         <div class="user-info-card" onclick="toggleUserDropdown()">
                             <div class="user-avatar">
                                 @{
-                                    var userName = context.User.Identity?.Name ?? "کاربر";
+                                    var userName = context.User.FindFirst("local_user_name")?.Value ?? "کاربر";
                                     var initial = userName.Length > 0 ? userName.Substring(0, Math.Min(2, userName.Length)).ToUpper() : "??";
                                     @initial
                                 }
                             </div>
                             <div class="user-details">
-                                <span class="user-name">@context.User.Identity?.Name</span>
+                                <span class="user-name">@context.User.FindFirst("local_user_name")?.Value</span>
                                 <span class="user-role">
                                     @{
                                         var roles = context.User.FindAll(ClaimTypes.Role).Select(c => c.Value);
@@ -239,13 +244,13 @@
                             <div class="user-dropdown-header">
                                 <div class="user-dropdown-avatar">
                                     @{
-                                        var userName2 = context.User.Identity?.Name ?? "کاربر";
+                                        var userName2 = context.User.FindFirst("local_user_name")?.Value ?? "کاربر";
                                         var initial2 = userName2.Length > 0 ? userName2.Substring(0, Math.Min(2, userName2.Length)).ToUpper() : "??";
                                         @initial2
                                     }
                                 </div>
                                 <div class="user-dropdown-info">
-                                    <span class="user-dropdown-name">@context.User.Identity?.Name</span>
+                                    <span class="user-dropdown-name">@context.User.FindFirst("local_user_name")?.Value</span>
                                     <span class="user-dropdown-email">@context.User.FindFirst(ClaimTypes.Email)?.Value</span>
                                 </div>
                             </div>

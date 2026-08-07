@@ -65,7 +65,17 @@ public partial class Program
         // ✅ حذف AddAuthentication اضافی - فقط از Identity استفاده کنید
         // ❌ builder.Services.AddAuthentication(...) را حذف کنید
 
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization(options =>
+        {
+            options.AddPolicy("PlatformAccess", policy => policy
+                .RequireClaim("platform_user", "true")
+                .RequireRole(PlatformRoles.All));
+            options.AddPolicy("PlatformWrite", policy => policy
+                .RequireClaim("platform_user", "true")
+                .RequireRole(PlatformRoles.Writers));
+            options.AddPolicy("TenantAccess", policy => policy
+                .RequireClaim(CurrentTenant.TenantIdClaim));
+        });
         builder.Services.AddCascadingAuthenticationState();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<CurrentTenant>();
@@ -117,6 +127,10 @@ public partial class Program
         builder.Services.AddScoped<IJournalService, JournalService>();
         builder.Services.AddScoped<ICompanySettingService, CompanySettingService>();
         builder.Services.AddScoped<ITenantAdministrationService, TenantAdministrationService>();
+        builder.Services.AddScoped<ISaasAdministrationService, SaasAdministrationService>();
+        builder.Services.AddScoped<ISaasBillingService, SaasBillingService>();
+        builder.Services.AddScoped<ISubscriptionAccessService, SubscriptionAccessService>();
+        builder.Services.AddScoped<IPlatformUserService, PlatformUserService>();
         // ============================================================
         // 8. Email Sender
         // ============================================================
@@ -165,7 +179,12 @@ public partial class Program
                 var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();
                 var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
-                SeedData.InitializeAsync(roleManager, userManager, context).Wait();
+                SeedData.InitializeAsync(
+                    roleManager,
+                    userManager,
+                    context,
+                    app.Environment.IsDevelopment(),
+                    builder.Configuration).Wait();
 
                 var tenantIds = context.Tenants
                     .AsNoTracking()
@@ -176,6 +195,7 @@ public partial class Program
                 foreach (var tenantId in tenantIds)
                 {
                     using var tenantScope = context.UseTenantScope(tenantId);
+                    using var subscriptionBypass = context.BypassSubscriptionEnforcement();
                     context.EnsureSystemAccountsAsync(tenantId).GetAwaiter().GetResult();
                     // Recalculate cost positions and valuation entries independently.
                     currencyCostService.RebuildAsync().GetAwaiter().GetResult();

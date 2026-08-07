@@ -1,0 +1,114 @@
+@page "/platform/billing"
+@attribute [Authorize(Policy = "PlatformWrite")]
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+@inject ISaasBillingService BillingService
+@rendermode InteractiveServer
+
+<PageTitle>مالی و فاکتورهای SaaS</PageTitle>
+
+<div class="page-wrapper">
+    <div class="page-header">
+        <div>
+            <h5 class="page-title"><i class="bi bi-receipt-cutoff"></i> مالی و فاکتورهای SaaS</h5>
+            <span class="page-subtitle">درآمد دوره‌ای، مطالبات، فاکتورها و پرداخت‌های اشتراک</span>
+        </div>
+        <button class="btn-modern btn-primary-modern" @onclick="OpenCreate"><i class="bi bi-plus-circle"></i> فاکتور جدید</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div> }
+
+    @if (isLoading)
+    {
+        <div class="modern-card p-5 text-center">در حال بارگذاری اطلاعات مالی...</div>
+    }
+    else
+    {
+        @foreach (var summary in dashboard.Currencies)
+        {
+            <div class="mb-2 fw-bold text-muted">گزارش به واحد @summary.CurrencyCode</div>
+            <div class="row g-3 mb-4">
+                <MetricCard Title="MRR" Value="@Money(summary.Mrr, summary.CurrencyCode)" Icon="bi-graph-up-arrow" Tone="primary" />
+                <MetricCard Title="ARR" Value="@Money(summary.Arr, summary.CurrencyCode)" Icon="bi-calendar2-check" Tone="info" />
+                <MetricCard Title="وصولی این ماه" Value="@Money(summary.CollectedThisMonth, summary.CurrencyCode)" Icon="bi-cash-stack" Tone="success" />
+                <MetricCard Title="مطالبات باز" Value="@Money(summary.Outstanding, summary.CurrencyCode)" Icon="bi-wallet2" Tone="warning" />
+                <MetricCard Title="فاکتور این ماه" Value="@Money(summary.BilledThisMonth, summary.CurrencyCode)" Icon="bi-receipt" Tone="primary" />
+                <MetricCard Title="مطالبات سررسیدشده" Value="@Money(summary.Overdue, summary.CurrencyCode)" Icon="bi-exclamation-circle" Tone="danger" />
+            </div>
+        }
+
+        <div class="modern-card mb-3"><div class="card-body"><div class="row g-3 align-items-end">
+            <div class="col-md-8"><label class="form-label">جستجوی فوری</label><div class="input-group-modern"><span class="input-icon"><i class="bi bi-search"></i></span><input class="form-control-modern" value="@search" @oninput="SearchChanged" placeholder="شماره فاکتور یا نام صرافی..." /></div></div>
+            <div class="col-md-4"><label class="form-label">وضعیت</label><select class="form-select" value="@statusFilter" @onchange="StatusChanged"><option value="">همه وضعیت‌ها</option>@foreach (var status in Enum.GetValues<SubscriptionInvoiceStatus>()) { <option value="@((int)status)">@StatusText(status)</option> }</select></div>
+        </div></div></div>
+
+        <div class="modern-card"><div class="table-responsive"><table class="table modern-table mb-0">
+            <thead><tr><th>شماره</th><th>صرافی / پلن</th><th>صدور</th><th>سررسید</th><th>مبلغ</th><th>پرداخت</th><th>باقی‌مانده</th><th>وضعیت</th><th></th></tr></thead>
+            <tbody>
+                @if (invoices.Count == 0) { <tr><td colspan="9" class="text-center py-5 text-muted">فاکتوری یافت نشد.</td></tr> }
+                @foreach (var invoice in invoices)
+                {
+                    <tr>
+                        <td class="fw-bold">@invoice.InvoiceNumber</td><td><div>@invoice.TenantName</div><small class="text-muted">@invoice.PlanName</small></td>
+                        <td>@Date(invoice.IssuedAt)</td><td>@Date(invoice.DueAt)</td><td>@Money(invoice.TotalAmount, invoice.CurrencyCode)</td>
+                        <td>@Money(invoice.PaidAmount, invoice.CurrencyCode)</td><td>@Money(invoice.Balance, invoice.CurrencyCode)</td>
+                        <td><span class="badge-modern @StatusBadge(invoice.Status)">@StatusText(invoice.Status)</span></td>
+                        <td class="text-nowrap"><a class="btn btn-sm btn-outline-primary" href="/platform/invoices/@invoice.Id"><i class="bi bi-eye"></i></a>@if (invoice.Balance > 0 && invoice.Status is not SubscriptionInvoiceStatus.Cancelled) { <button class="btn btn-sm btn-outline-success ms-1" @onclick="() => OpenPayment(invoice)"><i class="bi bi-cash"></i></button> }</td>
+                    </tr>
+                }
+            </tbody>
+        </table></div></div>
+    }
+</div>
+
+@if (showCreate)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">صدور فاکتور اشتراک</h5><button class="btn-close" @onclick="CloseModals"></button></div>
+        <EditForm EditContext="createContext" FormName="create-saas-invoice"><DataAnnotationsValidator /><div class="modal-body"><ValidationSummary class="text-danger" /><div class="row g-3">
+            <div class="col-12"><label class="form-label">اشتراک صرافی</label><select class="form-select" value="@createModel.SubscriptionId" @onchange="SubscriptionChanged"><option value="0">انتخاب کنید</option>@foreach (var option in options) { <option value="@option.SubscriptionId">@option.TenantName — @option.PlanName (@option.CurrencyCode)</option> }</select></div>
+            <div class="col-md-4"><label class="form-label">تاریخ صدور</label><InputDate class="form-control" @bind-Value="createModel.IssuedAt" /></div><div class="col-md-4"><label class="form-label">سررسید</label><InputDate class="form-control" @bind-Value="createModel.DueAt" /></div>
+            <div class="col-md-4"><label class="form-label">مبلغ واحد</label><InputNumber class="form-control" @bind-Value="createModel.UnitPrice" /></div>
+            <div class="col-md-6"><label class="form-label">شروع دوره</label><InputDate class="form-control" @bind-Value="createModel.ServicePeriodStart" /></div><div class="col-md-6"><label class="form-label">پایان دوره</label><InputDate class="form-control" @bind-Value="createModel.ServicePeriodEnd" /></div>
+            <div class="col-12"><label class="form-label">شرح</label><InputText class="form-control" @bind-Value="createModel.Description" /></div>
+            <div class="col-md-4"><label class="form-label">تعداد</label><InputNumber class="form-control" @bind-Value="createModel.Quantity" /></div><div class="col-md-4"><label class="form-label">تخفیف</label><InputNumber class="form-control" @bind-Value="createModel.DiscountAmount" /></div><div class="col-md-4"><label class="form-label">مالیات</label><InputNumber class="form-control" @bind-Value="createModel.TaxAmount" /></div>
+            <div class="col-12"><label class="form-label">یادداشت</label><InputTextArea class="form-control" @bind-Value="createModel.Notes" /></div><div class="col-12 form-check form-switch ms-2"><InputCheckbox class="form-check-input" @bind-Value="createModel.AutoRenewOnPayment" /><label class="form-check-label">پس از تسویه، اشتراک تا پایان دوره فاکتور تمدید شود</label></div>
+        </div></div><div class="modal-footer"><button type="button" class="btn-modern btn-light-modern" @onclick="CloseModals">انصراف</button><button type="button" class="btn-modern btn-primary-modern" disabled="@isSaving" @onclick="CreateAsync">صدور فاکتور</button></div></EditForm>
+    </div></div></div>
+}
+
+@if (showPayment && selectedInvoice is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">ثبت پرداخت @selectedInvoice.InvoiceNumber</h5><button class="btn-close" @onclick="CloseModals"></button></div>
+        <EditForm EditContext="paymentContext" FormName="record-invoice-payment"><DataAnnotationsValidator /><div class="modal-body"><ValidationSummary class="text-danger" /><div class="row g-3">
+            <div class="col-12"><div class="alert alert-info mb-0">باقی‌مانده: <strong>@Money(selectedInvoice.Balance, selectedInvoice.CurrencyCode)</strong></div></div>
+            <div class="col-md-6"><label class="form-label">مبلغ</label><InputNumber class="form-control" @bind-Value="paymentModel.Amount" /></div><div class="col-md-6"><label class="form-label">تاریخ پرداخت</label><InputDate class="form-control" @bind-Value="paymentModel.PaidAt" /></div>
+            <div class="col-md-6"><label class="form-label">روش پرداخت</label><InputText class="form-control" @bind-Value="paymentModel.PaymentMethod" /></div><div class="col-md-6"><label class="form-label">شماره مرجع</label><InputText class="form-control" @bind-Value="paymentModel.ReferenceNumber" /></div>
+            <div class="col-md-6"><label class="form-label">درگاه/ارائه‌دهنده</label><InputText class="form-control" @bind-Value="paymentModel.ProviderName" /></div><div class="col-md-6"><label class="form-label">شناسه تراکنش درگاه</label><InputText class="form-control" @bind-Value="paymentModel.ProviderTransactionId" /></div>
+            <div class="col-12"><label class="form-label">یادداشت</label><InputTextArea class="form-control" @bind-Value="paymentModel.Note" /></div>
+        </div></div><div class="modal-footer"><button type="button" class="btn-modern btn-light-modern" @onclick="CloseModals">انصراف</button><button type="button" class="btn-modern btn-primary-modern" disabled="@isSaving" @onclick="PayAsync">ثبت پرداخت</button></div></EditForm>
+    </div></div></div>
+}
+
+@code {
+    private BillingDashboardDto dashboard = new(); private List<SubscriptionInvoiceDto> invoices = []; private List<BillingSubscriptionOptionDto> options = [];
+    private CreateSubscriptionInvoiceDto createModel = new(); private RecordInvoicePaymentDto paymentModel = new(); private EditContext createContext = default!; private EditContext paymentContext = default!;
+    private SubscriptionInvoiceDto? selectedInvoice; private string search = "", statusFilter = ""; private string? message; private bool isError, isLoading = true, isSaving, showCreate, showPayment;
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync() { isLoading = true; dashboard = await BillingService.GetDashboardAsync(); invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); options = (await BillingService.GetSubscriptionOptionsAsync()).ToList(); isLoading = false; }
+    private async Task SearchChanged(ChangeEventArgs e) { search = e.Value?.ToString() ?? ""; invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); }
+    private async Task StatusChanged(ChangeEventArgs e) { statusFilter = e.Value?.ToString() ?? ""; invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); }
+    private SubscriptionInvoiceStatus? ParsedStatus() => int.TryParse(statusFilter, out var value) ? (SubscriptionInvoiceStatus)value : null;
+    private void OpenCreate() { createModel = new(); createContext = new(createModel); showCreate = true; message = null; }
+    private void SubscriptionChanged(ChangeEventArgs e) { if (!long.TryParse(e.Value?.ToString(), out var id)) return; createModel.SubscriptionId = id; var option = options.FirstOrDefault(x => x.SubscriptionId == id); if (option is null) return; createModel.UnitPrice = option.Price; createModel.ServicePeriodStart = option.PeriodStart; createModel.ServicePeriodEnd = option.PeriodEnd; createModel.AutoRenewOnPayment = option.AutoRenew; }
+    private void OpenPayment(SubscriptionInvoiceDto invoice) { selectedInvoice = invoice; paymentModel = new() { InvoiceId = invoice.Id, Amount = invoice.Balance, PaidAt = DateTime.UtcNow }; paymentContext = new(paymentModel); showPayment = true; message = null; }
+    private void CloseModals() { showCreate = showPayment = false; }
+    private async Task CreateAsync() { if (!createContext.Validate()) return; try { isSaving = true; var invoice = await BillingService.CreateInvoiceAsync(createModel); message = $"فاکتور {invoice.InvoiceNumber} صادر شد."; isError = false; CloseModals(); await LoadAsync(); } catch (Exception ex) { message = ex.Message; isError = true; } finally { isSaving = false; } }
+    private async Task PayAsync() { if (!paymentContext.Validate()) return; try { isSaving = true; await BillingService.RecordPaymentAsync(paymentModel); message = "پرداخت با موفقیت ثبت شد."; isError = false; CloseModals(); await LoadAsync(); } catch (Exception ex) { message = ex.Message; isError = true; } finally { isSaving = false; } }
+    private static string Money(decimal value, string currency) => $"{value:N2} {currency}"; private static string Date(DateTime value) => value.ToLocalTime().ToString("yyyy/MM/dd");
+    private static string StatusText(SubscriptionInvoiceStatus s) => s switch { SubscriptionInvoiceStatus.Draft => "پیش‌نویس", SubscriptionInvoiceStatus.Issued => "صادرشده", SubscriptionInvoiceStatus.PartiallyPaid => "نیمه‌پرداخت", SubscriptionInvoiceStatus.Paid => "پرداخت‌شده", SubscriptionInvoiceStatus.Overdue => "سررسیدشده", SubscriptionInvoiceStatus.Cancelled => "لغوشده", SubscriptionInvoiceStatus.Refunded => "برگشت‌شده", _ => s.ToString() };
+    private static string StatusBadge(SubscriptionInvoiceStatus s) => s switch { SubscriptionInvoiceStatus.Paid => "badge-success", SubscriptionInvoiceStatus.PartiallyPaid => "badge-info", SubscriptionInvoiceStatus.Overdue => "badge-danger", SubscriptionInvoiceStatus.Issued => "badge-warning", _ => "badge-secondary" };
+}

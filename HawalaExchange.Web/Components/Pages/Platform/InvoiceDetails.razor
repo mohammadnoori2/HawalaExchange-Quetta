@@ -1,0 +1,32 @@
+@page "/platform/invoices/{Id:long}"
+@attribute [Authorize(Policy = "PlatformAccess")]
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@inject ISaasBillingService BillingService
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<PageTitle>فاکتور اشتراک</PageTitle>
+<div class="page-wrapper">
+    <div class="page-header no-print"><div><h5 class="page-title"><i class="bi bi-receipt"></i> جزئیات فاکتور</h5><span class="page-subtitle">نسخه رسمی قابل چاپ و ذخیره به PDF</span></div><div class="page-actions"><a href="/platform/billing" class="btn-modern btn-light-modern">بازگشت</a><button class="btn-modern btn-primary-modern" @onclick="PrintAsync"><i class="bi bi-file-earmark-pdf"></i> چاپ / PDF</button></div></div>
+    @if (invoice is null) { <div class="modern-card p-5 text-center">@(isLoading ? "در حال بارگذاری..." : "فاکتور یافت نشد.")</div> }
+    else
+    {
+        <div id="saas-invoice-print" class="modern-card p-4 invoice-document">
+            <div class="range-report-header d-flex justify-content-between align-items-start"><div><h4 class="mb-2">فاکتور اشتراک نرم‌افزار</h4><div class="text-muted">HawalaExchange SaaS</div></div><div class="text-end"><div class="fs-5 fw-bold">@invoice.InvoiceNumber</div><div>تاریخ صدور: @Date(invoice.IssuedAt)</div><div>سررسید: @Date(invoice.DueAt)</div></div></div>
+            <div class="row g-3 my-4"><div class="col-md-6"><div class="p-3 border rounded h-100"><div class="text-muted small mb-1">صورتحساب برای</div><div class="fw-bold fs-5">@invoice.BillingName</div><div>@invoice.TenantName</div><div>@invoice.BillingEmail</div><div>@invoice.BillingPhone</div></div></div><div class="col-md-6"><div class="p-3 border rounded h-100"><div class="text-muted small mb-1">دوره خدمت</div><div class="fw-bold">@Date(invoice.ServicePeriodStart) تا @Date(invoice.ServicePeriodEnd)</div><div class="mt-2">پلن: @invoice.PlanName</div><div>وضعیت: @StatusText(invoice.Status)</div></div></div></div>
+            <div class="table-responsive"><table class="table table-bordered"><thead class="table-light"><tr><th>#</th><th>شرح</th><th>تعداد</th><th>قیمت واحد</th><th>تخفیف</th><th>مالیات</th><th>جمع</th></tr></thead><tbody>@for (var i = 0; i < invoice.Items.Count; i++) { var item = invoice.Items[i]; <tr><td>@(i + 1)</td><td>@item.Description</td><td>@item.Quantity.ToString("N2")</td><td>@Money(item.UnitPrice)</td><td>@Money(item.DiscountAmount)</td><td>@Money(item.TaxAmount)</td><td class="fw-bold">@Money(item.LineTotal)</td></tr> }</tbody></table></div>
+            <div class="row justify-content-end"><div class="col-md-5"><table class="table"><tbody><tr><td>جمع اولیه</td><td class="text-end">@Money(invoice.Subtotal)</td></tr><tr><td>تخفیف</td><td class="text-end">@Money(invoice.DiscountAmount)</td></tr><tr><td>مالیات</td><td class="text-end">@Money(invoice.TaxAmount)</td></tr><tr class="fw-bold fs-5"><td>مبلغ نهایی</td><td class="text-end">@Money(invoice.TotalAmount)</td></tr><tr><td>پرداخت‌شده</td><td class="text-end text-success">@Money(invoice.PaidAmount)</td></tr><tr class="fw-bold"><td>باقی‌مانده</td><td class="text-end text-danger">@Money(invoice.Balance)</td></tr></tbody></table></div></div>
+            @if (!string.IsNullOrWhiteSpace(invoice.Notes)) { <div class="border-top pt-3"><strong>یادداشت:</strong> @invoice.Notes</div> }
+            <div class="text-center text-muted small border-top pt-3 mt-4">این فاکتور توسط سیستم مدیریت SaaS صادر شده است.</div>
+        </div>
+    }
+</div>
+@code {
+    [Parameter] public long Id { get; set; } private SubscriptionInvoiceDto? invoice; private bool isLoading = true;
+    protected override async Task OnParametersSetAsync() { isLoading = true; invoice = await BillingService.GetInvoiceAsync(Id); isLoading = false; }
+    private async Task PrintAsync() { if (invoice is not null) await JS.InvokeAsync<bool>("hawalaTools.printPdfElement", "saas-invoice-print", invoice.InvoiceNumber); }
+    private string Money(decimal value) => $"{value:N2} {invoice!.CurrencyCode}"; private static string Date(DateTime value) => value.ToLocalTime().ToString("yyyy/MM/dd");
+    private static string StatusText(HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus s) => s switch { HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Issued => "صادرشده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.PartiallyPaid => "نیمه‌پرداخت", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Paid => "پرداخت‌شده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Overdue => "سررسیدشده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Cancelled => "لغوشده", _ => s.ToString() };
+}

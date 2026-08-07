@@ -304,7 +304,7 @@
                             int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredHawalas.Count : pageSize) + 1;
                             @foreach (var hawala in filteredHawalas)
                             {
-                                <tr>
+                                <tr class="@(hawala.SettlementState == "Pending" ? "table-danger" : hawala.SettlementState == "Converted" ? "table-success" : null)">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
                                     <td><span class="fw-bold">@hawala.Number</span></td>
                                     <td>
@@ -1527,18 +1527,5 @@
         };
     }
 
-    private string GetAccountTypeName(string type)
-    {
-        return type?.ToLower() switch
-        {
-            "cash" => "نقدی",
-            "bank" => "بانکی",
-            "customer" => "مشتری",
-            "correspondent" => "نماینده",
-            "income" => "درآمد",
-            "expense" => "هزینه",
-            "equity" => "سرمایه",
-            _ => type ?? "نامشخص"
-        };
-    }
+    private string GetAccountTypeName(string type) => AppDisplayText.AccountType(type);
 }

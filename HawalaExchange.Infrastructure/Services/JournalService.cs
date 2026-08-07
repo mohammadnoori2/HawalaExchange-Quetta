@@ -595,8 +595,8 @@ public class JournalService : IJournalService
 
             operation.DocumentNumber = source.Number.ToString();
             Add(operation, "شماره حواله", source.Number.ToString());
-            Add(operation, "نوع حواله", source.HawalaType);
-            Add(operation, "وضعیت", source.Status);
+            Add(operation, "نوع حواله", AppDisplayText.HawalaType(source.HawalaType));
+            Add(operation, "وضعیت", AppDisplayText.Status(source.Status, source.HawalaType));
             Add(operation, "فرستنده", source.SenderName);
             Add(operation, "نام پدر فرستنده", source.SenderFatherName);
             Add(operation, "شماره تماس فرستنده", source.SenderPhone);
@@ -650,7 +650,7 @@ public class JournalService : IJournalService
             Add(operation, "هزینه خارجی", Money(source.ExternalFeeAmount, source.ProfitCurrency?.Code));
             Add(operation, "بهای تمام‌شده", Money(source.CostAmount, source.ProfitCurrency?.Code));
             Add(operation, "مفاد تبدیل پول", Money(source.ExchangeProfitAmount, source.ProfitCurrency?.Code));
-            Add(operation, "وضعیت محاسبه مفاد", source.ProfitStatus);
+            Add(operation, "وضعیت محاسبه مفاد", AppDisplayText.ProfitStatus(source.ProfitStatus));
             Add(operation, "توضیحات", source.Description);
         }
     }
@@ -735,7 +735,7 @@ public class JournalService : IJournalService
                 !sources.TryGetValue(operation.SourceId.Value, out var source))
                 continue;
 
-            Add(operation, "نوع عملیات", source.OperationType == "Deposit" ? "واریز" : source.OperationType == "Withdraw" ? "برداشت / پرداخت" : source.OperationType);
+            Add(operation, "نوع عملیات", source.OperationType == "Deposit" ? "واریز پول" : source.OperationType == "Withdraw" ? "برداشت یا پرداخت پول" : "عملیات حساب");
             Add(operation, "تاریخ عملیات", source.OperationDate.ToString("yyyy/MM/dd HH:mm"));
             Add(operation, "مبلغ", Money(source.Amount, source.Currency.Code));
             Add(operation, "حساب طرف", source.Account.AccountName);
@@ -770,7 +770,7 @@ public class JournalService : IJournalService
             Add(operation, "از حساب", source.FromAccount?.AccountName);
             Add(operation, "به حساب", source.ToAccount?.AccountName);
             Add(operation, "مبلغ انتقال", Money(source.Amount, source.Currency?.Code));
-            Add(operation, "روش انتقال", source.TransferMethod);
+            Add(operation, "روش انتقال", AppDisplayText.TransferMethod(source.TransferMethod));
             Add(operation, "شماره مرجع", source.ReferenceNumber);
             Add(operation, "ملاحظات", source.Remarks);
         }
@@ -811,8 +811,8 @@ public class JournalService : IJournalService
 
             operation.DocumentNumber = source.TransactionNo;
             Add(operation, "شماره تراکنش", source.TransactionNo);
-            Add(operation, "نوع تراکنش", source.TransactionType);
-            Add(operation, "وضعیت", source.Status);
+            Add(operation, "نوع تراکنش", AppDisplayText.TransactionType(source.TransactionType));
+            Add(operation, "وضعیت", AppDisplayText.Status(source.Status));
             Add(operation, "شعبه", source.Branch?.Name);
             Add(operation, "مشتری", source.CustomerFullName ?? source.Customer?.FullName);
             Add(operation, "ملاحظات", source.Remarks);
@@ -903,7 +903,7 @@ public class JournalService : IJournalService
             "انتقال" =>
                 $"مبلغ {Detail(operation, "مبلغ انتقال", CurrencyMovement(operation))} از حساب {Detail(operation, "از حساب", "نامشخص")} به حساب {Detail(operation, "به حساب", "نامشخص")} با شماره مرجع {operation.DocumentNumber} انتقال شد{suffix}",
 
-            "تراکنش" when Detail(operation, "نوع تراکنش", "") == "CorrespondentSettlementConversion" =>
+            "تراکنش" when Detail(operation, "نوع تراکنش", "") == AppDisplayText.TransactionType("CorrespondentSettlementConversion") =>
                 $"{Detail(operation, "خلاصه تبدیل", CurrencyMovement(operation))} تبدیل شد و در حساب ثبت شد{suffix}",
 
             "تراکنش" =>

@@ -889,16 +889,7 @@
     }
 
     // ===== متدهای کمکی =====
-    private string GetTransactionTypeName(string type) => type switch
-    {
-        "HawalaSend" => "حواله ارسال",
-        "HawalaReceive" => "حواله دریافت",
-        "Exchange" => "تبدیل ارز",
-        "Transfer" => "انتقال",
-        "Expense" => "هزینه",
-        "Adjustment" => "تعدیل",
-        _ => type ?? "نامشخص"
-    };
+    private string GetTransactionTypeName(string type) => AppDisplayText.TransactionType(type);
 
     private MarkupString GetStatusBadge(string status)
     {

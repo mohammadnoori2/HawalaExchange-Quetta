@@ -1,5 +1,5 @@
 @page "/platform/invoices/{Id:long}"
-@attribute [Authorize(Policy = "PlatformAccess")]
+@attribute [Authorize(Policy = "PlatformBilling")]
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
@@ -28,5 +28,5 @@
     protected override async Task OnParametersSetAsync() { isLoading = true; invoice = await BillingService.GetInvoiceAsync(Id); isLoading = false; }
     private async Task PrintAsync() { if (invoice is not null) await JS.InvokeAsync<bool>("hawalaTools.printPdfElement", "saas-invoice-print", invoice.InvoiceNumber); }
     private string Money(decimal value) => $"{value:N2} {invoice!.CurrencyCode}"; private static string Date(DateTime value) => value.ToLocalTime().ToString("yyyy/MM/dd");
-    private static string StatusText(HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus s) => s switch { HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Issued => "صادرشده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.PartiallyPaid => "نیمه‌پرداخت", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Paid => "پرداخت‌شده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Overdue => "سررسیدشده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Cancelled => "لغوشده", _ => s.ToString() };
+    private static string StatusText(HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus s) => s switch { HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Draft => "آماده‌سازی فاکتور", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Issued => "فاکتور صادر شده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.PartiallyPaid => "بخشی از مبلغ پرداخت شده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Paid => "کامل پرداخت شده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Overdue => "زمان پرداخت گذشته است", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Cancelled => "فاکتور لغو شده", HawalaExchange.Domain.Entities.SubscriptionInvoiceStatus.Refunded => "مبلغ بازگردانده شده", _ => "وضعیت فاکتور مشخص نیست" };
 }

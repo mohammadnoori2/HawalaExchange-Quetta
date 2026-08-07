@@ -1,5 +1,5 @@
 @page "/platform/billing"
-@attribute [Authorize(Policy = "PlatformWrite")]
+@attribute [Authorize(Policy = "PlatformBilling")]
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Domain.Entities
@@ -109,6 +109,6 @@
     private async Task CreateAsync() { if (!createContext.Validate()) return; try { isSaving = true; var invoice = await BillingService.CreateInvoiceAsync(createModel); message = $"فاکتور {invoice.InvoiceNumber} صادر شد."; isError = false; CloseModals(); await LoadAsync(); } catch (Exception ex) { message = ex.Message; isError = true; } finally { isSaving = false; } }
     private async Task PayAsync() { if (!paymentContext.Validate()) return; try { isSaving = true; await BillingService.RecordPaymentAsync(paymentModel); message = "پرداخت با موفقیت ثبت شد."; isError = false; CloseModals(); await LoadAsync(); } catch (Exception ex) { message = ex.Message; isError = true; } finally { isSaving = false; } }
     private static string Money(decimal value, string currency) => $"{value:N2} {currency}"; private static string Date(DateTime value) => value.ToLocalTime().ToString("yyyy/MM/dd");
-    private static string StatusText(SubscriptionInvoiceStatus s) => s switch { SubscriptionInvoiceStatus.Draft => "پیش‌نویس", SubscriptionInvoiceStatus.Issued => "صادرشده", SubscriptionInvoiceStatus.PartiallyPaid => "نیمه‌پرداخت", SubscriptionInvoiceStatus.Paid => "پرداخت‌شده", SubscriptionInvoiceStatus.Overdue => "سررسیدشده", SubscriptionInvoiceStatus.Cancelled => "لغوشده", SubscriptionInvoiceStatus.Refunded => "برگشت‌شده", _ => s.ToString() };
+    private static string StatusText(SubscriptionInvoiceStatus s) => s switch { SubscriptionInvoiceStatus.Draft => "آماده‌سازی فاکتور", SubscriptionInvoiceStatus.Issued => "فاکتور صادر شده", SubscriptionInvoiceStatus.PartiallyPaid => "بخشی از مبلغ پرداخت شده", SubscriptionInvoiceStatus.Paid => "کامل پرداخت شده", SubscriptionInvoiceStatus.Overdue => "زمان پرداخت گذشته است", SubscriptionInvoiceStatus.Cancelled => "فاکتور لغو شده", SubscriptionInvoiceStatus.Refunded => "مبلغ بازگردانده شده", _ => "وضعیت فاکتور مشخص نیست" };
     private static string StatusBadge(SubscriptionInvoiceStatus s) => s switch { SubscriptionInvoiceStatus.Paid => "badge-success", SubscriptionInvoiceStatus.PartiallyPaid => "badge-info", SubscriptionInvoiceStatus.Overdue => "badge-danger", SubscriptionInvoiceStatus.Issued => "badge-warning", _ => "badge-secondary" };
 }

@@ -671,15 +671,9 @@
         StateHasChanged();
     }
 
-    private string GetActionName(string action) => action?.ToUpper() switch
-    {
-        "CREATE" => "ایجاد",
-        "UPDATE" => "ویرایش",
-        "DELETE" => "حذف",
-        "CANCEL" => "لغو",
-        "REVERSE" => "برگشت",
-        _ => action ?? "نامشخص"
-    };
+    private string GetActionName(string action) => action?.ToUpper() == "REVERSE"
+        ? "برگشت عملیات مالی"
+        : AppDisplayText.AuditAction(action?.ToUpper());
 
     private string GetActionBadge(string action) => action?.ToUpper() switch
     {

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 
+using HawalaExchange.Application.Services;
+
 namespace HawalaExchange.Application.DTOs
 {
     public class HawalaDto
@@ -8,13 +10,7 @@ namespace HawalaExchange.Application.DTOs
         public long Id { get; set; }
         public long Number { get; set; }
         public string HawalaType { get; set; } = string.Empty;
-        public string HawalaTypeName => HawalaType switch
-        {
-            "HawalaSend" => "حواله ارسال",
-            "HawalaReceive" => "حواله دریافت",
-            "HawalaOther" => "حواله متفرقه",
-            _ => "نامشخص"
-        };
+        public string HawalaTypeName => AppDisplayText.HawalaType(HawalaType);
         public long? FromAccountId { get; set; }
         public string? FromAccountName { get; set; }
         public long? CorrespondentId { get; set; }
@@ -57,14 +53,7 @@ namespace HawalaExchange.Application.DTOs
         public string? ReferenceNumber { get; set; }
         public string? Notes { get; set; }
         public string Status { get; set; } = "Pending";
-        public string StatusName => Status switch
-        {
-            "Pending" when HawalaType == "HawalaReceive" => "حواله‌های اجرا نشده",
-            "Pending" => "در انتظار",
-            "Paid" => "پرداخت شده",
-            "Cancel" => "لغو شده",
-            _ => "نامشخص"
-        };
+        public string StatusName => AppDisplayText.Status(Status, HawalaType);
         public DateTime CreatedAt { get; set; }
         public long CreatedBy { get; set; }
         public string? CreatedByName { get; set; }

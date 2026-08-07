@@ -209,7 +209,7 @@
                                         <span class="customer-code">@doc.EntityId</span>
                                     </td>
                                     <td>
-                                        <span class="badge-modern badge-info">@doc.ContentType</span>
+                                        <span class="badge-modern badge-info">@GetFileTypeName(doc.ContentType)</span>
                                     </td>
                                     <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(doc.UploadedAt)</td>
                                     <td>
@@ -791,7 +791,18 @@
             "Customer" => "مشتری",
             "Correspondent" => "نماینده",
             "Account" => "حساب",
-            _ => entityType ?? "نامشخص"
+            _ => "سند مرتبط با بخش دیگر"
         };
     }
+
+    private static string GetFileTypeName(string? contentType) => contentType?.ToLowerInvariant() switch
+    {
+        "application/pdf" => "سند PDF",
+        "image/jpeg" or "image/jpg" => "عکس JPEG",
+        "image/png" => "عکس PNG",
+        "application/msword" or "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "سند Word",
+        "application/vnd.ms-excel" or "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "فایل Excel",
+        null or "" => "نوع فایل مشخص نیست",
+        _ => "فایل دیگر"
+    };
 }

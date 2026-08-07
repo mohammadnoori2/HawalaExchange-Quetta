@@ -643,30 +643,9 @@
         StateHasChanged();
     }
 
-    private string GetAccountTypeName(string type)
-    {
-        return type?.ToLower() switch
-        {
-            "cash" => "نقدی",
-            "bank" => "بانکی",
-            "customer" => "مشتری",
-            "correspondent" => "نماینده",
-            "income" => "درآمد",
-            "expense" => "هزینه",
-            "equity" => "سرمایه",
-            _ => type ?? "نامشخص"
-        };
-    }
+    private string GetAccountTypeName(string type) => AppDisplayText.AccountType(type);
 
-    private string GetReferenceTypeName(string type)
-    {
-        return type?.ToLower() switch
-        {
-            "customer" => "مشتری",
-            "correspondent" => "نماینده",
-            _ => type ?? "نامشخص"
-        };
-    }
+    private string GetReferenceTypeName(string type) => AppDisplayText.ReferenceType(type);
 
     private static bool CanModifyOperation(JournalOperationDto operation) =>
         operation.SourceId.HasValue &&

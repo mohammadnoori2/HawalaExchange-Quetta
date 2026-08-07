@@ -1211,13 +1211,7 @@
         return $"{rangeFilter.StartNumber?.ToString() ?? "-"} تا {rangeFilter.EndNumber?.ToString() ?? "-"}";
     }
 
-    private static string GetRangeHawalaTypeName(string hawalaType) => hawalaType switch
-    {
-        "HawalaSend" => "حواله ارسالی",
-        "HawalaReceive" => "حواله دریافتی",
-        "HawalaOther" => "حواله متفرقه",
-        _ => hawalaType
-    };
+    private static string GetRangeHawalaTypeName(string hawalaType) => AppDisplayText.HawalaType(hawalaType);
 
     private static string GetRangePaymentLocation(HawalaDto hawala)
     {

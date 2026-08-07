@@ -1492,16 +1492,7 @@
         return correspondent?.Name ?? "-";
     }
 
-    private string GetHawalaTypeName(string type)
-    {
-        return type switch
-        {
-            "HawalaSend" => "حواله ارسال",
-            "HawalaReceive" => "حواله دریافت",
-            "HawalaOther" => "حواله متفرقه",
-            _ => type
-        };
-    }
+    private string GetHawalaTypeName(string type) => AppDisplayText.HawalaType(type);
 
     private string GetCurrencyCode(long? currencyId)
     {
@@ -2023,20 +2014,7 @@
 
     // ===== توابع کمکی =====
 
-    private string GetAccountTypeName(string type)
-    {
-        return type?.ToLower() switch
-        {
-            "cash" => "نقدی",
-            "bank" => "بانکی",
-            "customer" => "مشتری",
-            "correspondent" => "نماینده",
-            "income" => "درآمد",
-            "expense" => "هزینه",
-            "equity" => "سرمایه",
-            _ => type ?? "نامشخص"
-        };
-    }
+    private string GetAccountTypeName(string type) => AppDisplayText.AccountType(type);
 
     // ===== آپلود عکس تذکره =====
 

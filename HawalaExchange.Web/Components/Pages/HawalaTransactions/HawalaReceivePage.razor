@@ -1236,21 +1236,7 @@
             || string.Equals(account.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase);
     }
 
-    private string GetAccountTypeName(string? type)
-    {
-        return type?.ToLower() switch
-        {
-            "cash" => "نقدی",
-            "bank" => "بانک",
-            "customer" => "مشتری",
-            "correspondent" => "نماینده",
-            "income" => "درآمد",
-            "expense" => "مصرف",
-            "equity" => "سرمایه",
-            "pendinghawala" => "حواله‌های اجرا نشده",
-            _ => type ?? "نامشخص"
-        };
-    }
+    private string GetAccountTypeName(string? type) => AppDisplayText.AccountType(type);
 
     private string GetStatusBadge(string status)
     {

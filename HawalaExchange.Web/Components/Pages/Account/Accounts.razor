@@ -1202,30 +1202,9 @@
         };
     }
 
-    private string GetAccountTypeName(string type)
-    {
-        return type?.ToLower() switch
-        {
-            "cash" => "نقدی",
-            "bank" => "بانکی",
-            "customer" => "مشتری",
-            "correspondent" => "نماینده",
-            "income" => "درآمد",
-            "expense" => "هزینه",
-            "equity" => "سرمایه",
-            _ => type ?? "نامشخص"
-        };
-    }
+    private string GetAccountTypeName(string type) => AppDisplayText.AccountType(type);
 
-    private string GetReferenceTypeName(string type)
-    {
-        return type?.ToLower() switch
-        {
-            "customer" => "مشتری",
-            "correspondent" => "نماینده",
-            _ => type ?? "نامشخص"
-        };
-    }
+    private string GetReferenceTypeName(string type) => AppDisplayText.ReferenceType(type);
 
     private string GetTransactionTypeBadge(string type)
     {
@@ -1242,18 +1221,5 @@
         };
     }
 
-    private string GetTransactionTypeName(string type)
-    {
-        return type?.ToLower() switch
-        {
-            "exchange" => "تبدیل ارز",
-            "hawalasend" => "حواله فرستاده",
-            "hawalareceive" => "حواله دریافت",
-            "transfer" => "انتقال",
-            "expense" => "هزینه",
-            "adjustment" => "تعدیل",
-            "openingbalance" => "موجودی اولیه",
-            _ => type ?? "نامشخص"
-        };
-    }
+    private string GetTransactionTypeName(string type) => AppDisplayText.TransactionType(type);
 }

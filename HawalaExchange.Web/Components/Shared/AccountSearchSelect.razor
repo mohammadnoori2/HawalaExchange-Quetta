@@ -174,16 +174,5 @@
         !string.IsNullOrWhiteSpace(value) &&
         value.Contains(term, StringComparison.OrdinalIgnoreCase);
 
-    private static string GetAccountTypeName(string? type) =>
-        type?.ToLowerInvariant() switch
-        {
-            "cash" => "صندوق",
-            "bank" => "بانک",
-            "customer" => "مشتری",
-            "correspondent" => "نمایندگی",
-            "income" => "درآمد",
-            "expense" => "مصرف",
-            "equity" => "سرمایه",
-            _ => type ?? "نامشخص"
-        };
+    private static string GetAccountTypeName(string? type) => AppDisplayText.AccountType(type);
 }

@@ -1189,28 +1189,9 @@
         StateHasChanged();
     }
 
-    private string GetTransactionTypeName(string type)
-    {
-        return type switch
-        {
-            "Exchange" => "تبدیل ارز",
-            "Transfer" => "انتقال",
-            "Expense" => "هزینه",
-            "Adjustment" => "تعدیل",
-            _ => type ?? "نامشخص"
-        };
-    }
+    private string GetTransactionTypeName(string type) => AppDisplayText.TransactionType(type);
 
-    private string GetStatusName(string status)
-    {
-        return status switch
-        {
-            "Pending" => "در انتظار",
-            "Paid" => "پرداخت شده",
-            "Cancel" => "لغو شده",
-            _ => status ?? "نامشخص"
-        };
-    }
+    private string GetStatusName(string status) => AppDisplayText.Status(status);
 
     private string GetTypeBadge(string type)
     {

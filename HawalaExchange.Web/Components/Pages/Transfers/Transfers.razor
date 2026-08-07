@@ -809,16 +809,7 @@
         StateHasChanged();
     }
 
-    private string GetTransferMethodName(string method)
-    {
-        return method switch
-        {
-            "Cash" => "نقدی",
-            "Bank" => "بانکی",
-            "Hawala" => "حواله",
-            _ => method ?? "نامشخص"
-        };
-    }
+    private string GetTransferMethodName(string method) => AppDisplayText.TransferMethod(method);
 
     private string GetTransferMethodBadge(string method)
     {

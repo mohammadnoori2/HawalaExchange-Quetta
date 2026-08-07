@@ -7,6 +7,7 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
+@inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject IHawalaService HawalaService
 @inject IJSRuntime JS
@@ -56,6 +57,10 @@
                              OnEditRequested="OpenEdit"
                              OnArchiveToggleRequested="OpenArchiveConfirmation">
             <HeaderActions>
+                @if (correspondentAccount != null && correspondent.SettlementCurrencyId.HasValue)
+                {
+                    <button class="btn btn-sm btn-success" @onclick="OpenBalanceSettlement">تبدیل مانده به @correspondent.SettlementCurrencyCode</button>
+                }
                 <a class="btn btn-sm btn-outline-secondary" href="@($"/correspondents/{CorrespondentId}")">حواله‌های نمایندگی</a>
                 <a class="btn btn-sm btn-outline-secondary" href="#correspondent-range">محدوده حواله‌ها</a>
             </HeaderActions>
@@ -67,6 +72,7 @@
                     <div class="entity-profile-item"><span>شهر</span><strong>@(correspondent.City ?? "—")</strong></div>
                     <div class="entity-profile-item"><span>شماره تلفن</span><strong dir="ltr">@(correspondent.PhoneNumber ?? "—")</strong></div>
                     <div class="entity-profile-item"><span>آدرس</span><strong>@(correspondent.Address ?? "—")</strong></div>
+                    <div class="entity-profile-item"><span>ارز توافقی</span><strong>@(correspondent.SettlementCurrencyCode ?? "بدون ارز توافقی")</strong></div>
                     <div class="entity-profile-item">
                         <span>وضعیت</span>
                         <strong class="@(correspondent.IsArchived ? "text-danger" : "text-success")">
@@ -248,6 +254,12 @@
     }
 </div>
 
+<CorrespondentSettlementModal IsVisible="@showBalanceSettlementModal"
+                               IsVisibleChanged="HandleBalanceSettlementVisibility"
+                               CorrespondentId="@CorrespondentId"
+                               AccountMode="true"
+                               OnConverted="HandleBalanceConvertedAsync" />
+
 @if (showEditModal && correspondent != null)
 {
     <div class="modal show d-block entity-action-overlay" tabindex="-1" dir="rtl">
@@ -290,6 +302,17 @@
                         <div class="col-md-6">
                             <label class="form-label">آدرس</label>
                             <input class="form-control" @bind="editModel.Address" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">ارز توافقی</label>
+                            <select class="form-select" @bind="editModel.SettlementCurrencyId">
+                                <option value="">بدون ارز توافقی</option>
+                                @foreach (var currency in currencies)
+                                {
+                                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                }
+                            </select>
+                            <div class="form-text">نمایندگی می‌تواند بدون ارز توافقی نیز فعالیت کند.</div>
                         </div>
                         <div class="col-12">
                             <label class="form-label">یادداشت</label>
@@ -337,6 +360,7 @@
     [Parameter] public long CorrespondentId { get; set; }
 
     private CorrespondentDto? correspondent;
+    private List<CurrencyDto> currencies = [];
     private AccountDto? correspondentAccount;
     private AccountDto? accountForView;
     private UpdateCorrespondentDto editModel = new();
@@ -345,6 +369,7 @@
     private bool isSaving;
     private bool showEditModal;
     private bool showArchiveConfirmation;
+    private bool showBalanceSettlementModal;
     private string pageError = string.Empty;
     private string successMessage = string.Empty;
     private long? loadedCorrespondentId;
@@ -380,6 +405,8 @@
                 pageError = "نمایندگی مورد نظر وجود ندارد یا حذف شده است.";
                 return;
             }
+
+            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.Code).ToList();
 
             correspondentAccount = (await AccountService.GetByReferenceAsync("Correspondent", CorrespondentId)).FirstOrDefault();
             accountForView = correspondentAccount ?? new AccountDto
@@ -448,6 +475,7 @@
             PhoneNumber = correspondent.PhoneNumber,
             Address = correspondent.Address,
             Remarks = correspondent.Remarks,
+            SettlementCurrencyId = correspondent.SettlementCurrencyId,
             IsArchived = correspondent.IsArchived
         };
         showEditModal = true;
@@ -458,6 +486,30 @@
     {
         showEditModal = false;
         editErrors.Clear();
+    }
+
+    private void OpenBalanceSettlement() => showBalanceSettlementModal = true;
+
+    private Task HandleBalanceSettlementVisibility(bool visible)
+    {
+        showBalanceSettlementModal = visible;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleBalanceConvertedAsync(CorrespondentSettlementResultDto result)
+    {
+        successMessage = BuildSettlementResultMessage(result);
+        await LoadCorrespondent();
+    }
+
+    private static string BuildSettlementResultMessage(CorrespondentSettlementResultDto result)
+    {
+        if (result.Items.Count == 0)
+            return "تبدیل به ارز توافقی با موفقیت ثبت شد.";
+
+        return string.Join("؛ ", result.Items.Select(item =>
+            $"ماندهٔ {item.BalanceDirection} به مقدار {MoneyFormatHelper.Format(item.SourceAmount)} {item.SourceCurrencyCode} " +
+            $"با نرخ {AmountValueHelper.Format(item.ExchangeRate)} به {MoneyFormatHelper.Format(item.TargetAmount)} {item.TargetCurrencyCode} تبدیل شد"));
     }
 
     private async Task SaveEdit()
@@ -601,13 +653,7 @@
         return $"{rangeFilter.StartNumber?.ToString() ?? "—"} تا {rangeFilter.EndNumber?.ToString() ?? "—"}";
     }
 
-    private static string GetRangeHawalaTypeName(string hawalaType) => hawalaType switch
-    {
-        "HawalaSend" => "حواله ارسالی",
-        "HawalaReceive" => "حواله دریافتی",
-        "HawalaOther" => "حواله متفرقه",
-        _ => hawalaType
-    };
+    private static string GetRangeHawalaTypeName(string hawalaType) => AppDisplayText.HawalaType(hawalaType);
 
     private static string GetRangePaymentLocation(HawalaDto hawala)
     {

@@ -377,6 +377,19 @@
                                     </label>
                                     <input type="text" class="form-control" @bind="currentCorrespondent.Address" placeholder="آدرس کامل" />
                                 </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-currency-exchange text-muted me-1"></i> ارز توافقی
+                                    </label>
+                                    <select class="form-select" @bind="currentCorrespondent.SettlementCurrencyId">
+                                        <option value="">بدون ارز توافقی</option>
+                                        @foreach (var currency in currencies.OrderBy(x => x.Code))
+                                        {
+                                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                        }
+                                    </select>
+                                    <div class="form-text">اختیاری است و بعداً نیز قابل تعیین می‌باشد.</div>
+                                </div>
                             </div>
 
                             <div class="row">
@@ -1053,7 +1066,8 @@
                     City = correspondent.City,
                     PhoneNumber = correspondent.PhoneNumber,
                     Address = correspondent.Address,
-                    Remarks = correspondent.Remarks
+                    Remarks = correspondent.Remarks,
+                    SettlementCurrencyId = correspondent.SettlementCurrencyId
                 };
 
                 isEditMode = true;
@@ -1258,6 +1272,7 @@
                     PhoneNumber = currentCorrespondent.PhoneNumber,
                     Address = currentCorrespondent.Address,
                     Remarks = currentCorrespondent.Remarks,
+                    SettlementCurrencyId = currentCorrespondent.SettlementCurrencyId,
                     IsArchived = false
                 };
                 await CorrespondentService.UpdateAsync(editId, updateRequest);

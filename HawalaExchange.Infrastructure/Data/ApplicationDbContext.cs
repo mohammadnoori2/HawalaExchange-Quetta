@@ -102,6 +102,9 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<Document> Documents { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Hawala> Hawalas { get; set; }
+        public DbSet<CorrespondentSettlementConversion> CorrespondentSettlementConversions { get; set; }
+        public DbSet<CorrespondentSettlementConversionItem> CorrespondentSettlementConversionItems { get; set; }
+        public DbSet<CorrespondentSettlementConversionHawala> CorrespondentSettlementConversionHawalas { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
 
         public DbSet<CapitalInvestment> CapitalInvestments { get; set; }
@@ -847,6 +850,14 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.TableName, x.RecordId });
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.CreatedAt });
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.HawalaType, x.Status });
+            modelBuilder.Entity<CorrespondentSettlementConversion>()
+                .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.CreatedAt });
+            modelBuilder.Entity<CorrespondentSettlementConversionItem>()
+                .HasIndex(x => new { x.TenantId, x.ConversionId, x.SourceCurrencyId })
+                .IsUnique();
+            modelBuilder.Entity<CorrespondentSettlementConversionHawala>()
+                .HasIndex(x => new { x.TenantId, x.HawalaId })
+                .IsUnique();
             modelBuilder.Entity<Hawala>()
                 .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.Number })
                 .IsUnique();
@@ -1057,6 +1068,57 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureRelationships(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<Correspondent>()
+                .HasOne(x => x.SettlementCurrency)
+                .WithMany()
+                .HasForeignKey(x => x.SettlementCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CorrespondentSettlementConversion>(entity =>
+            {
+                entity.HasOne(x => x.Correspondent)
+                    .WithMany(x => x.SettlementConversions)
+                    .HasForeignKey(x => x.CorrespondentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.TargetCurrency)
+                    .WithMany()
+                    .HasForeignKey(x => x.TargetCurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Transaction)
+                    .WithMany()
+                    .HasForeignKey(x => x.TransactionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.CreatedBy)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CorrespondentSettlementConversionItem>(entity =>
+            {
+                entity.HasOne(x => x.Conversion)
+                    .WithMany(x => x.Items)
+                    .HasForeignKey(x => x.ConversionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.SourceCurrency)
+                    .WithMany()
+                    .HasForeignKey(x => x.SourceCurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CorrespondentSettlementConversionHawala>(entity =>
+            {
+                entity.HasKey(x => new { x.ConversionId, x.HawalaId });
+                entity.HasOne(x => x.Conversion)
+                    .WithMany(x => x.Hawalas)
+                    .HasForeignKey(x => x.ConversionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.Hawala)
+                    .WithMany(x => x.SettlementConversionLinks)
+                    .HasForeignKey(x => x.HawalaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<Document>().HasOne(x => x.Transaction).WithMany(x => x.Documents)
                 .HasForeignKey(x => x.TransactionId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<Document>().HasOne(x => x.Customer).WithMany()

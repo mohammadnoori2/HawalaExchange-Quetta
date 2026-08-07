@@ -33,15 +33,30 @@ namespace HawalaExchange.Application.Services
         }
 
         // ===== متدهای موجود =====
+        public override async Task<CorrespondentDto?> GetByIdAsync(long id)
+        {
+            var entity = await _dbSet
+                .Include(x => x.SettlementCurrency)
+                .FirstOrDefaultAsync(x => x.Id == id);
+            return entity == null ? null : _mapper.Map<CorrespondentDto>(entity);
+        }
+
+        public override async Task<IEnumerable<CorrespondentDto>> GetAllAsync()
+        {
+            var entities = await _dbSet.Include(x => x.SettlementCurrency).ToListAsync();
+            return _mapper.Map<IEnumerable<CorrespondentDto>>(entities);
+        }
+
         public async Task<CorrespondentDto?> GetByCodeAsync(string code)
         {
-            var entity = await _dbSet.FirstOrDefaultAsync(c => c.Code == code);
+            var entity = await _dbSet.Include(x => x.SettlementCurrency).FirstOrDefaultAsync(c => c.Code == code);
             return entity == null ? null : _mapper.Map<CorrespondentDto>(entity);
         }
 
         public async Task<IEnumerable<CorrespondentDto>> GetByCountryAsync(string country)
         {
             var entities = await _dbSet
+                .Include(x => x.SettlementCurrency)
                 .Where(c => c.Country == country && !c.IsArchived)
                 .ToListAsync();
             return _mapper.Map<IEnumerable<CorrespondentDto>>(entities);
@@ -49,7 +64,7 @@ namespace HawalaExchange.Application.Services
 
         public async Task<IEnumerable<CorrespondentDto>> GetActiveAsync()
         {
-            var entities = await _dbSet.Where(c => !c.IsArchived).ToListAsync();
+            var entities = await _dbSet.Include(x => x.SettlementCurrency).Where(c => !c.IsArchived).ToListAsync();
             return _mapper.Map<IEnumerable<CorrespondentDto>>(entities);
         }
 
@@ -93,7 +108,18 @@ namespace HawalaExchange.Application.Services
 
         protected override async Task ValidateCreateAsync(Correspondent entity, CreateCorrespondentDto dto)
         {
+            await ValidateSettlementCurrencyAsync(entity.SettlementCurrencyId);
             entity.Code = await GenerateCorrespondentCodeAsync();
+        }
+
+        protected override Task ValidateUpdateAsync(Correspondent entity, UpdateCorrespondentDto dto) =>
+            ValidateSettlementCurrencyAsync(entity.SettlementCurrencyId);
+
+        private async Task ValidateSettlementCurrencyAsync(long? currencyId)
+        {
+            if (!currencyId.HasValue) return;
+            if (!await _context.Currencies.AnyAsync(x => x.Id == currencyId.Value && x.IsActive))
+                throw new InvalidOperationException("ارز توافقی انتخاب‌شده معتبر و فعال نیست.");
         }
 
         // ===== بازنویسی متد CreateAsync با پشتیبانی از موجودی اولیه =====

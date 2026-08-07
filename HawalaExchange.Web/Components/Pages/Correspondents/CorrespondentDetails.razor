@@ -5,6 +5,7 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
+@inject ICurrencyService CurrencyService
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(correspondent == null ? "مشاهده نمایندگی" : correspondent.Name)</PageTitle>
@@ -68,6 +69,7 @@
             <div><span>شهر</span><strong>@(correspondent.City ?? "—")</strong></div>
             <div><span>شماره تلفن</span><strong dir="ltr">@(correspondent.PhoneNumber ?? "—")</strong></div>
             <div><span>آدرس</span><strong>@(correspondent.Address ?? "—")</strong></div>
+            <div><span>ارز توافقی</span><strong>@(correspondent.SettlementCurrencyCode ?? "بدون ارز توافقی")</strong></div>
             <div>
                 <span>وضعیت</span>
                 <strong class="@(correspondent.IsArchived ? "text-danger" : "text-success")">
@@ -161,6 +163,17 @@
                             <label class="form-label">آدرس</label>
                             <input class="form-control" @bind="editModel.Address" />
                         </div>
+                        <div class="col-md-6">
+                            <label class="form-label">ارز توافقی</label>
+                            <select class="form-select" @bind="editModel.SettlementCurrencyId">
+                                <option value="">بدون ارز توافقی</option>
+                                @foreach (var currency in currencies)
+                                {
+                                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                }
+                            </select>
+                            <div class="form-text">اگر انتخاب نشود، تبدیل ارز برای این نمایندگی غیرفعال می‌ماند.</div>
+                        </div>
                         <div class="col-12">
                             <label class="form-label">یادداشت</label>
                             <textarea class="form-control" rows="2" @bind="editModel.Remarks"></textarea>
@@ -207,6 +220,7 @@
     [Parameter] public long CorrespondentId { get; set; }
 
     private CorrespondentDto? correspondent;
+    private List<CurrencyDto> currencies = [];
     private UpdateCorrespondentDto editModel = new();
     private readonly List<string> editErrors = new();
     private bool isLoading = true;
@@ -234,6 +248,7 @@
             activeHawalaType = "HawalaSend";
             pageError = string.Empty;
             correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId);
+            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.Code).ToList();
             if (correspondent == null)
                 pageError = "نمایندگی مورد نظر وجود ندارد یا حذف شده است.";
         }
@@ -265,6 +280,7 @@
             PhoneNumber = correspondent.PhoneNumber,
             Address = correspondent.Address,
             Remarks = correspondent.Remarks,
+            SettlementCurrencyId = correspondent.SettlementCurrencyId,
             IsArchived = correspondent.IsArchived
         };
         showEditModal = true;

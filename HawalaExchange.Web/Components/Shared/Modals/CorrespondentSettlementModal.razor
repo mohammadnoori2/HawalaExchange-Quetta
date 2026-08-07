@@ -1,0 +1,191 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject ICorrespondentSettlementService SettlementService
+
+@if (IsVisible)
+{
+    <div class="modal show d-block" tabindex="-1" dir="rtl" style="background:rgba(15,23,42,.55)">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title">تبدیل به ارز توافقی</h5>
+                        @if (preview != null)
+                        {
+                            <small class="text-muted">@preview.CorrespondentName · ارز توافقی: @preview.TargetCurrencyCode</small>
+                        }
+                    </div>
+                    <button type="button" class="btn-close" @onclick="CloseAsync"></button>
+                </div>
+                <div class="modal-body">
+                    @if (loading)
+                    {
+                        <div class="text-center py-4"><span class="spinner-border text-primary"></span></div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(error))
+                    {
+                        <div class="alert alert-danger mb-0">@error</div>
+                    }
+                    else if (preview != null)
+                    {
+                        <div class="alert alert-info py-2">
+                            نرخ را مطابق روش معمول سیستم وارد کنید. تبدیل هر ارز جداگانه محاسبه و در دفترکل ثبت می‌شود.
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead><tr><th>ارز مبدأ</th><th>مانده/حواله</th><th>نرخ تبدیل به @preview.TargetCurrencyCode</th></tr></thead>
+                                <tbody>
+                                    @foreach (var item in rateInputs)
+                                    {
+                                        <tr>
+                                            <td class="fw-bold">@item.CurrencyCode</td>
+                                            <td dir="ltr">@item.Description</td>
+                                            <td><input type="number" min="0.00000001" step="any" class="form-control form-control-sm" @bind="item.Rate" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <label class="form-label">یادداشت (اختیاری)</label>
+                        <textarea class="form-control" rows="2" maxlength="500" @bind="note"></textarea>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light border" disabled="@saving" @onclick="CloseAsync">انصراف</button>
+                    <button class="btn btn-primary" disabled="@(saving || loading || preview == null || rateInputs.Count == 0)" @onclick="SubmitAsync">
+                        @(saving ? "در حال ثبت..." : $"تبدیل به {preview?.TargetCurrencyCode}")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter, EditorRequired] public long CorrespondentId { get; set; }
+    [Parameter] public bool AccountMode { get; set; }
+    [Parameter] public IReadOnlyList<HawalaDto> SelectedHawalas { get; set; } = [];
+    [Parameter] public EventCallback<CorrespondentSettlementResultDto> OnConverted { get; set; }
+
+    private CorrespondentSettlementPreviewDto? preview;
+    private readonly List<RateInput> rateInputs = [];
+    private bool loading;
+    private bool saving;
+    private string error = string.Empty;
+    private string? note;
+    private bool wasVisible;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && !wasVisible)
+            await PrepareAsync();
+        wasVisible = IsVisible;
+    }
+
+    private async Task PrepareAsync()
+    {
+        loading = true;
+        error = string.Empty;
+        note = null;
+        rateInputs.Clear();
+        try
+        {
+            preview = await SettlementService.GetPreviewAsync(CorrespondentId);
+            if (AccountMode)
+            {
+                rateInputs.AddRange(preview.Balances.Select(x => new RateInput
+                {
+                    CurrencyId = x.SourceCurrencyId,
+                    CurrencyCode = x.SourceCurrencyCode,
+                    Description = x.TalabKar > 0
+                        ? $"طلبکار: {x.TalabKar:N2}"
+                        : $"بدهکار: {x.BadehKar:N2}"
+                }));
+            }
+            else
+            {
+                rateInputs.AddRange(SelectedHawalas
+                    .Where(x => x.SettlementState == "Pending")
+                    .GroupBy(x => new { Id = x.SettlementSourceCurrencyId, Code = x.SettlementSourceCurrencyCode })
+                    .Select(x => new RateInput
+                    {
+                        CurrencyId = x.Key.Id,
+                        CurrencyCode = x.Key.Code,
+                        Description = $"{x.Count()} حواله"
+                    }));
+            }
+
+            if (rateInputs.Count == 0)
+                error = AccountMode ? "مانده‌ای برای تبدیل وجود ندارد." : "حوالهٔ تبدیل‌نشده‌ای انتخاب نشده است.";
+        }
+        catch (Exception ex)
+        {
+            preview = null;
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        error = string.Empty;
+        if (rateInputs.Any(x => x.Rate <= 0))
+        {
+            error = "برای همه ارزها نرخ معتبر وارد کنید.";
+            return;
+        }
+
+        try
+        {
+            saving = true;
+            var rates = rateInputs.Select(x => new SettlementRateDto
+            {
+                SourceCurrencyId = x.CurrencyId,
+                Rate = x.Rate
+            }).ToList();
+            var result = AccountMode
+                ? await SettlementService.ConvertBalanceAsync(new ConvertCorrespondentBalanceDto
+                {
+                    CorrespondentId = CorrespondentId,
+                    Rates = rates,
+                    Note = note
+                })
+                : await SettlementService.ConvertHawalasAsync(new ConvertHawalasToSettlementDto
+                {
+                    CorrespondentId = CorrespondentId,
+                    HawalaIds = SelectedHawalas.Select(x => x.Id).ToList(),
+                    Rates = rates,
+                    Note = note
+                });
+            await OnConverted.InvokeAsync(result);
+            await CloseAsync();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        wasVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+
+    private sealed class RateInput
+    {
+        public long CurrencyId { get; init; }
+        public string CurrencyCode { get; init; } = string.Empty;
+        public string Description { get; init; } = string.Empty;
+        public decimal Rate { get; set; }
+    }
+}

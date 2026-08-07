@@ -30,7 +30,11 @@ namespace HawalaSystem.Mappings
             CreateMap<UpdateCustomerDto, Customer>();
 
             // ===== Correspondent =====
-            CreateMap<Correspondent, CorrespondentDto>().ReverseMap();
+            CreateMap<Correspondent, CorrespondentDto>()
+                .ForMember(dest => dest.SettlementCurrencyCode, opt => opt.MapFrom(src => src.SettlementCurrency != null ? src.SettlementCurrency.Code : null));
+            CreateMap<CorrespondentDto, Correspondent>()
+                .ForMember(dest => dest.SettlementCurrency, opt => opt.Ignore())
+                .ForMember(dest => dest.SettlementConversions, opt => opt.Ignore());
             CreateMap<CreateCorrespondentDto, Correspondent>();
             CreateMap<UpdateCorrespondentDto, Correspondent>();
 
@@ -315,7 +319,10 @@ namespace HawalaSystem.Mappings
                .ForMember(dest => dest.FromAccountId, opt => opt.Ignore())
                .ForMember(dest => dest.GeneratedSendHawalaNumber, opt => opt.Ignore())
                .ForMember(dest => dest.PaymentLocationName, opt => opt.MapFrom(src => src.PaymentLocation != null ? src.PaymentLocation.Name : null))
-               .ForMember(dest => dest.PaymentLocationAddress, opt => opt.MapFrom(src => src.PaymentLocation != null ? src.PaymentLocation.Address : null));
+               .ForMember(dest => dest.PaymentLocationAddress, opt => opt.MapFrom(src => src.PaymentLocation != null ? src.PaymentLocation.Address : null))
+               .ForMember(dest => dest.SettlementCurrencyId, opt => opt.MapFrom(src => src.Correspondent != null ? src.Correspondent.SettlementCurrencyId : null))
+               .ForMember(dest => dest.SettlementCurrencyCode, opt => opt.MapFrom(src => src.Correspondent != null && src.Correspondent.SettlementCurrency != null ? src.Correspondent.SettlementCurrency.Code : null))
+               .ForMember(dest => dest.IsSettlementConverted, opt => opt.MapFrom(src => src.SettlementConversionLinks.Any()));
 
 
             // CreateHawalaDto -> Hawala

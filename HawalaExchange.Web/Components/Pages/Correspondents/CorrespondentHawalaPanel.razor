@@ -1,5 +1,6 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
 @using HawalaExchange.Web.Components.Shared
 @using HawalaExchange.Web.Components.Shared.Modals
 @using HawalaExchange.Web.Helpers
@@ -17,12 +18,20 @@
             <h6>@Title</h6>
             <span>@totalCount حواله</span>
         </div>
-        @if (CanCreate)
-        {
-            <button type="button" class="btn btn-sm btn-primary" @onclick="OpenCreate">
-                ثبت @SingularTitle
-            </button>
-        }
+        <div class="d-flex gap-2">
+            @if (selectedSettlementIds.Count > 0)
+            {
+                <button type="button" class="btn btn-sm btn-success" @onclick="OpenSettlement">
+                    تبدیل @selectedSettlementIds.Count حواله به ارز توافقی
+                </button>
+            }
+            @if (CanCreate)
+            {
+                <button type="button" class="btn btn-sm btn-primary" @onclick="OpenCreate">
+                    ثبت @SingularTitle
+                </button>
+            }
+        </div>
     </header>
 
     @if (errors.Any())
@@ -59,11 +68,17 @@
         </select>
         <button type="button" class="btn btn-sm btn-light border" @onclick="ResetFiltersAsync">پاک‌کردن فیلتر</button>
     </div>
+    <div class="small text-muted d-flex gap-3 px-1 pb-2">
+        <span><i class="settlement-legend settlement-legend-pending"></i> نیازمند تبدیل به ارز توافقی</span>
+        <span><i class="settlement-legend settlement-legend-converted"></i> تبدیل‌شده</span>
+        <span>حوالهٔ ثبت‌شده با ارز توافقی بدون رنگ است.</span>
+    </div>
 
     <div class="table-responsive panel-table-wrap">
         <table class="table table-sm align-middle mb-0">
             <thead>
                 <tr>
+                    <th class="text-center" style="width:2.5rem">انتخاب</th>
                     <th>نمبر</th>
                     <th>فرستنده</th>
                     <th>گیرنده</th>
@@ -77,17 +92,26 @@
             <tbody>
                 @if (isLoading)
                 {
-                    <tr><td colspan="8" class="panel-empty"><span class="spinner-border spinner-border-sm text-primary"></span> در حال بارگذاری...</td></tr>
+                    <tr><td colspan="9" class="panel-empty"><span class="spinner-border spinner-border-sm text-primary"></span> در حال بارگذاری...</td></tr>
                 }
                 else if (!hawalas.Any())
                 {
-                    <tr><td colspan="8" class="panel-empty">حواله‌ای در این بخش ثبت نشده است.</td></tr>
+                    <tr><td colspan="9" class="panel-empty">حواله‌ای در این بخش ثبت نشده است.</td></tr>
                 }
                 else
                 {
                     @foreach (var hawala in hawalas)
                     {
-                        <tr>
+                        <tr class="@GetSettlementRowClass(hawala)">
+                            <td class="text-center">
+                                @if (hawala.SettlementState == "Pending")
+                                {
+                                    <input type="checkbox" class="form-check-input"
+                                           checked="@selectedSettlementIds.Contains(hawala.Id)"
+                                           @onchange="args => ToggleSettlementSelection(hawala, args.Value as bool? == true)"
+                                           title="انتخاب برای تبدیل به @hawala.SettlementCurrencyCode" />
+                                }
+                            </td>
                             <td class="fw-bold">@hawala.Number</td>
                             <td>@(hawala.SenderName ?? "—")</td>
                             <td>@(hawala.ReceiverName ?? "—")</td>
@@ -131,6 +155,12 @@
         </footer>
     }
 </section>
+
+<CorrespondentSettlementModal IsVisible="@showSettlementModal"
+                               IsVisibleChanged="HandleSettlementVisibility"
+                               CorrespondentId="@CorrespondentId"
+                               SelectedHawalas="@SelectedSettlementHawalas"
+                               OnConverted="HandleSettlementConvertedAsync" />
 
 <CreateHawalaModal IsVisible="@showHawalaModal"
                    IsVisibleChanged="HandleHawalaModalVisibility"
@@ -318,6 +348,9 @@
     private int totalPages = 1;
     private bool isLoading;
     private bool actionLoading;
+    private bool showSettlementModal;
+    private readonly HashSet<long> selectedSettlementIds = [];
+    private readonly Dictionary<long, HawalaDto> selectedSettlementHawalas = [];
     private string? loadedKey;
 
     private bool showHawalaModal;
@@ -385,6 +418,11 @@
             });
 
             hawalas = result.Items.ToList();
+            foreach (var invalid in hawalas.Where(x => x.SettlementState != "Pending" && selectedSettlementIds.Contains(x.Id)))
+            {
+                selectedSettlementIds.Remove(invalid.Id);
+                selectedSettlementHawalas.Remove(invalid.Id);
+            }
             totalCount = result.TotalCount;
             totalPages = Math.Max(1, result.TotalPages);
         }
@@ -733,6 +771,43 @@
         await LoadHawalasAsync();
     }
 
+    private IReadOnlyList<HawalaDto> SelectedSettlementHawalas => selectedSettlementHawalas.Values.ToList();
+
+    private void ToggleSettlementSelection(HawalaDto hawala, bool selected)
+    {
+        if (selected)
+        {
+            selectedSettlementIds.Add(hawala.Id);
+            selectedSettlementHawalas[hawala.Id] = hawala;
+        }
+        else
+        {
+            selectedSettlementIds.Remove(hawala.Id);
+            selectedSettlementHawalas.Remove(hawala.Id);
+        }
+    }
+
+    private void OpenSettlement() => showSettlementModal = true;
+
+    private Task HandleSettlementVisibility(bool visible)
+    {
+        showSettlementModal = visible;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleSettlementConvertedAsync(CorrespondentSettlementResultDto result)
+    {
+        selectedSettlementIds.Clear();
+        selectedSettlementHawalas.Clear();
+        var details = result.Items.Count == 0
+            ? "تبدیل به ارز توافقی ثبت شد."
+            : string.Join("؛ ", result.Items.Select(item =>
+                $"{MoneyFormatHelper.Format(item.SourceAmount)} {item.SourceCurrencyCode} با نرخ {AmountValueHelper.Format(item.ExchangeRate)} " +
+                $"به {MoneyFormatHelper.Format(item.TargetAmount)} {item.TargetCurrencyCode} تبدیل شد"));
+        successMessage = $"{result.HawalaCount} حواله تبدیل شد: {details}";
+        await LoadHawalasAsync();
+    }
+
     private async Task ResetFiltersAsync()
     {
         searchTerm = string.Empty;
@@ -764,6 +839,13 @@
         "Paid" => "status-paid",
         "Cancel" => "status-cancelled",
         _ => "status-pending"
+    };
+
+    private static string GetSettlementRowClass(HawalaDto hawala) => hawala.SettlementState switch
+    {
+        "Pending" => "settlement-pending-row",
+        "Converted" => "settlement-converted-row",
+        _ => string.Empty
     };
 
     private static string GetPaymentLocation(HawalaDto hawala)

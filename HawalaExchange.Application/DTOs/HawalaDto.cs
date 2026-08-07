@@ -78,6 +78,16 @@ namespace HawalaExchange.Application.DTOs
         public DateTime? CancelledAt { get; set; }
         public long? CancelledBy { get; set; }
         public string? CancelReason { get; set; }
+        public long? SettlementCurrencyId { get; set; }
+        public string? SettlementCurrencyCode { get; set; }
+        public bool IsSettlementConverted { get; set; }
+        public long SettlementSourceCurrencyId => HawalaType == "HawalaSend" ? ToCurrencyId : FromCurrencyId;
+        public string SettlementSourceCurrencyCode => HawalaType == "HawalaSend" ? ToCurrencyCode : FromCurrencyCode;
+        public string SettlementState => Status == "Cancel" || !SettlementCurrencyId.HasValue
+            ? "None"
+            : SettlementSourceCurrencyId == SettlementCurrencyId
+                ? "Native"
+                : IsSettlementConverted ? "Converted" : "Pending";
     }
 
     public class CreateHawalaDto

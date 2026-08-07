@@ -793,6 +793,16 @@ public class JournalService : IJournalService
             .Where(x => ids.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id);
 
+        var settlementConversions = await _context.CorrespondentSettlementConversions
+            .AsNoTracking()
+            .Include(x => x.Correspondent)
+            .Include(x => x.TargetCurrency)
+            .Include(x => x.Items)
+                .ThenInclude(x => x.SourceCurrency)
+            .Include(x => x.Hawalas)
+            .Where(x => ids.Contains(x.TransactionId))
+            .ToDictionaryAsync(x => x.TransactionId);
+
         foreach (var operation in operations.Where(x => x.SourceType == "تراکنش"))
         {
             if (!operation.SourceId.HasValue ||
@@ -806,6 +816,31 @@ public class JournalService : IJournalService
             Add(operation, "شعبه", source.Branch?.Name);
             Add(operation, "مشتری", source.CustomerFullName ?? source.Customer?.FullName);
             Add(operation, "ملاحظات", source.Remarks);
+
+            if (source.TransactionType == "CorrespondentSettlementConversion" &&
+                settlementConversions.TryGetValue(source.Id, out var settlement))
+            {
+                var conversionType = settlement.SourceMode == "Hawalas"
+                    ? $"تبدیل {settlement.Hawalas.Count} حواله به ارز توافقی"
+                    : "تبدیل مانده حساب نمایندگی به ارز توافقی";
+                var conversionSummary = string.Join("؛ ", settlement.Items.Select(item =>
+                {
+                    var sourceAmount = item.SourceTalabKar > 0
+                        ? item.SourceTalabKar
+                        : item.SourceBadehKar;
+                    var targetAmount = item.TargetTalabKar > 0
+                        ? item.TargetTalabKar
+                        : item.TargetBadehKar;
+                    var direction = item.SourceTalabKar > 0 ? "طلبکار" : "بدهکار";
+                    return $"ماندهٔ {direction} {AmountValueHelper.Format(sourceAmount)} {item.SourceCurrency.Code} " +
+                           $"با نرخ {AmountValueHelper.Format(item.ExchangeRate)} به " +
+                           $"{AmountValueHelper.Format(targetAmount)} {settlement.TargetCurrency.Code}";
+                }));
+
+                Add(operation, "نوع تبدیل", conversionType);
+                Add(operation, "نمایندگی", settlement.Correspondent.Name);
+                Add(operation, "خلاصه تبدیل", conversionSummary);
+            }
 
             var index = 1;
             foreach (var detail in source.TransactionDetails ?? [])
@@ -867,6 +902,9 @@ public class JournalService : IJournalService
 
             "انتقال" =>
                 $"مبلغ {Detail(operation, "مبلغ انتقال", CurrencyMovement(operation))} از حساب {Detail(operation, "از حساب", "نامشخص")} به حساب {Detail(operation, "به حساب", "نامشخص")} با شماره مرجع {operation.DocumentNumber} انتقال شد{suffix}",
+
+            "تراکنش" when Detail(operation, "نوع تراکنش", "") == "CorrespondentSettlementConversion" =>
+                $"{Detail(operation, "خلاصه تبدیل", CurrencyMovement(operation))} تبدیل شد و در حساب ثبت شد{suffix}",
 
             "تراکنش" =>
                 $"تراکنش {Detail(operation, "نوع تراکنش", "عمومی")} به شماره {operation.DocumentNumber} برای {Detail(operation, "مشتری", "حساب‌های مرتبط")} در حساب‌های {accounts} ثبت شد{suffix}",

@@ -117,6 +117,16 @@
                 }
             }
 
+            private async Task EnsureNotSettlementConvertedAsync(IReadOnlyCollection<long> hawalaIds)
+            {
+                if (await _context.CorrespondentSettlementConversionHawalas
+                    .AnyAsync(x => hawalaIds.Contains(x.HawalaId)))
+                {
+                    throw new InvalidOperationException(
+                        "حواله‌ای که به ارز توافقی تبدیل شده قابل ویرایش، حذف یا لغو نیست. برای اصلاح، سند تبدیل باید با عملیات برگشتی اصلاح شود.");
+                }
+            }
+
             private async Task<long?> ResolveExistingFromAccountIdAsync(Hawala hawala)
             {
                 if (hawala.HawalaType == "HawalaReceive" || hawala.PaidFromAccountId.HasValue)
@@ -152,7 +162,8 @@
             public async Task<HawalaDto?> GetHawalaByIdAsync(long id)
             {
                 var hawala = await _context.Hawalas
-                    .Include(h => h.Correspondent)
+                    .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
+                    .Include(h => h.SettlementConversionLinks)
                     .Include(h => h.FromCurrency)
                     .Include(h => h.ToCurrency)
                     .Include(h => h.CommissionCurrency)
@@ -182,7 +193,8 @@
             public async Task<HawalaListResultDto> GetHawalasAsync(HawalaFilterDto filter)
             {
                 var query = _context.Hawalas
-                    .Include(h => h.Correspondent)
+                    .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
+                    .Include(h => h.SettlementConversionLinks)
                     .Include(h => h.FromCurrency)
                     .Include(h => h.ToCurrency)
                     .Include(h => h.CommissionCurrency)
@@ -304,6 +316,8 @@
                     if (hawala.Status == "Cancel")
                         throw new InvalidOperationException("حواله لغو شده قابل ویرایش نیست.");
 
+                    await EnsureNotSettlementConvertedAsync([hawala.Id]);
+
                     if (hawala.IsSystemGenerated)
                     {
                         throw new InvalidOperationException(
@@ -319,6 +333,8 @@
 
                     var generatedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
+                    if (generatedHawala != null)
+                        await EnsureNotSettlementConvertedAsync([generatedHawala.Id]);
                     var generatedHawalaNumber =
                         dto.GeneratedSendHawalaNumber ??
                         generatedHawala?.Number;
@@ -516,6 +532,9 @@
 
                     var generatedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
+                    await EnsureNotSettlementConvertedAsync(generatedHawala == null
+                        ? [hawala.Id]
+                        : [hawala.Id, generatedHawala.Id]);
                     if (generatedHawala != null)
                     {
                         await DeleteHawalaLedgerEntriesAsync(generatedHawala.Id);
@@ -581,7 +600,8 @@
 
                 var query = _context.Hawalas
                     .AsNoTracking()
-                    .Include(h => h.Correspondent)
+                    .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
+                    .Include(h => h.SettlementConversionLinks)
                     .Include(h => h.FromCurrency)
                     .Include(h => h.ToCurrency)
                     .Include(h => h.CommissionCurrency)
@@ -755,6 +775,10 @@
 
                     var generatedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
+
+                    await EnsureNotSettlementConvertedAsync(generatedHawala == null
+                        ? [hawala.Id]
+                        : [hawala.Id, generatedHawala.Id]);
 
                     var affectedHawalaIds = new List<long> { hawala.Id };
                     if (generatedHawala != null)

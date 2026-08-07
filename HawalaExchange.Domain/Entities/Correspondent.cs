@@ -35,6 +35,11 @@ namespace HawalaExchange.Domain.Entities
 
         public bool IsArchived { get; set; } = false;
 
+        public long? SettlementCurrencyId { get; set; }
+
+        [ForeignKey(nameof(SettlementCurrencyId))]
+        public virtual Currency? SettlementCurrency { get; set; }
+
         [MaxLength(1000)]
         public string? Remarks { get; set; }
 
@@ -45,5 +50,6 @@ namespace HawalaExchange.Domain.Entities
 
         // Navigation Properties
         public virtual ICollection<TransactionDetail>? TransactionDetails { get; set; }
+        public virtual ICollection<CorrespondentSettlementConversion> SettlementConversions { get; set; } = [];
     }
 }

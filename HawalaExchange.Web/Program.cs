@@ -74,6 +74,12 @@ public partial class Program
             options.AddPolicy("PlatformWrite", policy => policy
                 .RequireClaim("platform_user", "true")
                 .RequireRole(PlatformRoles.Writers));
+            options.AddPolicy("PlatformBilling", policy => policy
+                .RequireClaim("platform_user", "true")
+                .RequireRole(PlatformRoles.Billing));
+            options.AddPolicy("PlatformAudit", policy => policy
+                .RequireClaim("platform_user", "true")
+                .RequireRole(PlatformRoles.Auditors));
             options.AddPolicy("TenantAccess", policy => policy
                 .RequireClaim(CurrentTenant.TenantIdClaim));
         });
@@ -135,6 +141,7 @@ public partial class Program
         builder.Services.AddScoped<IPlatformUserService, PlatformUserService>();
         builder.Services.AddScoped<ISaasAutomationService, SaasAutomationService>();
         builder.Services.AddScoped<ISaasReportingService, SaasReportingService>();
+        builder.Services.AddScoped<IPlatformAuditService, PlatformAuditService>();
         builder.Services.AddSingleton<IPlatformMessageSender, SmtpPlatformMessageSender>();
         builder.Services.AddHostedService<SaasAutomationWorker>();
         // ============================================================

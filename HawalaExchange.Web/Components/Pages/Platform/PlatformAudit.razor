@@ -1,0 +1,74 @@
+@page "/platform/audit"
+@attribute [Authorize(Policy = "PlatformAudit")]
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@inject IPlatformAuditService AuditService
+@inject ISaasAdministrationService AdministrationService
+@rendermode InteractiveServer
+
+<PageTitle>رویدادهای امنیتی پلتفرم</PageTitle>
+
+<div class="page-wrapper">
+    <div class="page-header"><div><h5 class="page-title"><i class="bi bi-shield-check"></i> رویدادهای امنیتی پلتفرم</h5><span class="page-subtitle">ردیابی تغییرات مدیریتی و عملیات حساس SaaS</span></div></div>
+    @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-danger">@message</div> }
+
+    <div class="modern-card mb-3"><div class="card-body"><div class="row g-3 align-items-end">
+        <div class="col-lg-3"><label class="form-label">جستجوی فوری</label><div class="input-group-modern"><span class="input-icon"><i class="bi bi-search"></i></span><input class="form-control-modern" value="@filter.Search" @oninput="SearchChanged" placeholder="عملیات، موجودیت یا جزئیات..." /></div></div>
+        <div class="col-lg-2"><label class="form-label">صرافی</label><select class="form-select" value="@(filter.TenantId?.ToString() ?? "")" @onchange="TenantChanged"><option value="">همه صرافی‌ها</option>@foreach(var tenant in tenants){<option value="@tenant.Id">@tenant.Name</option>}</select></div>
+        <div class="col-lg-2"><label class="form-label">عملیات</label><select class="form-select" value="@filter.Action" @onchange="ActionChanged"><option value="">همه عملیات</option>@foreach(var action in actions){<option value="@action">@ActionLabel(action)</option>}</select></div>
+        <div class="col-lg-2"><label class="form-label">از تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.FromDate" @bind-Value:after="FilterChangedAsync" /></div>
+        <div class="col-lg-2"><label class="form-label">تا تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.ToDate" @bind-Value:after="FilterChangedAsync" /></div>
+        <div class="col-lg-1"><button class="btn-modern btn-light-modern w-100" @onclick="ResetAsync"><i class="bi bi-arrow-counterclockwise"></i></button></div>
+    </div></div></div>
+
+    <div class="modern-card">
+        <div class="card-header d-flex justify-content-between"><h6 class="mb-0">سابقه عملیات</h6><span>@auditPage.TotalRows.ToString("N0") رویداد</span></div>
+        <div class="table-responsive"><table class="table modern-table mb-0">
+            <thead><tr><th>زمان</th><th>کاربر</th><th>عملیات</th><th>صرافی</th><th>موجودیت</th><th>جزئیات</th></tr></thead>
+            <tbody>
+                @if (loading) { <tr><td colspan="6" class="text-center p-4">در حال بارگذاری...</td></tr> }
+                else if (auditPage.Rows.Count == 0) { <tr><td colspan="6" class="text-center text-muted p-4">رویدادی یافت نشد.</td></tr> }
+                else @foreach (var row in auditPage.Rows)
+                {
+                    <tr><td dir="ltr">@row.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td><td class="fw-bold">@row.ActorName</td><td><span class="badge-modern badge-info">@ActionLabel(row.Action)</span></td><td>@(row.TenantName ?? "پلتفرم")</td><td>@row.EntityName @(row.EntityId.HasValue ? $"#{row.EntityId}" : "")</td><td class="audit-details" title="@row.Details">@(row.Details ?? "-")</td></tr>
+                }
+            </tbody>
+        </table></div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-3"><button class="btn btn-outline-primary" disabled="@(filter.Page <= 1)" @onclick="PreviousPage">قبلی</button><span>صفحه @filter.Page از @TotalPages</span><button class="btn btn-outline-primary" disabled="@(filter.Page >= TotalPages)" @onclick="NextPage">بعدی</button></div>
+</div>
+
+<style>.audit-details{max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}</style>
+
+@code {
+    private PlatformAuditFilterDto filter = new();
+    private PlatformAuditPageDto auditPage = new();
+    private List<SaasTenantDto> tenants = [];
+    private List<string> actions = [];
+    private bool loading = true;
+    private string? message;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(auditPage.TotalRows / (double)filter.PageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        tenants = (await AdministrationService.GetTenantsAsync()).ToList();
+        actions = (await AuditService.GetActionsAsync()).ToList();
+        await LoadAsync();
+    }
+    private async Task LoadAsync(){loading=true;message=null;try{auditPage=await AuditService.GetAsync(filter);}catch(Exception ex){message=ex.Message;}finally{loading=false;}}
+    private async Task FilterChangedAsync(){filter.Page=1;await LoadAsync();}
+    private async Task SearchChanged(ChangeEventArgs e){filter.Search=e.Value?.ToString();await FilterChangedAsync();}
+    private async Task TenantChanged(ChangeEventArgs e){filter.TenantId=long.TryParse(e.Value?.ToString(),out var id)?id:null;await FilterChangedAsync();}
+    private async Task ActionChanged(ChangeEventArgs e){filter.Action=e.Value?.ToString();await FilterChangedAsync();}
+    private async Task ResetAsync(){filter=new();await LoadAsync();}
+    private async Task PreviousPage(){filter.Page--;await LoadAsync();}
+    private async Task NextPage(){filter.Page++;await LoadAsync();}
+    private static string ActionLabel(string action) => action switch
+    {
+        "CREATE_TENANT" => "ایجاد صرافی", "CREATE_PLATFORM_USER" => "ایجاد کاربر مرکزی", "SET_PLATFORM_USER_ACTIVE" => "تغییر وضعیت کاربر",
+        "CHANGE_PLATFORM_USER_ROLE" => "تغییر نقش کاربر", "CREATE_PLAN" => "ایجاد پلن", "UPDATE_PLAN" => "ویرایش پلن",
+        "CHANGE_SUBSCRIPTION" => "تغییر اشتراک", "RECORD_PAYMENT" => "ثبت پرداخت", "CREATE_INVOICE" => "ایجاد فاکتور",
+        "RECORD_INVOICE_PAYMENT" => "ثبت پرداخت فاکتور", "CANCEL_INVOICE" => "لغو فاکتور", _ => "عملیات مدیریتی"
+    };
+}

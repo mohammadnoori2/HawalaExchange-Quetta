@@ -32,7 +32,7 @@
                     {
                         <tr>
                             <td class="fw-bold">@user.FullName</td><td>@user.UserName</td><td>@user.Email</td>
-                            <td><span class="badge-modern badge-info">@RoleLabel(user.Role)</span></td>
+                            <td><select class="form-select form-select-sm" value="@user.Role" @onchange="e => RoleChangedAsync(user, e)">@foreach (var role in PlatformRoles.All){<option value="@role">@RoleLabel(role)</option>}</select></td>
                             <td>@(user.LastLoginAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm") ?? "-")</td>
                             <td><span class="badge-modern @(user.IsActive ? "badge-success" : "badge-secondary")">@(user.IsActive ? "فعال" : "غیرفعال")</span></td>
                             <td><button class="btn btn-sm @(user.IsActive ? "btn-outline-danger" : "btn-outline-success")" @onclick="() => ToggleAsync(user)">@(user.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")</button></td>
@@ -57,7 +57,7 @@
                     <div class="mb-3"><label class="form-label">نام کاربری</label><InputText class="form-control" @bind-Value="model.UserName" /></div>
                     <div class="mb-3"><label class="form-label">ایمیل</label><InputText class="form-control" @bind-Value="model.Email" /></div>
                     <div class="mb-3"><label class="form-label">رمز عبور</label><InputText type="password" class="form-control" @bind-Value="model.Password" /></div>
-                    <div class="mb-3"><label class="form-label">نقش</label><InputSelect class="form-select" @bind-Value="model.Role"><option value="@PlatformRoles.Admin">مدیر پلتفرم</option><option value="@PlatformRoles.Support">پشتیبانی</option><option value="@PlatformRoles.Owner">مالک پلتفرم</option></InputSelect></div>
+                    <div class="mb-3"><label class="form-label">نقش</label><InputSelect class="form-select" @bind-Value="model.Role">@foreach (var role in PlatformRoles.All){<option value="@role">@RoleLabel(role)</option>}</InputSelect></div>
                 </div>
                 <div class="modal-footer"><button type="button" class="btn-modern btn-light-modern" @onclick="CloseCreate">انصراف</button><button type="button" class="btn-modern btn-primary-modern" disabled="@saving" @onclick="CreateAsync">ذخیره</button></div>
             </EditForm>
@@ -90,5 +90,12 @@
         try { await PlatformUserService.SetActiveAsync(user.Id, !user.IsActive); await LoadAsync(); message = "وضعیت کاربر به‌روزرسانی شد."; isError = false; }
         catch (Exception ex) { message = ex.Message; isError = true; }
     }
-    private static string RoleLabel(string role) => role switch { PlatformRoles.Owner => "مالک", PlatformRoles.Admin => "مدیر", PlatformRoles.Support => "پشتیبانی", _ => role };
+    private async Task RoleChangedAsync(PlatformUserDto user, ChangeEventArgs e)
+    {
+        var role = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(role) || role == user.Role) return;
+        try { await PlatformUserService.SetRoleAsync(user.Id, role); await LoadAsync(); message = "نقش کاربر به‌روزرسانی شد."; isError = false; }
+        catch (Exception ex) { message = ex.Message; isError = true; await LoadAsync(); }
+    }
+    private static string RoleLabel(string role) => role switch { PlatformRoles.SuperAdmin => "مدیر کل پلتفرم", PlatformRoles.Owner => "مالک پلتفرم", PlatformRoles.Admin => "مدیر", PlatformRoles.Support => "پشتیبانی", PlatformRoles.Finance => "مالی", PlatformRoles.Viewer => "مشاهده‌گر", _ => "کاربر پلتفرم" };
 }

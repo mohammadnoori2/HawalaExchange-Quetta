@@ -28,11 +28,12 @@
                     <AuthorizeView Policy="PlatformWrite" Context="platformWriteAuth">
                         <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/tenants"><span class="bi bi-buildings"></span> صرافی‌ها</NavLink></div>
                         <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/plans"><span class="bi bi-box-seam"></span> پلن‌های اشتراک</NavLink></div>
-                        <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/billing"><span class="bi bi-receipt-cutoff"></span> مالی و فاکتورها</NavLink></div>
                         <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/automation"><span class="bi bi-bell"></span> اعلان‌ها و اتوماسیون</NavLink></div>
-                        <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/reports"><span class="bi bi-bar-chart-line"></span> گزارش‌های SaaS</NavLink></div>
                         <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/users"><span class="bi bi-person-gear"></span> مدیران پلتفرم</NavLink></div>
                     </AuthorizeView>
+                    <AuthorizeView Policy="PlatformBilling" Context="platformBillingAuth"><div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/billing"><span class="bi bi-receipt-cutoff"></span> مالی و فاکتورها</NavLink></div></AuthorizeView>
+                    <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/reports"><span class="bi bi-bar-chart-line"></span> گزارش‌های SaaS</NavLink></div>
+                    <AuthorizeView Policy="PlatformAudit" Context="platformAuditAuth"><div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/audit"><span class="bi bi-shield-check"></span> رویدادهای امنیتی</NavLink></div></AuthorizeView>
                     <div class="nav-divider"></div>
                 </Authorized>
             </AuthorizeView>

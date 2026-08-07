@@ -9,8 +9,16 @@ namespace HawalaExchange.Application.Services
 {
     public class BranchService : BaseService<Branch, BranchDto, CreateBranchDto, UpdateBranchDto>, IBranchService
     {
-        public BranchService(ApplicationDbContext context, IMapper mapper)
-            : base(context, mapper) { }
+        private readonly ISubscriptionAccessService subscriptionAccess;
+
+        public BranchService(ApplicationDbContext context, IMapper mapper, ISubscriptionAccessService subscriptionAccess)
+            : base(context, mapper) => this.subscriptionAccess = subscriptionAccess;
+
+        public override async Task<BranchDto> CreateAsync(CreateBranchDto createDto)
+        {
+            await subscriptionAccess.EnsureBranchCapacityAsync(_context.CurrentTenantId);
+            return await base.CreateAsync(createDto);
+        }
 
         public async Task<BranchDto?> GetByCodeAsync(string code)
         {
@@ -36,8 +44,8 @@ namespace HawalaExchange.Application.Services
                 .ToListAsync();
 
             var userBranchIds = await _context.Users
-                .Where(u => branchIds.Contains(u.BranchId))
-                .Select(u => u.BranchId)
+                .Where(u => u.BranchId.HasValue && branchIds.Contains(u.BranchId.Value))
+                .Select(u => u.BranchId!.Value)
                 .Distinct()
                 .ToListAsync();
 

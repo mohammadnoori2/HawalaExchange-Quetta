@@ -1,0 +1,176 @@
+@page "/platform/plans"
+@attribute [Authorize(Policy = "PlatformWrite")]
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@inject ISaasAdministrationService SaasService
+@rendermode InteractiveServer
+
+<PageTitle>پلن‌های اشتراک</PageTitle>
+
+<div class="page-wrapper">
+    <div class="page-header">
+        <div>
+            <h5 class="page-title"><i class="bi bi-box-seam"></i> پلن‌های اشتراک</h5>
+            <span class="page-subtitle">قیمت، ظرفیت و قابلیت‌های هر پلن را مدیریت کنید</span>
+        </div>
+        <button class="btn-modern btn-primary-modern" @onclick="OpenCreate"><i class="bi bi-plus-circle"></i> پلن جدید</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
+    }
+
+    <div class="modern-card mb-3">
+        <div class="card-body">
+            <div class="input-group-modern">
+                <span class="input-icon"><i class="bi bi-search"></i></span>
+                <input class="form-control-modern" value="@searchTerm" @oninput="e => searchTerm = e.Value?.ToString() ?? string.Empty" placeholder="جستجوی پلن..." />
+            </div>
+        </div>
+    </div>
+
+    <div class="modern-card">
+        <div class="table-responsive">
+            <table class="table modern-table mb-0">
+                <thead><tr><th>پلن</th><th>قیمت ماهانه</th><th>قیمت سالانه</th><th>کاربران</th><th>شعبه‌ها</th><th>تراکنش ماهانه</th><th>وضعیت</th><th></th></tr></thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr><td colspan="8" class="text-center py-5">در حال بارگذاری...</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var plan in FilteredPlans)
+                        {
+                            <tr>
+                                <td><div class="fw-bold">@plan.Name</div><small class="text-muted">@plan.Code</small></td>
+                                <td>@plan.MonthlyPrice.ToString("N2") @plan.CurrencyCode</td>
+                                <td>@plan.AnnualPrice.ToString("N2") @plan.CurrencyCode</td>
+                                <td>@plan.MaxUsers</td>
+                                <td>@plan.MaxBranches</td>
+                                <td>@plan.MaxMonthlyTransactions.ToString("N0")</td>
+                                <td><span class="badge-modern @(plan.IsActive ? "badge-success" : "badge-secondary")">@(plan.IsActive ? "فعال" : "غیرفعال")</span></td>
+                                <td><button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEdit(plan)"><i class="bi bi-pencil"></i> ویرایش</button></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">@(editingId == 0 ? "ایجاد پلن" : "ویرایش پلن")</h5><button type="button" class="btn-close" @onclick="CloseModal"></button></div>
+                <EditForm EditContext="editContext" FormName="save-subscription-plan">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <ValidationSummary class="text-danger" />
+                        <div class="row g-3">
+                            <div class="col-md-4"><label class="form-label">نام پلن</label><InputText class="form-control" @bind-Value="model.Name" /></div>
+                            <div class="col-md-4"><label class="form-label">کد پلن</label><InputText class="form-control" @bind-Value="model.Code" /></div>
+                            <div class="col-md-4"><label class="form-label">واحد پول</label><InputText class="form-control" @bind-Value="model.CurrencyCode" /></div>
+                            <div class="col-12"><label class="form-label">توضیحات</label><InputTextArea class="form-control" @bind-Value="model.Description" /></div>
+                            <div class="col-md-3"><label class="form-label">قیمت ماهانه</label><InputNumber class="form-control" @bind-Value="model.MonthlyPrice" /></div>
+                            <div class="col-md-3"><label class="form-label">قیمت سالانه</label><InputNumber class="form-control" @bind-Value="model.AnnualPrice" /></div>
+                            <div class="col-md-3"><label class="form-label">روزهای آزمایشی</label><InputNumber class="form-control" @bind-Value="model.TrialDays" /></div>
+                            <div class="col-md-3"><label class="form-label">ترتیب نمایش</label><InputNumber class="form-control" @bind-Value="model.DisplayOrder" /></div>
+                            <div class="col-md-3"><label class="form-label">حداکثر کاربران</label><InputNumber class="form-control" @bind-Value="model.MaxUsers" /></div>
+                            <div class="col-md-3"><label class="form-label">حداکثر شعبه‌ها</label><InputNumber class="form-control" @bind-Value="model.MaxBranches" /></div>
+                            <div class="col-md-3"><label class="form-label">تراکنش ماهانه</label><InputNumber class="form-control" @bind-Value="model.MaxMonthlyTransactions" /></div>
+                            <div class="col-md-3"><label class="form-label">فضای ذخیره‌سازی (GB)</label><InputNumber class="form-control" @bind-Value="storageGigabytes" /></div>
+                            <div class="col-md-4 form-check form-switch ms-3"><InputCheckbox class="form-check-input" @bind-Value="model.IncludesAdvancedReports" /><label class="form-check-label">گزارش‌های پیشرفته</label></div>
+                            <div class="col-md-4 form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="model.IncludesDocumentManagement" /><label class="form-check-label">مدیریت اسناد</label></div>
+                            <div class="col-md-3 form-check form-switch"><InputCheckbox class="form-check-input" @bind-Value="model.IsActive" /><label class="form-check-label">پلن فعال باشد</label></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-modern btn-light-modern" @onclick="CloseModal">انصراف</button>
+                        <button type="button" class="btn-modern btn-primary-modern" disabled="@isSaving" @onclick="SaveAsync">@(isSaving ? "در حال ذخیره..." : "ذخیره")</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<SubscriptionPlanDto> plans = [];
+    private SaveSubscriptionPlanDto model = new();
+    private EditContext editContext = default!;
+    private long editingId;
+    private long storageGigabytes;
+    private string searchTerm = string.Empty;
+    private string? message;
+    private bool isError;
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showModal;
+
+    private IEnumerable<SubscriptionPlanDto> FilteredPlans => string.IsNullOrWhiteSpace(searchTerm)
+        ? plans
+        : plans.Where(x => x.Name.Contains(searchTerm.Trim(), StringComparison.OrdinalIgnoreCase) || x.Code.Contains(searchTerm.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        plans = (await SaasService.GetPlansAsync()).ToList();
+        isLoading = false;
+    }
+
+    private void OpenCreate()
+    {
+        editingId = 0;
+        storageGigabytes = 1;
+        model = new SaveSubscriptionPlanDto { CurrencyCode = "USD", MaxUsers = 5, MaxBranches = 1, MaxMonthlyTransactions = 1000, IsActive = true };
+        editContext = new EditContext(model);
+        showModal = true;
+        message = null;
+    }
+
+    private void OpenEdit(SubscriptionPlanDto plan)
+    {
+        editingId = plan.Id;
+        storageGigabytes = plan.MaxStorageBytes / (1024L * 1024 * 1024);
+        model = new SaveSubscriptionPlanDto
+        {
+            Code = plan.Code, Name = plan.Name, Description = plan.Description,
+            MonthlyPrice = plan.MonthlyPrice, AnnualPrice = plan.AnnualPrice, CurrencyCode = plan.CurrencyCode,
+            TrialDays = plan.TrialDays, MaxUsers = plan.MaxUsers, MaxBranches = plan.MaxBranches,
+            MaxMonthlyTransactions = plan.MaxMonthlyTransactions, IncludesAdvancedReports = plan.IncludesAdvancedReports,
+            IncludesDocumentManagement = plan.IncludesDocumentManagement, IsActive = plan.IsActive, DisplayOrder = plan.DisplayOrder
+        };
+        editContext = new EditContext(model);
+        showModal = true;
+        message = null;
+    }
+
+    private void CloseModal() => showModal = false;
+
+    private async Task SaveAsync()
+    {
+        model.MaxStorageBytes = storageGigabytes * 1024L * 1024 * 1024;
+        if (!editContext.Validate()) return;
+        try
+        {
+            isSaving = true;
+            var saved = editingId == 0
+                ? await SaasService.CreatePlanAsync(model)
+                : await SaasService.UpdatePlanAsync(editingId, model);
+            message = $"پلن «{saved.Name}» ذخیره شد.";
+            isError = false;
+            showModal = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { message = ex.Message; isError = true; }
+        finally { isSaving = false; }
+    }
+}

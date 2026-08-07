@@ -14,6 +14,7 @@ namespace HawalaExchange.Application.Services
         private readonly IAccountService _accountService;
         private readonly IExchangeRateService _exchangeRateService;
         private readonly IAuditLogService _auditLogService;
+        private readonly ISubscriptionAccessService _subscriptionAccess;
 
         public TransactionService(
             ApplicationDbContext context,
@@ -21,18 +22,21 @@ namespace HawalaExchange.Application.Services
             ILedgerService ledgerService,
             IAccountService accountService,
             IExchangeRateService exchangeRateService,
-            IAuditLogService auditLogService)
+            IAuditLogService auditLogService,
+            ISubscriptionAccessService subscriptionAccess)
             : base(context, mapper)
         {
             _ledgerService = ledgerService;
             _accountService = accountService;
             _exchangeRateService = exchangeRateService;
             _auditLogService = auditLogService;
+            _subscriptionAccess = subscriptionAccess;
         }
 
         // ✅ Override CreateAsync to set CreatedBy
         public override async Task<TransactionDto> CreateAsync(CreateTransactionDto createDto)
         {
+            await _subscriptionAccess.EnsureMonthlyTransactionCapacityAsync(_context.CurrentTenantId);
             await using var dbTransaction = await _context.Database.BeginTransactionAsync();
             try
             {

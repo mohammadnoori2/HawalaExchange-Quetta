@@ -4,12 +4,14 @@
 @using System.ComponentModel.DataAnnotations
 @using HawalaExchange.Domain.Entities
 @using HawalaExchange.Infrastructure.Data
+@using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @inject ApplicationDbContext DbContext
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
+@inject ISubscriptionAccessService SubscriptionAccess
 @inject ILogger<Login> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
@@ -219,8 +221,21 @@
                 .Include(x => x.Tenant)
                 .SingleOrDefaultAsync(x =>
                     x.LocalUserName == localUserName &&
-                    x.Tenant.IsActive &&
-                    x.IsActive);
+                    x.IsActive &&
+                    (x.IsPlatformUser || (x.Tenant != null && x.Tenant.IsActive)));
+
+            if (user is { IsPlatformUser: false })
+            {
+                try
+                {
+                    await SubscriptionAccess.EnsureCanSignInAsync(user.TenantId);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    errorMessage = ex.Message;
+                    return;
+                }
+            }
 
             var result = user is null
                 ? SignInResult.Failed
@@ -232,11 +247,13 @@
 
             if (result.Succeeded)
             {
+                user!.LastLoginAt = DateTime.UtcNow;
+                await UserManager.UpdateAsync(user);
                 Logger.LogInformation("User logged in.");
                 isLoading = false;
 
                 // Direct redirect - no confirmation message
-                NavigationManager.NavigateTo(ReturnUrl ?? "/", true);
+                NavigationManager.NavigateTo(ReturnUrl ?? (user.IsPlatformUser ? "/platform" : "/"), true);
             }
             else if (result.RequiresTwoFactor)
             {

@@ -1,0 +1,104 @@
+@page "/platform"
+@attribute [Authorize(Policy = "PlatformAccess")]
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+@inject ISaasAdministrationService SaasService
+@rendermode InteractiveServer
+
+<PageTitle>مدیریت مرکزی SaaS</PageTitle>
+
+<div class="page-wrapper">
+    <div class="page-header">
+        <div>
+            <h5 class="page-title"><i class="bi bi-grid-1x2"></i> مدیریت مرکزی SaaS</h5>
+            <span class="page-subtitle">نمای کلی صرافی‌ها، اشتراک‌ها و درآمد سیستم</span>
+        </div>
+        <div class="page-actions">
+            <a class="btn-modern btn-light-modern" href="/platform/plans"><i class="bi bi-box-seam"></i> پلن‌ها</a>
+            <a class="btn-modern btn-primary-modern" href="/tenants"><i class="bi bi-plus-circle"></i> مدیریت صرافی‌ها</a>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="modern-card p-5 text-center">در حال بارگذاری داشبورد...</div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            <MetricCard Title="کل صرافی‌ها" Value="@dashboard.TotalTenants.ToString()" Icon="bi-buildings" Tone="primary" />
+            <MetricCard Title="اشتراک فعال" Value="@dashboard.ActiveTenants.ToString()" Icon="bi-check-circle" Tone="success" />
+            <MetricCard Title="دوره آزمایشی" Value="@dashboard.TrialTenants.ToString()" Icon="bi-hourglass-split" Tone="info" />
+            <MetricCard Title="نزدیک انقضا" Value="@dashboard.ExpiringSoonTenants.ToString()" Icon="bi-clock-history" Tone="warning" />
+            <MetricCard Title="منقضی‌شده" Value="@dashboard.ExpiredTenants.ToString()" Icon="bi-x-circle" Tone="danger" />
+            <MetricCard Title="تعلیق‌شده" Value="@dashboard.SuspendedTenants.ToString()" Icon="bi-pause-circle" Tone="secondary" />
+            <MetricCard Title="کل کاربران" Value="@dashboard.TotalUsers.ToString()" Icon="bi-people" Tone="primary" />
+            <MetricCard Title="درآمد این ماه" Value="@dashboard.CollectedRevenueThisMonth.ToString("N2")" Icon="bi-cash-stack" Tone="success" />
+        </div>
+
+        <div class="modern-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">آخرین صرافی‌های ثبت‌شده</h6>
+                <a href="/tenants">مشاهده همه</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table modern-table mb-0">
+                    <thead><tr><th>صرافی</th><th>پلن</th><th>اشتراک</th><th>پایان</th><th>کاربران</th><th>شعبه‌ها</th></tr></thead>
+                    <tbody>
+                        @foreach (var tenant in dashboard.RecentTenants)
+                        {
+                            <tr>
+                                <td class="fw-bold">@tenant.Name</td>
+                                <td>@(tenant.PlanName ?? "بدون پلن")</td>
+                                <td><span class="badge-modern @GetStatusBadge(tenant.SubscriptionStatus)">@GetStatusText(tenant.SubscriptionStatus)</span></td>
+                                <td>@(tenant.SubscriptionEndAt?.ToLocalTime().ToString("yyyy/MM/dd") ?? "-")</td>
+                                <td>@tenant.UserCount</td>
+                                <td>@tenant.BranchCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private SaasDashboardDto dashboard = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { dashboard = await SaasService.GetDashboardAsync(); }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isLoading = false; }
+    }
+
+    private static string GetStatusText(SubscriptionStatus? status) => status switch
+    {
+        SubscriptionStatus.Trial => "آزمایشی",
+        SubscriptionStatus.Active => "فعال",
+        SubscriptionStatus.ExpiringSoon => "نزدیک انقضا",
+        SubscriptionStatus.Expired => "منقضی",
+        SubscriptionStatus.Suspended => "تعلیق",
+        SubscriptionStatus.Cancelled => "لغوشده",
+        _ => "بدون اشتراک"
+    };
+
+    private static string GetStatusBadge(SubscriptionStatus? status) => status switch
+    {
+        SubscriptionStatus.Active => "badge-success",
+        SubscriptionStatus.Trial => "badge-info",
+        SubscriptionStatus.ExpiringSoon => "badge-warning",
+        SubscriptionStatus.Expired => "badge-danger",
+        SubscriptionStatus.Suspended => "badge-secondary",
+        _ => "badge-secondary"
+    };
+}

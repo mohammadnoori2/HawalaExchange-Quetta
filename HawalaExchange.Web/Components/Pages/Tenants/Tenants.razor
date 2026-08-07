@@ -1,10 +1,12 @@
 @page "/tenants"
-@attribute [Authorize(Roles = "SuperAdmin")]
+@attribute [Authorize(Policy = "PlatformWrite")]
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Domain.Entities
 @using Microsoft.AspNetCore.Authorization
 @inject ITenantAdministrationService TenantService
+@inject ISaasAdministrationService SaasService
 @inject ICurrentTenant CurrentTenant
 @rendermode InteractiveServer
 
@@ -114,6 +116,9 @@
                                 <input id="tenant-name" class="form-control" @bind="createModel.Name" @bind:event="oninput" />
                                 <ValidationMessage For="@(() => createModel.Name)" />
                             </div>
+                            <div class="col-md-6"><label class="form-label">نام مسئول تماس</label><input class="form-control" @bind="createModel.ContactName" @bind:event="oninput" /></div>
+                            <div class="col-md-6"><label class="form-label">شماره تماس</label><input class="form-control" @bind="createModel.ContactPhone" @bind:event="oninput" /></div>
+                            <div class="col-12"><label class="form-label">ایمیل تماس</label><input type="email" class="form-control" @bind="createModel.ContactEmail" @bind:event="oninput" /></div>
                             <div class="col-md-6">
                                 <label class="form-label" for="tenant-admin-name">نام مدیر</label>
                                 <input id="tenant-admin-name" class="form-control" @bind="createModel.AdminFullName" @bind:event="oninput" />
@@ -134,6 +139,31 @@
                                 <input id="tenant-admin-password" type="password" class="form-control" autocomplete="new-password" @bind="createModel.AdminPassword" @bind:event="oninput" />
                                 <ValidationMessage For="@(() => createModel.AdminPassword)" />
                             </div>
+                            <div class="col-12"><hr /><h6>اشتراک اولیه</h6></div>
+                            <div class="col-md-6">
+                                <label class="form-label">پلن اشتراک</label>
+                                <InputSelect class="form-select" @bind-Value="createModel.PlanId">
+                                    <option value="0">انتخاب پلن</option>
+                                    @foreach (var plan in plans.Where(x => x.IsActive))
+                                    {
+                                        <option value="@plan.Id">@plan.Name</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">دوره پرداخت</label>
+                                <InputSelect class="form-select" @bind-Value="createModel.BillingCycle">
+                                    <option value="@BillingCycle.Monthly">ماهانه</option>
+                                    <option value="@BillingCycle.Quarterly">سه‌ماهه</option>
+                                    <option value="@BillingCycle.SemiAnnual">شش‌ماهه</option>
+                                    <option value="@BillingCycle.Annual">سالانه</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6"><label class="form-label">تاریخ شروع</label><InputDate class="form-control" @bind-Value="createModel.SubscriptionStartAt" /></div>
+                            <div class="col-md-6"><label class="form-label">تاریخ پایان</label><InputDate class="form-control" @bind-Value="createModel.SubscriptionEndAt" /></div>
+                            <div class="col-md-6"><label class="form-label">مبلغ توافق‌شده</label><InputNumber class="form-control" @bind-Value="createModel.AgreedPrice" /></div>
+                            <div class="col-md-3"><label class="form-label">ارز</label><InputText class="form-control" @bind-Value="createModel.SubscriptionCurrencyCode" /></div>
+                            <div class="col-md-3 form-check form-switch mt-5"><InputCheckbox class="form-check-input" @bind-Value="createModel.AutoRenew" /><label class="form-check-label">تمدید خودکار</label></div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -151,7 +181,7 @@
 @if (showEdit)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">مدیریت صرافی</h5>
@@ -174,6 +204,20 @@
                         {
                             <div class="form-text">برای جلوگیری از قطع دسترسی، صرافی جاری قابل غیرفعال‌سازی نیست.</div>
                         }
+                        <hr />
+                        <h6 class="mb-3">مدیریت اشتراک</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">پلن</label><InputSelect class="form-select" @bind-Value="subscriptionModel.PlanId">@foreach (var plan in plans) { <option value="@plan.Id">@plan.Name</option> }</InputSelect></div>
+                            <div class="col-md-6"><label class="form-label">وضعیت</label><InputSelect class="form-select" @bind-Value="subscriptionModel.Status"><option value="@SubscriptionStatus.Active">فعال</option><option value="@SubscriptionStatus.Trial">آزمایشی</option><option value="@SubscriptionStatus.Suspended">تعلیق‌شده</option><option value="@SubscriptionStatus.Cancelled">لغوشده</option><option value="@SubscriptionStatus.Expired">منقضی</option></InputSelect></div>
+                            <div class="col-md-6"><label class="form-label">شروع</label><InputDate class="form-control" @bind-Value="subscriptionModel.StartAt" /></div>
+                            <div class="col-md-6"><label class="form-label">پایان/تمدید تا</label><InputDate class="form-control" @bind-Value="subscriptionModel.EndAt" /></div>
+                            <div class="col-md-6"><label class="form-label">پایان دوره مهلت</label><InputDate class="form-control" @bind-Value="subscriptionModel.GracePeriodEndAt" /></div>
+                            <div class="col-md-6"><label class="form-label">دوره پرداخت</label><InputSelect class="form-select" @bind-Value="subscriptionModel.BillingCycle"><option value="@BillingCycle.Monthly">ماهانه</option><option value="@BillingCycle.Quarterly">سه‌ماهه</option><option value="@BillingCycle.SemiAnnual">شش‌ماهه</option><option value="@BillingCycle.Annual">سالانه</option></InputSelect></div>
+                            <div class="col-md-4"><label class="form-label">مبلغ</label><InputNumber class="form-control" @bind-Value="subscriptionModel.AgreedPrice" /></div>
+                            <div class="col-md-4"><label class="form-label">ارز</label><InputText class="form-control" @bind-Value="subscriptionModel.CurrencyCode" /></div>
+                            <div class="col-md-4 form-check form-switch mt-5"><InputCheckbox class="form-check-input" @bind-Value="subscriptionModel.AutoRenew" /><label class="form-check-label">تمدید خودکار</label></div>
+                            <div class="col-12"><label class="form-label">دلیل تعلیق/یادداشت</label><InputTextArea class="form-control" @bind-Value="subscriptionModel.SuspensionReason" /></div>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn-modern btn-light-modern" @onclick="CloseEdit">انصراف</button>
@@ -189,8 +233,11 @@
 
 @code {
     private List<TenantDto> tenants = [];
+    private List<SubscriptionPlanDto> plans = [];
+    private List<SaasTenantDto> saasTenants = [];
     private CreateTenantDto createModel = new();
     private UpdateTenantDto updateModel = new();
+    private ChangeSubscriptionDto subscriptionModel = new();
     private EditContext createEditContext = default!;
     private EditContext updateEditContext = default!;
     private long editingTenantId;
@@ -206,12 +253,17 @@
         ? tenants
         : tenants.Where(x => x.Name.Contains(searchTerm.Trim(), StringComparison.OrdinalIgnoreCase));
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        plans = (await SaasService.GetPlansAsync(false)).ToList();
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
         isLoading = true;
         tenants = (await TenantService.GetAllAsync()).ToList();
+        saasTenants = (await SaasService.GetTenantsAsync()).ToList();
         isLoading = false;
     }
 
@@ -222,7 +274,14 @@
 
     private void OpenCreate()
     {
-        createModel = new CreateTenantDto();
+        var start = DateTime.UtcNow.Date;
+        createModel = new CreateTenantDto
+        {
+            PlanId = plans.FirstOrDefault(x => x.IsActive)?.Id ?? 0,
+            SubscriptionStartAt = start,
+            SubscriptionEndAt = start.AddMonths(1),
+            SubscriptionCurrencyCode = plans.FirstOrDefault(x => x.IsActive)?.CurrencyCode ?? "USD"
+        };
         createEditContext = new EditContext(createModel);
         message = null;
         showCreate = true;
@@ -234,6 +293,18 @@
     {
         editingTenantId = tenant.Id;
         updateModel = new UpdateTenantDto { Name = tenant.Name, IsActive = tenant.IsActive };
+        var subscription = saasTenants.FirstOrDefault(x => x.Id == tenant.Id);
+        var start = subscription?.SubscriptionStartAt ?? DateTime.UtcNow.Date;
+        subscriptionModel = new ChangeSubscriptionDto
+        {
+            PlanId = subscription?.PlanId ?? plans.FirstOrDefault()?.Id ?? 0,
+            Status = subscription?.SubscriptionStatus ?? SubscriptionStatus.Active,
+            BillingCycle = BillingCycle.Monthly,
+            StartAt = start,
+            EndAt = subscription?.SubscriptionEndAt ?? start.AddMonths(1),
+            GracePeriodEndAt = subscription?.SubscriptionEndAt?.AddDays(7),
+            CurrencyCode = plans.FirstOrDefault(x => x.Id == subscription?.PlanId)?.CurrencyCode ?? "USD"
+        };
         updateEditContext = new EditContext(updateModel);
         message = null;
         showEdit = true;
@@ -273,6 +344,7 @@
         {
             isSaving = true;
             var updated = await TenantService.UpdateAsync(editingTenantId, updateModel);
+            await SaasService.ChangeSubscriptionAsync(editingTenantId, subscriptionModel);
             message = $"اطلاعات صرافی «{updated.Name}» ذخیره شد.";
             isError = false;
             showEdit = false;

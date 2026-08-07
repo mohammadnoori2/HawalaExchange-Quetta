@@ -14,6 +14,7 @@
 @inject NavigationManager NavigationManager
 @inject ILogger<Users> Logger
 @inject ICurrentTenant CurrentTenant
+@inject ISubscriptionAccessService SubscriptionAccess
 @inject HawalaExchange.Infrastructure.Data.ApplicationDbContext DbContext
 @rendermode InteractiveServer
 
@@ -1311,6 +1312,7 @@
             }
             else
             {
+                await SubscriptionAccess.EnsureUserCapacityAsync(CurrentTenant.TenantId);
                 var user = new ApplicationUser
                 {
                     TenantId = CurrentTenant.TenantId,

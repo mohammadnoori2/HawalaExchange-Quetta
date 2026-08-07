@@ -17,7 +17,9 @@ public sealed class TenantUserClaimsPrincipalFactory(
     protected override async Task<ClaimsIdentity> GenerateClaimsAsync(ApplicationUser user)
     {
         var identity = await base.GenerateClaimsAsync(user);
-        identity.AddClaim(new Claim(CurrentTenant.TenantIdClaim, user.TenantId.ToString()));
+        if (!user.IsPlatformUser)
+            identity.AddClaim(new Claim(CurrentTenant.TenantIdClaim, user.TenantId.ToString()));
+        identity.AddClaim(new Claim("platform_user", user.IsPlatformUser ? "true" : "false"));
         identity.AddClaim(new Claim("local_user_name", user.LocalUserName));
         return identity;
     }

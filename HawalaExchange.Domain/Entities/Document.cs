@@ -64,6 +64,8 @@ namespace HawalaExchange.Domain.Entities
         [MaxLength(100)]
         public string? ContentType { get; set; }
 
+        public long FileSizeBytes { get; set; }
+
         public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     }
 }

@@ -8,7 +8,8 @@ namespace HawalaExchange.Domain.Entities
         public long TenantId { get; set; }
         public string LocalUserName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
-        public long BranchId { get; set; }
+        public long? BranchId { get; set; }
+        public bool IsPlatformUser { get; set; }
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LastLoginAt { get; set; }
@@ -20,7 +21,7 @@ namespace HawalaExchange.Domain.Entities
         public virtual Branch? Branch { get; set; }
 
         [ForeignKey(nameof(TenantId))]
-        public virtual Tenant Tenant { get; set; } = null!;
+        public virtual Tenant? Tenant { get; set; }
 
         public virtual ICollection<Transaction>? CreatedTransactions { get; set; }
         public virtual ICollection<Transaction>? CancelledTransactions { get; set; }

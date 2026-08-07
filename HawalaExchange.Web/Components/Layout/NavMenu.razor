@@ -22,6 +22,20 @@
 
     <div class="nav-scrollable" onclick="document.getElementById('nav-toggle').checked = false;">
         <nav class="nav flex-column">
+            <AuthorizeView Policy="PlatformAccess">
+                <Authorized Context="platformAuth">
+                    <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform"><span class="bi bi-grid-1x2-fill"></span> داشبورد SaaS</NavLink></div>
+                    <AuthorizeView Policy="PlatformWrite" Context="platformWriteAuth">
+                        <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/tenants"><span class="bi bi-buildings"></span> صرافی‌ها</NavLink></div>
+                        <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/plans"><span class="bi bi-box-seam"></span> پلن‌های اشتراک</NavLink></div>
+                        <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/billing"><span class="bi bi-receipt-cutoff"></span> مالی و فاکتورها</NavLink></div>
+                        <div class="nav-item px-3"><NavLink class="nav-link-custom" href="/platform/users"><span class="bi bi-person-gear"></span> مدیران پلتفرم</NavLink></div>
+                    </AuthorizeView>
+                    <div class="nav-divider"></div>
+                </Authorized>
+            </AuthorizeView>
+            <AuthorizeView Policy="TenantAccess">
+                <Authorized Context="tenantAuth">
             <!-- داشبورد -->
             <div class="nav-item px-3">
                 <NavLink class="nav-link-custom" href="" Match="NavLinkMatch.All">
@@ -138,9 +152,18 @@
                     </span>
                 </div>
                 <div class="sub-menu" id="settingsSubMenu">
-                    <AuthorizeView Roles="SuperAdmin">
+                    <AuthorizeView Policy="PlatformAccess">
+                        <NavLink class="nav-link-custom sub-link" href="/platform">
+                            <span class="bi bi-grid-1x2"></span> داشبورد SaaS
+                        </NavLink>
                         <NavLink class="nav-link-custom sub-link" href="/tenants">
                             <span class="bi bi-buildings"></span> صرافی‌ها
+                        </NavLink>
+                        <NavLink class="nav-link-custom sub-link" href="/platform/plans">
+                            <span class="bi bi-box-seam"></span> پلن‌های اشتراک
+                        </NavLink>
+                        <NavLink class="nav-link-custom sub-link" href="/platform/users">
+                            <span class="bi bi-person-gear"></span> مدیران پلتفرم
                         </NavLink>
                     </AuthorizeView>
                     <NavLink class="nav-link-custom sub-link" href="/branches">
@@ -211,6 +234,9 @@
                         <span class="bi bi-clock-history"></span> لاگ‌های سیستم
                     </NavLink>
                 </div>
+            </AuthorizeView>
+
+                </Authorized>
             </AuthorizeView>
 
             <div class="nav-divider"></div>

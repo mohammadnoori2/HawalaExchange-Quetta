@@ -1,6 +1,7 @@
 ﻿using HawalaExchange.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace HawalaExchange.Infrastructure.Data
 {
@@ -9,12 +10,14 @@ namespace HawalaExchange.Infrastructure.Data
         public static async Task InitializeAsync(
             RoleManager<IdentityRole<long>> roleManager,
             UserManager<ApplicationUser> userManager,
-            ApplicationDbContext context) // ✅ اضافه کردن context
+            ApplicationDbContext context,
+            bool isDevelopment,
+            IConfiguration configuration)
         {
             // ==========================================
             // 1. ایجاد نقش‌ها
             // ==========================================
-            string[] roleNames = { "SuperAdmin", "Admin", "Manager", "Cashier", "Supervisor" };
+            string[] roleNames = ["SuperAdmin", "Admin", "Manager", "Cashier", "Supervisor", .. PlatformRoles.All];
 
             foreach (var roleName in roleNames)
             {
@@ -104,6 +107,37 @@ namespace HawalaExchange.Infrastructure.Data
                     if (!result.Succeeded)
                         throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
                 }
+            }
+
+            var platformPassword = configuration["PlatformOwner:Password"];
+            if (isDevelopment && string.IsNullOrWhiteSpace(platformPassword))
+                platformPassword = "Platform@123";
+
+            if (!string.IsNullOrWhiteSpace(platformPassword))
+            {
+                var platformUserName = configuration["PlatformOwner:UserName"] ?? "platformadmin";
+                var platformUser = await context.Users.IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(x => x.IsPlatformUser && x.LocalUserName == platformUserName);
+                if (platformUser is null)
+                {
+                    platformUser = new ApplicationUser
+                    {
+                        IsPlatformUser = true,
+                        TenantId = tenant.Id,
+                        LocalUserName = platformUserName,
+                        UserName = $"platform:{platformUserName}",
+                        Email = configuration["PlatformOwner:Email"] ?? "platform@hawalaexchange.local",
+                        FullName = "مالک پلتفرم",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    var createPlatformUser = await userManager.CreateAsync(platformUser, platformPassword);
+                    if (!createPlatformUser.Succeeded)
+                        throw new Exception(string.Join(", ", createPlatformUser.Errors.Select(x => x.Description)));
+                }
+
+                if (!await userManager.IsInRoleAsync(platformUser, PlatformRoles.Owner))
+                    await userManager.AddToRoleAsync(platformUser, PlatformRoles.Owner);
             }
         }
     }

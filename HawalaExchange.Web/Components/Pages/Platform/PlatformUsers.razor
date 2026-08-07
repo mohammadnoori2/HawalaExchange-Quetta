@@ -1,0 +1,94 @@
+@page "/platform/users"
+@attribute [Authorize(Policy = "PlatformWrite")]
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+@inject IPlatformUserService PlatformUserService
+@rendermode InteractiveServer
+
+<PageTitle>مدیران پلتفرم</PageTitle>
+
+<div class="page-wrapper">
+    <div class="page-header">
+        <div>
+            <h5 class="page-title"><i class="bi bi-person-gear"></i> مدیران پلتفرم</h5>
+            <span class="page-subtitle">حساب‌های مستقل تیم مالک SaaS</span>
+        </div>
+        <button class="btn-modern btn-primary-modern" @onclick="OpenCreate"><i class="bi bi-person-plus"></i> مدیر جدید</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
+    }
+
+    <div class="modern-card">
+        <div class="table-responsive">
+            <table class="table modern-table mb-0">
+                <thead><tr><th>نام</th><th>نام کاربری</th><th>ایمیل</th><th>نقش</th><th>آخرین ورود</th><th>وضعیت</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var user in users)
+                    {
+                        <tr>
+                            <td class="fw-bold">@user.FullName</td><td>@user.UserName</td><td>@user.Email</td>
+                            <td><span class="badge-modern badge-info">@RoleLabel(user.Role)</span></td>
+                            <td>@(user.LastLoginAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm") ?? "-")</td>
+                            <td><span class="badge-modern @(user.IsActive ? "badge-success" : "badge-secondary")">@(user.IsActive ? "فعال" : "غیرفعال")</span></td>
+                            <td><button class="btn btn-sm @(user.IsActive ? "btn-outline-danger" : "btn-outline-success")" @onclick="() => ToggleAsync(user)">@(user.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@if (showCreate)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">مدیر جدید پلتفرم</h5><button class="btn-close" @onclick="CloseCreate"></button></div>
+            <EditForm EditContext="editContext" FormName="create-platform-user">
+                <DataAnnotationsValidator />
+                <div class="modal-body">
+                    <ValidationSummary class="text-danger" />
+                    <div class="mb-3"><label class="form-label">نام کامل</label><InputText class="form-control" @bind-Value="model.FullName" /></div>
+                    <div class="mb-3"><label class="form-label">نام کاربری</label><InputText class="form-control" @bind-Value="model.UserName" /></div>
+                    <div class="mb-3"><label class="form-label">ایمیل</label><InputText class="form-control" @bind-Value="model.Email" /></div>
+                    <div class="mb-3"><label class="form-label">رمز عبور</label><InputText type="password" class="form-control" @bind-Value="model.Password" /></div>
+                    <div class="mb-3"><label class="form-label">نقش</label><InputSelect class="form-select" @bind-Value="model.Role"><option value="@PlatformRoles.Admin">مدیر پلتفرم</option><option value="@PlatformRoles.Support">پشتیبانی</option><option value="@PlatformRoles.Owner">مالک پلتفرم</option></InputSelect></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn-modern btn-light-modern" @onclick="CloseCreate">انصراف</button><button type="button" class="btn-modern btn-primary-modern" disabled="@saving" @onclick="CreateAsync">ذخیره</button></div>
+            </EditForm>
+        </div></div>
+    </div>
+}
+
+@code {
+    private List<PlatformUserDto> users = [];
+    private CreatePlatformUserDto model = new();
+    private EditContext editContext = default!;
+    private bool showCreate;
+    private bool saving;
+    private bool isError;
+    private string? message;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync() => users = (await PlatformUserService.GetAllAsync()).ToList();
+    private void OpenCreate() { model = new() { Role = PlatformRoles.Support }; editContext = new(model); message = null; showCreate = true; }
+    private void CloseCreate() => showCreate = false;
+    private async Task CreateAsync()
+    {
+        if (!editContext.Validate()) return;
+        try { saving = true; var user = await PlatformUserService.CreateAsync(model); message = $"کاربر «{user.FullName}» ایجاد شد."; isError = false; showCreate = false; await LoadAsync(); }
+        catch (Exception ex) { message = ex.Message; isError = true; }
+        finally { saving = false; }
+    }
+    private async Task ToggleAsync(PlatformUserDto user)
+    {
+        try { await PlatformUserService.SetActiveAsync(user.Id, !user.IsActive); await LoadAsync(); message = "وضعیت کاربر به‌روزرسانی شد."; isError = false; }
+        catch (Exception ex) { message = ex.Message; isError = true; }
+    }
+    private static string RoleLabel(string role) => role switch { PlatformRoles.Owner => "مالک", PlatformRoles.Admin => "مدیر", PlatformRoles.Support => "پشتیبانی", _ => role };
+}

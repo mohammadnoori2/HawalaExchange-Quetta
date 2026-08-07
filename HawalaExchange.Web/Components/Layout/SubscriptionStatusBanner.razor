@@ -1,0 +1,24 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Domain.Entities
+@inject ICurrentTenant CurrentTenant
+@inject ISubscriptionAccessService SubscriptionAccess
+
+@if (access is { } state && (state.AccessLevel != SubscriptionAccessLevel.Full || state.Status == SubscriptionStatus.ExpiringSoon))
+{
+    <div class="alert @(state.AccessLevel == SubscriptionAccessLevel.Blocked ? "alert-danger" : "alert-warning") rounded-0 mb-0 py-2 px-4">
+        <i class="bi @(state.AccessLevel == SubscriptionAccessLevel.ReadOnly ? "bi-lock" : "bi-exclamation-triangle") me-2"></i>
+        @state.Message
+    </div>
+}
+
+@code {
+    private SubscriptionAccessDto? access;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CurrentTenant.HasTenant)
+            access = await SubscriptionAccess.GetAccessAsync(CurrentTenant.TenantId);
+    }
+}

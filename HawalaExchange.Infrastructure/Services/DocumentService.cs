@@ -13,12 +13,14 @@ namespace HawalaExchange.Application.Services
         private readonly ApplicationDbContext _context;
         private readonly IHostEnvironment _environment;   // ✅ Changed from IWebHostEnvironment
         private readonly IMapper _mapper;
+        private readonly ISubscriptionAccessService _subscriptionAccess;
 
-        public DocumentService(ApplicationDbContext context, IHostEnvironment environment, IMapper mapper)
+        public DocumentService(ApplicationDbContext context, IHostEnvironment environment, IMapper mapper, ISubscriptionAccessService subscriptionAccess)
         {
             _context = context;
             _environment = environment;
             _mapper = mapper;
+            _subscriptionAccess = subscriptionAccess;
         }
 
         // ===== متدهای جدید =====
@@ -39,6 +41,8 @@ namespace HawalaExchange.Application.Services
             if (string.IsNullOrWhiteSpace(uploadDto.FileName))
                 throw new ArgumentException("File name is required.");
 
+            await _subscriptionAccess.EnsureDocumentCapacityAsync(_context.CurrentTenantId, uploadDto.FileContent.LongLength);
+
             var fileName = $"{Guid.NewGuid()}_{uploadDto.FileName}";
             // ✅ Build the wwwroot path from ContentRootPath
             var webRootPath = Path.Combine(_environment.ContentRootPath, "wwwroot");
@@ -58,6 +62,7 @@ namespace HawalaExchange.Application.Services
                 FileName = uploadDto.FileName,
                 FilePath = $"/uploads/{uploadDto.EntityType}/{fileName}",
                 ContentType = uploadDto.ContentType ?? GetContentType(uploadDto.FileName),
+                FileSizeBytes = uploadDto.FileContent.LongLength,
                 UploadedAt = DateTime.UtcNow
             };
 

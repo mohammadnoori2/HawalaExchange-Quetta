@@ -22,7 +22,7 @@ public sealed class TenantAdministrationService(
                 Name = x.Name,
                 IsActive = x.IsActive,
                 CreatedAt = x.CreatedAt,
-                UserCount = context.Users.IgnoreQueryFilters().Count(u => u.TenantId == x.Id),
+                UserCount = context.Users.IgnoreQueryFilters().Count(u => u.TenantId == x.Id && !u.IsPlatformUser),
                 BranchCount = context.Branches.IgnoreQueryFilters().Count(b => b.TenantId == x.Id)
             })
             .ToListAsync(cancellationToken);
@@ -35,6 +35,14 @@ public sealed class TenantAdministrationService(
         var localUserName = dto.AdminUserName.Trim();
         var normalizedEmail = userManager.NormalizeEmail(dto.AdminEmail.Trim());
 
+        if (dto.SubscriptionEndAt <= dto.SubscriptionStartAt)
+            throw new InvalidOperationException("تاریخ پایان اشتراک باید بعد از تاریخ شروع باشد.");
+
+        var plan = await context.SubscriptionPlans
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == dto.PlanId && x.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException("پلن اشتراک انتخاب‌شده معتبر یا فعال نیست.");
+
         if (await context.Users.IgnoreQueryFilters()
             .AnyAsync(x => x.LocalUserName == localUserName, cancellationToken))
             throw new InvalidOperationException("این نام کاربری قبلاً در سیستم ثبت شده است.");
@@ -44,9 +52,14 @@ public sealed class TenantAdministrationService(
             throw new InvalidOperationException("این ایمیل قبلاً در سیستم ثبت شده است.");
 
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        using var subscriptionBypass = context.BypassSubscriptionEnforcement();
         var tenant = new Tenant
         {
             Name = dto.Name.Trim(),
+            LegalName = dto.LegalName?.Trim(),
+            ContactName = dto.ContactName?.Trim(),
+            ContactEmail = dto.ContactEmail?.Trim(),
+            ContactPhone = dto.ContactPhone?.Trim(),
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -89,6 +102,34 @@ public sealed class TenantAdministrationService(
                 throw new InvalidOperationException(string.Join("؛ ", result.Errors.Select(x => x.Description)));
 
             await context.EnsureSystemAccountsAsync(tenant.Id, cancellationToken);
+
+            var startAt = DateTime.SpecifyKind(dto.SubscriptionStartAt, DateTimeKind.Utc);
+            context.TenantSubscriptions.Add(new TenantSubscription
+            {
+                TenantId = tenant.Id,
+                PlanId = plan.Id,
+                Status = plan.TrialDays > 0 ? SubscriptionStatus.Trial : SubscriptionStatus.Active,
+                BillingCycle = dto.BillingCycle,
+                StartAt = startAt,
+                EndAt = DateTime.SpecifyKind(dto.SubscriptionEndAt, DateTimeKind.Utc),
+                TrialEndAt = plan.TrialDays > 0 ? startAt.AddDays(plan.TrialDays) : null,
+                AutoRenew = dto.AutoRenew,
+                AgreedPrice = dto.AgreedPrice,
+                CurrencyCode = dto.SubscriptionCurrencyCode.Trim().ToUpperInvariant(),
+                NextPaymentAt = startAt,
+                CreatedAt = DateTime.UtcNow
+            });
+            context.PlatformAuditLogs.Add(new PlatformAuditLog
+            {
+                ActorUserId = context.CurrentUserId > 0 ? context.CurrentUserId : null,
+                TenantId = tenant.Id,
+                Action = "CREATE_TENANT",
+                EntityName = nameof(Tenant),
+                EntityId = tenant.Id,
+                Details = $"Tenant={tenant.Name}; Plan={plan.Name}",
+                CreatedAt = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -123,7 +164,7 @@ public sealed class TenantAdministrationService(
             Id = tenant.Id,
             Name = tenant.Name,
             IsActive = tenant.IsActive,
-            UserCount = await context.Users.IgnoreQueryFilters().CountAsync(x => x.TenantId == id, cancellationToken),
+            UserCount = await context.Users.IgnoreQueryFilters().CountAsync(x => x.TenantId == id && !x.IsPlatformUser, cancellationToken),
             BranchCount = await context.Branches.IgnoreQueryFilters().CountAsync(x => x.TenantId == id, cancellationToken),
             CreatedAt = tenant.CreatedAt
         };

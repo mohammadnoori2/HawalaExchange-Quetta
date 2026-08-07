@@ -13,6 +13,7 @@ namespace HawalaExchange.Infrastructure.Data
     {
         private readonly ICurrentTenant _currentTenant;
         private long? tenantOverride;
+        private int subscriptionEnforcementBypassDepth;
 
         public ApplicationDbContext(
             DbContextOptions<ApplicationDbContext> options,
@@ -67,8 +68,22 @@ namespace HawalaExchange.Infrastructure.Data
             return new TenantScope(() => tenantOverride = previous);
         }
 
+        public IDisposable BypassSubscriptionEnforcement()
+        {
+            subscriptionEnforcementBypassDepth++;
+            return new TenantScope(() => subscriptionEnforcementBypassDepth--);
+        }
+
         // ===== DbSets موجود =====
         public DbSet<Tenant> Tenants { get; set; }
+        public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+        public DbSet<TenantSubscription> TenantSubscriptions { get; set; }
+        public DbSet<SubscriptionPayment> SubscriptionPayments { get; set; }
+        public DbSet<SubscriptionInvoice> SubscriptionInvoices { get; set; }
+        public DbSet<SubscriptionInvoiceItem> SubscriptionInvoiceItems { get; set; }
+        public DbSet<BillingNumberSequence> BillingNumberSequences { get; set; }
+        public DbSet<TenantUsageSnapshot> TenantUsageSnapshots { get; set; }
+        public DbSet<PlatformAuditLog> PlatformAuditLogs { get; set; }
         public DbSet<Branch> Branches { get; set; }
         public DbSet<Customer> Customers { get; set; }
         public DbSet<Correspondent> Correspondents { get; set; }
@@ -231,6 +246,7 @@ namespace HawalaExchange.Infrastructure.Data
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
             AssignAndValidateTenantIds();
+            ValidateSubscriptionWriteAccess();
             ValidateAccountDebtLimits();
             return base.SaveChanges(acceptAllChangesOnSuccess);
         }
@@ -240,6 +256,7 @@ namespace HawalaExchange.Infrastructure.Data
             CancellationToken cancellationToken = default)
         {
             AssignAndValidateTenantIds();
+            await ValidateSubscriptionWriteAccessAsync(cancellationToken);
             await ValidateAccountDebtLimitsAsync(cancellationToken);
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
@@ -419,6 +436,7 @@ namespace HawalaExchange.Infrastructure.Data
             ConfigureLedgerConstraints(modelBuilder);
             ConfigureRelationships(modelBuilder);
             ConfigureHawalaEntity(modelBuilder);
+            ConfigureSaasManagement(modelBuilder);
             SeedData(modelBuilder);
             ConfigureTenantFilters(modelBuilder);
             modelBuilder.Entity<LedgerEntry>()
@@ -460,12 +478,71 @@ namespace HawalaExchange.Infrastructure.Data
             ConfigureTenantForeignKeys(modelBuilder);
         }
 
+        private void ValidateSubscriptionWriteAccess()
+        {
+            if (subscriptionEnforcementBypassDepth > 0) return;
+            var tenantIds = PendingTenantWriteIds();
+            foreach (var tenantId in tenantIds)
+            {
+                var subscription = TenantSubscriptions.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId)
+                    .OrderByDescending(x => x.StartAt).ThenByDescending(x => x.Id)
+                    .Select(x => new { x.Status, x.EndAt, x.GracePeriodEndAt })
+                    .FirstOrDefault();
+                EnsureSubscriptionAllowsWrite(subscription?.Status, subscription?.EndAt, subscription?.GracePeriodEndAt);
+            }
+        }
+
+        private async Task ValidateSubscriptionWriteAccessAsync(CancellationToken cancellationToken)
+        {
+            if (subscriptionEnforcementBypassDepth > 0) return;
+            var tenantIds = PendingTenantWriteIds();
+            foreach (var tenantId in tenantIds)
+            {
+                var subscription = await TenantSubscriptions.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId)
+                    .OrderByDescending(x => x.StartAt).ThenByDescending(x => x.Id)
+                    .Select(x => new { x.Status, x.EndAt, x.GracePeriodEndAt })
+                    .FirstOrDefaultAsync(cancellationToken);
+                EnsureSubscriptionAllowsWrite(subscription?.Status, subscription?.EndAt, subscription?.GracePeriodEndAt);
+            }
+        }
+
+        private long[] PendingTenantWriteIds() => ChangeTracker.Entries()
+            .Where(x => x.Entity is ITenantEntity &&
+                        x.Entity is not ApplicationUser { IsPlatformUser: true } &&
+                        x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .Select(x => ((ITenantEntity)x.Entity).TenantId)
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray();
+
+        private static void EnsureSubscriptionAllowsWrite(
+            SubscriptionStatus? status,
+            DateTime? endAt,
+            DateTime? gracePeriodEndAt)
+        {
+            var now = DateTime.UtcNow;
+            if (status is null)
+                throw new InvalidOperationException("برای این صرافی اشتراک ثبت نشده است.");
+            if (status is SubscriptionStatus.Suspended or SubscriptionStatus.Cancelled)
+                throw new InvalidOperationException("اشتراک صرافی فعال نیست و عملیات تغییردهنده مجاز نمی‌باشد.");
+            if (endAt >= now) return;
+            if (gracePeriodEndAt >= now)
+                throw new InvalidOperationException("اشتراک منقضی شده و سیستم در دوره مهلت فقط خواندنی است.");
+            throw new InvalidOperationException("اشتراک و دوره مهلت پایان یافته است.");
+        }
+
         private void AssignAndValidateTenantIds()
         {
             foreach (var entry in ChangeTracker.Entries<ITenantEntity>())
             {
                 if (entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                {
+                    if (entry.Entity is ApplicationUser { IsPlatformUser: true })
+                        continue;
                     PrepareTenantEntity(entry.Entity);
+                }
             }
         }
 
@@ -480,6 +557,12 @@ namespace HawalaExchange.Infrastructure.Data
             foreach (var entityType in modelBuilder.Model.GetEntityTypes()
                          .Where(x => typeof(ITenantEntity).IsAssignableFrom(x.ClrType)))
             {
+                if (entityType.ClrType == typeof(ApplicationUser))
+                {
+                    modelBuilder.Entity<ApplicationUser>()
+                        .HasQueryFilter(u => !u.IsPlatformUser && u.TenantId == CurrentTenantId);
+                    continue;
+                }
                 var parameter = Expression.Parameter(entityType.ClrType, "entity");
                 var tenantId = Expression.Property(parameter, nameof(ITenantEntity.TenantId));
                 var currentTenantId = Expression.Property(
@@ -539,7 +622,124 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         // تنظیمات Identity (User و Role)
         // ==========================================
-        private static void ConfigureIdentity(ModelBuilder modelBuilder)
+        private static void ConfigureSaasManagement(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<SubscriptionPlan>(entity =>
+            {
+                entity.HasIndex(x => x.Code).IsUnique();
+                entity.HasIndex(x => new { x.IsActive, x.DisplayOrder });
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_SubscriptionPlans_Prices", "[MonthlyPrice] >= 0 AND [AnnualPrice] >= 0");
+                    table.HasCheckConstraint("CK_SubscriptionPlans_Limits", "[TrialDays] >= 0 AND [MaxUsers] >= 0 AND [MaxBranches] >= 0 AND [MaxStorageBytes] >= 0 AND [MaxMonthlyTransactions] >= 0");
+                });
+            });
+
+            modelBuilder.Entity<TenantSubscription>(entity =>
+            {
+                entity.HasOne(x => x.Tenant)
+                    .WithMany(x => x.Subscriptions)
+                    .HasForeignKey(x => x.TenantId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Plan)
+                    .WithMany(x => x.Subscriptions)
+                    .HasForeignKey(x => x.PlanId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(x => new { x.TenantId, x.Status, x.EndAt });
+                entity.HasIndex(x => new { x.Status, x.EndAt });
+                entity.HasIndex(x => x.NextPaymentAt);
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_TenantSubscriptions_Dates", "[EndAt] > [StartAt]");
+                    table.HasCheckConstraint("CK_TenantSubscriptions_Price", "[AgreedPrice] >= 0");
+                });
+            });
+
+            modelBuilder.Entity<SubscriptionPayment>(entity =>
+            {
+                entity.HasOne(x => x.Subscription)
+                    .WithMany(x => x.Payments)
+                    .HasForeignKey(x => x.SubscriptionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(x => new { x.SubscriptionId, x.Status, x.DueAt });
+                entity.HasIndex(x => x.ReferenceNumber)
+                    .IsUnique()
+                    .HasFilter("[ReferenceNumber] IS NOT NULL");
+                entity.ToTable(table =>
+                    table.HasCheckConstraint("CK_SubscriptionPayments_Amount", "[Amount] >= 0"));
+            });
+
+            modelBuilder.Entity<SubscriptionInvoice>(entity =>
+            {
+                entity.HasOne(x => x.Tenant)
+                    .WithMany(x => x.SubscriptionInvoices)
+                    .HasForeignKey(x => x.TenantId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Subscription)
+                    .WithMany(x => x.Invoices)
+                    .HasForeignKey(x => x.SubscriptionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(x => x.InvoiceNumber).IsUnique();
+                entity.HasIndex(x => new { x.TenantId, x.Status, x.DueAt });
+                entity.HasIndex(x => new { x.Status, x.DueAt });
+                entity.HasIndex(x => new { x.CurrencyCode, x.IssuedAt });
+                entity.ToTable(table =>
+                {
+                    table.HasCheckConstraint("CK_SubscriptionInvoices_Dates", "[ServicePeriodEnd] > [ServicePeriodStart] AND [DueAt] >= [IssuedAt]");
+                    table.HasCheckConstraint("CK_SubscriptionInvoices_Amounts", "[Subtotal] >= 0 AND [DiscountAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] >= 0 AND [PaidAmount] >= 0 AND [PaidAmount] <= [TotalAmount]");
+                });
+            });
+
+            modelBuilder.Entity<SubscriptionInvoiceItem>(entity =>
+            {
+                entity.HasOne(x => x.Invoice)
+                    .WithMany(x => x.Items)
+                    .HasForeignKey(x => x.InvoiceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(x => new { x.InvoiceId, x.SortOrder });
+                entity.ToTable(table => table.HasCheckConstraint(
+                    "CK_SubscriptionInvoiceItems_Amounts",
+                    "[Quantity] > 0 AND [UnitPrice] >= 0 AND [DiscountAmount] >= 0 AND [TaxAmount] >= 0 AND [LineTotal] >= 0"));
+            });
+
+            modelBuilder.Entity<SubscriptionPayment>()
+                .HasOne(x => x.Invoice)
+                .WithMany(x => x.Payments)
+                .HasForeignKey(x => x.InvoiceId)
+                .OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<SubscriptionPayment>()
+                .HasIndex(x => x.ProviderTransactionId)
+                .IsUnique()
+                .HasFilter("[ProviderTransactionId] IS NOT NULL");
+
+            modelBuilder.Entity<BillingNumberSequence>(entity =>
+            {
+                entity.HasIndex(x => new { x.Year, x.Prefix }).IsUnique();
+                entity.ToTable(table => table.HasCheckConstraint("CK_BillingNumberSequences_NextValue", "[NextValue] > 0"));
+            });
+
+            modelBuilder.Entity<TenantUsageSnapshot>(entity =>
+            {
+                entity.HasOne(x => x.Tenant)
+                    .WithMany(x => x.UsageSnapshots)
+                    .HasForeignKey(x => x.TenantId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(x => new { x.TenantId, x.PeriodStart }).IsUnique();
+                entity.HasIndex(x => x.PeriodStart);
+            });
+
+            modelBuilder.Entity<PlatformAuditLog>(entity =>
+            {
+                entity.HasOne(x => x.Tenant)
+                    .WithMany()
+                    .HasForeignKey(x => x.TenantId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(x => new { x.CreatedAt, x.Action });
+                entity.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            });
+        }
+
+        private void ConfigureIdentity(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Tenant>(entity =>
             {
@@ -557,7 +757,11 @@ namespace HawalaExchange.Infrastructure.Data
                     .HasFilter("[NormalizedEmail] IS NOT NULL");
                 entity.Property(u => u.FullName).HasMaxLength(200);
                 entity.Property(u => u.IsActive).HasDefaultValue(true);
+                entity.Property(u => u.IsPlatformUser).HasDefaultValue(false);
                 entity.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+                entity.ToTable(table => table.HasCheckConstraint(
+                    "CK_Users_Scope",
+                    "([IsPlatformUser] = 1 AND [BranchId] IS NULL) OR ([IsPlatformUser] = 0 AND [BranchId] IS NOT NULL)"));
 
                 // رابطه با Branch
                 entity.HasOne(u => u.Branch)
@@ -570,6 +774,10 @@ namespace HawalaExchange.Infrastructure.Data
                     .HasForeignKey(u => u.TenantId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
+
+            modelBuilder.Entity<Document>()
+                .Property(x => x.FileSizeBytes)
+                .HasDefaultValue(0L);
 
             // تنظیمات IdentityRole
             modelBuilder.Entity<IdentityRole<long>>(entity =>
@@ -1285,6 +1493,44 @@ namespace HawalaExchange.Infrastructure.Data
                     CreatedAt = createdAt
                 }
             );
+
+            modelBuilder.Entity<SubscriptionPlan>().HasData(
+                new SubscriptionPlan
+                {
+                    Id = 1,
+                    Code = "STANDARD",
+                    Name = "پلن استاندارد",
+                    Description = "پلن پایه برای صرافی پیش‌فرض",
+                    MonthlyPrice = 0,
+                    AnnualPrice = 0,
+                    CurrencyCode = "USD",
+                    TrialDays = 0,
+                    MaxUsers = 25,
+                    MaxBranches = 5,
+                    MaxStorageBytes = 10L * 1024 * 1024 * 1024,
+                    MaxMonthlyTransactions = 100000,
+                    IncludesAdvancedReports = true,
+                    IncludesDocumentManagement = true,
+                    IsActive = true,
+                    DisplayOrder = 1,
+                    CreatedAt = createdAt
+                });
+
+            modelBuilder.Entity<TenantSubscription>().HasData(
+                new TenantSubscription
+                {
+                    Id = 1,
+                    TenantId = 1,
+                    PlanId = 1,
+                    Status = SubscriptionStatus.Active,
+                    BillingCycle = BillingCycle.Annual,
+                    StartAt = createdAt,
+                    EndAt = new DateTime(2036, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    AutoRenew = false,
+                    AgreedPrice = 0,
+                    CurrencyCode = "USD",
+                    CreatedAt = createdAt
+                });
 
             modelBuilder.Entity<Currency>().HasData(
                 new Currency { Id = 1, TenantId = 1, Code = "AFN", Name = "افغانی", Symbol = "؋", DecimalPlaces = 2, QuotationPriority = 60, IsActive = true },

@@ -31,7 +31,8 @@ $@"نمبر حواله: {hawala.Number}
 محل پرداخت: {paymentLocation}
 مبلغ پرداختی: {(hawala.ToAmount.HasValue ? MoneyFormatHelper.Format(hawala.ToAmount.Value) : "-")} {toCurrencyName}
 مبلغ به حروف: {(hawala.ToAmount.HasValue ? DariNumberToWords.ToWords(hawala.ToAmount.Value) : "-")} {toCurrencyName}
-کارمزد پرداخت‌شده توسط فرستنده: {(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")} {commissionCurrencyName}
+کارمزد: {(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")} {commissionCurrencyName}
+نوت: این رسید جهت معلومات مشتری است و هیچگاه ارزش پولی ندارد.
 یادداشت: {hawala.Notes ?? "-"}";
     }
 

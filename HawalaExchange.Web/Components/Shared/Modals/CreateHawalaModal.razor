@@ -12,6 +12,7 @@
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject IPaymentLocationService PaymentLocationService
+@inject ICompanySettingService CompanySettingService
 @inject IFileService FileService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
@@ -751,6 +752,18 @@
                         </div>
                     }
 
+                    @if (CreatedHawalaDetails != null)
+                    {
+                        <div class="d-none" aria-hidden="true">
+                            <div id="@CreatedReceiptWithHeaderId">
+                                <HawalaReceipt Hawala="CreatedHawalaDetails" Company="companySetting" ShowCompanyHeader="true" />
+                            </div>
+                            <div id="@CreatedReceiptWithoutHeaderId">
+                                <HawalaReceipt Hawala="CreatedHawalaDetails" Company="companySetting" ShowCompanyHeader="false" />
+                            </div>
+                        </div>
+                    }
+
                     <!-- دکمه‌های اقدام -->
                     <div class="row row-cols-2 row-cols-md-5 g-2">
                         <div class="col">
@@ -848,7 +861,10 @@
     private bool ShowSuccessModal { get; set; } = false;
     private CreateHawalaDto? CreatedHawala { get; set; }
     private HawalaDto? CreatedHawalaDetails { get; set; }
+    private CompanySettingDto companySetting = new();
     private string ShareErrorMessage { get; set; } = string.Empty;
+    private const string CreatedReceiptWithHeaderId = "created-hawala-receipt-with-header";
+    private const string CreatedReceiptWithoutHeaderId = "created-hawala-receipt-without-header";
 
     // ===== متغیرهای مودال جزییات حساب =====
     private bool showAccountDetailsModal = false;
@@ -992,6 +1008,7 @@
             CurrenciesList = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
             AccountsList = (await AccountService.GetAllAsync()).Where(a => !a.IsArchived).ToList();
             PaymentLocationsList = (await PaymentLocationService.GetActiveAsync()).ToList();
+            companySetting = await CompanySettingService.GetAsync();
 
             var afn = CurrenciesList.FirstOrDefault(x => x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
             AfnCurrencyId = afn?.Id ?? 0;
@@ -1090,8 +1107,7 @@
 
         try
         {
-            var htmlContent = GenerateReceiptHtml(CreatedHawala, true);
-            await JS.InvokeVoidAsync("hawalaTools.printHtml", htmlContent);
+            await JS.InvokeVoidAsync("hawalaTools.printElement", CreatedReceiptWithHeaderId, 80);
         }
         catch (Exception ex)
         {
@@ -1109,8 +1125,7 @@
 
         try
         {
-            var htmlContent = GenerateReceiptHtml(CreatedHawala, false);
-            await JS.InvokeVoidAsync("hawalaTools.printHtml", htmlContent);
+            await JS.InvokeVoidAsync("hawalaTools.printElement", CreatedReceiptWithoutHeaderId, 80);
         }
         catch (Exception ex)
         {

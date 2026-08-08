@@ -418,15 +418,127 @@ window.hawalaTools = {
         .hawala-receipt {
             width: 100% !important;
             max-width: 100% !important;
-            padding: 0 !important;
+            padding: 3mm !important;
             margin: 0 !important;
-            border: none !important;
+            border: 1.5px solid #c99a10 !important;
             border-radius: 0 !important;
             box-shadow: none !important;
             font-size: 10.5px !important;
             line-height: 1.5 !important;
             color: #000000 !important;
             background: #ffffff !important;
+        }
+
+        .receipt-brand {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) 19mm !important;
+            align-items: center !important;
+            gap: 2mm !important;
+            padding: 0 0 2mm !important;
+        }
+
+        .receipt-brand-copy {
+            text-align: center !important;
+        }
+
+        .receipt-brand-copy h3 {
+            margin: 0 0 1mm !important;
+            font-size: 14px !important;
+            font-weight: 800 !important;
+            line-height: 1.5 !important;
+        }
+
+        .receipt-kind {
+            font-size: 11px !important;
+            font-weight: 700 !important;
+        }
+
+        .receipt-brand .receipt-logo {
+            width: 18mm !important;
+            height: 18mm !important;
+            margin: 0 !important;
+            object-fit: contain !important;
+        }
+
+        .receipt-heading {
+            margin: 0 0 1.5mm !important;
+            text-align: center !important;
+            font-size: 13px !important;
+            font-weight: 800 !important;
+        }
+
+        .receipt-table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed !important;
+        }
+
+        .receipt-table th,
+        .receipt-table td {
+            border: 1px solid #444 !important;
+            padding: 1mm 1.2mm !important;
+            vertical-align: middle !important;
+            overflow-wrap: anywhere !important;
+            background: #fff !important;
+            color: #000 !important;
+        }
+
+        .receipt-table th {
+            width: 31% !important;
+            text-align: right !important;
+            font-weight: 800 !important;
+            background: #faf8ef !important;
+        }
+
+        .receipt-table td {
+            text-align: right !important;
+        }
+
+        .receipt-time {
+            float: left !important;
+        }
+
+        .receipt-strong,
+        .receipt-amount {
+            font-size: 11px !important;
+            font-weight: 800 !important;
+        }
+
+        .receipt-company-contact {
+            padding: 2mm 1mm 0 !important;
+            text-align: center !important;
+            font-size: 9px !important;
+        }
+
+        .receipt-company-address {
+            margin-bottom: 1mm !important;
+            font-weight: 600 !important;
+        }
+
+        .receipt-contact-list {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            justify-content: space-around !important;
+            gap: 1mm 2mm !important;
+            font-weight: 700 !important;
+        }
+
+        .receipt-custom-note {
+            margin-top: 2mm !important;
+            padding-top: 1.5mm !important;
+            border-top: 1px dashed #777 !important;
+            text-align: center !important;
+            font-size: 9px !important;
+        }
+
+        .receipt-legal-note {
+            margin-top: 2mm !important;
+            padding: 2mm 1mm 0 !important;
+            border-top: 1px solid #c99a10 !important;
+            text-align: center !important;
+            font-size: 9.5px !important;
+            font-weight: 800 !important;
+            line-height: 1.7 !important;
         }
 
         .receipt-header {

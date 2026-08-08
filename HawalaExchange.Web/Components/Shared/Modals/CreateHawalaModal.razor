@@ -286,7 +286,7 @@
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-arrow-left text-muted me-1"></i> نوع ارز دریافتی <span class="text-danger">*</span>
+                                        <i class="bi bi-arrow-left text-muted me-1"></i> نوع ارز پرداختی <span class="text-danger">*</span>
                                     </label>
                                     <select class="form-select"
                                             value="@CurrentHawala.ToCurrencyId"
@@ -303,7 +303,7 @@
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ دریافتی
+                                        <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ پرداختی
                                     </label>
                                     <NullableMoneyInput class="form-control"
                                                         Value="CurrentHawala.ToAmount"
@@ -1118,14 +1118,33 @@
         }
     }
 
+    private static bool HasSenderReceiptInformation(CreateHawalaDto hawala) =>
+        !string.IsNullOrWhiteSpace(hawala.SenderName) ||
+        !string.IsNullOrWhiteSpace(hawala.SenderFatherName) ||
+        !string.IsNullOrWhiteSpace(hawala.SenderPhone) ||
+        !string.IsNullOrWhiteSpace(hawala.SenderTazkiraNumber) ||
+        !string.IsNullOrWhiteSpace(hawala.SenderAddress);
+
+    private static bool HasReceiverReceiptInformation(CreateHawalaDto hawala) =>
+        !string.IsNullOrWhiteSpace(hawala.ReceiverName) ||
+        !string.IsNullOrWhiteSpace(hawala.ReceiverFatherName) ||
+        !string.IsNullOrWhiteSpace(hawala.ReceiverPhone) ||
+        !string.IsNullOrWhiteSpace(hawala.ReceiverTazkiraNumber) ||
+        !string.IsNullOrWhiteSpace(hawala.ReceiverAddress);
+
+    private static bool HasFinancialReceiptInformation(CreateHawalaDto hawala) =>
+        hawala.ToAmount.HasValue ||
+        hawala.ExchangeRate is > 0 ||
+        hawala.CommissionAmount is > 0 ||
+        !string.IsNullOrWhiteSpace(hawala.ReferenceNumber) ||
+        hawala.PaymentLocationId.HasValue;
+
     private string GenerateReceiptHtml(CreateHawalaDto hawala, bool withHeader)
     {
         var correspondentName = GetCorrespondentName(hawala.CorrespondentId);
         var hawalaTypeName = GetHawalaTypeName(hawala.HawalaType);
-        var fromCurrencyName = GetCurrencyName(hawala.FromCurrencyId);
         var toCurrencyName = GetCurrencyName(hawala.ToCurrencyId);
         var commissionCurrencyName = GetCurrencyName(hawala.CommissionCurrencyId);
-        var agentCommissionCurrencyName = GetCurrencyName(hawala.AgentCommissionCurrencyId);
         var paymentLocationName = GetPaymentLocationName(hawala.PaymentLocationId);
         var currentDate = PersianDateHelper.ToPersianDateTime12(DateTime.Now);
 
@@ -1314,43 +1333,47 @@
                 </div>
 
                 <!-- اطلاعات فرستنده -->
+                {(!HasSenderReceiptInformation(hawala) ? "" : $@"
                 <div class='receipt-section'>
                     <h6>معلومات فرستنده</h6>
                     <div class='receipt-grid'>
-                        <div><span class='receipt-label'>نام:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.SenderName) ? "-" : hawala.SenderName)}</span></div>
-                        <div><span class='receipt-label'>نام پدر:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.SenderFatherName) ? "-" : hawala.SenderFatherName)}</span></div>
-                        <div><span class='receipt-label'>تلفن:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.SenderPhone) ? "-" : hawala.SenderPhone)}</span></div>
-                        <div><span class='receipt-label'>شماره تذکره:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.SenderTazkiraNumber) ? "-" : hawala.SenderTazkiraNumber)}</span></div>
-                        <div class='receipt-full'><span class='receipt-label'>آدرس:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.SenderAddress) ? "-" : hawala.SenderAddress)}</span></div>
+                        {(string.IsNullOrWhiteSpace(hawala.SenderName) ? "" : $"<div><span class='receipt-label'>نام:</span> <span class='receipt-value'>{hawala.SenderName}</span></div>")}
+                        {(string.IsNullOrWhiteSpace(hawala.SenderFatherName) ? "" : $"<div><span class='receipt-label'>نام پدر:</span> <span class='receipt-value'>{hawala.SenderFatherName}</span></div>")}
+                        {(string.IsNullOrWhiteSpace(hawala.SenderPhone) ? "" : $"<div><span class='receipt-label'>تلفن:</span> <span class='receipt-value'>{hawala.SenderPhone}</span></div>")}
+                        {(string.IsNullOrWhiteSpace(hawala.SenderTazkiraNumber) ? "" : $"<div><span class='receipt-label'>شماره تذکره:</span> <span class='receipt-value'>{hawala.SenderTazkiraNumber}</span></div>")}
+                        {(string.IsNullOrWhiteSpace(hawala.SenderAddress) ? "" : $"<div class='receipt-full'><span class='receipt-label'>آدرس:</span> <span class='receipt-value'>{hawala.SenderAddress}</span></div>")}
                     </div>
                 </div>
+                ")}
 
                 <!-- اطلاعات گیرنده -->
+                {(!HasReceiverReceiptInformation(hawala) ? "" : $@"
                 <div class='receipt-section'>
                     <h6>معلومات گیرنده</h6>
                     <div class='receipt-grid'>
-                        <div><span class='receipt-label'>نام:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.ReceiverName) ? "-" : hawala.ReceiverName)}</span></div>
-                        <div><span class='receipt-label'>نام پدر:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.ReceiverFatherName) ? "-" : hawala.ReceiverFatherName)}</span></div>
-                        <div><span class='receipt-label'>تلفن:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.ReceiverPhone) ? "-" : hawala.ReceiverPhone)}</span></div>
-                        <div><span class='receipt-label'>شماره تذکره:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.ReceiverTazkiraNumber) ? "-" : hawala.ReceiverTazkiraNumber)}</span></div>
-                        <div class='receipt-full'><span class='receipt-label'>آدرس:</span> <span class='receipt-value'>{(string.IsNullOrEmpty(hawala.ReceiverAddress) ? "-" : hawala.ReceiverAddress)}</span></div>
+                        {(string.IsNullOrWhiteSpace(hawala.ReceiverName) ? "" : $"<div><span class='receipt-label'>نام:</span> <span class='receipt-value'>{hawala.ReceiverName}</span></div>")}
+                        {(string.IsNullOrWhiteSpace(hawala.ReceiverFatherName) ? "" : $"<div><span class='receipt-label'>نام پدر:</span> <span class='receipt-value'>{hawala.ReceiverFatherName}</span></div>")}
+                        {(string.IsNullOrWhiteSpace(hawala.ReceiverPhone) ? "" : $"<div><span class='receipt-label'>تلفن:</span> <span class='receipt-value'>{hawala.ReceiverPhone}</span></div>")}
+                        {(string.IsNullOrWhiteSpace(hawala.ReceiverTazkiraNumber) ? "" : $"<div><span class='receipt-label'>شماره تذکره:</span> <span class='receipt-value'>{hawala.ReceiverTazkiraNumber}</span></div>")}
+                        {(string.IsNullOrWhiteSpace(hawala.ReceiverAddress) ? "" : $"<div class='receipt-full'><span class='receipt-label'>آدرس:</span> <span class='receipt-value'>{hawala.ReceiverAddress}</span></div>")}
                     </div>
                 </div>
+                ")}
 
                 <!-- اطلاعات مالی -->
+                {(!HasFinancialReceiptInformation(hawala) ? "" : $@"
                 <div class='receipt-section'>
                     <h6>معلومات حواله</h6>
                     <div class='receipt-grid'>
-                        <div><span class='receipt-label'>مبلغ حواله:</span> <span class='receipt-amount'>{MoneyFormatHelper.Format(hawala.FromAmount)}</span> <span class='receipt-currency'>{fromCurrencyName}</span></div>
-                        <div class='receipt-full'><span class='receipt-label'>مبلغ به حروف:</span> <span class='receipt-value'>{DariNumberToWords.ToWords(hawala.FromAmount)} {fromCurrencyName}</span></div>
-                        <div><span class='receipt-label'>مبلغ دریافتی:</span> <span class='receipt-amount'>{MoneyFormatHelper.Format(hawala.ToAmount ?? 0)}</span> <span class='receipt-currency'>{toCurrencyName}</span></div>
-                        <div><span class='receipt-label'>نرخ تبدیل:</span> <span class='receipt-value'>{(hawala.ExchangeRate.HasValue ? MoneyFormatHelper.Format(hawala.ExchangeRate.Value) : "-")}</span></div>
-                        <div><span class='receipt-label'>کارمزد:</span> <span class='receipt-value'>{MoneyFormatHelper.Format(hawala.CommissionAmount ?? 0)}</span> <span class='receipt-currency'>{commissionCurrencyName}</span></div>
-                        <div><span class='receipt-label'>کارمزد نماینده:</span> <span class='receipt-value'>{MoneyFormatHelper.Format(hawala.AgentCommissionAmount ?? 0)}</span> <span class='receipt-currency'>{agentCommissionCurrencyName}</span></div>
-                        <div><span class='receipt-label'>نمبر متفرقه:</span> <span class='receipt-value'>{hawala.ReferenceNumber ?? "-"}</span></div>
-                        <div class='receipt-full'><span class='receipt-label'>محل پرداخت:</span> <span class='receipt-value'>{paymentLocationName}</span></div>
+                        {(hawala.ToAmount.HasValue ? $"<div><span class='receipt-label'>مبلغ پرداختی:</span> <span class='receipt-amount'>{MoneyFormatHelper.Format(hawala.ToAmount.Value)}</span> <span class='receipt-currency'>{toCurrencyName}</span></div>" : "")}
+                        {(hawala.ToAmount.HasValue ? $"<div class='receipt-full'><span class='receipt-label'>مبلغ به حروف:</span> <span class='receipt-value'>{DariNumberToWords.ToWords(hawala.ToAmount.Value)} {toCurrencyName}</span></div>" : "")}
+                        {(hawala.ExchangeRate is > 0 ? $"<div><span class='receipt-label'>نرخ تبدیل:</span> <span class='receipt-value'>{MoneyFormatHelper.Format(hawala.ExchangeRate.Value)}</span></div>" : "")}
+                        {(hawala.CommissionAmount is > 0 ? $"<div><span class='receipt-label'>کارمزد پرداخت‌شده توسط فرستنده:</span> <span class='receipt-value'>{MoneyFormatHelper.Format(hawala.CommissionAmount.Value)}</span> <span class='receipt-currency'>{commissionCurrencyName}</span></div>" : "")}
+                        {(string.IsNullOrWhiteSpace(hawala.ReferenceNumber) ? "" : $"<div><span class='receipt-label'>نمبر متفرقه:</span> <span class='receipt-value'>{hawala.ReferenceNumber}</span></div>")}
+                        {(hawala.PaymentLocationId.HasValue ? $"<div class='receipt-full'><span class='receipt-label'>محل پرداخت:</span> <span class='receipt-value'>{paymentLocationName}</span></div>" : "")}
                     </div>
                 </div>
+                ")}
 
                 <!-- یادداشت -->
                 {(string.IsNullOrEmpty(hawala.Notes) ? "" : $@"

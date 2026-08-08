@@ -14,9 +14,6 @@ public static class HawalaShareHelper
             hawala.PaymentLocationAddress ??
             hawala.PaymentLocation ??
             "-";
-        var fromCurrencyName = GetCurrencyName(
-            hawala.FromCurrencyName,
-            hawala.FromCurrencyCode);
         var toCurrencyName = GetCurrencyName(
             hawala.ToCurrencyName,
             hawala.ToCurrencyCode);
@@ -32,10 +29,9 @@ $@"نمبر حواله: {hawala.Number}
 گیرنده: {hawala.ReceiverName ?? "-"}
 نام پدر گیرنده: {hawala.ReceiverFatherName ?? "-"}
 محل پرداخت: {paymentLocation}
-مبلغ حواله: {MoneyFormatHelper.Format(hawala.FromAmount)} {fromCurrencyName}
-مبلغ به حروف: {DariNumberToWords.ToWords(hawala.FromAmount)} {fromCurrencyName}
-مبلغ دریافتی/پرداختی: {(hawala.ToAmount.HasValue ? MoneyFormatHelper.Format(hawala.ToAmount.Value) : "-")} {toCurrencyName}
-کارمزد: {(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")} {commissionCurrencyName}
+مبلغ پرداختی: {(hawala.ToAmount.HasValue ? MoneyFormatHelper.Format(hawala.ToAmount.Value) : "-")} {toCurrencyName}
+مبلغ به حروف: {(hawala.ToAmount.HasValue ? DariNumberToWords.ToWords(hawala.ToAmount.Value) : "-")} {toCurrencyName}
+کارمزد پرداخت‌شده توسط فرستنده: {(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")} {commissionCurrencyName}
 یادداشت: {hawala.Notes ?? "-"}";
     }
 

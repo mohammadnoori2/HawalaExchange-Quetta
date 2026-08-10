@@ -44,7 +44,7 @@
             <QuickFilters><select class="form-select compact-quick-filter" value="@statusFilter" @onchange="StatusChanged"><option value="">همه وضعیت‌ها</option>@foreach (var status in Enum.GetValues<SubscriptionInvoiceStatus>()) { <option value="@((int)status)">@StatusText(status)</option> }</select></QuickFilters>
         </CompactFilterBar>
 
-        <div class="modern-card"><div class="table-responsive"><table class="table modern-table mb-0">
+        <div class="modern-card"><div class="table-responsive"><GlobalDataGrid class="table modern-table mb-0">
             <thead><tr><th>شماره</th><th>صرافی / پلن</th><th>صدور</th><th>سررسید</th><th>مبلغ</th><th>پرداخت</th><th>باقی‌مانده</th><th>وضعیت</th><th></th></tr></thead>
             <tbody>
                 @if (invoices.Count == 0) { <tr><td colspan="9" class="text-center py-5 text-muted">فاکتوری یافت نشد.</td></tr> }
@@ -59,7 +59,7 @@
                     </tr>
                 }
             </tbody>
-        </table></div></div>
+        </GlobalDataGrid></div></div>
     }
 </div>
 

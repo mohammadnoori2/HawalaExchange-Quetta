@@ -1,4 +1,4 @@
-﻿@page "/correspondents"
+@page "/correspondents"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
@@ -65,7 +65,7 @@
 
         <div class="table-card-body">
             <div class="table-scroll-wrapper">
-                <table class="table-modern table-striped-modern">
+                <GlobalDataGrid class="table-modern table-striped-modern">
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
@@ -179,7 +179,7 @@
                             }
                         }
                     </tbody>
-                </table>
+                </GlobalDataGrid>
             </div>
         </div>
 
@@ -362,7 +362,7 @@
                                 @if (initialBalances.Any())
                                 {
                                     <div class="table-scroll-wrapper mb-3">
-                                        <table class="table-modern table-striped-modern">
+                                        <GlobalDataGrid class="table-modern table-striped-modern">
                                             <thead>
                                                 <tr>
                                                     <th>واحد پولی</th>
@@ -396,7 +396,7 @@
                                                     </tr>
                                                 }
                                             </tbody>
-                                        </table>
+                                        </GlobalDataGrid>
                                     </div>
                                 }
                                 else
@@ -591,7 +591,7 @@
                             </div>
 
                             <div class="table-responsive mb-4">
-                                <table class="table table-hover align-middle hawala-range-table">
+                                <GlobalDataGrid class="table table-hover align-middle hawala-range-table">
                                     <thead>
                                         <tr>
                                             <th>#</th>
@@ -636,12 +636,12 @@
                                             }
                                         }
                                     </tbody>
-                                </table>
+                                </GlobalDataGrid>
                             </div>
 
                             <h6 class="fw-bold mb-3"><i class="bi bi-calculator me-2"></i>خلاصه لیجر در محدوده</h6>
                             <div class="table-responsive">
-                                <table class="table table-bordered align-middle mb-0">
+                                <GlobalDataGrid class="table table-bordered align-middle mb-0">
                                     <thead>
                                         <tr>
                                             <th>ارز</th>
@@ -668,7 +668,7 @@
                                             }
                                         }
                                     </tbody>
-                                </table>
+                                </GlobalDataGrid>
                             </div>
                         </div>
                     }

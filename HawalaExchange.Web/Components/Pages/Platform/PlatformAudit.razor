@@ -30,7 +30,7 @@
 
     <div class="modern-card">
         <div class="card-header d-flex justify-content-between"><h6 class="mb-0">سابقه عملیات</h6><span>@auditPage.TotalRows.ToString("N0") رویداد</span></div>
-        <div class="table-responsive"><table class="table modern-table mb-0">
+        <div class="table-responsive"><GlobalDataGrid class="table modern-table mb-0">
             <thead><tr><th>زمان</th><th>کاربر</th><th>عملیات</th><th>صرافی</th><th>موجودیت</th><th>جزئیات</th></tr></thead>
             <tbody>
                 @if (loading) { <tr><td colspan="6" class="text-center p-4">در حال بارگذاری...</td></tr> }
@@ -40,7 +40,7 @@
                     <tr><td dir="ltr">@row.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td><td class="fw-bold">@row.ActorName</td><td><span class="badge-modern badge-info">@ActionLabel(row.Action)</span></td><td>@(row.TenantName ?? "پلتفرم")</td><td>@row.EntityName @(row.EntityId.HasValue ? $"#{row.EntityId}" : "")</td><td class="audit-details" title="@row.Details">@(row.Details ?? "-")</td></tr>
                 }
             </tbody>
-        </table></div>
+        </GlobalDataGrid></div>
     </div>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
         <CompactPagination CurrentPage="filter.Page" TotalPages="TotalPages" PageChanged="GoToPageAsync" />

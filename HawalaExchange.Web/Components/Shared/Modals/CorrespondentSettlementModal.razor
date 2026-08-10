@@ -32,7 +32,7 @@
                             نرخ را مطابق روش معمول سیستم وارد کنید. تبدیل هر ارز جداگانه محاسبه و در دفترکل ثبت می‌شود.
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-sm align-middle">
+                            <GlobalDataGrid class="table table-sm align-middle">
                                 <thead><tr><th>ارز مبدأ</th><th>مانده/حواله</th><th>نرخ تبدیل به @preview.TargetCurrencyCode</th></tr></thead>
                                 <tbody>
                                     @foreach (var item in rateInputs)
@@ -44,7 +44,7 @@
                                         </tr>
                                     }
                                 </tbody>
-                            </table>
+                            </GlobalDataGrid>
                         </div>
                         <label class="form-label">یادداشت (اختیاری)</label>
                         <textarea class="form-control" rows="2" maxlength="500" @bind="note"></textarea>

@@ -11,29 +11,54 @@
 
 <PageTitle>گزارش‌های مدیریتی SaaS</PageTitle>
 <div class="page-wrapper">
-    <div class="page-header no-print"><div><h5 class="page-title"><i class="bi bi-bar-chart-line"></i> گزارش‌های مدیریتی SaaS</h5><span class="page-subtitle">رشد، اشتراک‌ها، درآمد، معوقات و مصرف صرافی‌ها</span></div><div class="page-actions"><a class="btn-modern btn-light-modern" href="@ExcelUrl"><i class="bi bi-file-earmark-excel"></i> Excel</a><button class="btn-modern btn-primary-modern" @onclick="PrintAsync"><i class="bi bi-file-earmark-pdf"></i> چاپ / PDF</button></div></div>
+    <div class="page-header no-print">
+        <div><h5 class="page-title"><i class="bi bi-bar-chart-line"></i> گزارش‌های مدیریتی SaaS</h5><span class="page-subtitle">رشد، اشتراک‌ها، درآمد، معوقات و مصرف صرافی‌ها</span></div>
+        <PageHeaderStats AriaLabel="آمار گزارش مدیریتی">
+            <PageHeaderStat Label="صرافی‌ها" Value="@report.TotalTenants.ToString("N0")" Icon="bi-buildings" />
+            <PageHeaderStat Label="فعال" Value="@report.ActiveTenants.ToString("N0")" Icon="bi-check-circle" Tone="success" />
+            <PageHeaderStat Label="غیرفعال" Value="@report.InactiveTenants.ToString("N0")" Icon="bi-slash-circle" Tone="neutral" />
+            <PageHeaderStat Label="منقضی" Value="@report.ExpiredTenants.ToString("N0")" Icon="bi-x-circle" Tone="danger" />
+            <PageHeaderStat Label="تعلیق" Value="@report.SuspendedTenants.ToString("N0")" Icon="bi-pause-circle" Tone="warning" />
+            <PageHeaderStat Label="کاربران" Value="@report.TotalUsers.ToString("N0")" Icon="bi-people" Tone="info" />
+        </PageHeaderStats>
+        <div class="page-actions"><a class="btn-modern btn-light-modern" href="@ExcelUrl"><i class="bi bi-file-earmark-excel"></i> Excel</a><button class="btn-modern btn-primary-modern" @onclick="PrintAsync"><i class="bi bi-file-earmark-pdf"></i> چاپ / PDF</button></div>
+    </div>
     @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-danger no-print">@message</div> }
-    <div class="modern-card mb-3 no-print"><div class="card-body"><div class="row g-3 align-items-end">
-        <div class="col-lg-3"><label class="form-label">جستجوی فوری</label><div class="input-group-modern"><span class="input-icon"><i class="bi bi-search"></i></span><input class="form-control-modern" value="@filter.Search" @oninput="SearchChanged" placeholder="نام صرافی..." /></div></div>
-        <div class="col-lg-2"><label class="form-label">از تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.FromDate" @bind-Value:after="FilterChangedAsync" /></div><div class="col-lg-2"><label class="form-label">تا تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.ToDate" @bind-Value:after="FilterChangedAsync" /></div>
-        <div class="col-lg-2"><label class="form-label">پلن</label><select class="form-select" value="@(filter.PlanId?.ToString() ?? "")" @onchange="PlanChanged"><option value="">همه پلن‌ها</option>@foreach(var plan in plans){<option value="@plan.Id">@plan.Name</option>}</select></div>
-        <div class="col-lg-2"><label class="form-label">وضعیت</label><select class="form-select" value="@(filter.Status.HasValue ? ((int)filter.Status.Value).ToString() : "")" @onchange="StatusChanged"><option value="">همه</option>@foreach(var status in Enum.GetValues<SubscriptionStatus>()){<option value="@((int)status)">@StatusText(status)</option>}</select></div>
-        <div class="col-lg-1"><label class="form-label">ارز</label><input class="form-control" value="@filter.CurrencyCode" @oninput="CurrencyChanged" placeholder="USD" /></div>
-        <div class="col-lg-3"><label class="form-label">مرتب‌سازی</label><select class="form-select" value="@filter.SortBy" @onchange="SortChanged"><option value="name">نام صرافی</option><option value="created">تاریخ ایجاد</option><option value="end">تاریخ پایان</option><option value="users">تعداد کاربران</option><option value="revenue">مبلغ اشتراک</option><option value="outstanding">مطالبات</option></select></div>
-        <div class="col-lg-2"><label class="form-label">جهت</label><select class="form-select" value="@filter.SortDescending.ToString().ToLowerInvariant()" @onchange="SortDirectionChanged"><option value="false">صعودی</option><option value="true">نزولی</option></select></div>
-    </div></div></div>
+    <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش‌های SaaS"
+                      CssClass="mb-3 no-print"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(filter.Search) || filter.PlanId.HasValue || filter.Status.HasValue || filter.FromDate.HasValue || filter.ToDate.HasValue || !string.IsNullOrWhiteSpace(filter.CurrencyCode))"
+                      ActiveFilterCount="@((filter.FromDate.HasValue ? 1 : 0) + (filter.ToDate.HasValue ? 1 : 0) + (!string.IsNullOrWhiteSpace(filter.CurrencyCode) ? 1 : 0) + (filter.SortBy != "name" ? 1 : 0) + (filter.SortDescending ? 1 : 0))"
+                      Reset="ResetReportFilters">
+        <SearchContent><input class="form-control" value="@filter.Search" @oninput="SearchChanged" placeholder="نام صرافی..." /></SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" aria-label="پلن" value="@(filter.PlanId?.ToString() ?? "")" @onchange="PlanChanged"><option value="">همه پلن‌ها</option>@foreach(var plan in plans){<option value="@plan.Id">@plan.Name</option>}</select>
+            <select class="form-select compact-quick-filter" aria-label="وضعیت" value="@(filter.Status.HasValue ? ((int)filter.Status.Value).ToString() : "")" @onchange="StatusChanged"><option value="">همه وضعیت‌ها</option>@foreach(var status in Enum.GetValues<SubscriptionStatus>()){<option value="@((int)status)">@StatusText(status)</option>}</select>
+        </QuickFilters>
+        <AdvancedFilters>
+            <div class="compact-filter-field"><label class="form-label">از تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.FromDate" @bind-Value:after="FilterChangedAsync" /></div>
+            <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.ToDate" @bind-Value:after="FilterChangedAsync" /></div>
+            <div class="compact-filter-field"><label class="form-label">ارز</label><input class="form-control" value="@filter.CurrencyCode" @oninput="CurrencyChanged" placeholder="USD" /></div>
+            <div class="compact-filter-field"><label class="form-label">مرتب‌سازی</label><select class="form-select" value="@filter.SortBy" @onchange="SortChanged"><option value="name">نام صرافی</option><option value="created">تاریخ ایجاد</option><option value="end">تاریخ پایان</option><option value="users">تعداد کاربران</option><option value="revenue">مبلغ اشتراک</option><option value="outstanding">مطالبات</option></select></div>
+            <div class="compact-filter-field"><label class="form-label">جهت</label><select class="form-select" value="@filter.SortDescending.ToString().ToLowerInvariant()" @onchange="SortDirectionChanged"><option value="false">صعودی</option><option value="true">نزولی</option></select></div>
+        </AdvancedFilters>
+    </CompactFilterBar>
     @if(isLoading){<div class="modern-card p-5 text-center">در حال تهیه گزارش...</div>}
     else
     {
         <div id="saas-management-report" class="report-print-area">
             <div class="range-report-header mb-3"><h4>گزارش مدیریتی پلتفرم SaaS</h4><div class="text-muted">تولید: @report.GeneratedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm") | بازه: @(filter.FromDate?.ToString("yyyy/MM/dd") ?? "ابتدا") تا @(filter.ToDate?.ToString("yyyy/MM/dd") ?? "امروز")</div></div>
-            <div class="row g-3 mb-4"><MetricCard Title="کل صرافی‌ها" Value="@report.TotalTenants.ToString("N0")" Icon="bi-buildings" Tone="primary"/><MetricCard Title="فعال" Value="@report.ActiveTenants.ToString("N0")" Icon="bi-check-circle" Tone="success"/><MetricCard Title="غیرفعال" Value="@report.InactiveTenants.ToString("N0")" Icon="bi-slash-circle" Tone="secondary"/><MetricCard Title="منقضی" Value="@report.ExpiredTenants.ToString("N0")" Icon="bi-x-circle" Tone="danger"/><MetricCard Title="تعلیق" Value="@report.SuspendedTenants.ToString("N0")" Icon="bi-pause-circle" Tone="warning"/><MetricCard Title="کل کاربران" Value="@report.TotalUsers.ToString("N0")" Icon="bi-people" Tone="info"/></div>
             <div class="modern-card mb-4"><div class="card-header"><h6 class="mb-0">رشد ماهانه صرافی‌ها، کاربران و اشتراک‌ها</h6></div><div class="card-body"><div class="growth-chart">@foreach(var point in report.Growth){<div class="growth-column" title="@point.Month.ToString("yyyy/MM")"><div class="bars"><span class="bar tenant" style="height:@BarHeight(point.NewTenants)px"></span><span class="bar user" style="height:@BarHeight(point.NewUsers)px"></span><span class="bar subscription" style="height:@BarHeight(point.NewSubscriptions)px"></span></div><small>@point.Month.ToString("yy/MM")</small></div>}</div><div class="chart-legend"><span><i class="tenant"></i> صرافی</span><span><i class="user"></i> کاربر</span><span><i class="subscription"></i> اشتراک</span></div></div></div>
             <div class="modern-card mb-4"><div class="card-header"><h6 class="mb-0">درآمد اشتراک‌ها به تفکیک ارز</h6></div><div class="table-responsive"><table class="table modern-table mb-0"><thead><tr><th>ماه</th><th>ارز</th><th>فاکتور شده</th><th>وصول شده</th><th>باقی‌مانده</th></tr></thead><tbody>@if(report.Revenue.Count==0){<tr><td colspan="5" class="text-center text-muted">داده‌ای وجود ندارد.</td></tr>}@foreach(var item in report.Revenue){<tr><td>@item.Month.ToString("yyyy/MM")</td><td>@item.CurrencyCode</td><td>@item.Billed.ToString("N2")</td><td class="text-success">@item.Collected.ToString("N2")</td><td class="text-danger">@item.Outstanding.ToString("N2")</td></tr>}</tbody></table></div></div>
             <div class="modern-card mb-4"><div class="card-header d-flex justify-content-between"><h6 class="mb-0">وضعیت و مصرف صرافی‌ها</h6><span>@report.TotalRows.ToString("N0") ردیف</span></div><div class="table-responsive"><table class="table modern-table mb-0"><thead><tr><th>صرافی</th><th>فعالیت</th><th>پلن</th><th>اشتراک</th><th>پایان</th><th>کاربر</th><th>شعبه</th><th>تراکنش</th><th>فضا (MB)</th><th>مطالبات</th></tr></thead><tbody>@foreach(var row in report.Tenants){<tr><td class="fw-bold">@row.TenantName</td><td>@(row.TenantIsActive?"فعال":"غیرفعال")</td><td>@row.PlanName</td><td>@StatusText(row.Status)</td><td>@(row.EndAt?.ToLocalTime().ToString("yyyy/MM/dd")??"-")</td><td>@row.Users</td><td>@row.Branches</td><td>@row.Transactions.ToString("N0")</td><td>@((row.StorageBytes/1048576m).ToString("N1"))</td><td>@row.Outstanding.ToString("N2") @row.CurrencyCode</td></tr>}</tbody></table></div></div>
             <div class="modern-card"><div class="card-header"><h6 class="mb-0">پرداخت‌های معوق</h6></div><div class="table-responsive"><table class="table modern-table mb-0"><thead><tr><th>فاکتور</th><th>صرافی</th><th>سررسید</th><th>مبلغ</th><th>پرداخت</th><th>باقی‌مانده</th></tr></thead><tbody>@if(report.OverdueInvoices.Count==0){<tr><td colspan="6" class="text-center text-muted">پرداخت معوقی وجود ندارد.</td></tr>}@foreach(var row in report.OverdueInvoices){<tr><td>@row.InvoiceNumber</td><td>@row.TenantName</td><td>@row.DueAt.ToLocalTime().ToString("yyyy/MM/dd")</td><td>@row.Total.ToString("N2") @row.CurrencyCode</td><td>@row.Paid.ToString("N2")</td><td class="text-danger">@row.Balance.ToString("N2")</td></tr>}</tbody></table></div></div>
         </div>
-        <div class="d-flex justify-content-between align-items-center mt-3 no-print"><button class="btn btn-outline-primary" disabled="@(filter.Page<=1)" @onclick="PreviousPage">قبلی</button><span>صفحه @filter.Page از @TotalPages</span><button class="btn btn-outline-primary" disabled="@(filter.Page>=TotalPages)" @onclick="NextPage">بعدی</button></div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3 no-print">
+            <CompactPagination CurrentPage="filter.Page" TotalPages="TotalPages" PageChanged="GoToPageAsync" />
+            <PageSizeSelector @bind-Value="filter.PageSize"
+                              @bind-CurrentPage="filter.Page"
+                              Changed="LoadAsync"
+                              AriaLabel="تعداد صرافی در هر صفحه" />
+        </div>
     }
 </div>
 <style>
@@ -47,7 +72,8 @@
     private async Task FilterChangedAsync(){filter.Page=1;await LoadAsync();}private async Task SearchChanged(ChangeEventArgs e){filter.Search=e.Value?.ToString();await FilterChangedAsync();}private async Task CurrencyChanged(ChangeEventArgs e){filter.CurrencyCode=e.Value?.ToString();await FilterChangedAsync();}
     private async Task PlanChanged(ChangeEventArgs e){filter.PlanId=long.TryParse(e.Value?.ToString(),out var x)?x:null;await FilterChangedAsync();}private async Task StatusChanged(ChangeEventArgs e){filter.Status=int.TryParse(e.Value?.ToString(),out var x)?(SubscriptionStatus)x:null;await FilterChangedAsync();}
     private async Task SortChanged(ChangeEventArgs e){filter.SortBy=e.Value?.ToString()??"name";await FilterChangedAsync();}private async Task SortDirectionChanged(ChangeEventArgs e){filter.SortDescending=bool.TryParse(e.Value?.ToString(),out var x)&&x;await FilterChangedAsync();}
-    private async Task PreviousPage(){filter.Page--;await LoadAsync();}private async Task NextPage(){filter.Page++;await LoadAsync();}
+    private async Task ResetReportFilters(){var pageSize=filter.PageSize;filter=new(){PageSize=pageSize};await LoadAsync();}
+    private async Task GoToPageAsync(int page){var target=Math.Clamp(page,1,TotalPages);if(target==filter.Page)return;filter.Page=target;await LoadAsync();}
     private async Task PrintAsync(){var oldPage=filter.Page;var oldSize=filter.PageSize;try{filter.Page=1;filter.PageSize=1000;await LoadAsync();await JS.InvokeAsync<bool>("hawalaTools.printPdfElement","saas-management-report","saas-management-report");}finally{filter.Page=oldPage;filter.PageSize=oldSize;await LoadAsync();}}
     private static string StatusText(SubscriptionStatus? s)=>s switch{SubscriptionStatus.Trial=>"آزمایشی",SubscriptionStatus.Active=>"فعال",SubscriptionStatus.ExpiringSoon=>"نزدیک انقضا",SubscriptionStatus.Expired=>"منقضی",SubscriptionStatus.Suspended=>"تعلیق",SubscriptionStatus.Cancelled=>"لغوشده",_=>"بدون اشتراک"};
 }

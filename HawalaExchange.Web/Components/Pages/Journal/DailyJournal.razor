@@ -19,6 +19,12 @@
             </h5>
         </div>
 
+        <PageHeaderStats AriaLabel="آمار روزنامچه">
+            <PageHeaderStat Label="عملیات" Value="@journal.Operations.Count" Icon="bi-receipt" />
+            <PageHeaderStat Label="ثبت‌ها" Value="@journal.Entries.Count" Icon="bi-list-ul" Tone="info" />
+            <PageHeaderStat Label="ارزها" Value="@journal.CurrencySummaries.Count" Icon="bi-coin" Tone="success" />
+            <PageHeaderStat Label="بازه" Value="@GetPeriodLabel()" Icon="bi-calendar-date" Tone="warning" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-light-modern btn-rounded" @onclick="LoadToday" disabled="@isLoading">
                 <i class="bi bi-calendar-check"></i>
@@ -47,98 +53,58 @@
         </div>
     }
 
-    <div class="table-card journal-filter-card mb-4">
-        <div class="table-card-header">
-            <div class="table-card-header-left">
-                <h6 class="mb-0 text-primary">
-                    <i class="bi bi-funnel"></i>
-                    فیلترهای روزنامچه
-                </h6>
-            </div>
-            <div class="table-card-header-right">
-                <span class="badge-modern badge-info">
-                    <i class="bi bi-calendar-range"></i>
-                    @GetPeriodLabel()
-                </span>
-            </div>
-        </div>
-        <div class="table-card-body p-3">
-            <div class="row g-3 align-items-end">
-                <div class="col-xl-2 col-md-4">
-                    <label class="form-label fw-bold">از تاریخ</label>
+    <CompactFilterBar AriaLabel="جستجو و فیلتر روزنامچه"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterSourceType) || !string.IsNullOrWhiteSpace(filterAccountName) || !string.IsNullOrWhiteSpace(filterCurrencyCode) || filterFromDate.Date != DateTime.Today || filterToDate.Date != DateTime.Today)"
+                      ActiveFilterCount="@((!string.IsNullOrWhiteSpace(filterAccountName) ? 1 : 0) + (filterFromDate.Date != DateTime.Today ? 1 : 0) + (filterToDate.Date != DateTime.Today ? 1 : 0))"
+                      Reset="ResetFilters">
+        <SearchContent>
+            <input type="text"
+                   class="form-control"
+                   placeholder="شماره سند، شرح، حساب، ارز یا جزئیات..."
+                   @bind="searchTerm"
+                   @bind:event="oninput" />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" aria-label="نوع عملیات" @bind="filterSourceType" @bind:event="oninput">
+                <option value="">همه عملیات</option>
+                @foreach (var source in sourceTypes)
+                {
+                    <option value="@source">@GetSourceTypeName(source)</option>
+                }
+            </select>
+            <select class="form-select compact-quick-filter" aria-label="ارز" @bind="filterCurrencyCode" @bind:event="oninput">
+                <option value="">همه ارزها</option>
+                @foreach (var currencyCode in currencyCodes)
+                {
+                    <option value="@currencyCode">@currencyCode</option>
+                }
+            </select>
+        </QuickFilters>
+        <AdvancedFilters>
+                <div class="compact-filter-field">
+                    <label class="form-label">از تاریخ</label>
                     <PersianDatePicker @bind-Value="filterFromDate"
-                                       @bind-Value:after="ApplyFilters"
+                                       @bind-Value:after="LoadJournal"
                                        IncludeTime="false"
                                        Placeholder="تاریخ شروع" />
                 </div>
-                <div class="col-xl-2 col-md-4">
-                    <label class="form-label fw-bold">تا تاریخ</label>
+                <div class="compact-filter-field">
+                    <label class="form-label">تا تاریخ</label>
                     <PersianDatePicker @bind-Value="filterToDate"
-                                       @bind-Value:after="ApplyFilters"
+                                       @bind-Value:after="LoadJournal"
                                        IncludeTime="false"
                                        Placeholder="تاریخ پایان" />
                 </div>
-                <div class="col-xl-2 col-md-4">
-                    <label class="form-label fw-bold">نوع عملیات</label>
-                    <select class="form-select" @bind="filterSourceType" @bind:event="oninput">
-                        <option value="">همه عملیات</option>
-                        @foreach (var source in sourceTypes)
-                        {
-                            <option value="@source">@source</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-xl-3 col-md-6">
-                    <label class="form-label fw-bold">حساب</label>
+                <div class="compact-filter-field">
+                    <label class="form-label">حساب</label>
                     <SearchableTextSelect Items="@accountNames"
                                           @bind-Value="filterAccountName"
                                           Placeholder="جستجوی حساب..."
                                           AllowClear="true"
                                           ClearText="همه حساب‌ها" />
                 </div>
-                <div class="col-xl-3 col-md-6">
-                    <label class="form-label fw-bold">ارز</label>
-                    <select class="form-select" @bind="filterCurrencyCode" @bind:event="oninput">
-                        <option value="">همه ارزها</option>
-                        @foreach (var currencyCode in currencyCodes)
-                        {
-                            <option value="@currencyCode">@currencyCode</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-lg-8">
-                    <label class="form-label fw-bold">جستجو</label>
-                    <div class="search-modern journal-filter-search">
-                        <span class="search-icon"><i class="bi bi-search"></i></span>
-                        <input type="text"
-                               class="search-input"
-                               placeholder="شماره سند، شرح، حساب، ارز یا جزئیات..."
-                               @bind="searchTerm"
-                               @bind:event="oninput" />
-                        <button class="search-btn" @onclick="ClearTextSearch" title="پاک‌کردن جستجو">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="col-lg-4">
-                    <div class="d-flex gap-2">
-                        <button class="btn-modern btn-primary-modern flex-fill"
-                                @onclick="LoadJournal"
-                                disabled="@isLoading">
-                            <i class="bi bi-search"></i>
-                            تطبیق تاریخ
-                        </button>
-                        <button class="btn-modern btn-light-modern flex-fill"
-                                @onclick="ResetFilters"
-                                disabled="@isLoading">
-                            <i class="bi bi-arrow-counterclockwise"></i>
-                            بازنشانی
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+        </AdvancedFilters>
+    </CompactFilterBar>
 
     <div class="table-card cash-day-card mb-4">
         <div class="table-card-header">
@@ -262,53 +228,6 @@
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary"><i class="bi bi-receipt"></i></div>
-                    <div>
-                        <div class="stat-number">@journal.Operations.Count</div>
-                        <div class="stat-label">تعداد عملیات</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info"><i class="bi bi-list-ul"></i></div>
-                    <div>
-                        <div class="stat-number">@journal.Entries.Count</div>
-                        <div class="stat-label">ثبت‌های حسابداری</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success"><i class="bi bi-coin"></i></div>
-                    <div>
-                        <div class="stat-number">@journal.CurrencySummaries.Count</div>
-                        <div class="stat-label">تعداد ارزها</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-warning">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning"><i class="bi bi-calendar-date"></i></div>
-                    <div>
-                        <div class="stat-number journal-date-value">@GetPeriodLabel()</div>
-                        <div class="stat-label">بازه گزارش</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="table-card mb-4">
         <div class="table-card-header">
             <div class="table-card-header-left">
@@ -368,14 +287,8 @@
             <div class="table-card-header-left">
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage" />
                 </div>
             </div>
             <div class="table-card-header-right">
@@ -433,7 +346,7 @@
                                     </td>
                                     <td class="journal-sentence">
                                         <span class="badge-modern @GetSourceBadge(operation.SourceType)">
-                                            @operation.SourceType
+                                            @GetSourceTypeName(operation.SourceType)
                                         </span>
                                         <span>@operation.SummarySentence</span>
                                     </td>
@@ -458,30 +371,9 @@
                 <span class="text-muted small">
                     نمایش <strong>@pagedOperations.Count</strong> از <strong>@filteredOperations.Count</strong> عملیات
                 </span>
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            @for (var page = 1; page <= totalPages; page++)
-                            {
-                                var pageNumber = page;
-                                <li class="page-item @(pageNumber == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(pageNumber)">@pageNumber</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
             <div class="table-card-footer-right">
                 <span class="badge-modern badge-info">
@@ -501,7 +393,7 @@
                 <div>
                     <h5>
                         <i class="bi bi-receipt-cutoff"></i>
-                        جزئیات کامل @selectedOperation.SourceType
+                        جزئیات کامل @GetSourceTypeName(selectedOperation.SourceType)
                     </h5>
                     <div class="journal-modal-subtitle">
                         سند @selectedOperation.DocumentNumber ·
@@ -514,7 +406,7 @@
 
             <div class="journal-modal-body">
                 <div class="journal-overview-grid">
-                    <div><span>نوع عملیات</span><strong>@selectedOperation.SourceType</strong></div>
+                    <div><span>نوع عملیات</span><strong>@GetSourceTypeName(selectedOperation.SourceType)</strong></div>
                     <div><span>شماره سند</span><strong>@selectedOperation.DocumentNumber</strong></div>
                     <div><span>تعداد حساب</span><strong>@selectedOperation.AccountNames.Count</strong></div>
                     <div><span>تعداد ثبت حسابداری</span><strong>@selectedOperation.LedgerEntriesCount</strong></div>
@@ -933,10 +825,13 @@
         "حواله" => "badge-primary",
         "ثبت سرمایه" => "badge-success",
         "مصرف" => "badge-danger",
-        "واریز / برداشت" => "badge-info",
+        "واریز / برداشت / پرداخت" => "badge-info",
         "تبدیل پول" => "badge-warning",
         "انتقال" => "badge-secondary",
         "تراکنش" => "badge-secondary",
         _ => "badge-secondary"
     };
+
+    private static string GetSourceTypeName(string sourceType) =>
+        sourceType == "واریز / برداشت / پرداخت" ? "رسید / برد" : sourceType;
 }

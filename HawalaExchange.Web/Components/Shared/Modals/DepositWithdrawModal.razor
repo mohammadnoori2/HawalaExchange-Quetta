@@ -20,7 +20,7 @@
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
-                        @(IsEditMode ? "ویرایش واریز/برداشت/پرداخت" : "ثبت واریز/برداشت/پرداخت جدید")
+                        @(IsEditMode ? "ویرایش رسید یا برد" : "ثبت رسید یا برد جدید")
                     </h5>
 
                     <button type="button"
@@ -82,8 +82,8 @@
 
                                         <select class="form-select" @bind="CurrentOperation.OperationType">
                                             <option value="">انتخاب نوع</option>
-                                            <option value="Deposit">واریز</option>
-                                            <option value="Withdraw">برداشت / پرداخت</option>
+                                            <option value="Deposit">رسید</option>
+                                            <option value="Withdraw">برد</option>
                                         </select>
                                     </div>
 
@@ -180,7 +180,7 @@
                                     @if (CurrentOperation.OperationType == "Deposit")
                                     {
                                         <div class="mt-2">
-                                            در واریز: حساب صندوق/بانک بدهکار می‌شود و حساب انتخاب‌شده طلبکار می‌شود.
+                                            در رسید: حساب صندوق/بانک بدهکار می‌شود و حساب انتخاب‌شده طلبکار می‌شود.
                                         </div>
 
                                         <div class="mt-2" dir="ltr">
@@ -191,7 +191,7 @@
                                     else if (CurrentOperation.OperationType == "Withdraw")
                                     {
                                         <div class="mt-2">
-                                            در برداشت/پرداخت: حساب انتخاب‌شده بدهکار می‌شود و حساب صندوق/بانک طلبکار می‌شود.
+                                            در برد: حساب انتخاب‌شده بدهکار می‌شود و حساب صندوق/بانک طلبکار می‌شود.
                                         </div>
 
                                         <div class="mt-2" dir="ltr">
@@ -470,7 +470,7 @@
     {
         if (CurrentOperation.OperationType != "Deposit" &&
             CurrentOperation.OperationType != "Withdraw")
-            ValidationErrors.Add("نوع عملیات باید واریز یا برداشت باشد.");
+            ValidationErrors.Add("نوع عملیات باید رسید یا برد باشد.");
 
         if (CurrentOperation.AccountId <= 0)
             ValidationErrors.Add("انتخاب حساب الزامی است.");

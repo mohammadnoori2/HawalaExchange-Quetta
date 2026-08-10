@@ -32,6 +32,14 @@
                 <span class="page-subtitle">لیست و جستجوی حواله‌ها</span>
             </h5>
         </div>
+        <PageHeaderStats AriaLabel="آمار حواله‌ها">
+            <PageHeaderStat Label="کل" Value="@totalCount" Icon="bi-arrow-left-right" />
+            <PageHeaderStat Label="ارسال" Value="@hawalaSendCount" Icon="bi-send" Tone="success" />
+            <PageHeaderStat Label="دریافت" Value="@hawalaReceiveCount" Icon="bi-download" Tone="info" />
+            <PageHeaderStat Label="متفرقه" Value="@hawalaOtherCount" Icon="bi-asterisk" Tone="warning" />
+            <PageHeaderStat Label="اجرا نشده" Value="@pendingCount" Icon="bi-clock-history" Tone="danger" />
+            <PageHeaderStat Label="پرداخت" Value="@paidCount" Icon="bi-check-circle" Tone="neutral" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> حواله جدید
@@ -39,150 +47,92 @@
         </div>
     </div>
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-2 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary"><i class="bi bi-arrow-left-right"></i></div>
-                    <div>
-                        <div class="stat-number">@totalCount</div>
-                        <div class="stat-label">تعداد کل</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success"><i class="bi bi-send"></i></div>
-                    <div>
-                        <div class="stat-number">@hawalaSendCount</div>
-                        <div class="stat-label">حواله ارسال</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info"><i class="bi bi-download"></i></div>
-                    <div>
-                        <div class="stat-number">@hawalaReceiveCount</div>
-                        <div class="stat-label">حواله دریافت</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-warning">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning"><i class="bi bi-asterisk"></i></div>
-                    <div>
-                        <div class="stat-number">@hawalaOtherCount</div>
-                        <div class="stat-label">حواله متفرقه</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-danger">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger"><i class="bi bi-clock-history"></i></div>
-                    <div>
-                        <div class="stat-number">@pendingCount</div>
-                        <div class="stat-label">حواله‌های اجرا نشده</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-secondary">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon" style="background: #e9ecef; color: #6c757d;"><i class="bi bi-check-circle"></i></div>
-                    <div>
-                        <div class="stat-number">@paidCount</div>
-                        <div class="stat-label">پرداخت شده</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- فیلترها -->
-    <div class="row g-3 mb-4 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label fw-bold"><i class="bi bi-search text-muted me-1"></i> جستجو</label>
-            <input type="text" class="form-control" placeholder="نمبر، مبلغ، فرستنده، گیرنده، نمبر متفرقه..." @bind="searchTerm" @bind:event="oninput" @bind:after="OnFilterChangedAsync" />
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-tag text-muted me-1"></i> نوع حواله</label>
-            <select class="form-select" @bind="filterHawalaType" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+    <CompactFilterBar AriaLabel="جستجو و فیلتر حواله‌ها"
+                      HasActiveFilters="@HasActiveFilters"
+                      ActiveFilterCount="@AdvancedFilterCount"
+                      Reset="ResetFilters">
+        <SearchContent>
+                <input type="text"
+                       class="form-control"
+                       aria-label="جستجوی حواله‌ها"
+                       placeholder="جستجو با نمبر، مبلغ، فرستنده یا گیرنده..."
+                       @bind="searchTerm"
+                       @bind:event="oninput"
+                       @bind:after="OnFilterChangedAsync" />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter"
+                    aria-label="نوع حواله"
+                    @bind="filterHawalaType"
+                    @bind:event="oninput"
+                    @bind:after="OnFilterChangedAsync">
                 <option value="">همه انواع</option>
                 <option value="HawalaSend">حواله ارسال</option>
                 <option value="HawalaReceive">حواله دریافت</option>
                 <option value="HawalaOther">حواله متفرقه</option>
             </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-circle text-muted me-1"></i> وضعیت</label>
-            <select class="form-select" @bind="filterStatus" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
-                <option value="">همه وضعیت‌ها</option>
-                <option value="Pending">@(filterHawalaType == "HawalaReceive" ? "حواله‌های اجرا نشده" : "در انتظار")</option>
-                <option value="Paid">پرداخت شده</option>
-                <option value="Cancel">لغو شده</option>
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-person text-muted me-1"></i> نماینده</label>
-            <select class="form-select" @bind="filterCorrespondentId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
-                <option value="0">همه نمایندگان</option>
+
+            <select class="form-select compact-quick-filter"
+                    aria-label="نمایندگی"
+                    @bind="filterCorrespondentId"
+                    @bind:event="oninput"
+                    @bind:after="OnFilterChangedAsync">
+                <option value="0">همه نمایندگی‌ها</option>
                 @foreach (var correspondent in correspondents)
                 {
                     <option value="@correspondent.Id">@correspondent.Name</option>
                 }
             </select>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label fw-bold"><i class="bi bi-geo-alt text-muted me-1"></i> محل پرداخت</label>
-            <select class="form-select" @bind="filterPaymentLocationId" @bind:after="OnFilterChangedAsync">
-                <option value="0">همه محل‌ها</option>
-                @foreach (var location in paymentLocations)
-                {
-                    <option value="@location.Id">@location.Name</option>
-                }
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-coin text-muted me-1"></i> ارز مبلغ</label>
-            <select class="form-select" @bind="filterCurrencyId" @bind:after="OnFilterChangedAsync">
-                <option value="0">همه ارزها</option>
-                @foreach (var currency in currencies)
-                {
-                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                }
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-cash text-muted me-1"></i> حداقل مبلغ</label>
-            <NullableMoneyInput class="form-control" @bind-Value="filterMinAmount" @bind-Value:after="OnFilterChangedAsync" placeholder="از مبلغ" />
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-cash-stack text-muted me-1"></i> حداکثر مبلغ</label>
-            <NullableMoneyInput class="form-control" @bind-Value="filterMaxAmount" @bind-Value:after="OnFilterChangedAsync" placeholder="تا مبلغ" />
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-calendar-event text-muted me-1"></i> از تاریخ ثبت</label>
-            <PersianDatePicker @bind-Value="filterFromDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-calendar-check text-muted me-1"></i> تا تاریخ ثبت</label>
-            <PersianDatePicker @bind-Value="filterToDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
-        </div>
-        <div class="col-md-2 d-flex gap-2">
-            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters"><i class="bi bi-arrow-clockwise"></i> بازنشانی</button>
-        </div>
-    </div>
+
+        </QuickFilters>
+        <AdvancedFilters>
+                <div class="compact-filter-field">
+                    <label class="form-label">وضعیت حواله</label>
+                    <select class="form-select" @bind="filterStatus" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+                        <option value="">همه وضعیت‌ها</option>
+                        <option value="Pending">@(filterHawalaType == "HawalaReceive" ? "حواله‌های اجرا نشده" : "در انتظار")</option>
+                        <option value="Paid">پرداخت شده</option>
+                        <option value="Cancel">لغو شده</option>
+                    </select>
+                </div>
+                <div class="compact-filter-field">
+                    <label class="form-label">محل پرداخت</label>
+                    <select class="form-select" @bind="filterPaymentLocationId" @bind:after="OnFilterChangedAsync">
+                        <option value="0">همه محل‌ها</option>
+                        @foreach (var location in paymentLocations)
+                        {
+                            <option value="@location.Id">@location.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="compact-filter-field">
+                    <label class="form-label">ارز مبلغ</label>
+                    <select class="form-select" @bind="filterCurrencyId" @bind:after="OnFilterChangedAsync">
+                        <option value="0">همه ارزها</option>
+                        @foreach (var currency in currencies)
+                        {
+                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="compact-filter-field">
+                    <label class="form-label">حداقل مبلغ</label>
+                    <NullableMoneyInput class="form-control" @bind-Value="filterMinAmount" @bind-Value:after="OnFilterChangedAsync" placeholder="از مبلغ" />
+                </div>
+                <div class="compact-filter-field">
+                    <label class="form-label">حداکثر مبلغ</label>
+                    <NullableMoneyInput class="form-control" @bind-Value="filterMaxAmount" @bind-Value:after="OnFilterChangedAsync" placeholder="تا مبلغ" />
+                </div>
+                <div class="compact-filter-field">
+                    <label class="form-label">از تاریخ ثبت</label>
+                    <PersianDatePicker @bind-Value="filterFromDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
+                </div>
+                <div class="compact-filter-field">
+                    <label class="form-label">تا تاریخ ثبت</label>
+                    <PersianDatePicker @bind-Value="filterToDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
+                </div>
+        </AdvancedFilters>
+    </CompactFilterBar>
 
     @if (!string.IsNullOrWhiteSpace(filterValidationError))
     {
@@ -201,14 +151,10 @@
             <div class="table-card-header-right">
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage"
+                                      Changed="OnPageSizeChangedAsync"
+                                      AriaLabel="تعداد حواله در هر صفحه" />
                 </div>
             </div>
         </div>
@@ -361,25 +307,9 @@
         <div class="table-card-footer">
             <div class="table-card-footer-left">
                 <span class="text-muted small">نمایش <strong>@filteredHawalas.Count</strong> از <strong>@totalCount</strong> حواله</span>
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)"><i class="bi bi-chevron-right"></i></button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)"><i class="bi bi-chevron-left"></i></button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPageAsync" />
             </div>
         </div>
     </div>
@@ -822,6 +752,22 @@
     private string filterValidationError = string.Empty;
     private CancellationTokenSource? filterChangeCts;
 
+    private int AdvancedFilterCount =>
+        (!string.IsNullOrWhiteSpace(filterStatus) ? 1 : 0) +
+        (filterPaymentLocationId > 0 ? 1 : 0) +
+        (filterCurrencyId > 0 ? 1 : 0) +
+        (filterMinAmount.HasValue ? 1 : 0) +
+        (filterMaxAmount.HasValue ? 1 : 0) +
+        (filterFromDate != DateTime.MinValue ? 1 : 0) +
+        (filterToDate != DateTime.MinValue ? 1 : 0);
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(searchTerm) ||
+        !string.IsNullOrWhiteSpace(filterHawalaType) ||
+        filterCorrespondentId > 0 ||
+        !string.IsNullOrWhiteSpace(filterStatus) ||
+        AdvancedFilterCount > 0;
+
     // ===== صفحه‌بندی و مرتب‌سازی =====
     private int pageSize = 10;
     private int currentPage = 1;
@@ -1204,12 +1150,18 @@
         await LoadHawalas();
     }
 
-    private void GoToPage(int page)
+    private async Task OnPageSizeChangedAsync()
     {
-        if (page >= 1 && page <= totalPages)
+        currentPage = 1;
+        await LoadHawalas();
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        if (page >= 1 && page <= totalPages && page != currentPage)
         {
             currentPage = page;
-            _ = LoadHawalas();
+            await LoadHawalas();
         }
     }
 

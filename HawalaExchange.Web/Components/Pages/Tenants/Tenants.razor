@@ -28,15 +28,14 @@
         <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
     }
 
-    <div class="modern-card mb-3">
-        <div class="card-body">
-            <div class="input-group-modern">
-                <span class="input-icon"><i class="bi bi-search"></i></span>
+    <CompactFilterBar AriaLabel="جستجوی صرافی‌ها"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
+                      Reset="ResetTenantSearch">
+        <SearchContent>
                 <input class="form-control-modern" value="@searchTerm" @oninput="OnSearchChanged"
                        placeholder="جستجو بر اساس نام صرافی..." />
-            </div>
-        </div>
-    </div>
+        </SearchContent>
+    </CompactFilterBar>
 
     <div class="modern-card">
         <div class="table-responsive">
@@ -270,6 +269,11 @@
     private void OnSearchChanged(ChangeEventArgs args)
     {
         searchTerm = args.Value?.ToString() ?? string.Empty;
+    }
+
+    private void ResetTenantSearch()
+    {
+        searchTerm = string.Empty;
     }
 
     private void OpenCreate()

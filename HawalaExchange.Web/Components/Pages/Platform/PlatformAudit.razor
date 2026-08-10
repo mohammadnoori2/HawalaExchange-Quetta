@@ -13,14 +13,20 @@
     <div class="page-header"><div><h5 class="page-title"><i class="bi bi-shield-check"></i> رویدادهای امنیتی پلتفرم</h5><span class="page-subtitle">ردیابی تغییرات مدیریتی و عملیات حساس SaaS</span></div></div>
     @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-danger">@message</div> }
 
-    <div class="modern-card mb-3"><div class="card-body"><div class="row g-3 align-items-end">
-        <div class="col-lg-3"><label class="form-label">جستجوی فوری</label><div class="input-group-modern"><span class="input-icon"><i class="bi bi-search"></i></span><input class="form-control-modern" value="@filter.Search" @oninput="SearchChanged" placeholder="عملیات، موجودیت یا جزئیات..." /></div></div>
-        <div class="col-lg-2"><label class="form-label">صرافی</label><select class="form-select" value="@(filter.TenantId?.ToString() ?? "")" @onchange="TenantChanged"><option value="">همه صرافی‌ها</option>@foreach(var tenant in tenants){<option value="@tenant.Id">@tenant.Name</option>}</select></div>
-        <div class="col-lg-2"><label class="form-label">عملیات</label><select class="form-select" value="@filter.Action" @onchange="ActionChanged"><option value="">همه عملیات</option>@foreach(var action in actions){<option value="@action">@ActionLabel(action)</option>}</select></div>
-        <div class="col-lg-2"><label class="form-label">از تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.FromDate" @bind-Value:after="FilterChangedAsync" /></div>
-        <div class="col-lg-2"><label class="form-label">تا تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.ToDate" @bind-Value:after="FilterChangedAsync" /></div>
-        <div class="col-lg-1"><button class="btn-modern btn-light-modern w-100" @onclick="ResetAsync"><i class="bi bi-arrow-counterclockwise"></i></button></div>
-    </div></div></div>
+    <CompactFilterBar AriaLabel="جستجو و فیلتر رویدادهای پلتفرم"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(filter.Search) || filter.TenantId.HasValue || !string.IsNullOrWhiteSpace(filter.Action) || filter.FromDate.HasValue || filter.ToDate.HasValue)"
+                      ActiveFilterCount="@((filter.FromDate.HasValue ? 1 : 0) + (filter.ToDate.HasValue ? 1 : 0))"
+                      Reset="ResetAsync">
+        <SearchContent><input class="form-control" value="@filter.Search" @oninput="SearchChanged" placeholder="عملیات، موجودیت یا جزئیات..." /></SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" aria-label="صرافی" value="@(filter.TenantId?.ToString() ?? "")" @onchange="TenantChanged"><option value="">همه صرافی‌ها</option>@foreach(var tenant in tenants){<option value="@tenant.Id">@tenant.Name</option>}</select>
+            <select class="form-select compact-quick-filter" aria-label="عملیات" value="@filter.Action" @onchange="ActionChanged"><option value="">همه عملیات</option>@foreach(var action in actions){<option value="@action">@ActionLabel(action)</option>}</select>
+        </QuickFilters>
+        <AdvancedFilters>
+            <div class="compact-filter-field"><label class="form-label">از تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.FromDate" @bind-Value:after="FilterChangedAsync" /></div>
+            <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.ToDate" @bind-Value:after="FilterChangedAsync" /></div>
+        </AdvancedFilters>
+    </CompactFilterBar>
 
     <div class="modern-card">
         <div class="card-header d-flex justify-content-between"><h6 class="mb-0">سابقه عملیات</h6><span>@auditPage.TotalRows.ToString("N0") رویداد</span></div>
@@ -36,7 +42,13 @@
             </tbody>
         </table></div>
     </div>
-    <div class="d-flex justify-content-between align-items-center mt-3"><button class="btn btn-outline-primary" disabled="@(filter.Page <= 1)" @onclick="PreviousPage">قبلی</button><span>صفحه @filter.Page از @TotalPages</span><button class="btn btn-outline-primary" disabled="@(filter.Page >= TotalPages)" @onclick="NextPage">بعدی</button></div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+        <CompactPagination CurrentPage="filter.Page" TotalPages="TotalPages" PageChanged="GoToPageAsync" />
+        <PageSizeSelector @bind-Value="filter.PageSize"
+                          @bind-CurrentPage="filter.Page"
+                          Changed="LoadAsync"
+                          AriaLabel="تعداد رویداد در هر صفحه" />
+    </div>
 </div>
 
 <style>.audit-details{max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}</style>
@@ -62,8 +74,7 @@
     private async Task TenantChanged(ChangeEventArgs e){filter.TenantId=long.TryParse(e.Value?.ToString(),out var id)?id:null;await FilterChangedAsync();}
     private async Task ActionChanged(ChangeEventArgs e){filter.Action=e.Value?.ToString();await FilterChangedAsync();}
     private async Task ResetAsync(){filter=new();await LoadAsync();}
-    private async Task PreviousPage(){filter.Page--;await LoadAsync();}
-    private async Task NextPage(){filter.Page++;await LoadAsync();}
+    private async Task GoToPageAsync(int page){var target=Math.Clamp(page,1,TotalPages);if(target==filter.Page)return;filter.Page=target;await LoadAsync();}
     private static string ActionLabel(string action) => action switch
     {
         "CREATE_TENANT" => "ایجاد صرافی", "CREATE_PLATFORM_USER" => "ایجاد کاربر مرکزی", "SET_PLATFORM_USER_ACTIVE" => "تغییر وضعیت کاربر",

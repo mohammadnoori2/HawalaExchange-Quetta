@@ -31,7 +31,7 @@
                                 انتقال بین حساب
                             </button>
                             <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
-                                واریز، برداشت و پرداخت
+                                رسید / برد
                             </button>
                         }
                         @if (!ActionArchived && OnEditRequested.HasDelegate)
@@ -194,7 +194,7 @@
                                         <i class="bi bi-arrow-left-right"></i> انتقال بین حساب
                                     </button>
                                     <button class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
-                                        <i class="bi bi-cash-stack"></i> واریز، برداشت و پرداخت
+                                        <i class="bi bi-cash-stack"></i> رسید / برد
                                     </button>
                                 </div>
                             }
@@ -214,7 +214,7 @@
                                 </button>
                                 <button class="btn btn-sm @(OperationFilter == "واریز / برداشت / پرداخت" ? "btn-success" : "btn-outline-success")"
                                         @onclick='() => SetOperationFilter("واریز / برداشت / پرداخت")'>
-                                    واریز، برداشت و پرداخت
+                                    رسید / برد
                                 </button>
                                 <button class="btn btn-sm @(OperationFilter == "Other" ? "btn-secondary" : "btn-outline-secondary")"
                                         @onclick='() => SetOperationFilter("Other")'>
@@ -239,7 +239,7 @@
                                             <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
                                                 <div class="d-flex flex-wrap align-items-center gap-2">
                                                     <span class="badge-modern @GetOperationBadge(operation.SourceType)">
-                                                        @operation.SourceType
+                                                        @GetSourceTypeName(operation.SourceType)
                                                     </span>
                                                     <span class="text-muted small" dir="ltr">
                                                         @PersianDateHelper.ToPersianDateTime12(operation.CreatedAt)
@@ -536,7 +536,7 @@
             else if (operation.SourceType == "واریز / برداشت / پرداخت")
             {
                 var source = await AccountMoneyOperationService.GetByIdAsync(operationEditId)
-                    ?? throw new KeyNotFoundException("عملیات واریز یا برداشت یافت نشد.");
+                    ?? throw new KeyNotFoundException("عملیات رسید یا برد یافت نشد.");
                 accountOperationEditData = new CreateAccountMoneyOperationDto
                 {
                     OperationType = source.OperationType,
@@ -664,4 +664,7 @@
             _ => "badge-secondary"
         };
     }
+
+    private static string GetSourceTypeName(string sourceType) =>
+        sourceType == "واریز / برداشت / پرداخت" ? "رسید / برد" : sourceType;
 }

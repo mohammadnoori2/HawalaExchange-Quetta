@@ -52,22 +52,25 @@
         </div>
     }
 
-    <div class="panel-filters">
-        <div class="input-group input-group-sm">
+    <CompactFilterBar AriaLabel="جستجو و فیلتر حواله‌های نمایندگی"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(statusFilter))"
+                      Reset="ResetFiltersAsync">
+        <SearchContent>
             <input class="form-control"
                    placeholder="جستجو با نمبر، نام یا مبلغ..."
                    @bind="searchTerm"
                    @bind:event="oninput"
                    @bind:after="OnFilterChangedAsync" />
-        </div>
-        <select class="form-select form-select-sm" @bind="statusFilter" @bind:after="OnFilterChangedAsync">
+        </SearchContent>
+        <QuickFilters>
+        <select class="form-select compact-quick-filter" @bind="statusFilter" @bind:after="OnFilterChangedAsync">
             <option value="">همه وضعیت‌ها</option>
             <option value="Pending">@(HawalaType == "HawalaReceive" ? "حواله‌های اجرا نشده" : "در انتظار")</option>
             <option value="Paid">پرداخت شده</option>
             <option value="Cancel">لغو شده</option>
         </select>
-        <button type="button" class="btn btn-sm btn-light border" @onclick="ResetFiltersAsync">پاک‌کردن فیلتر</button>
-    </div>
+        </QuickFilters>
+    </CompactFilterBar>
     <div class="small text-muted d-flex gap-3 px-1 pb-2">
         <span><i class="settlement-legend settlement-legend-pending"></i> نیازمند تبدیل به ارز توافقی</span>
         <span><i class="settlement-legend settlement-legend-converted"></i> تبدیل‌شده</span>
@@ -146,14 +149,15 @@
         </table>
     </div>
 
-    @if (totalPages > 1)
-    {
-        <footer class="panel-pagination">
-            <button class="btn btn-sm btn-light border" disabled="@(currentPage <= 1)" @onclick="PreviousPageAsync">قبلی</button>
-            <span>صفحه @currentPage از @totalPages</span>
-            <button class="btn btn-sm btn-light border" disabled="@(currentPage >= totalPages)" @onclick="NextPageAsync">بعدی</button>
-        </footer>
-    }
+    <footer class="panel-pagination">
+        <CompactPagination CurrentPage="currentPage"
+                           TotalPages="totalPages"
+                           PageChanged="GoToPageAsync" />
+        <PageSizeSelector @bind-Value="pageSize"
+                          @bind-CurrentPage="currentPage"
+                          Changed="LoadHawalasAsync"
+                          AriaLabel="تعداد حواله در هر صفحه" />
+    </footer>
 </section>
 
 <CorrespondentSettlementModal IsVisible="@showSettlementModal"
@@ -343,7 +347,7 @@
     private string statusFilter = string.Empty;
     private CancellationTokenSource? filterChangeCts;
     private int currentPage = 1;
-    private const int PageSize = 8;
+    private int pageSize = 10;
     private int totalCount;
     private int totalPages = 1;
     private bool isLoading;
@@ -412,7 +416,7 @@
                 SearchAmount = amount,
                 Number = number,
                 PageNumber = currentPage,
-                PageSize = PageSize,
+                PageSize = pageSize,
                 SortColumn = "CreatedAt",
                 SortDirection = "desc"
             });
@@ -816,19 +820,13 @@
         await LoadHawalasAsync();
     }
 
-    private async Task PreviousPageAsync()
+    private async Task GoToPageAsync(int page)
     {
-        if (currentPage <= 1)
+        var targetPage = Math.Clamp(page, 1, Math.Max(totalPages, 1));
+        if (targetPage == currentPage)
             return;
-        currentPage--;
-        await LoadHawalasAsync();
-    }
 
-    private async Task NextPageAsync()
-    {
-        if (currentPage >= totalPages)
-            return;
-        currentPage++;
+        currentPage = targetPage;
         await LoadHawalasAsync();
     }
 

@@ -17,9 +17,8 @@ public static class AppDisplayText
         "HawalaReceive" => "حواله دریافتی",
         "HawalaOther" => "حواله متفرقه",
         "CapitalInvestment" => "ثبت سرمایه",
-        "Deposit" => "واریز پول",
-        "Withdraw" => "برداشت پول",
-        "Payment" => "پرداخت پول",
+        "Deposit" => "رسید",
+        "Withdraw" or "Payment" => "برد",
         "CorrespondentSettlementConversion" => "تبدیل مانده نمایندگی به ارز توافقی",
         null or "" => "نوع مشخص نشده",
         _ => "عملیات مالی دیگر"

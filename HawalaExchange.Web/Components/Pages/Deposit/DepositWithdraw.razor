@@ -20,11 +20,17 @@
         <div>
             <h5 class="page-title">
                 <i class="bi bi-arrow-down-up"></i>
-                واریز / برداشت / پرداخت
-                <span class="page-subtitle">ثبت و مدیریت واریز و برداشت حساب‌ها در دفتر کل</span>
+                رسید / برد
+                <span class="page-subtitle">ثبت و مدیریت پول‌های رسیده و برده‌شده از حساب‌ها در دفتر کل</span>
             </h5>
         </div>
 
+        <PageHeaderStats AriaLabel="آمار رسید و برد">
+            <PageHeaderStat Label="کل" Value="@operations.Count" Icon="bi-list-ul" />
+            <PageHeaderStat Label="رسید" Value="@(operations.Count(x => x.OperationType == "Deposit"))" Icon="bi-arrow-down-circle" Tone="success" />
+            <PageHeaderStat Label="برد" Value="@(operations.Count(x => x.OperationType == "Withdraw"))" Icon="bi-arrow-up-circle" Tone="danger" />
+            <PageHeaderStat Label="امروز" Value="@(operations.Count(x => x.OperationDate.ToLocalTime().Date == DateTime.Today))" Icon="bi-calendar-check" Tone="info" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
                 <i class="bi bi-plus-circle"></i>
@@ -32,6 +38,29 @@
             </button>
         </div>
     </div>
+
+    <CompactFilterBar AriaLabel="جستجو و فیلتر عملیات حساب"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterOperationType) || filterCurrencyId != 0)"
+                      Reset="ClearSearch">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجو با حساب، ارز یا توضیحات..."
+                   @bind="searchTerm" @bind:event="oninput" />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" @bind="filterOperationType" @bind:event="oninput">
+                <option value="">همه عملیات</option>
+                <option value="Deposit">رسید</option>
+                <option value="Withdraw">برد</option>
+            </select>
+            <select class="form-select compact-quick-filter" @bind="filterCurrencyId" @bind:event="oninput">
+                <option value="0">همه ارزها</option>
+                @foreach (var currency in currencies)
+                {
+                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                }
+            </select>
+        </QuickFilters>
+    </CompactFilterBar>
 
     @if (validationErrors.Any() && !showModal)
     {
@@ -53,124 +82,16 @@
         </div>
     }
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-list-ul"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@operations.Count</div>
-                        <div class="stat-label">تعداد کل</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-arrow-down-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@operations.Count(x => x.OperationType == "Deposit")</div>
-                        <div class="stat-label">واریزها</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-danger">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger">
-                        <i class="bi bi-arrow-up-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@operations.Count(x => x.OperationType == "Withdraw")</div>
-                        <div class="stat-label">برداشت‌ها</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-calendar-check"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@operations.Count(x => x.OperationDate.ToLocalTime().Date == DateTime.Today)</div>
-                        <div class="stat-label">امروز</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <!-- جستجو -->
-                <div class="search-modern">
-                    <span class="search-icon">
-                        <i class="bi bi-search"></i>
-                    </span>
-
-                    <input type="text"
-                           class="search-input"
-                           placeholder="جستجو: حساب، ارز، توضیحات..."
-                           @bind="searchTerm"
-                           @bind:event="oninput" />
-
-                    <button class="search-btn" @onclick="ClearSearch">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                <!-- فیلتر نوع عملیات -->
-                <div class="filter-selector">
-                    <select class="form-select form-select-sm"
-                            @bind="filterOperationType"
-                            @bind:event="oninput">
-                        <option value="">همه عملیات</option>
-                        <option value="Deposit">واریز</option>
-                        <option value="Withdraw">برداشت / پرداخت</option>
-                    </select>
-                </div>
-
-                <!-- فیلتر ارز -->
-                <div class="filter-selector">
-                    <select class="form-select form-select-sm"
-                            @bind="filterCurrencyId"
-                            @bind:event="oninput">
-                        <option value="0">همه ارزها</option>
-                        @foreach (var currency in currencies)
-                        {
-                            <option value="@currency.Id">
-                                @currency.Code - @currency.Name
-                            </option>
-                        }
-                    </select>
-                </div>
-
                 <!-- تعداد نمایش -->
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
 
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage" />
                 </div>
             </div>
 
@@ -252,7 +173,7 @@
                                 <td colspan="9" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
-                                        <span class="fs-5 text-muted">هیچ عملیات واریز/برداشت یافت نشد</span>
+                                        <span class="fs-5 text-muted">هیچ عملیات رسید یا برد یافت نشد</span>
                                         <p class="text-muted small">برای افزودن عملیات جدید، دکمه "عملیات جدید" را کلیک کنید.</p>
                                     </div>
                                 </td>
@@ -349,44 +270,20 @@
                     از <strong>@filteredOperations.Count</strong> عملیات
                 </span>
 
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">
-                                        @i
-                                    </button>
-                                </li>
-                            }
-
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">
                 <span class="badge-modern badge-success">
                     <i class="bi bi-arrow-down-circle"></i>
-                    واریز: @operations.Count(x => x.OperationType == "Deposit")
+                    رسید: @operations.Count(x => x.OperationType == "Deposit")
                 </span>
 
                 <span class="badge-modern badge-danger">
                     <i class="bi bi-arrow-up-circle"></i>
-                    برداشت: @operations.Count(x => x.OperationType == "Withdraw")
+                    برد: @operations.Count(x => x.OperationType == "Withdraw")
                 </span>
             </div>
         </div>
@@ -414,7 +311,7 @@
                 <div class="modal-header" style="background: linear-gradient(135deg, #0dcaf0, #0a9ec4);">
                     <h5 class="modal-title text-white">
                         <i class="bi bi-info-circle me-2"></i>
-                        جزئیات واریز/برداشت
+                        جزئیات رسید یا برد
                     </h5>
 
                     <button type="button"
@@ -974,9 +871,9 @@
     {
         return operationType switch
         {
-            "Deposit" => "واریز",
-            "Withdraw" => "برداشت / پرداخت",
-            _ => "عملیات واریز یا برداشت"
+            "Deposit" => "رسید",
+            "Withdraw" => "برد",
+            _ => "عملیات رسید یا برد"
         };
     }
 

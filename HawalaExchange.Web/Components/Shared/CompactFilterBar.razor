@@ -1,0 +1,91 @@
+<section class="compact-filter-bar @CssClass" aria-label="@AriaLabel">
+    <div class="compact-filter-main">
+        <div class="compact-filter-search">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            @SearchContent
+        </div>
+
+        @QuickFilters
+
+        @if (AdvancedFilters is not null)
+        {
+            <button type="button"
+                    class="btn-modern btn-light-modern compact-more-filter @(showAdvancedFilters ? "is-open" : "")"
+                    aria-expanded="@showAdvancedFilters"
+                    @onclick="ToggleAdvancedFilters">
+                <i class="bi bi-sliders2"></i>
+                فیلترهای بیشتر
+                @if (ActiveFilterCount > 0)
+                {
+                    <span class="compact-filter-count">@ActiveFilterCount</span>
+                }
+                <i class="bi @(showAdvancedFilters ? "bi-chevron-up" : "bi-chevron-down") compact-filter-chevron"></i>
+            </button>
+        }
+
+        @if (HasActiveFilters)
+        {
+            <button type="button"
+                    class="compact-reset-filter"
+                    title="پاک‌کردن همه فیلترها"
+                    aria-label="پاک‌کردن همه فیلترها"
+                    @onclick="ResetAsync">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </button>
+        }
+    </div>
+
+    @if (showAdvancedFilters && AdvancedFilters is not null)
+    {
+        <div class="compact-advanced-filters">
+            @AdvancedFilters
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public RenderFragment SearchContent { get; set; } = default!;
+
+    [Parameter]
+    public RenderFragment? QuickFilters { get; set; }
+
+    [Parameter]
+    public RenderFragment? AdvancedFilters { get; set; }
+
+    [Parameter]
+    public bool HasActiveFilters { get; set; }
+
+    [Parameter]
+    public int ActiveFilterCount { get; set; }
+
+    [Parameter]
+    public EventCallback Reset { get; set; }
+
+    [Parameter]
+    public string AriaLabel { get; set; } = "جستجو و فیلتر";
+
+    [Parameter]
+    public string CssClass { get; set; } = "mb-3";
+
+    [Parameter]
+    public bool InitiallyExpanded { get; set; }
+
+    private bool showAdvancedFilters;
+
+    protected override void OnInitialized()
+    {
+        showAdvancedFilters = InitiallyExpanded;
+    }
+
+    private void ToggleAdvancedFilters()
+    {
+        showAdvancedFilters = !showAdvancedFilters;
+    }
+
+    private Task ResetAsync()
+    {
+        showAdvancedFilters = false;
+        return Reset.InvokeAsync();
+    }
+}

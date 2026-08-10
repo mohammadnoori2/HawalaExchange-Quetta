@@ -17,19 +17,25 @@
 <PageTitle>داشبورد</PageTitle>
 
 <div class="dashboard-wrapper" dir="rtl">
-    <div class="dashboard-header">
-        <div class="header-left">
-            <span class="time-label">زمان آخرین فعالیت:</span>
-            <span class="time-value">@lastActivityTime</span>
+    <div class="page-header">
+        <div>
+            <h5 class="page-title"><i class="bi bi-speedometer2"></i> داشبورد</h5>
+            <span class="page-subtitle">آخرین فعالیت: @lastActivityTime</span>
         </div>
-
-        <div class="quick-links">
+        <PageHeaderStats AriaLabel="آمار داشبورد">
+            <PageHeaderStat Label="حواله" Value="@(dashboard?.HawalaCount ?? 0)" Icon="bi-send" />
+            <PageHeaderStat Label="تبدیل پول" Value="@(dashboard?.ExchangeCount ?? 0)" Icon="bi-currency-exchange" Tone="info" />
+            <PageHeaderStat Label="مفاد خالص" Value="@($"{MoneyFormatHelper.Format(NetProfit)} {selectedCurrency}")" Icon="bi-graph-up-arrow" Tone="success" />
+        </PageHeaderStats>
+        <div class="page-actions quick-links">
             <button class="quick-link-btn quick-link-hawala" @onclick="OpenHawalaModal">ثبت حواله</button>
             <button class="quick-link-btn quick-link-exchange" @onclick="OpenExchangeModal">تبدیل پول</button>
-            <button class="quick-link-btn quick-link-deposit" @onclick="OpenDepositWithdrawModal">واریز/برداشت</button>
+            <button class="quick-link-btn quick-link-deposit" @onclick="OpenDepositWithdrawModal">رسید / برد</button>
             <button class="quick-link-btn quick-link-pending" @onclick="NavigateToPendingHawalas">اجرای حواله</button>
         </div>
+    </div>
 
+    <div class="dashboard-header">
         <div class="header-center">
             <div class="currency-selector">
                 <select @onchange="OnCurrencyChanged" value="@selectedCurrency">
@@ -68,24 +74,6 @@
                 <div class="rate-change">نرخ‌ها را از بخش نرخ تبادله ثبت کنید.</div>
             </div>
         }
-    </div>
-
-    <div class="stats-row">
-        <div class="stat-box">
-            <span class="stat-icon">📤</span>
-            <span class="stat-label">حواله</span>
-            <span class="stat-value">@(dashboard?.HawalaCount ?? 0)</span>
-        </div>
-        <div class="stat-box">
-            <span class="stat-icon">💱</span>
-            <span class="stat-label">تبدیل پول</span>
-            <span class="stat-value">@(dashboard?.ExchangeCount ?? 0)</span>
-        </div>
-        <div class="stat-box">
-            <span class="stat-icon">📊</span>
-            <span class="stat-label">مفاد خالص</span>
-            <span class="stat-value">@MoneyFormatHelper.Format(NetProfit) @selectedCurrency</span>
-        </div>
     </div>
 
     <div class="table-card mb-4">
@@ -242,28 +230,13 @@
                     @(isLoading ? "..." : "اعمال")
                 </button>
             </div>
-            <div class="transaction-stats">
-                <div class="transaction-stat">
-                    <span class="stat-label">حواله</span>
-                    <span class="stat-value">@(dashboard?.HawalaCount ?? 0)</span>
-                </div>
-                <div class="transaction-stat">
-                    <span class="stat-label">تبدیل پول</span>
-                    <span class="stat-value">@(dashboard?.ExchangeCount ?? 0)</span>
-                </div>
-                <div class="transaction-stat">
-                    <span class="stat-label">مجموع فعالیت</span>
-                    <span class="stat-value highlight">@(dashboard?.TotalActivityCount ?? 0)</span>
-                </div>
-                <div class="transaction-stat">
-                    <span class="stat-label">عملیات حساب</span>
-                    <span class="stat-value">@(dashboard?.AccountOperationCount ?? 0)</span>
-                </div>
-                <div class="transaction-stat">
-                    <span class="stat-label">مصارف و سرمایه</span>
-                    <span class="stat-value">@((dashboard?.ExpenseCount ?? 0) + (dashboard?.CapitalInvestmentCount ?? 0))</span>
-                </div>
-            </div>
+            <PageHeaderStats AriaLabel="آمار فعالیت‌های ثبت‌شده">
+                <PageHeaderStat Label="حواله" Value="@(dashboard?.HawalaCount ?? 0)" Icon="bi-send" />
+                <PageHeaderStat Label="تبدیل پول" Value="@(dashboard?.ExchangeCount ?? 0)" Icon="bi-currency-exchange" Tone="info" />
+                <PageHeaderStat Label="مجموع" Value="@(dashboard?.TotalActivityCount ?? 0)" Icon="bi-collection" Tone="warning" />
+                <PageHeaderStat Label="عملیات حساب" Value="@(dashboard?.AccountOperationCount ?? 0)" Icon="bi-wallet2" Tone="success" />
+                <PageHeaderStat Label="مصارف/سرمایه" Value="@((dashboard?.ExpenseCount ?? 0) + (dashboard?.CapitalInvestmentCount ?? 0))" Icon="bi-cash-stack" Tone="danger" />
+            </PageHeaderStats>
             <div class="mini-chart-container"><canvas id="miniChart"></canvas></div>
         </div>
 

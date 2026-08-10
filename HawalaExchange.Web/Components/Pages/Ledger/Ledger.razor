@@ -17,6 +17,12 @@
                 <span class="page-subtitle">مشاهده و جستجوی تراکنش‌های دفتر کل</span>
             </h5>
         </div>
+        <PageHeaderStats AriaLabel="آمار دفتر کل">
+            <PageHeaderStat Label="کل" Value="@ledgerEntries.Count" Icon="bi-journal" />
+            <PageHeaderStat Label="طلبکار" Value="@(ledgerEntries.Count(e => e.TalabKar > 0))" Icon="bi-check-circle" Tone="success" />
+            <PageHeaderStat Label="بدهکار" Value="@(ledgerEntries.Count(e => e.BadehKar > 0))" Icon="bi-x-circle" Tone="danger" />
+            <PageHeaderStat Label="ارزها" Value="@(ledgerEntries.Select(e => e.CurrencyCode).Distinct().Count())" Icon="bi-currency-exchange" Tone="info" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-info-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> ثبت جدید
@@ -27,72 +33,25 @@
         </div>
     </div>
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-journal"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@ledgerEntries.Count</div>
-                        <div class="stat-label">تعداد کل تراکنش‌ها</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@ledgerEntries.Count(e => e.TalabKar > 0)</div>
-                        <div class="stat-label">تعداد طلبکار</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-danger">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger">
-                        <i class="bi bi-x-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@ledgerEntries.Count(e => e.BadehKar > 0)</div>
-                        <div class="stat-label">تعداد بدهکار</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-currency-exchange"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@ledgerEntries.Select(e => e.CurrencyCode).Distinct().Count()</div>
-                        <div class="stat-label">تعداد ارزها</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- کارت فیلتر و جستجو -->
-    <div class="modern-card mb-4">
-        <div class="card-body">
-            <div class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label">جستجو</label>
+    <CompactFilterBar AriaLabel="جستجو و فیلتر دفتر کل"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || filterAccountId != 0 || filterCurrencyId != 0 || fromDate.Date != DateTime.Now.AddMonths(-1).Date || toDate.Date != DateTime.Today)"
+                      ActiveFilterCount="@((filterAccountId != 0 ? 1 : 0) + (fromDate.Date != DateTime.Now.AddMonths(-1).Date ? 1 : 0) + (toDate.Date != DateTime.Today ? 1 : 0))"
+                      Reset="ResetLedgerFilters">
+        <SearchContent>
                     <input type="text" class="form-control" placeholder="شماره تراکنش، حساب..."
                            @bind="searchTerm" @bind:event="oninput" />
-                </div>
-                <div class="col-md-2">
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" aria-label="ارز" @bind="filterCurrencyId" @bind:event="oninput">
+                <option value="0">همه ارزها</option>
+                @foreach (var currency in currencies)
+                {
+                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                }
+            </select>
+        </QuickFilters>
+        <AdvancedFilters>
+                <div class="compact-filter-field">
                     <label class="form-label">حساب</label>
                     <AccountSearchSelect Accounts="@accounts"
                                          @bind-Value="filterAccountId"
@@ -100,32 +59,16 @@
                                          AllowClear="true"
                                          ClearText="همه حساب‌ها" />
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label">ارز</label>
-                    <select class="form-select" @bind="filterCurrencyId" @bind:event="oninput">
-                        <option value="0">همه ارزها</option>
-                        @foreach (var currency in currencies)
-                        {
-                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-2">
+                <div class="compact-filter-field">
                     <label class="form-label">از تاریخ</label>
                     <PersianDatePicker @bind-Value="fromDate" IncludeTime="false" />
                 </div>
-                <div class="col-md-2">
+                <div class="compact-filter-field">
                     <label class="form-label">تا تاریخ</label>
                     <PersianDatePicker @bind-Value="toDate" IncludeTime="false" />
                 </div>
-                <div class="col-md-1">
-                    <button class="btn btn-primary-modern btn-modern w-100" @onclick="ApplyFilters">
-                        <i class="bi bi-search"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+        </AdvancedFilters>
+    </CompactFilterBar>
 
     <!-- کارت جدول -->
     <div class="table-card">
@@ -134,14 +77,8 @@
                 <!-- انتخاب تعداد نمایش -->
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage" />
                 </div>
             </div>
 
@@ -299,29 +236,9 @@
                 </span>
 
                 <!-- صفحه‌بندی -->
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">
@@ -760,6 +677,17 @@
         filteredEntries = query.ToList();
         currentPage = 1;
         StateHasChanged();
+    }
+
+    private void ResetLedgerFilters()
+    {
+        _searchTerm = string.Empty;
+        _filterAccountId = 0;
+        _filterCurrencyId = 0;
+        _fromDate = DateTime.Now.AddMonths(-1);
+        _toDate = DateTime.Now;
+        currentPage = 1;
+        ApplyFilters();
     }
 
     private void GoToPage(int page)

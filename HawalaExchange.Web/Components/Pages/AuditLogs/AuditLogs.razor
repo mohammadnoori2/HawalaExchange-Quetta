@@ -23,6 +23,13 @@
                 <span class="page-subtitle">مشاهده و جستجوی رویدادهای سیستم</span>
             </h5>
         </div>
+        <PageHeaderStats AriaLabel="آمار لاگ‌ها">
+            <PageHeaderStat Label="کل" Value="@totalCount" Icon="bi-clock-history" />
+            <PageHeaderStat Label="ایجاد" Value="@createCount" Icon="bi-plus-circle" Tone="success" />
+            <PageHeaderStat Label="ویرایش" Value="@updateCount" Icon="bi-pencil" Tone="info" />
+            <PageHeaderStat Label="حذف" Value="@deleteCount" Icon="bi-trash" Tone="danger" />
+            <PageHeaderStat Label="لغو" Value="@cancelCount" Icon="bi-x-circle" Tone="warning" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="LoadLogs">
                 <i class="bi bi-arrow-clockwise"></i> بروزرسانی
@@ -30,119 +37,23 @@
         </div>
     </div>
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-2 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-clock-history"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@totalCount</div>
-                        <div class="stat-label">تعداد کل</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-plus-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@createCount</div>
-                        <div class="stat-label">ایجاد</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-pencil"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@updateCount</div>
-                        <div class="stat-label">ویرایش</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-danger">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger">
-                        <i class="bi bi-trash"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@deleteCount</div>
-                        <div class="stat-label">حذف</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-warning">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning">
-                        <i class="bi bi-x-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@cancelCount</div>
-                        <div class="stat-label">لغو</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2 col-6">
-            <div class="stat-card stat-card-secondary">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon" style="background: #e9ecef; color: #6c757d;">
-                        <i class="bi bi-arrow-counterclockwise"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@reverseCount</div>
-                        <div class="stat-label">برگشت</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- فیلترها -->
-    <div class="row g-3 mb-4 align-items-end">
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-            <PersianDatePicker @bind-Value="fromDate"
-                               @bind-Value:after="OnFilterChangedAsync"
-                               IncludeTime="true"
-                               AllowEmpty="true"
-                               Placeholder="انتخاب تاریخ و زمان" />
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-            <PersianDatePicker @bind-Value="toDate"
-                               @bind-Value:after="OnFilterChangedAsync"
-                               IncludeTime="true"
-                               AllowEmpty="true"
-                               Placeholder="انتخاب تاریخ و زمان" />
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-person text-muted me-1"></i> کاربر</label>
-            <select class="form-select" @bind="filterUserId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+    <CompactFilterBar AriaLabel="جستجو و فیلتر لاگ‌ها"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || filterUserId.HasValue || !string.IsNullOrWhiteSpace(filterAction) || !string.IsNullOrWhiteSpace(filterTable) || fromDate != DateTime.MinValue || toDate != DateTime.MinValue)"
+                      ActiveFilterCount="@((!string.IsNullOrWhiteSpace(filterTable) ? 1 : 0) + (fromDate != DateTime.MinValue ? 1 : 0) + (toDate != DateTime.MinValue ? 1 : 0))"
+                      Reset="ResetFilters">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجو در لاگ‌ها، جدول یا مقدار..."
+                   @bind="searchTerm" @bind:event="oninput" @bind:after="OnFilterChangedAsync" />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" aria-label="کاربر" @bind="filterUserId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه کاربران</option>
                 @foreach (var user in users)
                 {
                     <option value="@user.Id">@user.FullName (@user.UserName)</option>
                 }
             </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-tag text-muted me-1"></i> عملیات</label>
-            <select class="form-select" @bind="filterAction" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+            <select class="form-select compact-quick-filter" aria-label="عملیات" @bind="filterAction" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه عملیات</option>
                 <option value="CREATE">ایجاد</option>
                 <option value="UPDATE">ویرایش</option>
@@ -150,43 +61,24 @@
                 <option value="CANCEL">لغو</option>
                 <option value="REVERSE">برگشت</option>
             </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-table text-muted me-1"></i> جدول</label>
-            <input type="text" class="form-control" placeholder="نام جدول" @bind="filterTable" @bind:event="oninput" @bind:after="OnFilterChangedAsync" />
-        </div>
-        <div class="col-md-2 d-flex gap-2">
-            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters">
-                <i class="bi bi-arrow-clockwise"></i>
-            </button>
-        </div>
-    </div>
+        </QuickFilters>
+        <AdvancedFilters>
+            <div class="compact-filter-field"><label class="form-label">نام جدول</label><input class="form-control" placeholder="نام جدول" @bind="filterTable" @bind:event="oninput" @bind:after="OnFilterChangedAsync" /></div>
+            <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="fromDate" @bind-Value:after="OnFilterChangedAsync" IncludeTime="true" AllowEmpty="true" Placeholder="انتخاب تاریخ و زمان" /></div>
+            <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="toDate" @bind-Value:after="OnFilterChangedAsync" IncludeTime="true" AllowEmpty="true" Placeholder="انتخاب تاریخ و زمان" /></div>
+        </AdvancedFilters>
+    </CompactFilterBar>
 
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <!-- جستجو -->
-                <div class="search-modern">
-                    <span class="search-icon"><i class="bi bi-search"></i></span>
-                    <input type="text" class="search-input" placeholder="جستجو در لاگ‌ها (جدول، مقدار)..."
-                           @bind="searchTerm" @bind:event="oninput" @bind:after="OnFilterChangedAsync" />
-                    <button class="search-btn" @onclick="ClearSearch">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
                 <!-- انتخاب تعداد نمایش -->
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage"
+                                      Changed="OnPageSizeChangedAsync" />
                 </div>
             </div>
 
@@ -326,29 +218,9 @@
                 </span>
 
                 <!-- صفحه‌بندی -->
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">
@@ -630,12 +502,18 @@
         _ = LoadLogs();
     }
 
-    private void GoToPage(int page)
+    private async Task OnPageSizeChangedAsync()
     {
-        if (page >= 1 && page <= totalPages)
+        currentPage = 1;
+        await LoadLogs();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages && page != currentPage)
         {
             currentPage = page;
-            _ = LoadLogs();
+            await LoadLogs();
         }
     }
 

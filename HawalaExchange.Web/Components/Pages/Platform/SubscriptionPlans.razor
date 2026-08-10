@@ -22,14 +22,11 @@
         <div class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>
     }
 
-    <div class="modern-card mb-3">
-        <div class="card-body">
-            <div class="input-group-modern">
-                <span class="input-icon"><i class="bi bi-search"></i></span>
-                <input class="form-control-modern" value="@searchTerm" @oninput="e => searchTerm = e.Value?.ToString() ?? string.Empty" placeholder="جستجوی پلن..." />
-            </div>
-        </div>
-    </div>
+    <CompactFilterBar AriaLabel="جستجوی پلن‌ها"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
+                      Reset="ResetPlanSearch">
+        <SearchContent><input class="form-control" value="@searchTerm" @oninput="e => searchTerm = e.Value?.ToString() ?? string.Empty" placeholder="جستجوی پلن..." /></SearchContent>
+    </CompactFilterBar>
 
     <div class="modern-card">
         <div class="table-responsive">
@@ -154,6 +151,8 @@
     }
 
     private void CloseModal() => showModal = false;
+
+    private void ResetPlanSearch() => searchTerm = string.Empty;
 
     private async Task SaveAsync()
     {

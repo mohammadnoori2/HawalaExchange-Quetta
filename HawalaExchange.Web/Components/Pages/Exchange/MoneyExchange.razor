@@ -26,6 +26,12 @@
             </h5>
         </div>
 
+        <PageHeaderStats AriaLabel="آمار تبادله اسعار">
+            <PageHeaderStat Label="کل" Value="@exchanges.Count" Icon="bi-list-ul" />
+            <PageHeaderStat Label="امروز" Value="@(exchanges.Count(x => x.ExchangeDate.ToLocalTime().Date == DateTime.Today))" Icon="bi-calendar-check" Tone="info" />
+            <PageHeaderStat Label="خرید" Value="@(MoneyFormatHelper.Format(filteredExchanges.Sum(x => x.ToAmount)))" Icon="bi-arrow-down-circle" Tone="success" />
+            <PageHeaderStat Label="فروش" Value="@(MoneyFormatHelper.Format(filteredExchanges.Sum(x => x.FromAmount)))" Icon="bi-arrow-up-circle" Tone="warning" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
                 <i class="bi bi-plus-circle"></i>
@@ -33,6 +39,24 @@
             </button>
         </div>
     </div>
+
+    <CompactFilterBar AriaLabel="جستجو و فیلتر تبادله اسعار"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || filterCurrencyId != 0)"
+                      Reset="ClearSearch">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجو با حساب، ارز یا توضیحات..."
+                   @bind="searchTerm" @bind:event="oninput" />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" @bind="filterCurrencyId" @bind:event="oninput">
+                <option value="0">همه ارزها</option>
+                @foreach (var currency in currencies)
+                {
+                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                }
+            </select>
+        </QuickFilters>
+    </CompactFilterBar>
 
     @if (validationErrors.Any() && !showModal)
     {
@@ -54,64 +78,6 @@
         </div>
     }
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-list-ul"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@exchanges.Count</div>
-                        <div class="stat-label">تعداد تبدیل‌ها</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-calendar-check"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@exchanges.Count(x => x.ExchangeDate.ToLocalTime().Date == DateTime.Today)</div>
-                        <div class="stat-label">امروز</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-arrow-down-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@MoneyFormatHelper.Format(filteredExchanges.Sum(x => x.ToAmount))</div>
-                        <div class="stat-label">مجموع ارز خرید</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-warning">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning">
-                        <i class="bi bi-arrow-up-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@MoneyFormatHelper.Format(filteredExchanges.Sum(x => x.FromAmount))</div>
-                        <div class="stat-label">مجموع ارز فروش</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div class="table-card mb-4">
         <div class="table-card-header">
             <h6 class="mb-0 text-primary">
@@ -120,20 +86,16 @@
             </h6>
         </div>
         <div class="table-card-body">
-            <div class="row g-3 p-3">
+            <PageHeaderStats AriaLabel="خلاصه مفاد به تفکیک ارز">
                 @foreach (var group in ProfitGroups)
                 {
-                    <div class="col-md-4">
-                        <div class="stat-card">
-                            <div class="stat-number" dir="ltr">@MoneyFormatHelper.Format(group.Total) @group.CurrencyCode</div>
-                            <div class="stat-label">
-                                مفاد مشتری: @MoneyFormatHelper.Format(group.Customer) |
-                                مفاد سرمایه صراف: @MoneyFormatHelper.Format(group.Treasury)
-                            </div>
-                        </div>
-                    </div>
+                    <PageHeaderStat Label="@group.CurrencyCode"
+                                    Value="@(MoneyFormatHelper.Format(group.Total))"
+                                    Icon="bi-cash-coin"
+                                    Tone="success"
+                                    Title="@($"مفاد مشتری: {MoneyFormatHelper.Format(group.Customer)} | مفاد سرمایه صراف: {MoneyFormatHelper.Format(group.Treasury)}")" />
                 }
-            </div>
+            </PageHeaderStats>
             <div class="table-scroll-wrapper">
                 <table class="table-modern">
                     <thead>
@@ -171,47 +133,11 @@
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <div class="search-modern">
-                    <span class="search-icon">
-                        <i class="bi bi-search"></i>
-                    </span>
-
-                    <input type="text"
-                           class="search-input"
-                           placeholder="جستجو: حساب، ارز، توضیحات..."
-                           @bind="searchTerm"
-                           @bind:event="oninput" />
-
-                    <button class="search-btn" @onclick="ClearSearch">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                <div class="filter-selector">
-                    <select class="form-select form-select-sm"
-                            @bind="filterCurrencyId"
-                            @bind:event="oninput">
-                        <option value="0">همه ارزها</option>
-                        @foreach (var currency in currencies)
-                        {
-                            <option value="@currency.Id">
-                                @currency.Code - @currency.Name
-                            </option>
-                        }
-                    </select>
-                </div>
-
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
 
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage" />
                 </div>
             </div>
 
@@ -392,33 +318,9 @@
                     از <strong>@filteredExchanges.Count</strong> تبدیل
                 </span>
 
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">
-                                        @i
-                                    </button>
-                                </li>
-                            }
-
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">

@@ -29,6 +29,12 @@
                 <span class="page-subtitle">لیست و جستجوی کاربران</span>
             </h5>
         </div>
+        <PageHeaderStats AriaLabel="آمار کاربران">
+            <PageHeaderStat Label="کل" Value="@totalCount" Icon="bi-people" />
+            <PageHeaderStat Label="فعال" Value="@(users?.Count(u => u.IsActive) ?? 0)" Icon="bi-check-circle" Tone="success" />
+            <PageHeaderStat Label="غیرفعال" Value="@(users?.Count(u => !u.IsActive) ?? 0)" Icon="bi-slash-circle" Tone="danger" />
+            <PageHeaderStat Label="امروز" Value="@(users?.Count(u => u.CreatedAt.Date == DateTime.Today) ?? 0)" Icon="bi-clock-history" Tone="info" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
                 <i class="bi bi-plus-circle"></i> کاربر جدید
@@ -36,103 +42,41 @@
         </div>
     </div>
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-people"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@totalCount</div>
-                        <div class="stat-label">تعداد کاربران</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@users.Count(u => u.IsActive)</div>
-                        <div class="stat-label">فعال</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-danger">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger">
-                        <i class="bi bi-slash-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@users.Count(u => !u.IsActive)</div>
-                        <div class="stat-label">غیرفعال</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-clock-history"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@users.Count(u => u.CreatedAt.Date == DateTime.Today)</div>
-                        <div class="stat-label">ایجاد امروز</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- فیلترها -->
-    <div class="row g-3 mb-4 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label fw-bold"><i class="bi bi-search text-muted me-1"></i> جستجو</label>
-            <input type="text" class="form-control" placeholder="نام، نام کاربری، ایمیل..."
+    <CompactFilterBar AriaLabel="جستجو و فیلتر کاربران"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterRole) || !string.IsNullOrWhiteSpace(filterStatus) || filterBranchId != 0)"
+                      ActiveFilterCount="@((!string.IsNullOrWhiteSpace(filterRole) ? 1 : 0) + (!string.IsNullOrWhiteSpace(filterStatus) ? 1 : 0) + (filterBranchId != 0 ? 1 : 0))"
+                      Reset="ResetFilters">
+        <SearchContent>
+            <input type="text" class="form-control" placeholder="نام، نام کاربری یا ایمیل..."
                    @bind="searchTerm" @bind:event="oninput" @bind:after="OnFilterChangedAsync" />
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-tag text-muted me-1"></i> نقش</label>
-            <select class="form-select" @bind="filterRole" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" aria-label="نقش کاربر" @bind="filterRole" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه نقش‌ها</option>
                 @foreach (var role in roles)
                 {
                     <option value="@role">@GetRoleName(role)</option>
                 }
             </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-circle text-muted me-1"></i> وضعیت</label>
-            <select class="form-select" @bind="filterStatus" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+            <select class="form-select compact-quick-filter" aria-label="وضعیت کاربر" @bind="filterStatus" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه</option>
                 <option value="true">فعال</option>
                 <option value="false">غیرفعال</option>
             </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
-            <select class="form-select" @bind="filterBranchId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+        </QuickFilters>
+        <AdvancedFilters>
+            <div class="compact-filter-field">
+                <label class="form-label">شعبه</label>
+                <select class="form-select" @bind="filterBranchId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="0">همه شعبه‌ها</option>
                 @foreach (var branch in branches)
                 {
                     <option value="@branch.Id">@branch.Name</option>
                 }
-            </select>
-        </div>
-        <div class="col-md-3 d-flex gap-2">
-            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilters">
-                <i class="bi bi-arrow-clockwise"></i>
-            </button>
-        </div>
-    </div>
+                </select>
+            </div>
+        </AdvancedFilters>
+    </CompactFilterBar>
 
     <!-- کارت جدول -->
     <div class="table-card">
@@ -145,14 +89,9 @@
             <div class="table-card-header-right">
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage"
+                                      Changed="OnPageSizeChangedAsync" />
                 </div>
             </div>
         </div>
@@ -318,29 +257,9 @@
                     نمایش <strong>@pagedUsers.Count</strong> از <strong>@filteredUsers.Count</strong> کاربر
                 </span>
 
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">
@@ -932,12 +851,18 @@
         await LoadUsers();
     }
 
-    private void GoToPage(int page)
+    private async Task OnPageSizeChangedAsync()
     {
-        if (page >= 1 && page <= totalPages)
+        currentPage = 1;
+        await LoadUsers();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages && page != currentPage)
         {
             currentPage = page;
-            _ = LoadUsers();
+            await LoadUsers();
         }
     }
 

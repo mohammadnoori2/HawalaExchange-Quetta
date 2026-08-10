@@ -17,6 +17,11 @@
                 <span class="page-subtitle">لیست و جستجوی ارزها</span>
             </h5>
         </div>
+        <PageHeaderStats AriaLabel="آمار ارزها">
+            <PageHeaderStat Label="کل" Value="@(currencies?.Count ?? 0)" Icon="bi-currency-exchange" />
+            <PageHeaderStat Label="فعال" Value="@(currencies?.Count(c => c.IsActive) ?? 0)" Icon="bi-check-circle" Tone="success" />
+            <PageHeaderStat Label="غیرفعال" Value="@(currencies?.Count(c => !c.IsActive) ?? 0)" Icon="bi-slash-circle" Tone="danger" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> ارز جدید
@@ -24,74 +29,24 @@
         </div>
     </div>
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-currency-exchange"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@currencies.Count</div>
-                        <div class="stat-label">تعداد ارزها</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@currencies.Count(c => c.IsActive)</div>
-                        <div class="stat-label">فعال</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-danger">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger">
-                        <i class="bi bi-slash-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@currencies.Count(c => !c.IsActive)</div>
-                        <div class="stat-label">غیرفعال</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <CompactFilterBar AriaLabel="جستجوی ارزها"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
+                      Reset="ClearSearch">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجو با کد، نام یا سمبل..."
+                   @bind="searchTerm" @bind:event="oninput" />
+        </SearchContent>
+    </CompactFilterBar>
 
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <!-- جستجو -->
-                <div class="search-modern">
-                    <span class="search-icon"><i class="bi bi-search"></i></span>
-                    <input type="text" class="search-input" placeholder="جستجوی ارزها (کد، نام، سمبل)..."
-                           @bind="searchTerm" @bind:event="oninput" />
-                    <button class="search-btn" @onclick="() => ClearSearch()">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
                 <!-- انتخاب تعداد نمایش -->
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage" />
                 </div>
             </div>
 
@@ -227,29 +182,9 @@
                 </span>
 
                 <!-- صفحه‌بندی -->
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">

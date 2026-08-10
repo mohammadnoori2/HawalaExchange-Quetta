@@ -1,0 +1,11 @@
+<div class="page-header-stats" aria-label="@AriaLabel">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string AriaLabel { get; set; } = "آمار صفحه";
+}

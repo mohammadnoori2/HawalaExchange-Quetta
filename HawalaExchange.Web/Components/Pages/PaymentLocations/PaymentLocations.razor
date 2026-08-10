@@ -21,16 +21,20 @@
         </div>
     </div>
 
+    <CompactFilterBar AriaLabel="جستجوی محل‌های پرداخت"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
+                      Reset="ClearLocationSearch">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجوی آدرس..." @bind="searchTerm" @bind:event="oninput" />
+        </SearchContent>
+    </CompactFilterBar>
+
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
                 <span class="badge-modern badge-info">
                     <i class="bi bi-list-ul"></i> @paymentLocations.Count
                 </span>
-            </div>
-            <div class="search-modern" style="max-width: 300px;">
-                <span class="search-icon"><i class="bi bi-search"></i></span>
-                <input type="text" class="search-input" placeholder="جستجوی آدرس..." @bind="searchTerm" @bind:event="oninput" />
             </div>
         </div>
 
@@ -263,6 +267,11 @@
             ).ToList();
         }
         StateHasChanged();
+    }
+
+    private void ClearLocationSearch()
+    {
+        searchTerm = string.Empty;
     }
 
     private void OpenCreateModal()

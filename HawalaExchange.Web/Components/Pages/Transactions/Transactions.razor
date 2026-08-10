@@ -20,6 +20,12 @@
                 <span class="page-subtitle">لیست و جستجوی تراکنش‌ها</span>
             </h5>
         </div>
+        <PageHeaderStats AriaLabel="آمار تراکنش‌ها">
+            <PageHeaderStat Label="کل" Value="@(transactions?.Count ?? 0)" Icon="bi-receipt" />
+            <PageHeaderStat Label="پرداخت" Value="@(transactions?.Count(t => t.Status == "Paid") ?? 0)" Icon="bi-check-circle" Tone="success" />
+            <PageHeaderStat Label="در انتظار" Value="@(transactions?.Count(t => t.Status == "Pending") ?? 0)" Icon="bi-clock-history" Tone="warning" />
+            <PageHeaderStat Label="لغو" Value="@(transactions?.Count(t => t.Status == "Cancel") ?? 0)" Icon="bi-x-circle" Tone="danger" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> تراکنش جدید
@@ -27,110 +33,39 @@
         </div>
     </div>
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-receipt"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@transactions.Count</div>
-                        <div class="stat-label">تعداد تراکنش‌ها</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@transactions.Count(t => t.Status == "Paid")</div>
-                        <div class="stat-label">پرداخت شده</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-warning">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning">
-                        <i class="bi bi-clock-history"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@transactions.Count(t => t.Status == "Pending")</div>
-                        <div class="stat-label">در انتظار</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-danger">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger">
-                        <i class="bi bi-x-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@transactions.Count(t => t.Status == "Cancel")</div>
-                        <div class="stat-label">لغو شده</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <CompactFilterBar AriaLabel="جستجو و فیلتر تراکنش‌ها"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterStatus) || !string.IsNullOrWhiteSpace(filterType))"
+                      Reset="ClearSearch">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجو با شماره، مشتری یا نوع تراکنش..."
+                   @bind="searchTerm" @bind:event="oninput" />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" @bind="filterStatus" @bind:event="oninput">
+                <option value="">همه وضعیت‌ها</option>
+                <option value="Pending">در انتظار</option>
+                <option value="Paid">پرداخت شده</option>
+                <option value="Cancel">لغو شده</option>
+            </select>
+            <select class="form-select compact-quick-filter" @bind="filterType" @bind:event="oninput">
+                <option value="">همه انواع</option>
+                <option value="Exchange">تبدیل ارز</option>
+                <option value="Transfer">انتقال</option>
+                <option value="Expense">هزینه</option>
+                <option value="Adjustment">تعدیل</option>
+            </select>
+        </QuickFilters>
+    </CompactFilterBar>
 
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <!-- جستجو -->
-                <div class="search-modern">
-                    <span class="search-icon"><i class="bi bi-search"></i></span>
-                    <input type="text" class="search-input" placeholder="جستجو (شماره، مشتری، نوع)..."
-                           @bind="searchTerm" @bind:event="oninput" />
-                    <button class="search-btn" @onclick="() => ClearSearch()">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                <!-- فیلتر وضعیت -->
-                <div class="filter-selector">
-                    <select class="form-select form-select-sm"
-                            @bind="filterStatus" @bind:event="oninput">
-                        <option value="">همه وضعیت‌ها</option>
-                        <option value="Pending">در انتظار</option>
-                        <option value="Paid">پرداخت شده</option>
-                        <option value="Cancel">لغو شده</option>
-                    </select>
-                </div>
-
-                <!-- فیلتر نوع -->
-                <div class="filter-selector">
-                    <select class="form-select form-select-sm"
-                            @bind="filterType" @bind:event="oninput">
-                        <option value="">همه انواع</option>
-                        <option value="Exchange">تبدیل ارز</option>
-                        <option value="Transfer">انتقال</option>
-                        <option value="Expense">هزینه</option>
-                        <option value="Adjustment">تعدیل</option>
-                    </select>
-                </div>
-
                 <!-- انتخاب تعداد نمایش -->
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage" />
                 </div>
             </div>
 
@@ -288,29 +223,9 @@
                     نمایش <strong>@pagedTransactions.Count</strong> از <strong>@filteredTransactions.Count</strong> تراکنش
                 </span>
 
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">

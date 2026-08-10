@@ -1,0 +1,59 @@
+<select class="select-page-size @CssClass"
+        value="@Value"
+        aria-label="@AriaLabel"
+        @onchange="HandleChangedAsync">
+    @foreach (var size in Sizes)
+    {
+        <option value="@size">@size</option>
+    }
+    @if (ShowAll)
+    {
+        <option value="0">همه</option>
+    }
+</select>
+
+@code {
+    [Parameter]
+    public int Value { get; set; }
+
+    [Parameter]
+    public EventCallback<int> ValueChanged { get; set; }
+
+    [Parameter]
+    public EventCallback Changed { get; set; }
+
+    [Parameter]
+    public int CurrentPage { get; set; } = 1;
+
+    [Parameter]
+    public EventCallback<int> CurrentPageChanged { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<int> Sizes { get; set; } = [10, 20, 30, 50, 100];
+
+    [Parameter]
+    public bool ShowAll { get; set; } = true;
+
+    [Parameter]
+    public string AriaLabel { get; set; } = "تعداد نمایش در هر صفحه";
+
+    [Parameter]
+    public string CssClass { get; set; } = string.Empty;
+
+    private async Task HandleChangedAsync(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var nextValue) || nextValue == Value)
+        {
+            return;
+        }
+
+        Value = nextValue;
+        await ValueChanged.InvokeAsync(nextValue);
+        if (CurrentPage != 1)
+        {
+            CurrentPage = 1;
+            await CurrentPageChanged.InvokeAsync(1);
+        }
+        await Changed.InvokeAsync();
+    }
+}

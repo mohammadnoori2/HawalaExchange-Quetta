@@ -73,15 +73,6 @@
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
-            <div class="table-card-header-left">
-                <!-- انتخاب تعداد نمایش -->
-                <div class="page-size-selector">
-                    <span class="text-muted small">تعداد نمایش:</span>
-                    <PageSizeSelector @bind-Value="pageSize"
-                                      @bind-CurrentPage="currentPage" />
-                </div>
-            </div>
-
             <div class="table-card-header-right">
                 <span class="badge-modern badge-info">
                     <i class="bi bi-list-ul"></i> @filteredEntries.Count
@@ -249,6 +240,8 @@
                     <i class="bi bi-arrow-down"></i> بدهکار: @MoneyFormatHelper.Format(filteredEntries.Sum(e => e.BadehKar))
                 </span>
             </div>
+            <PageSizeSelector @bind-Value="pageSize"
+                              @bind-CurrentPage="currentPage" />
         </div>
     </div>
 </div>

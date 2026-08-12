@@ -43,16 +43,6 @@
     <div class="table-card">
         <!-- ===== هدر کارت جدول - فقط یک بار ===== -->
         <div class="table-card-header">
-            <!-- بخش چپ: جستجو و تعداد نمایش -->
-            <div class="table-card-header-left">
-                <!-- انتخاب تعداد نمایش - فقط یک عدد select -->
-                <div class="page-size-selector">
-                    <span class="text-muted small">تعداد نمایش:</span>
-                    <PageSizeSelector @bind-Value="pageSize"
-                                      @bind-CurrentPage="currentPage" />
-                </div>
-            </div>
-
             <!-- بخش راست: تعداد کل -->
             <div class="table-card-header-right">
                 <span class="badge-modern badge-info">
@@ -213,6 +203,8 @@
                     <i class="bi bi-archive-fill"></i> بایگانی: @branches.Count(b => b.IsArchived)
                 </span>
             </div>
+            <PageSizeSelector @bind-Value="pageSize"
+                              @bind-CurrentPage="currentPage" />
         </div>
     </div>
 </div>

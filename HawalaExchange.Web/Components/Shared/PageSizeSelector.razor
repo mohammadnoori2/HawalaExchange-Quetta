@@ -1,16 +1,23 @@
-<select class="select-page-size @CssClass"
-        value="@Value"
-        aria-label="@AriaLabel"
-        @onchange="HandleChangedAsync">
-    @foreach (var size in Sizes)
-    {
-        <option value="@size">@size</option>
-    }
-    @if (ShowAll)
-    {
-        <option value="0">همه</option>
-    }
-</select>
+@using System.Text.RegularExpressions
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<label class="page-size-selector footer-page-size-selector @CssClass">
+    <span class="text-muted small">نمایش تعداد:</span>
+    <select class="select-page-size"
+            value="@Value"
+            aria-label="@AriaLabel"
+            @onchange="HandleChangedAsync">
+        @foreach (var size in Sizes)
+        {
+            <option value="@size">@size</option>
+        }
+        @if (ShowAll)
+        {
+            <option value="0">همه</option>
+        }
+    </select>
+</label>
 
 @code {
     [Parameter]
@@ -40,6 +47,43 @@
     [Parameter]
     public string CssClass { get; set; } = string.Empty;
 
+    [Parameter]
+    public string? PersistenceKey { get; set; }
+
+    private bool preferenceLoaded;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || preferenceLoaded)
+        {
+            return;
+        }
+
+        preferenceLoaded = true;
+
+        try
+        {
+            var storedValue = await JS.InvokeAsync<string?>("localStorage.getItem", GetStorageKey());
+            if (!int.TryParse(storedValue, out var savedSize) ||
+                (!Sizes.Contains(savedSize) && !(ShowAll && savedSize == 0)) ||
+                savedSize == Value)
+            {
+                return;
+            }
+
+            await ApplyValueAsync(savedSize, persist: false);
+            StateHasChanged();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The browser connection ended while leaving the page.
+        }
+        catch (InvalidOperationException)
+        {
+            // JavaScript is not available during static server rendering.
+        }
+    }
+
     private async Task HandleChangedAsync(ChangeEventArgs args)
     {
         if (!int.TryParse(args.Value?.ToString(), out var nextValue) || nextValue == Value)
@@ -47,7 +91,18 @@
             return;
         }
 
+        await ApplyValueAsync(nextValue, persist: true);
+    }
+
+    private async Task ApplyValueAsync(int nextValue, bool persist)
+    {
         Value = nextValue;
+
+        if (persist)
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", GetStorageKey(), nextValue.ToString());
+        }
+
         await ValueChanged.InvokeAsync(nextValue);
         if (CurrentPage != 1)
         {
@@ -55,5 +110,18 @@
             await CurrentPageChanged.InvokeAsync(1);
         }
         await Changed.InvokeAsync();
+    }
+
+    private string GetStorageKey()
+    {
+        if (!string.IsNullOrWhiteSpace(PersistenceKey))
+        {
+            return $"hawala:page-size:{PersistenceKey.Trim()}";
+        }
+
+        var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var path = relativePath.Split('?', '#')[0].Trim('/').ToLowerInvariant();
+        path = Regex.Replace(path, @"(?<=/)\d+(?=/|$)", "{id}");
+        return $"hawala:page-size:{(string.IsNullOrWhiteSpace(path) ? "home" : path)}";
     }
 }

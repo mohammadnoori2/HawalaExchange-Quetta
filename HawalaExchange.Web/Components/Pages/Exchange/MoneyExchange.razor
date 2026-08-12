@@ -132,15 +132,6 @@
 
     <div class="table-card">
         <div class="table-card-header">
-            <div class="table-card-header-left">
-                <div class="page-size-selector">
-                    <span class="text-muted small">تعداد نمایش:</span>
-
-                    <PageSizeSelector @bind-Value="pageSize"
-                                      @bind-CurrentPage="currentPage" />
-                </div>
-            </div>
-
             <div class="table-card-header-right">
                 <span class="badge-modern badge-info">
                     <i class="bi bi-list-ul"></i>
@@ -329,6 +320,8 @@
                     امروز: @exchanges.Count(x => x.ExchangeDate.ToLocalTime().Date == DateTime.Today)
                 </span>
             </div>
+            <PageSizeSelector @bind-Value="pageSize"
+                              @bind-CurrentPage="currentPage" />
         </div>
     </div>
 </div>

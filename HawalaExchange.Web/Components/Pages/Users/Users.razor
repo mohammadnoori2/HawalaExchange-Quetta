@@ -86,14 +86,6 @@
                     <i class="bi bi-list-ul"></i> @filteredUsers.Count
                 </span>
             </div>
-            <div class="table-card-header-right">
-                <div class="page-size-selector">
-                    <span class="text-muted small">تعداد نمایش:</span>
-                    <PageSizeSelector @bind-Value="pageSize"
-                                      @bind-CurrentPage="currentPage"
-                                      Changed="OnPageSizeChangedAsync" />
-                </div>
-            </div>
         </div>
 
         <div class="table-card-body">
@@ -270,6 +262,9 @@
                     <i class="bi bi-slash-circle"></i> غیرفعال: @users.Count(u => !u.IsActive)
                 </span>
             </div>
+            <PageSizeSelector @bind-Value="pageSize"
+                              @bind-CurrentPage="currentPage"
+                              Changed="OnPageSizeChangedAsync" />
         </div>
     </div>
 </div>

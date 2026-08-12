@@ -7,31 +7,29 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageTitle>مدیریت شعبه‌ها</PageTitle>
+
 <div class="page-wrapper">
-    <!-- هدر صفحه -->
-    <div class="page-header">
-        <div>
-            <h5 class="page-title">
-                <i class="bi bi-building"></i>
-                مدیریت شعبه‌ها
-                <span class="page-subtitle">لیست و جستجوی شعبه‌ها</span>
-            </h5>
-        </div>
-        <PageHeaderStats AriaLabel="آمار شعبه‌ها">
-            <PageHeaderStat Label="کل" Value="@(branches?.Count ?? 0)" Icon="bi-building" />
-            <PageHeaderStat Label="فعال" Value="@(branches?.Count(b => !b.IsArchived) ?? 0)" Icon="bi-check-circle" Tone="success" />
-            <PageHeaderStat Label="بایگانی" Value="@(branches?.Count(b => b.IsArchived) ?? 0)" Icon="bi-archive" Tone="danger" />
-            <PageHeaderStat Label="امروز" Value="@(branches?.Count(b => b.CreatedAt.Date == DateTime.Today) ?? 0)" Icon="bi-clock-history" Tone="info" />
-        </PageHeaderStats>
-        <div class="page-actions">
+    <AppPageHeader Title="مدیریت شعبه‌ها"
+                   Subtitle="لیست و جستجوی شعبه‌ها"
+                   Icon="bi-building">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار شعبه‌ها">
+                <PageHeaderStat Label="کل" Value="@branches.Count" Icon="bi-building" />
+                <PageHeaderStat Label="فعال" Value="@branches.Count(branch => !branch.IsArchived)" Icon="bi-check-circle" Tone="success" />
+                <PageHeaderStat Label="بایگانی" Value="@branches.Count(branch => branch.IsArchived)" Icon="bi-archive" Tone="danger" />
+                <PageHeaderStat Label="امروز" Value="@branches.Count(branch => branch.CreatedAt.Date == DateTime.Today)" Icon="bi-clock-history" Tone="info" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
             <ArchiveViewToggle @bind-ShowArchived="showArchived"
                                ArchivedCount="@branches.Count(b => b.IsArchived)"
                                @bind-ShowArchived:after="ArchiveViewChanged" />
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> شعبه جدید
             </button>
-        </div>
-    </div>
+        </Actions>
+    </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجوی شعبه‌ها"
                       HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
@@ -108,7 +106,7 @@
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ شعبه‌ای یافت نشد</span>
-                                        <p class="text-muted small">برای افزودن شعبه جدید، دکمه "شعبه جدید" را کلیک کنید</p>
+                                        <p class="text-muted small">@(showArchived ? "هیچ شعبه‌ای در بایگانی وجود ندارد." : "برای افزودن شعبه جدید، دکمه «شعبه جدید» را انتخاب کنید.")</p>
                                     </div>
                                 </td>
                             </tr>
@@ -124,12 +122,7 @@
                                         <span class="customer-code">@branch.Code</span>
                                     </td>
                                     <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <div class="avatar avatar-primary">
-                                                @branch.Name?.Substring(0, Math.Min(2, branch.Name?.Length ?? 0)).ToUpper()
-                                            </div>
-                                            <span class="fw-semibold">@branch.Name</span>
-                                        </div>
+                                        <span class="fw-semibold">@branch.Name</span>
                                     </td>
                                     <td>
                                         <span class="phone-number">@branch.PhoneNumber</span>
@@ -137,7 +130,7 @@
                                     <td>
                                         <span class="overflow-ellipsis">@branch.Address</span>
                                     </td>
-                                    <td dir="ltr" class="text-start">@PersianDateHelper.ToPersianDateTime12(branch.CreatedAt)</td>
+                                    <td><AppDateTime Value="@branch.CreatedAt" /></td>
                                     <td>
                                         @if (branch.IsArchived)
                                         {
@@ -152,30 +145,36 @@
                                             </span>
                                         }
                                     </td>
-                                    <td>
-                                        <div class="action-group justify-content-center">
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات شعبه {branch.Name}")">
                                             @if (!branch.IsArchived)
                                             {
-                                                <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(branch.Id)" title="ویرایش">
-                                                    <i class="bi bi-pencil"></i>
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(branch.Id)">
+                                                    <i class="bi bi-pencil text-primary"></i>
+                                                    ویرایش
                                                 </button>
-                                                <button class="action-btn action-btn-archive" @onclick="() => ShowArchiveConfirm(branch.Id)" title="بایگانی">
+                                                <div class="operation-menu-divider"></div>
+                                                <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowArchiveConfirm(branch.Id)">
                                                     <i class="bi bi-archive"></i>
+                                                    بایگانی
                                                 </button>
                                             }
                                             else
                                             {
-                                                <button class="action-btn action-btn-unarchive" @onclick="() => ShowUnarchiveConfirm(branch.Id)" title="خروج از بایگانی">
-                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(branch.Id)">
+                                                    <i class="bi bi-arrow-counterclockwise text-success"></i>
+                                                    خروج از بایگانی
                                                 </button>
                                             }
                                             @if (branch.CanDelete)
                                             {
-                                                <button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(branch.Id)" title="حذف نمایندگی">
+                                                <div class="operation-menu-divider"></div>
+                                                <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(branch.Id)">
                                                     <i class="bi bi-trash"></i>
+                                                    حذف دائمی
                                                 </button>
                                             }
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -198,16 +197,9 @@
                                    PageChanged="GoToPage" />
             </div>
 
-            <div class="table-card-footer-right">
-                <span class="badge-modern badge-success">
-                    <i class="bi bi-check-circle-fill"></i> فعال: @branches.Count(b => !b.IsArchived)
-                </span>
-                <span class="badge-modern badge-archived">
-                    <i class="bi bi-archive-fill"></i> بایگانی: @branches.Count(b => b.IsArchived)
-                </span>
-            </div>
             <PageSizeSelector @bind-Value="pageSize"
-                              @bind-CurrentPage="currentPage" />
+                              @bind-CurrentPage="currentPage"
+                              AriaLabel="تعداد شعبه در هر صفحه" />
         </div>
     </div>
 </div>
@@ -647,7 +639,7 @@
     {
         confirmId = id;
         confirmActionType = "delete";
-        confirmMessage = "آیا مطمئن هستید که می‌خواهید این نمایندگی را برای همیشه حذف کنید؟";
+        confirmMessage = "آیا مطمئن هستید که می‌خواهید این شعبه را برای همیشه حذف کنید؟";
         showConfirmModal = true;
         StateHasChanged();
     }

@@ -149,7 +149,7 @@
                             </div>
                             <div class="account-fact">
                                 <span>تاریخ ایجاد</span>
-                                <strong dir="ltr">@PersianDateHelper.ToPersianDateTime12(Account.CreatedAt)</strong>
+                                <strong><AppDateTime Value="@Account.CreatedAt" /></strong>
                             </div>
                         </div>
                     }
@@ -292,9 +292,7 @@
                                                     <span class="badge-modern @GetOperationBadge(operation.SourceType)">
                                                         @GetSourceTypeName(operation.SourceType)
                                                     </span>
-                                                    <span class="text-muted small" dir="ltr">
-                                                        @PersianDateHelper.ToPersianDateTime12(operation.CreatedAt)
-                                                    </span>
+                                                    <span class="text-muted small"><AppDateTime Value="@operation.CreatedAt" /></span>
                                                     <span class="text-muted small">شماره @operation.DocumentNumber</span>
                                                 </div>
 

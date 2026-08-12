@@ -1,0 +1,103 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="operation-dropdown" @onclick:stopPropagation="true">
+    <button id="@buttonId"
+            type="button"
+            class="operation-dot-btn"
+            title="@Title"
+            aria-label="@AriaLabel"
+            aria-haspopup="menu"
+            aria-expanded="@isOpen.ToString().ToLowerInvariant()"
+            @onclick="ToggleAsync">
+        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+    </button>
+
+    @if (isOpen)
+    {
+        <div id="@menuId"
+             class="operation-menu @MenuCssClass"
+             dir="rtl"
+             role="menu"
+             @onclick="CloseMenuAsync">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string Title { get; set; } = "عملیات";
+
+    [Parameter]
+    public string AriaLabel { get; set; } = "عملیات";
+
+    [Parameter]
+    public string MenuCssClass { get; set; } = string.Empty;
+
+    private readonly string instanceId = Guid.NewGuid().ToString("N");
+    private bool isOpen;
+    private bool positionAfterRender;
+    private DotNetObjectReference<AppActionMenu>? dotNetReference;
+    private string buttonId => $"app-action-button-{instanceId}";
+    private string menuId => $"app-action-menu-{instanceId}";
+
+    private async Task ToggleAsync()
+    {
+        if (isOpen)
+        {
+            await CloseMenuAsync();
+            return;
+        }
+
+        isOpen = true;
+        positionAfterRender = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!isOpen || !positionAfterRender)
+            return;
+
+        positionAfterRender = false;
+        dotNetReference ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("hawalaTools.openOperationMenu", buttonId, menuId, dotNetReference);
+    }
+
+    [JSInvokable]
+    public Task CloseFromJs() => InvokeAsync(() =>
+    {
+        isOpen = false;
+        positionAfterRender = false;
+        StateHasChanged();
+    });
+
+    private async Task CloseMenuAsync()
+    {
+        if (!isOpen)
+            return;
+
+        isOpen = false;
+        positionAfterRender = false;
+        await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", menuId);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (dotNetReference is null)
+            return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", menuId);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        dotNetReference.Dispose();
+    }
+}

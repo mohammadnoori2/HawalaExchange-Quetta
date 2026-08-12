@@ -20,7 +20,10 @@
     <div class="page-header">
         <div>
             <h5 class="page-title"><i class="bi bi-speedometer2"></i> داشبورد</h5>
-            <span class="page-subtitle">آخرین فعالیت: @lastActivityTime</span>
+            <span class="page-subtitle">
+                آخرین فعالیت:
+                <AppDateTime Value="@dashboard?.LastActivityAt" EmptyText="ثبت نشده" />
+            </span>
         </div>
         <PageHeaderStats AriaLabel="آمار داشبورد">
             <PageHeaderStat Label="حواله" Value="@(dashboard?.HawalaCount ?? 0)" Icon="bi-send" />
@@ -63,7 +66,7 @@
                         <span>خرید @MoneyFormatHelper.Format(rate.BuyRate)</span>
                         <span>فروش @MoneyFormatHelper.Format(rate.SellRate)</span>
                     </div>
-                    <div class="rate-change">@PersianDateHelper.ToPersianDate(rate.EffectiveDate)</div>
+                    <div class="rate-change"><AppDateTime Value="@rate.EffectiveDate" /></div>
                 </div>
             }
         }
@@ -305,7 +308,6 @@
     private DateTime startDate = DateTime.Today.AddDays(-27);
     private DateTime endDate = DateTime.Today;
     private string selectedCurrency = "AFN";
-    private string lastActivityTime = "--:--:--";
     private string liquidityFilter = "all";
     private string counterpartyListMode = "debtors";
     private string? errorMessage;
@@ -382,9 +384,6 @@
                 endDate,
                 currency.Id);
             currentCashBalances = (await JournalService.GetCurrentCashBalancesAsync()).ToList();
-            lastActivityTime = dashboard.LastActivityAt.HasValue
-                ? PersianDateHelper.ToPersianDateTime12(dashboard.LastActivityAt.Value)
-                : "--:--:--";
             UpdateLiquidityItems();
             chartsRendered = false;
         }

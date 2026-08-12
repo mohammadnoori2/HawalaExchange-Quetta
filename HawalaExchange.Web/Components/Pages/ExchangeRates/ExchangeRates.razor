@@ -8,35 +8,76 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageTitle>مدیریت نرخ‌های ارز</PageTitle>
+
 <div class="page-wrapper">
-    <!-- هدر صفحه -->
-    <div class="page-header">
-        <div>
-            <h5 class="page-title">
-                <i class="bi bi-arrow-left-right"></i>
-                مدیریت نرخ‌های ارز
-                <span class="page-subtitle">لیست و جستجوی نرخ‌های ارز</span>
-            </h5>
-        </div>
-        <PageHeaderStats AriaLabel="آمار نرخ‌های ارز">
-            <PageHeaderStat Label="کل" Value="@(rates?.Count ?? 0)" Icon="bi-arrow-left-right" />
-            <PageHeaderStat Label="امروز" Value="@(rates?.Count(r => r.EffectiveDate.Date == DateTime.Today) ?? 0)" Icon="bi-clock-history" Tone="info" />
-            <PageHeaderStat Label="هفته" Value="@(rates?.Count(r => r.EffectiveDate > DateTime.Now.AddDays(-7)) ?? 0)" Icon="bi-calendar-check" Tone="success" />
-        </PageHeaderStats>
-        <div class="page-actions">
+    <AppPageHeader Title="مدیریت نرخ‌های ارز"
+                   Subtitle="لیست و جستجوی نرخ‌های ارز"
+                   Icon="bi-arrow-left-right">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار نرخ‌های ارز">
+                <PageHeaderStat Label="کل" Value="@rates.Count" Icon="bi-arrow-left-right" />
+                <PageHeaderStat Label="امروز" Value="@rates.Count(r => r.EffectiveDate.Date == DateTime.Today)" Icon="bi-clock-history" Tone="info" />
+                <PageHeaderStat Label="هفته" Value="@rates.Count(r => r.EffectiveDate > DateTime.Now.AddDays(-7))" Icon="bi-calendar-check" Tone="success" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> نرخ جدید
             </button>
-        </div>
-    </div>
+        </Actions>
+    </AppPageHeader>
 
-    <CompactFilterBar AriaLabel="جستجوی نرخ‌های ارز"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
-                      Reset="ClearSearch">
+    <CompactFilterBar AriaLabel="جستجو و فیلتر نرخ‌های ارز"
+                      HasActiveFilters="@HasActiveFilters"
+                      ActiveFilterCount="@AdvancedFilterCount"
+                      Reset="ResetFilters">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با ارز مبدأ یا مقصد..."
                    @bind="searchTerm" @bind:event="oninput" />
         </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter"
+                    aria-label="ارز مبدأ"
+                    @bind="fromCurrencyFilter"
+                    @bind:event="oninput"
+                    @bind:after="ApplyFilters">
+                <option value="">همه ارزهای مبدأ</option>
+                @foreach (var currency in currencies.OrderBy(currency => currency.Code))
+                {
+                    <option value="@currency.Code">@currency.Code</option>
+                }
+            </select>
+            <select class="form-select compact-quick-filter"
+                    aria-label="ارز مقصد"
+                    @bind="toCurrencyFilter"
+                    @bind:event="oninput"
+                    @bind:after="ApplyFilters">
+                <option value="">همه ارزهای مقصد</option>
+                @foreach (var currency in currencies.OrderBy(currency => currency.Code))
+                {
+                    <option value="@currency.Code">@currency.Code</option>
+                }
+            </select>
+        </QuickFilters>
+        <AdvancedFilters>
+            <div class="compact-filter-field">
+                <label class="form-label">از تاریخ مؤثر</label>
+                <PersianDatePicker @bind-Value="fromDateFilter"
+                                   @bind-Value:after="ApplyFilters"
+                                   IncludeTime="false"
+                                   AllowEmpty="true"
+                                   Placeholder="انتخاب تاریخ" />
+            </div>
+            <div class="compact-filter-field">
+                <label class="form-label">تا تاریخ مؤثر</label>
+                <PersianDatePicker @bind-Value="toDateFilter"
+                                   @bind-Value:after="ApplyFilters"
+                                   IncludeTime="false"
+                                   AllowEmpty="true"
+                                   Placeholder="انتخاب تاریخ" />
+            </div>
+        </AdvancedFilters>
     </CompactFilterBar>
 
     <!-- کارت جدول -->
@@ -135,17 +176,20 @@
                                     </td>
                                     <td dir="ltr" class="fw-bold text-primary">@MoneyFormatHelper.Format(rate.BuyRate)</td>
                                     <td dir="ltr" class="fw-bold text-success">@MoneyFormatHelper.Format(rate.SellRate)</td>
-                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(rate.EffectiveDate)</td>
+                                    <td><AppDateTime Value="@rate.EffectiveDate" /></td>
                                     <td>@rate.CreatedByName</td>
-                                    <td>
-                                        <div class="action-group justify-content-center">
-                                            <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(rate.Id)" title="ویرایش">
-                                                <i class="bi bi-pencil"></i>
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات نرخ {rate.FromCurrencyCode} به {rate.ToCurrencyCode}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(rate.Id)">
+                                                <i class="bi bi-pencil text-primary"></i>
+                                                ویرایش
                                             </button>
-                                            <button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(rate.Id)" title="حذف">
+                                            <div class="operation-menu-divider"></div>
+                                            <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(rate.Id)">
                                                 <i class="bi bi-trash"></i>
+                                                حذف
                                             </button>
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -168,16 +212,9 @@
                                    PageChanged="GoToPage" />
             </div>
 
-            <div class="table-card-footer-right">
-                <span class="badge-modern badge-success">
-                    <i class="bi bi-calendar-check"></i> امروز: @rates.Count(r => r.EffectiveDate.Date == DateTime.Today)
-                </span>
-                <span class="badge-modern badge-info">
-                    <i class="bi bi-clock-history"></i> هفته گذشته: @rates.Count(r => r.EffectiveDate > DateTime.Now.AddDays(-7))
-                </span>
-            </div>
             <PageSizeSelector @bind-Value="pageSize"
-                              @bind-CurrentPage="currentPage" />
+                              @bind-CurrentPage="currentPage"
+                              AriaLabel="تعداد نرخ در هر صفحه" />
         </div>
     </div>
 </div>
@@ -361,6 +398,18 @@
     private List<CurrencyDto> currencies = new();
 
     private string _searchTerm = string.Empty;
+    private string fromCurrencyFilter = string.Empty;
+    private string toCurrencyFilter = string.Empty;
+    private DateTime fromDateFilter = DateTime.MinValue;
+    private DateTime toDateFilter = DateTime.MinValue;
+    private int AdvancedFilterCount =>
+        (fromDateFilter != DateTime.MinValue ? 1 : 0) +
+        (toDateFilter != DateTime.MinValue ? 1 : 0);
+    private bool HasActiveFilters =>
+        !string.IsNullOrWhiteSpace(_searchTerm) ||
+        !string.IsNullOrWhiteSpace(fromCurrencyFilter) ||
+        !string.IsNullOrWhiteSpace(toCurrencyFilter) ||
+        AdvancedFilterCount > 0;
     private string searchTerm
     {
         get => _searchTerm;
@@ -369,7 +418,7 @@
             if (_searchTerm != value)
             {
                 _searchTerm = value;
-                SearchRates();
+                ApplyFilters();
             }
         }
     }
@@ -460,8 +509,7 @@
             isLoading = true;
             var result = await ExchangeRateService.GetAllAsync();
             rates = result.ToList();
-            filteredRates = rates;
-            currentPage = 1;
+            ApplyFilters();
         }
         catch (Exception ex)
         {
@@ -474,27 +522,39 @@
         }
     }
 
-    private void SearchRates()
+    private void ApplyFilters()
     {
-        if (string.IsNullOrWhiteSpace(_searchTerm))
+        var query = rates.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
-            filteredRates = rates;
+            var term = _searchTerm.Trim();
+            query = query.Where(rate =>
+                rate.FromCurrencyCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                rate.ToCurrencyCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (rate.CreatedByName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
         }
-        else
-        {
-            var term = _searchTerm.Trim().ToLower();
-            filteredRates = rates.Where(r =>
-                r.FromCurrencyCode.ToLower().Contains(term) ||
-                r.ToCurrencyCode.ToLower().Contains(term)
-            ).ToList();
-        }
+
+        if (!string.IsNullOrWhiteSpace(fromCurrencyFilter))
+            query = query.Where(rate => string.Equals(rate.FromCurrencyCode, fromCurrencyFilter, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(toCurrencyFilter))
+            query = query.Where(rate => string.Equals(rate.ToCurrencyCode, toCurrencyFilter, StringComparison.OrdinalIgnoreCase));
+        if (fromDateFilter != DateTime.MinValue)
+            query = query.Where(rate => rate.EffectiveDate.Date >= fromDateFilter.Date);
+        if (toDateFilter != DateTime.MinValue)
+            query = query.Where(rate => rate.EffectiveDate.Date <= toDateFilter.Date);
+
+        filteredRates = query.ToList();
         currentPage = 1;
         StateHasChanged();
     }
 
-    private void ClearSearch()
+    private void ResetFilters()
     {
         _searchTerm = string.Empty;
+        fromCurrencyFilter = string.Empty;
+        toCurrencyFilter = string.Empty;
+        fromDateFilter = DateTime.MinValue;
+        toDateFilter = DateTime.MinValue;
         filteredRates = rates;
         currentPage = 1;
         StateHasChanged();

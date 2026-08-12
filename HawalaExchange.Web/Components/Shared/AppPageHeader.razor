@@ -1,0 +1,46 @@
+<header class="page-header app-page-header @CssClass">
+    <div class="app-page-heading">
+        <h1 class="page-title">
+            <i class="bi @Icon" aria-hidden="true"></i>
+            <span class="app-page-title-text">
+                @Title
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <small class="page-subtitle">@Subtitle</small>
+                }
+            </span>
+        </h1>
+    </div>
+
+    @if (Stats is not null)
+    {
+        @Stats
+    }
+
+    @if (Actions is not null)
+    {
+        <div class="page-actions" aria-label="عملیات صفحه">
+            @Actions
+        </div>
+    }
+</header>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Icon { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    [Parameter]
+    public RenderFragment? Stats { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    [Parameter]
+    public string CssClass { get; set; } = string.Empty;
+}

@@ -184,13 +184,14 @@
                                             <span class="text-muted">—</span>
                                         }
                                     </td>
-                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTimeWithSeconds(log.CreatedAt)</td>
-                                    <td>
-                                        <div class="action-group justify-content-center">
-                                            <button class="action-btn action-btn-view" @onclick="() => ViewLog(log.Id)" title="مشاهده جزئیات">
-                                                <i class="bi bi-eye"></i>
+                                    <td><AppDateTime Value="@log.CreatedAt" Use24Hour="true" ShowSeconds="true" /></td>
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات لاگ {log.Id}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewLog(log.Id)">
+                                                <i class="bi bi-eye text-primary"></i>
+                                                مشاهده جزئیات
                                             </button>
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -266,7 +267,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">تاریخ</span>
-                                <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDateTimeWithSeconds(selectedLog.CreatedAt)</span>
+                                <span class="info-value"><AppDateTime Value="@selectedLog.CreatedAt" Use24Hour="true" ShowSeconds="true" /></span>
                             </div>
                         </div>
                     </div>

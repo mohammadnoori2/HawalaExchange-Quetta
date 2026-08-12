@@ -12,31 +12,30 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 @attribute [Authorize]
+
+<PageTitle>مدیریت مشتریان</PageTitle>
+
 <div class="page-wrapper">
-    <!-- هدر صفحه -->
-    <div class="page-header">
-        <div>
-            <h5 class="page-title">
-                <i class="bi bi-people-fill"></i>
-                مدیریت مشتریان
-                <span class="page-subtitle">لیست و جستجوی مشتریان</span>
-            </h5>
-        </div>
-        <PageHeaderStats AriaLabel="آمار مشتریان">
-            <PageHeaderStat Label="کل" Value="@(customers?.Count ?? 0)" Icon="bi-people" />
-            <PageHeaderStat Label="فعال" Value="@(customers?.Count(c => !c.IsArchived) ?? 0)" Icon="bi-check-circle" Tone="success" />
-            <PageHeaderStat Label="بایگانی" Value="@(customers?.Count(c => c.IsArchived) ?? 0)" Icon="bi-archive" Tone="danger" />
-            <PageHeaderStat Label="امروز" Value="@(customers?.Count(c => c.CreatedAt.Date == DateTime.Today) ?? 0)" Icon="bi-clock-history" Tone="info" />
-        </PageHeaderStats>
-        <div class="page-actions">
+    <AppPageHeader Title="مدیریت مشتریان"
+                   Subtitle="لیست و جستجوی مشتریان"
+                   Icon="bi-people-fill">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار مشتریان">
+                <PageHeaderStat Label="کل" Value="@customers.Count" Icon="bi-people" />
+                <PageHeaderStat Label="فعال" Value="@customers.Count(c => !c.IsArchived)" Icon="bi-check-circle" Tone="success" />
+                <PageHeaderStat Label="بایگانی" Value="@customers.Count(c => c.IsArchived)" Icon="bi-archive" Tone="danger" />
+                <PageHeaderStat Label="امروز" Value="@customers.Count(c => c.CreatedAt.Date == DateTime.Today)" Icon="bi-clock-history" Tone="info" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
             <ArchiveViewToggle @bind-ShowArchived="showArchived"
                                ArchivedCount="@customers.Count(c => c.IsArchived)"
                                @bind-ShowArchived:after="ArchiveViewChanged" />
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> مشتری جدید
             </button>
-        </div>
-    </div>
+        </Actions>
+    </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجوی مشتریان"
                       HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
@@ -105,7 +104,7 @@
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ مشتری‌ای یافت نشد</span>
-                                        <p class="text-muted small">برای افزودن مشتری جدید، دکمه "مشتری جدید" را کلیک کنید</p>
+                                        <p class="text-muted small">@(showArchived ? "هیچ مشتری‌ای در بایگانی وجود ندارد." : "برای افزودن مشتری جدید، دکمه «مشتری جدید» را انتخاب کنید.")</p>
                                     </div>
                                 </td>
                             </tr>
@@ -121,12 +120,7 @@
                                         <span class="customer-code">@customer.CustomerCode</span>
                                     </td>
                                     <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <div class="avatar avatar-primary">
-                                                @customer.FullName?.Substring(0, Math.Min(2, customer.FullName?.Length ?? 0)).ToUpper()
-                                            </div>
-                                            <span class="fw-semibold">@customer.FullName</span>
-                                        </div>
+                                        <span class="fw-semibold">@customer.FullName</span>
                                     </td>
                                     <td>
                                         <span class="phone-number">@customer.PhoneNumber</span>
@@ -149,22 +143,21 @@
                                             </span>
                                         }
                                     </td>
-                                    <td>
-                                        <div class="action-group justify-content-center">
-                                            <button type="button"
-                                                    class="btn btn-sm btn-outline-primary px-3"
-                                                    @onclick="() => ViewAccount(customer.Id)">
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات مشتری {customer.FullName}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewAccount(customer.Id)">
+                                                <i class="bi bi-eye text-primary"></i>
                                                 مشاهده مشتری
                                             </button>
                                             @if (customer.IsArchived)
                                             {
-                                                <button type="button"
-                                                        class="btn btn-sm btn-outline-success"
-                                                        @onclick="() => ShowUnarchiveConfirm(customer.Id)">
-                                                    <i class="bi bi-arrow-counterclockwise"></i> خروج از بایگانی
+                                                <div class="operation-menu-divider"></div>
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(customer.Id)">
+                                                    <i class="bi bi-arrow-counterclockwise text-success"></i>
+                                                    خروج از بایگانی
                                                 </button>
                                             }
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -186,16 +179,9 @@
                                    PageChanged="GoToPage" />
             </div>
 
-            <div class="table-card-footer-right">
-                <span class="badge-modern badge-success">
-                    <i class="bi bi-check-circle-fill"></i> فعال: @customers.Count(c => !c.IsArchived)
-                </span>
-                <span class="badge-modern badge-archived">
-                    <i class="bi bi-archive-fill"></i> بایگانی: @customers.Count(c => c.IsArchived)
-                </span>
-            </div>
             <PageSizeSelector @bind-Value="pageSize"
-                              @bind-CurrentPage="currentPage" />
+                              @bind-CurrentPage="currentPage"
+                              AriaLabel="تعداد مشتری در هر صفحه" />
         </div>
     </div>
 </div>
@@ -668,7 +654,7 @@
                                             {
                                                 <tr>
                                                     <td>@entry.Id</td>
-                                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(entry.CreatedAt)</td>
+                                                    <td><AppDateTime Value="@entry.CreatedAt" /></td>
                                                     <td><span class="badge-modern badge-info">@entry.CurrencyCode</span></td>
                                                     <td class="text-success fw-bold">@(entry.TalabKar > 0 ? MoneyFormatHelper.Format(entry.TalabKar) : "-")</td>
                                                     <td class="text-danger fw-bold">@(entry.BadehKar > 0 ? MoneyFormatHelper.Format(entry.BadehKar) : "-")</td>

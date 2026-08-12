@@ -101,7 +101,7 @@
             }
             @if (Hawala.PaidAt.HasValue)
             {
-                <tr><th>تاریخ پرداخت:</th><td dir="ltr">@PersianDateHelper.ToPersianDateTime12(Hawala.PaidAt.Value)</td></tr>
+                <tr><th>تاریخ پرداخت:</th><td><AppDateTime Value="@Hawala.PaidAt" /></td></tr>
             }
             @if (!string.IsNullOrWhiteSpace(Hawala.Notes))
             {

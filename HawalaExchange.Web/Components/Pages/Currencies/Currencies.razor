@@ -7,35 +7,44 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageTitle>مدیریت ارزها</PageTitle>
+
 <div class="page-wrapper">
-    <!-- هدر صفحه -->
-    <div class="page-header">
-        <div>
-            <h5 class="page-title">
-                <i class="bi bi-currency-exchange"></i>
-                مدیریت ارزها
-                <span class="page-subtitle">لیست و جستجوی ارزها</span>
-            </h5>
-        </div>
-        <PageHeaderStats AriaLabel="آمار ارزها">
-            <PageHeaderStat Label="کل" Value="@(currencies?.Count ?? 0)" Icon="bi-currency-exchange" />
-            <PageHeaderStat Label="فعال" Value="@(currencies?.Count(c => c.IsActive) ?? 0)" Icon="bi-check-circle" Tone="success" />
-            <PageHeaderStat Label="غیرفعال" Value="@(currencies?.Count(c => !c.IsActive) ?? 0)" Icon="bi-slash-circle" Tone="danger" />
-        </PageHeaderStats>
-        <div class="page-actions">
+    <AppPageHeader Title="مدیریت ارزها"
+                   Subtitle="لیست و جستجوی ارزها"
+                   Icon="bi-currency-exchange">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار ارزها">
+                <PageHeaderStat Label="کل" Value="@currencies.Count" Icon="bi-currency-exchange" />
+                <PageHeaderStat Label="فعال" Value="@currencies.Count(c => c.IsActive)" Icon="bi-check-circle" Tone="success" />
+                <PageHeaderStat Label="غیرفعال" Value="@currencies.Count(c => !c.IsActive)" Icon="bi-slash-circle" Tone="danger" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> ارز جدید
             </button>
-        </div>
-    </div>
+        </Actions>
+    </AppPageHeader>
 
-    <CompactFilterBar AriaLabel="جستجوی ارزها"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
-                      Reset="ClearSearch">
+    <CompactFilterBar AriaLabel="جستجو و فیلتر ارزها"
+                      HasActiveFilters="@HasActiveFilters"
+                      Reset="ResetFilters">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با کد، نام یا سمبل..."
                    @bind="searchTerm" @bind:event="oninput" />
         </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter"
+                    aria-label="وضعیت ارز"
+                    @bind="statusFilter"
+                    @bind:event="oninput"
+                    @bind:after="ApplyFilters">
+                <option value="">همه وضعیت‌ها</option>
+                <option value="Active">فعال</option>
+                <option value="Inactive">غیرفعال</option>
+            </select>
+        </QuickFilters>
     </CompactFilterBar>
 
     <!-- کارت جدول -->
@@ -112,12 +121,7 @@
                                         <span class="customer-code">@currency.Code</span>
                                     </td>
                                     <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <div class="avatar avatar-primary">
-                                                @currency.Name?.Substring(0, Math.Min(2, currency.Name?.Length ?? 0)).ToUpper()
-                                            </div>
-                                            <span class="fw-semibold">@currency.Name</span>
-                                        </div>
+                                        <span class="fw-semibold">@currency.Name</span>
                                     </td>
                                     <td>
                                         <span class="badge-modern badge-info">@currency.Symbol</span>
@@ -138,24 +142,29 @@
                                             </span>
                                         }
                                     </td>
-                                    <td>
-                                        <div class="action-group justify-content-center">
-                                            <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(currency.Id)" title="ویرایش">
-                                                <i class="bi bi-pencil"></i>
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات ارز {currency.Code}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(currency.Id)">
+                                                <i class="bi bi-pencil text-primary"></i>
+                                                ویرایش
                                             </button>
                                             @if (currency.IsActive)
                                             {
-                                                <button class="action-btn action-btn-delete" @onclick="() => ShowDeactivateConfirm(currency.Id)" title="غیرفعال‌سازی">
+                                                <div class="operation-menu-divider"></div>
+                                                <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeactivateConfirm(currency.Id)">
                                                     <i class="bi bi-slash-circle"></i>
+                                                    غیرفعال‌سازی
                                                 </button>
                                             }
                                             else
                                             {
-                                                <button class="action-btn action-btn-unarchive" @onclick="() => ShowActivateConfirm(currency.Id)" title="فعال‌سازی">
-                                                    <i class="bi bi-check-circle"></i>
+                                                <div class="operation-menu-divider"></div>
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowActivateConfirm(currency.Id)">
+                                                    <i class="bi bi-check-circle text-success"></i>
+                                                    فعال‌سازی
                                                 </button>
                                             }
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -178,16 +187,9 @@
                                    PageChanged="GoToPage" />
             </div>
 
-            <div class="table-card-footer-right">
-                <span class="badge-modern badge-success">
-                    <i class="bi bi-check-circle-fill"></i> فعال: @currencies.Count(c => c.IsActive)
-                </span>
-                <span class="badge-modern badge-archived">
-                    <i class="bi bi-slash-circle-fill"></i> غیرفعال: @currencies.Count(c => !c.IsActive)
-                </span>
-            </div>
             <PageSizeSelector @bind-Value="pageSize"
-                              @bind-CurrentPage="currentPage" />
+                              @bind-CurrentPage="currentPage"
+                              AriaLabel="تعداد ارز در هر صفحه" />
         </div>
     </div>
 </div>
@@ -346,6 +348,8 @@
     private List<CurrencyDto> filteredCurrencies = new();
 
     private string _searchTerm = string.Empty;
+    private string statusFilter = string.Empty;
+    private bool HasActiveFilters => !string.IsNullOrWhiteSpace(_searchTerm) || !string.IsNullOrWhiteSpace(statusFilter);
     private string searchTerm
     {
         get => _searchTerm;
@@ -354,7 +358,7 @@
             if (_searchTerm != value)
             {
                 _searchTerm = value;
-                SearchCurrencies();
+                ApplyFilters();
             }
         }
     }
@@ -424,8 +428,7 @@
             isLoading = true;
             var result = await CurrencyService.GetAllAsync();
             currencies = result.ToList();
-            filteredCurrencies = currencies;
-            currentPage = 1;
+            ApplyFilters();
         }
         catch (Exception ex)
         {
@@ -438,28 +441,34 @@
         }
     }
 
-    private void SearchCurrencies()
+    private void ApplyFilters()
     {
-        if (string.IsNullOrWhiteSpace(_searchTerm))
+        var query = currencies.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
-            filteredCurrencies = currencies;
+            var term = _searchTerm.Trim();
+            query = query.Where(currency =>
+                currency.Code.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                currency.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (currency.Symbol?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
         }
-        else
+
+        query = statusFilter switch
         {
-            var term = _searchTerm.Trim().ToLower();
-            filteredCurrencies = currencies.Where(c =>
-                c.Code.ToLower().Contains(term) ||
-                c.Name.ToLower().Contains(term) ||
-                (c.Symbol != null && c.Symbol.Contains(term, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
-        }
+            "Active" => query.Where(currency => currency.IsActive),
+            "Inactive" => query.Where(currency => !currency.IsActive),
+            _ => query
+        };
+
+        filteredCurrencies = query.ToList();
         currentPage = 1;
         StateHasChanged();
     }
 
-    private void ClearSearch()
+    private void ResetFilters()
     {
         _searchTerm = string.Empty;
+        statusFilter = string.Empty;
         filteredCurrencies = currencies;
         currentPage = 1;
         StateHasChanged();

@@ -12,31 +12,29 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageTitle>مدیریت نمایندگی‌ها</PageTitle>
+
 <div class="page-wrapper">
-    <!-- هدر صفحه -->
-    <div class="page-header">
-        <div>
-            <h5 class="page-title">
-                <i class="bi bi-globe-americas"></i>
-                مدیریت نمایندگان (حواله‌داران)
-                <span class="page-subtitle">لیست و جستجوی نمایندگان</span>
-            </h5>
-        </div>
-        <PageHeaderStats AriaLabel="آمار نمایندگی‌ها">
-            <PageHeaderStat Label="کل" Value="@(correspondents?.Count ?? 0)" Icon="bi-globe-americas" />
-            <PageHeaderStat Label="فعال" Value="@(correspondents?.Count(c => !c.IsArchived) ?? 0)" Icon="bi-check-circle" Tone="success" />
-            <PageHeaderStat Label="بایگانی" Value="@(correspondents?.Count(c => c.IsArchived) ?? 0)" Icon="bi-archive" Tone="danger" />
-            <PageHeaderStat Label="امروز" Value="@(correspondents?.Count(c => c.CreatedAt.Date == DateTime.Today) ?? 0)" Icon="bi-clock-history" Tone="info" />
-        </PageHeaderStats>
-        <div class="page-actions">
+    <AppPageHeader Title="مدیریت نمایندگی‌ها"
+                   Subtitle="لیست و جستجوی نمایندگی‌ها"
+                   Icon="bi-globe-americas">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار نمایندگی‌ها">
+                <PageHeaderStat Label="کل" Value="@correspondents.Count" Icon="bi-globe-americas" />
+                <PageHeaderStat Label="فعال" Value="@correspondents.Count(c => !c.IsArchived)" Icon="bi-check-circle" Tone="success" />
+                <PageHeaderStat Label="بایگانی" Value="@correspondents.Count(c => c.IsArchived)" Icon="bi-archive" Tone="danger" />
+                <PageHeaderStat Label="امروز" Value="@correspondents.Count(c => c.CreatedAt.Date == DateTime.Today)" Icon="bi-clock-history" Tone="info" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
             <ArchiveViewToggle @bind-ShowArchived="showArchived"
                                ArchivedCount="@correspondents.Count(c => c.IsArchived)"
                                @bind-ShowArchived:after="ArchiveViewChanged" />
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> نماینده جدید
             </button>
-        </div>
-    </div>
+        </Actions>
+    </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجوی نمایندگی‌ها"
                       HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
@@ -117,7 +115,7 @@
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ نماینده‌ای یافت نشد</span>
-                                        <p class="text-muted small">برای افزودن نماینده جدید، دکمه "نماینده جدید" را کلیک کنید</p>
+                                        <p class="text-muted small">@(showArchived ? "هیچ نمایندگی‌ای در بایگانی وجود ندارد." : "برای افزودن نمایندگی جدید، دکمه «نماینده جدید» را انتخاب کنید.")</p>
                                     </div>
                                 </td>
                             </tr>
@@ -133,12 +131,7 @@
                                         <span class="customer-code">@correspondent.Code</span>
                                     </td>
                                     <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <div class="avatar avatar-primary">
-                                                @correspondent.Name?.Substring(0, Math.Min(2, correspondent.Name?.Length ?? 0)).ToUpper()
-                                            </div>
-                                            <span class="fw-semibold">@correspondent.Name</span>
-                                        </div>
+                                        <span class="fw-semibold">@correspondent.Name</span>
                                     </td>
                                     <td>
                                         <span class="badge-modern badge-info">@correspondent.Country</span>
@@ -161,22 +154,21 @@
                                             </span>
                                         }
                                     </td>
-                                    <td>
-                                        <div class="action-group justify-content-center">
-                                            <button type="button"
-                                                    class="btn btn-sm btn-outline-primary px-3"
-                                                    @onclick="() => ViewCorrespondent(correspondent.Id)">
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات نمایندگی {correspondent.Name}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewCorrespondent(correspondent.Id)">
+                                                <i class="bi bi-eye text-primary"></i>
                                                 مشاهده نمایندگی
                                             </button>
                                             @if (correspondent.IsArchived)
                                             {
-                                                <button type="button"
-                                                        class="btn btn-sm btn-outline-success"
-                                                        @onclick="() => ShowUnarchiveConfirm(correspondent.Id)">
-                                                    <i class="bi bi-arrow-counterclockwise"></i> خروج از بایگانی
+                                                <div class="operation-menu-divider"></div>
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(correspondent.Id)">
+                                                    <i class="bi bi-arrow-counterclockwise text-success"></i>
+                                                    خروج از بایگانی
                                                 </button>
                                             }
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -199,16 +191,9 @@
                                    PageChanged="GoToPage" />
             </div>
 
-            <div class="table-card-footer-right">
-                <span class="badge-modern badge-success">
-                    <i class="bi bi-check-circle-fill"></i> فعال: @correspondents.Count(c => !c.IsArchived)
-                </span>
-                <span class="badge-modern badge-archived">
-                    <i class="bi bi-archive-fill"></i> بایگانی: @correspondents.Count(c => c.IsArchived)
-                </span>
-            </div>
             <PageSizeSelector @bind-Value="pageSize"
-                              @bind-CurrentPage="currentPage" />
+                              @bind-CurrentPage="currentPage"
+                              AriaLabel="تعداد نمایندگی در هر صفحه" />
         </div>
     </div>
 </div>
@@ -627,7 +612,7 @@
                                                 <tr>
                                                     <td>@reportIndex</td>
                                                     <td class="fw-bold">@hawala.Number</td>
-                                                    <td dir="ltr">@PersianDateHelper.ToPersianDate(hawala.CreatedAt)</td>
+                                                    <td><AppDateTime Value="@hawala.CreatedAt" /></td>
                                                     <td>@GetFullName(hawala.SenderName, hawala.SenderFatherName)</td>
                                                     <td>@GetFullName(hawala.ReceiverName, hawala.ReceiverFatherName)</td>
                                                     <td>@GetRangePaymentLocation(hawala)</td>

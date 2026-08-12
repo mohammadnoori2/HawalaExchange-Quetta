@@ -153,15 +153,9 @@
                                         </span>
                                     </td>
 
-                                    <td dir="ltr">
-                                        @PersianDateHelper.ToPersianDateTime12(hawala.CreatedAt)
-                                    </td>
+                                    <td><AppDateTime Value="@hawala.CreatedAt" /></td>
 
-                                    <td dir="ltr">
-                                        @(hawala.PaidAt.HasValue
-                                            ? PersianDateHelper.ToPersianDateTime12(hawala.PaidAt.Value)
-                                            : "-")
-                                    </td>
+                                    <td><AppDateTime Value="@hawala.PaidAt" EmptyText="-" /></td>
 
                                     <td>@GetExecutionAccountText(hawala)</td>
 
@@ -331,9 +325,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">تاریخ</span>
-                                <span class="info-value" dir="ltr">
-                                    @PersianDateHelper.ToPersianDateTime12(selectedHawala.CreatedAt)
-                                </span>
+                                <span class="info-value"><AppDateTime Value="@selectedHawala.CreatedAt" /></span>
                             </div>
                         </div>
 
@@ -342,9 +334,7 @@
                             <div class="col-md-4">
                                 <div class="info-card">
                                     <span class="info-label">زمان اجرا</span>
-                                    <span class="info-value" dir="ltr">
-                                        @PersianDateHelper.ToPersianDateTime12(selectedHawala.PaidAt.Value)
-                                    </span>
+                                    <span class="info-value"><AppDateTime Value="@selectedHawala.PaidAt" /></span>
                                 </div>
                             </div>
                         }

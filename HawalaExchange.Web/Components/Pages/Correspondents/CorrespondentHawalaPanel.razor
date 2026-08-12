@@ -124,7 +124,7 @@
                                 @hawala.CommissionCurrencyCode
                             </td>
                             <td><span class="hawala-status @GetStatusClass(hawala.Status)">@hawala.StatusName</span></td>
-                            <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(hawala.CreatedAt)</td>
+                            <td><AppDateTime Value="@hawala.CreatedAt" /></td>
                             <td class="text-center operation-cell">
                                 <HawalaOperationMenu Hawala="hawala"
                                                      ShowEdit="true"
@@ -191,7 +191,7 @@
                 <div class="modal-body">
                     <div class="hawala-detail-grid">
                         <div><span>وضعیت</span><strong>@selectedHawala.StatusName</strong></div>
-                        <div><span>تاریخ</span><strong dir="ltr">@PersianDateHelper.ToPersianDateTime12(selectedHawala.CreatedAt)</strong></div>
+                        <div><span>تاریخ</span><strong><AppDateTime Value="@selectedHawala.CreatedAt" /></strong></div>
                         <div><span>فرستنده</span><strong>@(selectedHawala.SenderName ?? "—")</strong></div>
                         <div><span>نام پدر فرستنده</span><strong>@(selectedHawala.SenderFatherName ?? "—")</strong></div>
                         <div><span>تلفن فرستنده</span><strong dir="ltr">@(selectedHawala.SenderPhone ?? "—")</strong></div>

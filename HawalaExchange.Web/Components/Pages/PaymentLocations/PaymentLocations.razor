@@ -5,35 +5,53 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<div class="page-wrapper">
-    <div class="page-header">
-        <div>
-            <h5 class="page-title">
-                <i class="bi bi-geo-alt"></i>
-                مدیریت آدرس‌ها (محل‌های پرداخت)
-                <span class="page-subtitle">لیست و مدیریت محل‌های پرداخت</span>
-            </h5>
-        </div>
-        <div class="page-actions">
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
-                <i class="bi bi-plus-circle"></i> آدرس جدید
-            </button>
-        </div>
-    </div>
+<PageTitle>مدیریت محل‌های پرداخت</PageTitle>
 
-    <CompactFilterBar AriaLabel="جستجوی محل‌های پرداخت"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
-                      Reset="ClearLocationSearch">
+<div class="page-wrapper">
+    <AppPageHeader Title="مدیریت محل‌های پرداخت"
+                   Subtitle="لیست و جستجوی آدرس‌های پرداخت حواله"
+                   Icon="bi-geo-alt">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار محل‌های پرداخت">
+                <PageHeaderStat Label="کل" Value="@paymentLocations.Count" Icon="bi-geo-alt" />
+                <PageHeaderStat Label="فعال" Value="@paymentLocations.Count(location => location.IsActive)" Icon="bi-check-circle" Tone="success" />
+                <PageHeaderStat Label="غیرفعال" Value="@paymentLocations.Count(location => !location.IsActive)" Icon="bi-slash-circle" Tone="danger" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
+            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+                <i class="bi bi-plus-circle"></i> محل جدید
+            </button>
+        </Actions>
+    </AppPageHeader>
+
+    <CompactFilterBar AriaLabel="جستجو و فیلتر محل‌های پرداخت"
+                      HasActiveFilters="@HasActiveFilters"
+                      Reset="ResetFilters">
         <SearchContent>
-            <input class="form-control" placeholder="جستجوی آدرس..." @bind="searchTerm" @bind:event="oninput" />
+            <input class="form-control"
+                   placeholder="جستجو با نام، آدرس، تلفن یا مسئول..."
+                   @bind="searchTerm"
+                   @bind:event="oninput" />
         </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter"
+                    aria-label="وضعیت محل پرداخت"
+                    @bind="statusFilter"
+                    @bind:event="oninput"
+                    @bind:after="ApplyFilters">
+                <option value="">همه وضعیت‌ها</option>
+                <option value="Active">فعال</option>
+                <option value="Inactive">غیرفعال</option>
+            </select>
+        </QuickFilters>
     </CompactFilterBar>
 
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
                 <span class="badge-modern badge-info">
-                    <i class="bi bi-list-ul"></i> @paymentLocations.Count
+                    <i class="bi bi-list-ul"></i> @filteredLocations.Count
                 </span>
             </div>
         </div>
@@ -44,12 +62,24 @@
                     <thead>
                         <tr>
                             <th style="width:50px;">#</th>
-                            <th style="min-width:150px;">نام محل</th>
+                            <th class="sortable-header @(sortColumn == "Name" ? "active" : "")" style="min-width:150px;" @onclick='() => SortBy("Name")'>
+                                نام محل
+                                @if (sortColumn == "Name")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
                             <th style="min-width:250px;">آدرس</th>
                             <th style="min-width:120px;">تلفن</th>
                             <th style="min-width:120px;">مسئول</th>
-                            <th style="min-width:100px;">وضعیت</th>
-                            <th style="min-width:150px;">عملیات</th>
+                            <th class="sortable-header @(sortColumn == "Status" ? "active" : "")" style="min-width:100px;" @onclick='() => SortBy("Status")'>
+                                وضعیت
+                                @if (sortColumn == "Status")
+                                {
+                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                }
+                            </th>
+                            <th class="text-center" style="width:80px;">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -57,14 +87,22 @@
                         {
                             <tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
                         }
-                        else if (!filteredLocations.Any())
+                        else if (!pagedLocations.Any())
                         {
-                            <tr><td colspan="7" class="text-center py-5"><i class="bi bi-inbox"></i> هیچ آدرسی یافت نشد</td></tr>
+                            <tr>
+                                <td colspan="7" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <span class="fs-5 text-muted">هیچ محل پرداختی یافت نشد</span>
+                                        <p class="text-muted small">فیلترها را تغییر دهید یا یک محل جدید اضافه کنید.</p>
+                                    </div>
+                                </td>
+                            </tr>
                         }
                         else
                         {
-                            int rowIndex = 1;
-                            @foreach (var location in filteredLocations)
+                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredLocations.Count : pageSize) + 1;
+                            @foreach (var location in pagedLocations)
                             {
                                 <tr>
                                     <td>@rowIndex</td>
@@ -77,18 +115,22 @@
                                             @(location.IsActive ? "فعال" : "غیرفعال")
                                         </span>
                                     </td>
-                                    <td>
-                                        <div class="action-group">
-                                            <button class="action-btn action-btn-edit" @onclick="() => OpenEditModal(location.Id)" title="ویرایش">
-                                                <i class="bi bi-pencil"></i>
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات محل پرداخت {location.Name}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(location.Id)">
+                                                <i class="bi bi-pencil text-primary"></i>
+                                                ویرایش
                                             </button>
-                                            <button class="action-btn action-btn-toggle" @onclick="() => ToggleActive(location.Id)" title="تغییر وضعیت">
-                                                <i class="bi @(location.IsActive ? "bi-eye-slash" : "bi-eye")"></i>
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ToggleActive(location.Id)">
+                                                <i class="bi @(location.IsActive ? "bi-eye-slash text-warning" : "bi-eye text-success")"></i>
+                                                @(location.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")
                                             </button>
-                                            <button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(location.Id)" title="حذف">
+                                            <div class="operation-menu-divider"></div>
+                                            <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(location.Id)">
                                                 <i class="bi bi-trash"></i>
+                                                حذف
                                             </button>
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -97,6 +139,20 @@
                     </tbody>
                 </GlobalDataGrid>
             </div>
+        </div>
+
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedLocations.Count</strong> از <strong>@filteredLocations.Count</strong> محل
+                </span>
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
+            </div>
+            <PageSizeSelector @bind-Value="pageSize"
+                              @bind-CurrentPage="currentPage"
+                              AriaLabel="تعداد محل پرداخت در هر صفحه" />
         </div>
     </div>
 </div>
@@ -206,6 +262,12 @@
     private List<PaymentLocationDto> paymentLocations = new();
     private List<PaymentLocationDto> filteredLocations = new();
     private string _searchTerm = "";
+    private string statusFilter = string.Empty;
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string sortColumn = "Name";
+    private bool sortAscending = true;
+    private bool HasActiveFilters => !string.IsNullOrWhiteSpace(_searchTerm) || !string.IsNullOrWhiteSpace(statusFilter);
     private string searchTerm
     {
         get => _searchTerm;
@@ -215,9 +277,29 @@
                 return;
 
             _searchTerm = value;
-            ApplySearch();
+            ApplyFilters();
         }
     }
+    private List<PaymentLocationDto> pagedLocations
+    {
+        get
+        {
+            var sorted = sortColumn switch
+            {
+                "Status" => sortAscending
+                    ? filteredLocations.OrderByDescending(location => location.IsActive).ThenBy(location => location.Name)
+                    : filteredLocations.OrderBy(location => location.IsActive).ThenBy(location => location.Name),
+                _ => sortAscending
+                    ? filteredLocations.OrderBy(location => location.Name)
+                    : filteredLocations.OrderByDescending(location => location.Name)
+            };
+
+            return pageSize == 0
+                ? sorted.ToList()
+                : sorted.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+        }
+    }
+    private int totalPages => pageSize == 0 ? 1 : Math.Max(1, (int)Math.Ceiling((double)filteredLocations.Count / pageSize));
     private bool isLoading = false;
     private bool showModal = false;
     private bool showDeleteModal = false;
@@ -240,7 +322,7 @@
             isLoading = true;
             var result = await PaymentLocationService.GetAllAsync();
             paymentLocations = result.ToList();
-            filteredLocations = paymentLocations;
+            ApplyFilters();
         }
         catch { }
         finally
@@ -250,28 +332,61 @@
         }
     }
 
-    private void ApplySearch()
+    private void ApplyFilters()
     {
-        if (string.IsNullOrWhiteSpace(searchTerm))
+        var query = paymentLocations.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
-            filteredLocations = paymentLocations;
+            var term = _searchTerm.Trim();
+            query = query.Where(location =>
+                location.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                location.Address.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (location.Phone?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (location.ContactPerson?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
         }
-        else
+
+        query = statusFilter switch
         {
-            var term = searchTerm.Trim();
-            filteredLocations = paymentLocations.Where(l =>
-                l.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                l.Address.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                (l.Phone != null && l.Phone.Contains(term)) ||
-                (l.ContactPerson != null && l.ContactPerson.Contains(term, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
-        }
+            "Active" => query.Where(location => location.IsActive),
+            "Inactive" => query.Where(location => !location.IsActive),
+            _ => query
+        };
+
+        filteredLocations = query.ToList();
+        currentPage = 1;
         StateHasChanged();
     }
 
-    private void ClearLocationSearch()
+    private void ResetFilters()
     {
-        searchTerm = string.Empty;
+        _searchTerm = string.Empty;
+        statusFilter = string.Empty;
+        filteredLocations = paymentLocations;
+        currentPage = 1;
+        StateHasChanged();
+    }
+
+    private void GoToPage(int page)
+    {
+        if (page < 1 || page > totalPages)
+            return;
+
+        currentPage = page;
+        StateHasChanged();
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+            sortAscending = !sortAscending;
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+
+        currentPage = 1;
+        StateHasChanged();
     }
 
     private void OpenCreateModal()

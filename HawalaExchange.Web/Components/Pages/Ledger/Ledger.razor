@@ -190,7 +190,7 @@
                                     <td class="text-danger fw-bold">
                                         @(entry.BadehKar > 0 ? MoneyFormatHelper.Format(entry.BadehKar) : "-")
                                     </td>
-                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(entry.CreatedAt)</td>
+                                    <td><AppDateTime Value="@entry.CreatedAt" /></td>
                                     <td>
                                         @if (!string.IsNullOrEmpty(entry.Description))
                                         {
@@ -201,15 +201,17 @@
                                             <span class="text-muted">—</span>
                                         }
                                     </td>
-                                    <td>
-                                        <div class="action-group justify-content-center">
-                                            <button class="action-btn action-btn-view" @onclick="() => ViewEntry(entry.Id)" title="مشاهده">
-                                                <i class="bi bi-eye"></i>
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات دفتر کل {entry.Id}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewEntry(entry.Id)">
+                                                <i class="bi bi-eye text-primary"></i>
+                                                مشاهده جزئیات
                                             </button>
-                                            <button class="action-btn action-btn-transaction" @onclick="() => ViewTransaction(entry.TransactionId)" title="مشاهده تراکنش">
-                                                <i class="bi bi-receipt"></i>
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewTransaction(entry.TransactionId)">
+                                                <i class="bi bi-receipt text-info"></i>
+                                                مشاهده تراکنش
                                             </button>
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -407,7 +409,7 @@
                         <div class="col-md-6">
                             <div class="info-card">
                                 <span class="info-label">تاریخ</span>
-                                <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDateTime12(selectedEntry.CreatedAt)</span>
+                                <span class="info-value"><AppDateTime Value="@selectedEntry.CreatedAt" /></span>
                             </div>
                         </div>
                     </div>

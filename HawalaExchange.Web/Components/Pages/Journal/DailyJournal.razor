@@ -333,10 +333,7 @@
                             {
                                 <tr>
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
-                                    <td class="journal-row-date">
-                                        <strong>@PersianDateHelper.ToPersianDate(operation.CreatedAt)</strong>
-                                        <span>@PersianDateHelper.ToTime12(operation.CreatedAt)</span>
-                                    </td>
+                                    <td class="journal-row-date"><AppDateTime Value="@operation.CreatedAt" ShowSeconds="true" /></td>
                                     <td class="journal-sentence">
                                         <span class="badge-modern @GetSourceBadge(operation.SourceType)">
                                             @GetSourceTypeName(operation.SourceType)
@@ -390,10 +387,9 @@
                         <i class="bi bi-receipt-cutoff"></i>
                         جزئیات کامل @GetSourceTypeName(selectedOperation.SourceType)
                     </h5>
-                    <div class="journal-modal-subtitle">
-                        سند @selectedOperation.DocumentNumber ·
-                        @PersianDateHelper.ToPersianDate(selectedOperation.CreatedAt)
-                        @PersianDateHelper.ToTime12(selectedOperation.CreatedAt)
+                    <div class="journal-modal-subtitle d-flex align-items-center gap-2">
+                        <span>سند @selectedOperation.DocumentNumber ·</span>
+                        <AppDateTime Value="@selectedOperation.CreatedAt" ShowSeconds="true" />
                     </div>
                 </div>
                 <button type="button" class="btn-close" aria-label="بستن" @onclick="CloseDetails"></button>
@@ -466,10 +462,7 @@
                             {
                                 <tr>
                                     <td dir="ltr">@entry.Id</td>
-                                    <td>
-                                        @PersianDateHelper.ToPersianDate(entry.CreatedAt)
-                                        <small class="d-block text-muted">@PersianDateHelper.ToTime12(entry.CreatedAt)</small>
-                                    </td>
+                                    <td><AppDateTime Value="@entry.CreatedAt" ShowSeconds="true" /></td>
                                     <td>@entry.AccountName</td>
                                     <td dir="ltr">@entry.AccountCode</td>
                                     <td>@entry.CurrencyCode</td>

@@ -33,7 +33,7 @@
                         <tr>
                             <td class="fw-bold">@user.FullName</td><td>@user.UserName</td><td>@user.Email</td>
                             <td><select class="form-select form-select-sm" value="@user.Role" @onchange="e => RoleChangedAsync(user, e)">@foreach (var role in PlatformRoles.All){<option value="@role">@RoleLabel(role)</option>}</select></td>
-                            <td>@(user.LastLoginAt?.ToLocalTime().ToString("yyyy/MM/dd HH:mm") ?? "-")</td>
+<td><AppDateTime Value="@user.LastLoginAt" UsePersianCalendar="false" Use24Hour="true" EmptyText="-" /></td>
                             <td><span class="badge-modern @(user.IsActive ? "badge-success" : "badge-secondary")">@(user.IsActive ? "فعال" : "غیرفعال")</span></td>
                             <td><button class="btn btn-sm @(user.IsActive ? "btn-outline-danger" : "btn-outline-success")" @onclick="() => ToggleAsync(user)">@(user.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")</button></td>
                         </tr>

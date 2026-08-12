@@ -37,7 +37,7 @@
                 else if (auditPage.Rows.Count == 0) { <tr><td colspan="6" class="text-center text-muted p-4">رویدادی یافت نشد.</td></tr> }
                 else @foreach (var row in auditPage.Rows)
                 {
-                    <tr><td dir="ltr">@row.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</td><td class="fw-bold">@row.ActorName</td><td><span class="badge-modern badge-info">@ActionLabel(row.Action)</span></td><td>@(row.TenantName ?? "پلتفرم")</td><td>@row.EntityName @(row.EntityId.HasValue ? $"#{row.EntityId}" : "")</td><td class="audit-details" title="@row.Details">@(row.Details ?? "-")</td></tr>
+<tr><td><AppDateTime Value="@row.CreatedAt" UsePersianCalendar="false" Use24Hour="true" ShowSeconds="true" /></td><td class="fw-bold">@row.ActorName</td><td><span class="badge-modern badge-info">@ActionLabel(row.Action)</span></td><td>@(row.TenantName ?? "پلتفرم")</td><td>@row.EntityName @(row.EntityId.HasValue ? $"#{row.EntityId}" : "")</td><td class="audit-details" title="@row.Details">@(row.Details ?? "-")</td></tr>
                 }
             </tbody>
         </GlobalDataGrid></div>

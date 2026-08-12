@@ -176,7 +176,7 @@
                                         </span>
                                     </td>
                                     <td>@transaction.CreatedByName</td>
-                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(transaction.CreatedAt)</td>
+                                    <td><AppDateTime Value="@transaction.CreatedAt" /></td>
                                     <td>
                                         <div class="action-group justify-content-center">
                                             <button class="action-btn action-btn-view" @onclick="() => ViewTransaction(transaction.Id)" title="مشاهده">
@@ -529,7 +529,7 @@
                         <div class="col-md-3">
                             <div class="info-card">
                                 <span class="info-label">تاریخ ایجاد</span>
-                                <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDateTime12(selectedTransaction.CreatedAt)</span>
+                                <span class="info-value"><AppDateTime Value="@selectedTransaction.CreatedAt" /></span>
                             </div>
                         </div>
                         @if (!string.IsNullOrEmpty(selectedTransaction.Remarks))

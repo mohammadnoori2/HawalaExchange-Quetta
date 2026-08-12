@@ -115,7 +115,7 @@
                                     <td>@index</td>
 
                                     <td dir="ltr">
-                                        @PersianDateHelper.ToPersianDateTime12(item.InvestmentDate)
+                                        <AppDateTime Value="@item.InvestmentDate" />
                                     </td>
 
                                     <td>
@@ -144,20 +144,18 @@
                                         @(item.Description ?? "-")
                                     </td>
 
-                                    <td>
-                                        <div class="action-group justify-content-center">
-                                            <button class="action-btn action-btn-edit"
-                                                    title="ویرایش"
-                                                    @onclick="() => EditInvestment(item.Id)">
-                                                <i class="bi bi-pencil"></i>
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات ثبت سرمایه {item.Id}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => EditInvestment(item.Id)">
+                                                <i class="bi bi-pencil text-primary"></i>
+                                                ویرایش
                                             </button>
-
-                                            <button class="action-btn action-btn-delete"
-                                                    title="حذف"
-                                                    @onclick="() => AskDelete(item.Id)">
+                                            <div class="operation-menu-divider"></div>
+                                            <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => AskDelete(item.Id)">
                                                 <i class="bi bi-trash"></i>
+                                                حذف
                                             </button>
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
 

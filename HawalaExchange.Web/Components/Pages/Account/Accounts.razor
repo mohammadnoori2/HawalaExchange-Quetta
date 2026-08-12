@@ -12,31 +12,29 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageTitle>مدیریت حساب‌ها</PageTitle>
+
 <div class="page-wrapper accounts-page-compact">
-    <!-- هدر صفحه -->
-    <div class="page-header">
-        <div>
-            <h5 class="page-title">
-                <i class="bi bi-wallet2"></i>
-                مدیریت حساب‌ها
-                <span class="page-subtitle">لیست و جستجوی حساب‌ها</span>
-            </h5>
-        </div>
-        <PageHeaderStats AriaLabel="آمار حساب‌ها">
-            <PageHeaderStat Label="مجموع" Value="@(accounts?.Count ?? 0)" Icon="bi-wallet2" />
-            <PageHeaderStat Label="فعال" Value="@(accounts?.Count(a => !a.IsArchived) ?? 0)" Icon="bi-check-circle" Tone="success" />
-            <PageHeaderStat Label="بایگانی" Value="@(accounts?.Count(a => a.IsArchived) ?? 0)" Icon="bi-archive" Tone="warning" />
-            <PageHeaderStat Label="نوع حساب" Value="@(accounts?.Select(a => a.AccountType).Distinct().Count() ?? 0)" Icon="bi-collection" Tone="info" />
-        </PageHeaderStats>
-        <div class="page-actions">
+    <AppPageHeader Title="مدیریت حساب‌ها"
+                   Subtitle="لیست و جستجوی حساب‌ها"
+                   Icon="bi-wallet2">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار حساب‌ها">
+                <PageHeaderStat Label="مجموع" Value="@accounts.Count" Icon="bi-wallet2" />
+                <PageHeaderStat Label="فعال" Value="@accounts.Count(a => !a.IsArchived)" Icon="bi-check-circle" Tone="success" />
+                <PageHeaderStat Label="بایگانی" Value="@accounts.Count(a => a.IsArchived)" Icon="bi-archive" Tone="danger" />
+                <PageHeaderStat Label="نوع حساب" Value="@accounts.Select(a => a.AccountType).Distinct().Count()" Icon="bi-collection" Tone="info" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
             <ArchiveViewToggle @bind-ShowArchived="showArchived"
                                ArchivedCount="@accounts.Count(a => a.IsArchived)"
                                @bind-ShowArchived:after="ArchiveViewChanged" />
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> حساب جدید
             </button>
-        </div>
-    </div>
+        </Actions>
+    </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر حساب‌ها"
                       HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterAccountType))"
@@ -46,7 +44,10 @@
                    @bind="searchTerm" @bind:event="oninput" />
         </SearchContent>
         <QuickFilters>
-            <select class="form-select compact-quick-filter" @bind="filterAccountType" @bind:event="oninput">
+            <select class="form-select compact-quick-filter"
+                    aria-label="نوع حساب"
+                    @bind="filterAccountType"
+                    @bind:event="oninput">
                 <option value="">همه انواع</option>
                 <option value="Cash">نقدی</option>
                 <option value="Bank">بانکی</option>
@@ -135,7 +136,7 @@
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ حسابی یافت نشد</span>
-                                        <p class="text-muted small">برای افزودن حساب جدید، دکمه "حساب جدید" را کلیک کنید</p>
+                                        <p class="text-muted small">@(showArchived ? "هیچ حسابی در بایگانی وجود ندارد." : "برای افزودن حساب جدید، دکمه «حساب جدید» را انتخاب کنید.")</p>
                                     </div>
                                 </td>
                             </tr>
@@ -171,7 +172,7 @@
                                             <span class="text-muted">—</span>
                                         }
                                     </td>
-                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(account.CreatedAt)</td>
+                                    <td><AppDateTime Value="@account.CreatedAt" /></td>
                                     <td>
                                         @if (account.IsArchived)
                                         {
@@ -186,22 +187,21 @@
                                             </span>
                                         }
                                     </td>
-                                    <td>
-                                        <div class="d-flex justify-content-center">
-                                            <button type="button"
-                                                    class="btn btn-sm btn-outline-primary account-view-button"
-                                                    @onclick="() => ViewAccount(account.Id)">
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات حساب {account.AccountName}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewAccount(account.Id)">
+                                                <i class="bi bi-eye text-primary"></i>
                                                 مشاهده حساب
                                             </button>
                                             @if (account.IsArchived)
                                             {
-                                                <button type="button"
-                                                        class="btn btn-sm btn-outline-success"
-                                                        @onclick="() => ShowUnarchiveConfirm(account.Id)">
-                                                    <i class="bi bi-arrow-counterclockwise"></i> خروج از بایگانی
+                                                <div class="operation-menu-divider"></div>
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(account.Id)">
+                                                    <i class="bi bi-arrow-counterclockwise text-success"></i>
+                                                    خروج از بایگانی
                                                 </button>
                                             }
-                                        </div>
+                                        </AppActionMenu>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -224,16 +224,9 @@
                                    PageChanged="GoToPage" />
             </div>
 
-            <div class="table-card-footer-right">
-                <span class="badge-modern badge-success">
-                    <i class="bi bi-check-circle"></i> فعال: @accounts.Count(a => !a.IsArchived)
-                </span>
-                <span class="badge-modern badge-secondary">
-                    <i class="bi bi-archive"></i> بایگانی: @accounts.Count(a => a.IsArchived)
-                </span>
-            </div>
             <PageSizeSelector @bind-Value="pageSize"
-                              @bind-CurrentPage="currentPage" />
+                              @bind-CurrentPage="currentPage"
+                              AriaLabel="تعداد حساب در هر صفحه" />
         </div>
     </div>
 </div>

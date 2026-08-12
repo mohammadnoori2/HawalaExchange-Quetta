@@ -192,9 +192,7 @@
                                         @hawala.CommissionCurrencyCode
                                     </td>
 
-                                    <td dir="ltr">
-                                        @PersianDateHelper.ToPersianDateTime12(hawala.CreatedAt)
-                                    </td>
+                                    <td><AppDateTime Value="@hawala.CreatedAt" /></td>
 
                                     <td class="text-center operation-cell">
                                         <HawalaOperationMenu Hawala="hawala"
@@ -369,9 +367,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">تاریخ</span>
-                                <span class="info-value" dir="ltr">
-                                    @PersianDateHelper.ToPersianDateTime12(selectedHawala.CreatedAt)
-                                </span>
+                                <span class="info-value"><AppDateTime Value="@selectedHawala.CreatedAt" /></span>
                             </div>
                         </div>
 

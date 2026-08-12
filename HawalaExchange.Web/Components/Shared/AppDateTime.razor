@@ -1,0 +1,54 @@
+@if (Value.HasValue && Value.Value != DateTime.MinValue)
+{
+    <span class="app-date-time" dir="ltr" title="@FormattedValue">
+        <span class="app-date-time-date">@DatePart</span>
+        <span class="app-date-time-time">@TimePart</span>
+    </span>
+}
+else
+{
+    <span class="text-muted">@EmptyText</span>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public DateTime? Value { get; set; }
+
+    [Parameter]
+    public bool Use24Hour { get; set; }
+
+    [Parameter]
+    public bool ShowSeconds { get; set; }
+
+    [Parameter]
+    public bool UsePersianCalendar { get; set; } = true;
+
+    [Parameter]
+    public string EmptyText { get; set; } = "—";
+
+    private DateTime LocalValue => Value!.Value.Kind == DateTimeKind.Utc
+        ? Value.Value.ToLocalTime()
+        : Value.Value;
+
+    private string DatePart => !Value.HasValue
+        ? string.Empty
+        : UsePersianCalendar
+            ? PersianDateHelper.ToPersianDate(Value.Value)
+            : LocalValue.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    private string TimePart
+    {
+        get
+        {
+            if (!Value.HasValue)
+                return string.Empty;
+
+            var timeFormat = Use24Hour
+                ? ShowSeconds ? "HH:mm:ss" : "HH:mm"
+                : ShowSeconds ? "hh:mm:ss tt" : "hh:mm tt";
+            return LocalValue.ToString(timeFormat, System.Globalization.CultureInfo.InvariantCulture);
+        }
+    }
+
+    private string FormattedValue => $"{DatePart} {TimePart}";
+}

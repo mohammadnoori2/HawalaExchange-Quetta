@@ -9,38 +9,39 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageTitle>سقف بدهکاری</PageTitle>
+
 <div class="page-wrapper">
-    <!-- هدر صفحه -->
-    <div class="page-header">
-        <div>
-            <h5 class="page-title">
-                <i class="bi bi-credit-card-2-front"></i>
-                سقف بدهکاری مشتریان و نمایندگی‌ها
-                <span class="page-subtitle">تعیین بیشترین بدهکاری مجاز هر حساب به تفکیک ارز</span>
-            </h5>
-        </div>
-        <PageHeaderStats AriaLabel="آمار سقف بدهکاری">
-            <PageHeaderStat Label="کل" Value="@(limits?.Count ?? 0)" Icon="bi-credit-card-2-front" />
-            <PageHeaderStat Label="فعال" Value="@(limits?.Count(l => l.IsActive) ?? 0)" Icon="bi-check-circle" Tone="success" />
-            <PageHeaderStat Label="غیرفعال" Value="@(limits?.Count(l => !l.IsActive) ?? 0)" Icon="bi-slash-circle" Tone="danger" />
-            <PageHeaderStat Label="بالاتر از سقف" Value="@(limits?.Count(l => l.IsActive && l.IsOverLimit) ?? 0)" Icon="bi-exclamation-triangle" Tone="warning" />
-        </PageHeaderStats>
-        <div class="page-actions">
+    <AppPageHeader Title="سقف بدهکاری مشتریان و نمایندگی‌ها"
+                   Subtitle="تعیین بیشترین بدهکاری مجاز هر حساب به تفکیک ارز"
+                   Icon="bi-credit-card-2-front">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار سقف بدهکاری">
+                <PageHeaderStat Label="کل" Value="@limits.Count" Icon="bi-credit-card-2-front" />
+                <PageHeaderStat Label="فعال" Value="@limits.Count(l => l.IsActive)" Icon="bi-check-circle" Tone="success" />
+                <PageHeaderStat Label="غیرفعال" Value="@limits.Count(l => !l.IsActive)" Icon="bi-slash-circle" Tone="danger" />
+                <PageHeaderStat Label="بالاتر از سقف" Value="@limits.Count(l => l.IsActive && l.IsOverLimit)" Icon="bi-exclamation-triangle" Tone="warning" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> سقف جدید
             </button>
-        </div>
-    </div>
+        </Actions>
+    </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر سقف بدهکاری"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterStatus))"
+                      HasActiveFilters="@HasActiveFilters"
                       Reset="ClearSearch">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با نام حساب یا کد ارز..."
                    @bind="searchTerm" @bind:event="oninput" />
         </SearchContent>
         <QuickFilters>
-            <select class="form-select compact-quick-filter" @bind="filterStatus" @bind:event="oninput">
+            <select class="form-select compact-quick-filter"
+                    aria-label="وضعیت سقف بدهکاری"
+                    @bind="filterStatus"
+                    @bind:event="oninput">
                 <option value="">همه وضعیت‌ها</option>
                 <option value="true">فعال</option>
                 <option value="false">غیرفعال</option>
@@ -133,7 +134,7 @@
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ محدودیتی یافت نشد</span>
-                                        <p class="text-muted small">برای افزودن محدودیت جدید، دکمه "محدودیت جدید" را کلیک کنید</p>
+                                        <p class="text-muted small">@(HasActiveFilters ? "فیلترها را تغییر دهید یا پاک کنید." : "برای افزودن سقف بدهکاری جدید، دکمه «سقف جدید» را انتخاب کنید.")</p>
                                     </div>
                                 </td>
                             </tr>
@@ -233,16 +234,9 @@
                                    PageChanged="GoToPage" />
             </div>
 
-            <div class="table-card-footer-right">
-                <span class="badge-modern badge-success">
-                    <i class="bi bi-check-circle-fill"></i> فعال: @limits.Count(l => l.IsActive)
-                </span>
-                <span class="badge-modern badge-archived">
-                    <i class="bi bi-slash-circle-fill"></i> غیرفعال: @limits.Count(l => !l.IsActive)
-                </span>
-            </div>
             <PageSizeSelector @bind-Value="pageSize"
-                              @bind-CurrentPage="currentPage" />
+                              @bind-CurrentPage="currentPage"
+                              AriaLabel="تعداد سقف بدهکاری در هر صفحه" />
         </div>
     </div>
 </div>
@@ -463,6 +457,9 @@
         }
     }
 
+    private bool HasActiveFilters => !string.IsNullOrWhiteSpace(_searchTerm)
+        || !string.IsNullOrWhiteSpace(_filterStatus);
+
     // ===== متغیرهای صفحه‌بندی و مرتب‌سازی =====
     private int pageSize = 10;
     private int currentPage = 1;
@@ -561,8 +558,7 @@
             isLoading = true;
             var result = await AccountLimitService.GetAllAsync();
             limits = result.ToList();
-            filteredLimits = limits;
-            currentPage = 1;
+            SearchLimits();
         }
         catch (Exception ex)
         {

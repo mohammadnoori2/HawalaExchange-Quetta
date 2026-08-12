@@ -1,0 +1,89 @@
+@if (TotalPages > 1)
+{
+    <nav class="compact-pagination" aria-label="صفحه‌بندی">
+        <ul class="pagination-modern">
+            <li class="page-item @(CurrentPage <= 1 ? "disabled" : "")">
+                <button type="button"
+                        class="page-link"
+                        disabled="@(CurrentPage <= 1)"
+                        aria-label="صفحه قبلی"
+                        @onclick="() => SelectPageAsync(CurrentPage - 1)">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </li>
+
+            @{ int? previousPage = null; }
+            @foreach (var pageNumber in VisiblePages)
+            {
+                @if (previousPage.HasValue && pageNumber - previousPage.Value > 1)
+                {
+                    <li class="page-item pagination-gap" aria-hidden="true">
+                        <span class="page-link">…</span>
+                    </li>
+                }
+
+                var targetPage = pageNumber;
+                <li class="page-item @(targetPage == CurrentPage ? "active" : "")">
+                    <button type="button"
+                            class="page-link"
+                            aria-label="صفحه @targetPage"
+                            aria-current="@(targetPage == CurrentPage ? "page" : null)"
+                            @onclick="() => SelectPageAsync(targetPage)">@targetPage</button>
+                </li>
+                previousPage = pageNumber;
+            }
+
+            <li class="page-item @(CurrentPage >= TotalPages ? "disabled" : "")">
+                <button type="button"
+                        class="page-link"
+                        disabled="@(CurrentPage >= TotalPages)"
+                        aria-label="صفحه بعدی"
+                        @onclick="() => SelectPageAsync(CurrentPage + 1)">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </li>
+        </ul>
+    </nav>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public int CurrentPage { get; set; }
+
+    [Parameter, EditorRequired]
+    public int TotalPages { get; set; }
+
+    [Parameter]
+    public int SiblingCount { get; set; } = 3;
+
+    [Parameter, EditorRequired]
+    public EventCallback<int> PageChanged { get; set; }
+
+    private IReadOnlyList<int> VisiblePages
+    {
+        get
+        {
+            if (TotalPages < 1)
+            {
+                return [];
+            }
+
+            var pages = new SortedSet<int> { 1, TotalPages };
+            var start = Math.Max(1, CurrentPage - Math.Max(0, SiblingCount));
+            var end = Math.Min(TotalPages, CurrentPage + Math.Max(0, SiblingCount));
+            for (var page = start; page <= end; page++)
+            {
+                pages.Add(page);
+            }
+
+            return pages.ToList();
+        }
+    }
+
+    private Task SelectPageAsync(int page)
+    {
+        return page >= 1 && page <= TotalPages && page != CurrentPage
+            ? PageChanged.InvokeAsync(page)
+            : Task.CompletedTask;
+    }
+}

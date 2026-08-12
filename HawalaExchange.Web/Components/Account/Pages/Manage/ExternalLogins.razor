@@ -1,4 +1,4 @@
-﻿@page "/Account/Manage/ExternalLogins"
+@page "/Account/Manage/ExternalLogins"
 
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
@@ -15,7 +15,7 @@
 @if (currentLogins?.Count > 0)
 {
     <h3>Registered Logins</h3>
-    <table class="table">
+    <GlobalDataGrid class="table">
         <tbody>
             @foreach (var login in currentLogins)
             {
@@ -41,7 +41,7 @@
                 </tr>
             }
         </tbody>
-    </table>
+    </GlobalDataGrid>
 }
 @if (otherLogins?.Count > 0)
 {

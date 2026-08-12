@@ -1,4 +1,4 @@
-﻿@page "/reports"
+@page "/reports"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
@@ -155,7 +155,7 @@
                         </div>
 
                         <div class="table-scroll-wrapper">
-                            <table class="table-modern table-striped-modern">
+                            <GlobalDataGrid class="table-modern table-striped-modern">
                                 <thead>
                                     <tr>
                                         <th>مبلغ ارسال</th>
@@ -172,7 +172,7 @@
                                         <td class="fw-bold text-danger">@MoneyFormatHelper.Format(dailyReport.TotalExpenses)</td>
                                     </tr>
                                 </tbody>
-                            </table>
+                            </GlobalDataGrid>
                         </div>
                     }
                     else
@@ -236,7 +236,7 @@
                     else if (transactionReports.Any())
                     {
                         <div class="table-scroll-wrapper">
-                            <table class="table-modern table-striped-modern">
+                            <GlobalDataGrid class="table-modern table-striped-modern">
                                 <thead>
                                     <tr>
                                         <th style="min-width: 100px;">شماره</th>
@@ -272,7 +272,7 @@
                                         </tr>
                                     }
                                 </tbody>
-                            </table>
+                            </GlobalDataGrid>
                         </div>
                     }
                     else
@@ -327,7 +327,7 @@
                     else if (commissionReports.Any())
                     {
                         <div class="table-scroll-wrapper">
-                            <table class="table-modern table-striped-modern">
+                            <GlobalDataGrid class="table-modern table-striped-modern">
                                 <thead>
                                     <tr>
                                         <th>تاریخ</th>
@@ -355,7 +355,7 @@
                                         <td class="text-success">@MoneyFormatHelper.Format(commissionReports.Sum(x => x.NetCommission))</td>
                                     </tr>
                                 </tbody>
-                            </table>
+                            </GlobalDataGrid>
                         </div>
                     }
                     else
@@ -406,7 +406,7 @@
                     else if (trialBalance.Any())
                     {
                         <div class="table-scroll-wrapper">
-                            <table class="table-modern table-striped-modern">
+                            <GlobalDataGrid class="table-modern table-striped-modern">
                                 <thead>
                                     <tr>
                                         <th>کد حساب</th>
@@ -434,7 +434,7 @@
                                         </tr>
                                     }
                                 </tbody>
-                            </table>
+                            </GlobalDataGrid>
                         </div>
                     }
                     else
@@ -489,7 +489,7 @@
                     else if (customerReports.Any())
                     {
                         <div class="table-scroll-wrapper">
-                            <table class="table-modern table-striped-modern">
+                            <GlobalDataGrid class="table-modern table-striped-modern">
                                 <thead>
                                     <tr>
                                         <th>شماره</th>
@@ -517,7 +517,7 @@
                                         </tr>
                                     }
                                 </tbody>
-                            </table>
+                            </GlobalDataGrid>
                         </div>
                     }
                     else
@@ -572,7 +572,7 @@
                     else if (correspondentReports.Any())
                     {
                         <div class="table-scroll-wrapper">
-                            <table class="table-modern table-striped-modern">
+                            <GlobalDataGrid class="table-modern table-striped-modern">
                                 <thead>
                                     <tr>
                                         <th>شماره</th>
@@ -600,7 +600,7 @@
                                         </tr>
                                     }
                                 </tbody>
-                            </table>
+                            </GlobalDataGrid>
                         </div>
                     }
                     else

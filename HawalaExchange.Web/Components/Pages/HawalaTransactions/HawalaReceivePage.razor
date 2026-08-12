@@ -1,4 +1,4 @@
-﻿@page "/hawala-receive"
+@page "/hawala-receive"
 
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
@@ -28,6 +28,9 @@
             </h5>
         </div>
 
+        <PageHeaderStats AriaLabel="آمار حواله‌های دریافتی">
+            <PageHeaderStat Label="اجرا شده" Value="@hawalas.Count" Icon="bi-check-circle" Tone="success" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-light-modern btn-rounded" @onclick="LoadData">
                 <i class="bi bi-arrow-clockwise"></i>
@@ -56,43 +59,17 @@
         </div>
     }
 
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@hawalas.Count</div>
-                        <div class="stat-label">اجرا شده</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-3 mb-4 align-items-end">
-        <div class="col-md-7">
-            <label class="form-label fw-bold">
-                <i class="bi bi-search text-muted me-1"></i>
-                جستجو
-            </label>
-
+    <CompactFilterBar AriaLabel="جستجوی حواله‌های دریافتی"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
+                      Reset="ResetFilter">
+        <SearchContent>
             <input class="form-control"
                    placeholder="نمبر، فرستنده، گیرنده، نمبر متفرقه..."
                    @bind="searchTerm"
                    @bind:event="oninput"
                    @bind:after="SearchLocal" />
-        </div>
-
-        <div class="col-md-2">
-            <button class="btn-modern btn-light-modern w-100" @onclick="ResetFilter">
-                <i class="bi bi-arrow-clockwise"></i>
-                بازنشانی
-            </button>
-        </div>
-    </div>
+        </SearchContent>
+    </CompactFilterBar>
 
     <div class="table-card hawala-list-card">
         <div class="table-card-header">
@@ -106,7 +83,7 @@
 
         <div class="table-card-body">
             <div class="table-scroll-wrapper">
-                <table class="table-modern table-striped-modern">
+                <GlobalDataGrid class="table-modern table-striped-modern">
                     <thead>
                         <tr>
                             <th style="width:50px;">#</th>
@@ -200,7 +177,7 @@
                             }
                         }
                     </tbody>
-                </table>
+                </GlobalDataGrid>
             </div>
         </div>
 
@@ -213,33 +190,12 @@
             </div>
 
             <div class="table-card-footer-right">
-                @if (totalPages > 1)
-                {
-                    <ul class="pagination-modern">
-                        <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                            <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                <i class="bi bi-chevron-right"></i>
-                            </button>
-                        </li>
-
-                        @for (var i = 1; i <= totalPages; i++)
-                        {
-                            var pageNumber = i;
-
-                            <li class="page-item @(pageNumber == currentPage ? "active" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(pageNumber)">
-                                    @pageNumber
-                                </button>
-                            </li>
-                        }
-
-                        <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                            <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                <i class="bi bi-chevron-left"></i>
-                            </button>
-                        </li>
-                    </ul>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
+                <PageSizeSelector @bind-Value="pageSize"
+                                  @bind-CurrentPage="currentPage"
+                                  AriaLabel="تعداد حواله در هر صفحه" />
             </div>
         </div>
     </div>

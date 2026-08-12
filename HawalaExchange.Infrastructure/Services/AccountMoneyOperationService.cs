@@ -289,7 +289,7 @@ public class AccountMoneyOperationService : IAccountMoneyOperationService
     private static void ValidateCreateDto(CreateAccountMoneyOperationDto dto)
     {
         if (dto.OperationType != "Deposit" && dto.OperationType != "Withdraw")
-            throw new InvalidOperationException("نوع عملیات باید واریز یا برداشت باشد.");
+            throw new InvalidOperationException("نوع عملیات باید رسید یا برد باشد.");
 
         if (dto.AccountId <= 0)
             throw new InvalidOperationException("انتخاب حساب الزامی است.");
@@ -307,7 +307,7 @@ public class AccountMoneyOperationService : IAccountMoneyOperationService
     private static void ValidateUpdateDto(UpdateAccountMoneyOperationDto dto)
     {
         if (dto.OperationType != "Deposit" && dto.OperationType != "Withdraw")
-            throw new InvalidOperationException("نوع عملیات باید واریز یا برداشت باشد.");
+            throw new InvalidOperationException("نوع عملیات باید رسید یا برد باشد.");
 
         if (dto.AccountId <= 0)
             throw new InvalidOperationException("انتخاب حساب الزامی است.");
@@ -325,8 +325,8 @@ public class AccountMoneyOperationService : IAccountMoneyOperationService
     private static string GetDefaultDescription(string operationType)
     {
         return operationType == "Deposit"
-            ? "ثبت واریز"
-            : "ثبت برداشت";
+            ? "ثبت رسید"
+            : "ثبت برد";
     }
 
     private long GetCurrentUserId() => _context.RequireCurrentUserId();

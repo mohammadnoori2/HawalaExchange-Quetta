@@ -1,4 +1,4 @@
-﻿@page "/customers"
+@page "/customers"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Components.Forms
@@ -22,6 +22,12 @@
                 <span class="page-subtitle">لیست و جستجوی مشتریان</span>
             </h5>
         </div>
+        <PageHeaderStats AriaLabel="آمار مشتریان">
+            <PageHeaderStat Label="کل" Value="@(customers?.Count ?? 0)" Icon="bi-people" />
+            <PageHeaderStat Label="فعال" Value="@(customers?.Count(c => !c.IsArchived) ?? 0)" Icon="bi-check-circle" Tone="success" />
+            <PageHeaderStat Label="بایگانی" Value="@(customers?.Count(c => c.IsArchived) ?? 0)" Icon="bi-archive" Tone="danger" />
+            <PageHeaderStat Label="امروز" Value="@(customers?.Count(c => c.CreatedAt.Date == DateTime.Today) ?? 0)" Icon="bi-clock-history" Tone="info" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> مشتری جدید
@@ -29,87 +35,24 @@
         </div>
     </div>
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-people"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@customers.Count</div>
-                        <div class="stat-label">تعداد مشتریان</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-check-circle"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@customers.Count(c => !c.IsArchived)</div>
-                        <div class="stat-label">فعال</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-danger">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon danger">
-                        <i class="bi bi-archive"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@customers.Count(c => c.IsArchived)</div>
-                        <div class="stat-label">بایگانی شده</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-clock-history"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@customers.Count(c => c.CreatedAt.Date == DateTime.Today)</div>
-                        <div class="stat-label">ایجاد امروز</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <CompactFilterBar AriaLabel="جستجوی مشتریان"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
+                      Reset="ClearSearch">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجو با کد، نام، تلفن یا تذکره..."
+                   @bind="searchTerm" @bind:event="oninput" />
+        </SearchContent>
+    </CompactFilterBar>
 
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <!-- جستجو -->
-                <div class="search-modern">
-                    <span class="search-icon"><i class="bi bi-search"></i></span>
-                    <input type="text" class="search-input" placeholder="جستجوی مشتریان (کد، نام، تلفن، تذکره)..."
-                           @bind="searchTerm" @bind:event="oninput" />
-                    <button class="search-btn" @onclick="() => ClearSearch()">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
                 <!-- انتخاب تعداد نمایش -->
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage" />
                 </div>
             </div>
 
@@ -122,7 +65,7 @@
 
         <div class="table-card-body">
             <div class="table-scroll-wrapper">
-                <table class="table-modern table-striped-modern">
+                <GlobalDataGrid class="table-modern table-striped-modern">
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
@@ -226,7 +169,7 @@
                             }
                         }
                     </tbody>
-                </table>
+                </GlobalDataGrid>
             </div>
         </div>
 
@@ -236,29 +179,9 @@
                     نمایش <strong>@pagedCustomers.Count</strong> از <strong>@filteredCustomers.Count</strong> مشتری
                 </span>
 
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">
@@ -444,7 +367,7 @@
                                 @if (initialBalances.Any())
                                 {
                                     <div class="table-scroll-wrapper mb-3">
-                                        <table class="table-modern table-striped-modern">
+                                        <GlobalDataGrid class="table-modern table-striped-modern">
                                             <thead>
                                                 <tr>
                                                     <th>واحد پولی</th>
@@ -478,7 +401,7 @@
                                                     </tr>
                                                 }
                                             </tbody>
-                                        </table>
+                                        </GlobalDataGrid>
                                     </div>
                                 }
                                 else
@@ -672,7 +595,7 @@
                             else if (balanceSummary.Any())
                             {
                                 <div class="table-scroll-wrapper">
-                                    <table class="table-modern">
+                                    <GlobalDataGrid class="table-modern">
                                         <thead>
                                             <tr>
                                                 <th>واحد پولی</th>
@@ -694,7 +617,7 @@
                                                 </tr>
                                             }
                                         </tbody>
-                                    </table>
+                                    </GlobalDataGrid>
                                 </div>
                             }
                             else
@@ -725,7 +648,7 @@
                             else if (ledgerEntries.Any())
                             {
                                 <div class="table-scroll-wrapper">
-                                    <table class="table-modern table-striped-modern">
+                                    <GlobalDataGrid class="table-modern table-striped-modern">
                                         <thead>
                                             <tr>
                                                 <th>#</th>
@@ -749,7 +672,7 @@
                                                 </tr>
                                             }
                                         </tbody>
-                                    </table>
+                                    </GlobalDataGrid>
                                 </div>
                             }
                             else
@@ -782,7 +705,7 @@
             <div class="modal-content">
                 <div class="modal-header" style="background: linear-gradient(135deg, #6f42c1, #5a32a3);">
                     <h5 class="modal-title text-white">
-                        <i class="bi bi-cash-coin me-2"></i> برداشت/واریز
+                        <i class="bi bi-cash-coin me-2"></i> رسید / برد
                         <span class="text-white-50 small">@selectedCustomerForFinancial.FullName</span>
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseFinancialModal()"></button>
@@ -812,8 +735,8 @@
                         <div class="col-12 mb-3">
                             <label class="form-label fw-bold">نوع تراکنش <span class="text-danger">*</span></label>
                             <select class="form-select" @bind="financialTransaction.TransactionType">
-                                <option value="Withdraw">برداشت از حساب</option>
-                                <option value="Deposit">واریز به حساب</option>
+                                <option value="Withdraw">برد از حساب</option>
+                                <option value="Deposit">رسید به حساب</option>
                             </select>
                         </div>
                     </div>
@@ -853,9 +776,9 @@
 
                     <div class="alert alert-info small">
                         <i class="bi bi-info-circle"></i>
-                        <strong>برداشت:</strong> از حساب مشتری کم می‌شود و به حساب طرف مقابل اضافه می‌شود.
+                        <strong>برد:</strong> از حساب مشتری کم می‌شود و به حساب طرف مقابل اضافه می‌شود.
                         <br />
-                        <strong>واریز:</strong> به حساب مشتری اضافه می‌شود و از حساب طرف مقابل کم می‌شود.
+                        <strong>رسید:</strong> به حساب مشتری اضافه می‌شود و از حساب طرف مقابل کم می‌شود.
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1532,7 +1455,7 @@
                 CurrencyId = financialTransaction.CurrencyId,
                 TalabKar = customerTalabKar,
                 BadehKar = customerBadehKar,
-                Description = $"{(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "واریز")} از/به حساب مشتری"
+                Description = $"{(financialTransaction.TransactionType == "Withdraw" ? "برد" : "رسید")} حساب مشتری"
             });
 
             // ورودی طرف مقابل
@@ -1543,7 +1466,7 @@
                 CurrencyId = financialTransaction.CurrencyId,
                 TalabKar = oppositeTalabKar,
                 BadehKar = oppositeBadehKar,
-                Description = $"طرف مقابل {(financialTransaction.TransactionType == "Withdraw" ? "برداشت" : "واریز")} مشتری"
+                Description = $"طرف مقابل {(financialTransaction.TransactionType == "Withdraw" ? "برد" : "رسید")} مشتری"
             });
 
             financialSuccessMessage = $"تراکنش با موفقیت ثبت شد. ";

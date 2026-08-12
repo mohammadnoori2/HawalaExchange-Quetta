@@ -1,4 +1,4 @@
-﻿@page "/Account/Manage/Passkeys"
+@page "/Account/Manage/Passkeys"
 
 @using HawalaExchange.Domain.Entities
 @using Microsoft.AspNetCore.Identity
@@ -17,7 +17,7 @@
 
 @if (currentPasskeys is { Count: > 0 })
 {
-    <table class="table">
+    <GlobalDataGrid class="table">
         <tbody>
             @foreach (var passkey in currentPasskeys)
             {
@@ -39,7 +39,7 @@
                 </tr>
             }
         </tbody>
-    </table>
+    </GlobalDataGrid>
 }
 else
 {

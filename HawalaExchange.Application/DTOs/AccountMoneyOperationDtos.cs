@@ -7,8 +7,8 @@ public class AccountMoneyOperationDto
     public string OperationType { get; set; } = string.Empty;
 
     public string OperationTypeName =>
-        OperationType == "Deposit" ? "واریز" :
-        OperationType == "Withdraw" ? "برداشت / پرداخت" :
+        OperationType == "Deposit" ? "رسید" :
+        OperationType == "Withdraw" ? "برد" :
         OperationType;
 
     public DateTime OperationDate { get; set; }

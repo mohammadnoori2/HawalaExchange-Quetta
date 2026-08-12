@@ -1,4 +1,4 @@
-﻿@page "/accounts"
+@page "/accounts"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Web.Components.Shared.Modals
@@ -22,6 +22,12 @@
                 <span class="page-subtitle">لیست و جستجوی حساب‌ها</span>
             </h5>
         </div>
+        <PageHeaderStats AriaLabel="آمار حساب‌ها">
+            <PageHeaderStat Label="مجموع" Value="@(accounts?.Count ?? 0)" Icon="bi-wallet2" />
+            <PageHeaderStat Label="فعال" Value="@(accounts?.Count(a => !a.IsArchived) ?? 0)" Icon="bi-check-circle" Tone="success" />
+            <PageHeaderStat Label="بایگانی" Value="@(accounts?.Count(a => a.IsArchived) ?? 0)" Icon="bi-archive" Tone="warning" />
+            <PageHeaderStat Label="نوع حساب" Value="@(accounts?.Select(a => a.AccountType).Distinct().Count() ?? 0)" Icon="bi-collection" Tone="info" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> حساب جدید
@@ -29,54 +35,36 @@
         </div>
     </div>
 
-    <!-- خلاصه فشرده -->
-    <div class="account-summary-strip mb-2" aria-label="خلاصه حساب‌ها">
-        <div><span>مجموع</span><strong>@accounts.Count</strong></div>
-        <div><span>فعال</span><strong class="text-success">@accounts.Count(a => !a.IsArchived)</strong></div>
-        <div><span>بایگانی</span><strong class="text-warning">@accounts.Count(a => a.IsArchived)</strong></div>
-        <div><span>نوع حساب</span><strong>@accounts.Select(a => a.AccountType).Distinct().Count()</strong></div>
-    </div>
+    <CompactFilterBar AriaLabel="جستجو و فیلتر حساب‌ها"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterAccountType))"
+                      Reset="ClearSearch">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجو با کد، نام یا مرجع..."
+                   @bind="searchTerm" @bind:event="oninput" />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" @bind="filterAccountType" @bind:event="oninput">
+                <option value="">همه انواع</option>
+                <option value="Cash">نقدی</option>
+                <option value="Bank">بانکی</option>
+                <option value="Customer">مشتری</option>
+                <option value="Correspondent">نماینده</option>
+                <option value="Income">درآمد</option>
+                <option value="Expense">هزینه</option>
+                <option value="Equity">سرمایه</option>
+            </select>
+        </QuickFilters>
+    </CompactFilterBar>
 
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <!-- جستجو -->
-                <div class="search-modern">
-                    <span class="search-icon"><i class="bi bi-search"></i></span>
-                    <input type="text" class="search-input" placeholder="جستجو (کد، نام، مرجع)..."
-                           @bind="searchTerm" @bind:event="oninput" />
-                    <button class="search-btn" @onclick="() => ClearSearch()">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                <!-- فیلتر نوع حساب -->
-                <div class="filter-selector">
-                    <select class="form-select form-select-sm"
-                            @bind="filterAccountType" @bind:event="oninput">
-                        <option value="">همه انواع</option>
-                        <option value="Cash">نقدی</option>
-                        <option value="Bank">بانکی</option>
-                        <option value="Customer">مشتری</option>
-                        <option value="Correspondent">نماینده</option>
-                        <option value="Income">درآمد</option>
-                        <option value="Expense">هزینه</option>
-                        <option value="Equity">سرمایه</option>
-                    </select>
-                </div>
-
                 <!-- انتخاب تعداد نمایش -->
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage" />
                 </div>
             </div>
 
@@ -89,7 +77,7 @@
 
         <div class="table-card-body">
             <div class="table-scroll-wrapper">
-                <table class="table-modern table-striped-modern accounts-table-compact">
+                <GlobalDataGrid class="table-modern table-striped-modern accounts-table-compact">
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
@@ -218,7 +206,7 @@
                             }
                         }
                     </tbody>
-                </table>
+                </GlobalDataGrid>
             </div>
         </div>
 
@@ -229,29 +217,9 @@
                 </span>
 
                 <!-- صفحه‌بندی -->
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">@i</button>
-                                </li>
-                            }
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">
@@ -432,7 +400,7 @@
                                 @if (initialBalances.Any())
                                 {
                                     <div class="table-scroll-wrapper mb-3">
-                                        <table class="table-modern table-striped-modern">
+                                        <GlobalDataGrid class="table-modern table-striped-modern">
                                             <thead>
                                                 <tr>
                                                     <th>واحد پولی</th>
@@ -477,7 +445,7 @@
                                                     </td>
                                                 </tr>
                                             </tfoot>
-                                        </table>
+                                        </GlobalDataGrid>
                                     </div>
                                 }
                                 else

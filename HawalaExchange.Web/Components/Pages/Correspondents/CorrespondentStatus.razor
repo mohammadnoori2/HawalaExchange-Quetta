@@ -66,22 +66,6 @@
                 <a class="btn btn-sm btn-outline-secondary" href="#correspondent-range">محدوده حواله‌ها</a>
             </HeaderActions>
             <ProfileSummary>
-                <div class="entity-profile-grid mb-2">
-                    <div class="entity-profile-item"><span>کد نمایندگی</span><strong>@correspondent.Code</strong></div>
-                    <div class="entity-profile-item"><span>نام نمایندگی</span><strong>@correspondent.Name</strong></div>
-                    <div class="entity-profile-item"><span>کشور</span><strong>@(correspondent.Country ?? "—")</strong></div>
-                    <div class="entity-profile-item"><span>شهر</span><strong>@(correspondent.City ?? "—")</strong></div>
-                    <div class="entity-profile-item"><span>شماره تلفن</span><strong dir="ltr">@(correspondent.PhoneNumber ?? "—")</strong></div>
-                    <div class="entity-profile-item"><span>آدرس</span><strong>@(correspondent.Address ?? "—")</strong></div>
-                    <div class="entity-profile-item"><span>ارز توافقی</span><strong>@(correspondent.SettlementCurrencyCode ?? "بدون ارز توافقی")</strong></div>
-                    <div class="entity-profile-item">
-                        <span>وضعیت</span>
-                        <strong class="@(correspondent.IsArchived ? "text-danger" : "text-success")">
-                            @(correspondent.IsArchived ? "بایگانی" : "فعال")
-                        </strong>
-                    </div>
-                    <div class="entity-profile-item"><span>تاریخ ایجاد</span><strong dir="ltr">@PersianDateHelper.ToPersianDateTime12(correspondent.CreatedAt)</strong></div>
-                </div>
                 @if (correspondentAccount == null)
                 {
                     <div class="alert alert-warning py-2 mb-2">برای این نمایندگی حسابی افتتاح نشده است؛ عملیات مالی در دسترس نیست.</div>
@@ -167,7 +151,7 @@
                                 </div>
 
                                 <div class="table-responsive mb-3">
-                                    <table class="table table-sm table-hover align-middle hawala-range-table">
+                                    <GlobalDataGrid class="table table-sm table-hover align-middle hawala-range-table">
                                         <thead>
                                             <tr>
                                                 <th>#</th>
@@ -212,12 +196,12 @@
                                                 }
                                             }
                                         </tbody>
-                                    </table>
+                                    </GlobalDataGrid>
                                 </div>
 
                                 <h6 class="fw-bold mb-2">خلاصه حساب در محدوده</h6>
                                 <div class="table-responsive">
-                                    <table class="table table-sm table-bordered align-middle mb-0">
+                                    <GlobalDataGrid class="table table-sm table-bordered align-middle mb-0">
                                         <thead>
                                             <tr>
                                                 <th>ارز</th>
@@ -244,7 +228,7 @@
                                                 }
                                             }
                                         </tbody>
-                                    </table>
+                                    </GlobalDataGrid>
                                 </div>
                             </div>
                         }

@@ -735,7 +735,7 @@ public class JournalService : IJournalService
                 !sources.TryGetValue(operation.SourceId.Value, out var source))
                 continue;
 
-            Add(operation, "نوع عملیات", source.OperationType == "Deposit" ? "واریز پول" : source.OperationType == "Withdraw" ? "برداشت یا پرداخت پول" : "عملیات حساب");
+            Add(operation, "نوع عملیات", source.OperationType == "Deposit" ? "رسید" : source.OperationType == "Withdraw" ? "برد" : "عملیات حساب");
             Add(operation, "تاریخ عملیات", source.OperationDate.ToString("yyyy/MM/dd HH:mm"));
             Add(operation, "مبلغ", Money(source.Amount, source.Currency.Code));
             Add(operation, "حساب طرف", source.Account.AccountName);
@@ -898,7 +898,7 @@ public class JournalService : IJournalService
                 $"مصرف «{Detail(operation, "عنوان مصرف", "بدون عنوان")}» به مبلغ {Detail(operation, "مبلغ مصرف", CurrencyMovement(operation))} از حساب {Detail(operation, "پرداخت از حساب", accounts)} پرداخت و در {Detail(operation, "حساب مصرف", "حساب مصرف")} ثبت شد{suffix}",
 
             "واریز / برداشت / پرداخت" =>
-                $"{Detail(operation, "نوع عملیات", "واریز / برداشت / پرداخت")} شماره {operation.DocumentNumber} به مبلغ {Detail(operation, "مبلغ", CurrencyMovement(operation))} میان حساب {Detail(operation, "حساب طرف", accounts)} و {Detail(operation, "صندوق / بانک", "صندوق یا بانک")} ثبت شد{suffix}",
+                $"{Detail(operation, "نوع عملیات", "رسید یا برد")} شماره {operation.DocumentNumber} به مبلغ {Detail(operation, "مبلغ", CurrencyMovement(operation))} میان حساب {Detail(operation, "حساب طرف", accounts)} و {Detail(operation, "صندوق / بانک", "صندوق یا بانک")} ثبت شد{suffix}",
 
             "انتقال" =>
                 $"مبلغ {Detail(operation, "مبلغ انتقال", CurrencyMovement(operation))} از حساب {Detail(operation, "از حساب", "نامشخص")} به حساب {Detail(operation, "به حساب", "نامشخص")} با شماره مرجع {operation.DocumentNumber} انتقال شد{suffix}",

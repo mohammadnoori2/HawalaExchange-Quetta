@@ -15,6 +15,16 @@
             <h5 class="page-title"><i class="bi bi-grid-1x2"></i> مدیریت مرکزی SaaS</h5>
             <span class="page-subtitle">نمای کلی صرافی‌ها، اشتراک‌ها و درآمد سیستم</span>
         </div>
+        <PageHeaderStats AriaLabel="آمار مدیریت مرکزی">
+            <PageHeaderStat Label="صرافی‌ها" Value="@dashboard.TotalTenants" Icon="bi-buildings" />
+            <PageHeaderStat Label="فعال" Value="@dashboard.ActiveTenants" Icon="bi-check-circle" Tone="success" />
+            <PageHeaderStat Label="آزمایشی" Value="@dashboard.TrialTenants" Icon="bi-hourglass-split" Tone="info" />
+            <PageHeaderStat Label="نزدیک انقضا" Value="@dashboard.ExpiringSoonTenants" Icon="bi-clock-history" Tone="warning" />
+            <PageHeaderStat Label="منقضی" Value="@dashboard.ExpiredTenants" Icon="bi-x-circle" Tone="danger" />
+            <PageHeaderStat Label="تعلیق" Value="@dashboard.SuspendedTenants" Icon="bi-pause-circle" Tone="neutral" />
+            <PageHeaderStat Label="کاربران" Value="@dashboard.TotalUsers" Icon="bi-people" />
+            <PageHeaderStat Label="درآمد ماه" Value="@dashboard.CollectedRevenueThisMonth.ToString("N2")" Icon="bi-cash-stack" Tone="success" />
+        </PageHeaderStats>
         <div class="page-actions">
             <a class="btn-modern btn-light-modern" href="/platform/plans"><i class="bi bi-box-seam"></i> پلن‌ها</a>
             <a class="btn-modern btn-primary-modern" href="/tenants"><i class="bi bi-plus-circle"></i> مدیریت صرافی‌ها</a>
@@ -31,24 +41,13 @@
     }
     else
     {
-        <div class="row g-3 mb-4">
-            <MetricCard Title="کل صرافی‌ها" Value="@dashboard.TotalTenants.ToString()" Icon="bi-buildings" Tone="primary" />
-            <MetricCard Title="اشتراک فعال" Value="@dashboard.ActiveTenants.ToString()" Icon="bi-check-circle" Tone="success" />
-            <MetricCard Title="دوره آزمایشی" Value="@dashboard.TrialTenants.ToString()" Icon="bi-hourglass-split" Tone="info" />
-            <MetricCard Title="نزدیک انقضا" Value="@dashboard.ExpiringSoonTenants.ToString()" Icon="bi-clock-history" Tone="warning" />
-            <MetricCard Title="منقضی‌شده" Value="@dashboard.ExpiredTenants.ToString()" Icon="bi-x-circle" Tone="danger" />
-            <MetricCard Title="تعلیق‌شده" Value="@dashboard.SuspendedTenants.ToString()" Icon="bi-pause-circle" Tone="secondary" />
-            <MetricCard Title="کل کاربران" Value="@dashboard.TotalUsers.ToString()" Icon="bi-people" Tone="primary" />
-            <MetricCard Title="درآمد این ماه" Value="@dashboard.CollectedRevenueThisMonth.ToString("N2")" Icon="bi-cash-stack" Tone="success" />
-        </div>
-
         <div class="modern-card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0">آخرین صرافی‌های ثبت‌شده</h6>
                 <a href="/tenants">مشاهده همه</a>
             </div>
             <div class="table-responsive">
-                <table class="table modern-table mb-0">
+                <GlobalDataGrid class="table modern-table mb-0">
                     <thead><tr><th>صرافی</th><th>پلن</th><th>اشتراک</th><th>پایان</th><th>کاربران</th><th>شعبه‌ها</th></tr></thead>
                     <tbody>
                         @foreach (var tenant in dashboard.RecentTenants)
@@ -63,7 +62,7 @@
                             </tr>
                         }
                     </tbody>
-                </table>
+                </GlobalDataGrid>
             </div>
         </div>
     }

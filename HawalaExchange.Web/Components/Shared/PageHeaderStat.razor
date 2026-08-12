@@ -1,0 +1,22 @@
+<div class="page-header-stat @Tone" title="@Title">
+    <i class="bi @Icon" aria-hidden="true"></i>
+    <span>@Label</span>
+    <strong>@Value</strong>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public object? Value { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Icon { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Tone { get; set; } = "primary";
+
+    [Parameter]
+    public string? Title { get; set; }
+}

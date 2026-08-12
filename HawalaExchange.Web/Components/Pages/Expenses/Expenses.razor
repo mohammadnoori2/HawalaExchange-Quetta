@@ -1,4 +1,4 @@
-﻿@page "/expenses"
+@page "/expenses"
 
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
@@ -22,6 +22,12 @@
             </h5>
         </div>
 
+        <PageHeaderStats AriaLabel="آمار مصارف">
+            <PageHeaderStat Label="کل" Value="@expenses.Count" Icon="bi-receipt" />
+            <PageHeaderStat Label="امروز" Value="@(expenses.Count(e => e.ExpenseDate.ToLocalTime().Date == DateTime.Today))" Icon="bi-clock-history" Tone="info" />
+            <PageHeaderStat Label="هفته" Value="@(expenses.Count(e => e.ExpenseDate.ToLocalTime() > DateTime.Now.AddDays(-7)))" Icon="bi-calendar-week" Tone="success" />
+            <PageHeaderStat Label="مجموع" Value="@(MoneyFormatHelper.Format(filteredExpenses.Sum(e => e.Amount)))" Icon="bi-coin" Tone="warning" />
+        </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
                 <i class="bi bi-plus-circle"></i>
@@ -29,6 +35,24 @@
             </button>
         </div>
     </div>
+
+    <CompactFilterBar AriaLabel="جستجو و فیلتر مصارف"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || filterCurrencyId != 0)"
+                      Reset="ClearSearch">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجو با کتگوری، ارز، حساب یا توضیحات..."
+                   @bind="searchTerm" @bind:event="oninput" />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" @bind="filterCurrencyId" @bind:event="oninput">
+                <option value="0">همه ارزها</option>
+                @foreach (var currency in currencies)
+                {
+                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                }
+            </select>
+        </QuickFilters>
+    </CompactFilterBar>
 
     @if (validationErrors.Any() && !showModal)
     {
@@ -50,113 +74,16 @@
         </div>
     }
 
-    <!-- کارت آماری -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-6">
-            <div class="stat-card">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon primary">
-                        <i class="bi bi-receipt"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@expenses.Count</div>
-                        <div class="stat-label">تعداد مصارف</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-info">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon info">
-                        <i class="bi bi-clock-history"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@expenses.Count(e => e.ExpenseDate.ToLocalTime().Date == DateTime.Today)</div>
-                        <div class="stat-label">مصارف امروز</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-success">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon success">
-                        <i class="bi bi-calendar-week"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@expenses.Count(e => e.ExpenseDate.ToLocalTime() > DateTime.Now.AddDays(-7))</div>
-                        <div class="stat-label">هفته گذشته</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-6">
-            <div class="stat-card stat-card-warning">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="stat-icon warning">
-                        <i class="bi bi-coin"></i>
-                    </div>
-                    <div>
-                        <div class="stat-number">@MoneyFormatHelper.Format(filteredExpenses.Sum(e => e.Amount))</div>
-                        <div class="stat-label">مجموع مصارف</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-left">
-                <!-- جستجو -->
-                <div class="search-modern">
-                    <span class="search-icon">
-                        <i class="bi bi-search"></i>
-                    </span>
-
-                    <input type="text"
-                           class="search-input"
-                           placeholder="جستجو: کتگوری، ارز، حساب، توضیحات..."
-                           @bind="searchTerm"
-                           @bind:event="oninput" />
-
-                    <button class="search-btn" @onclick="ClearSearch">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
-                </div>
-
-                <!-- فیلتر ارز -->
-                <div class="filter-selector">
-                    <select class="form-select form-select-sm"
-                            @bind="filterCurrencyId"
-                            @bind:event="oninput">
-                        <option value="0">همه ارزها</option>
-                        @foreach (var currency in currencies)
-                        {
-                            <option value="@currency.Id">
-                                @currency.Code - @currency.Name
-                            </option>
-                        }
-                    </select>
-                </div>
-
                 <!-- انتخاب تعداد نمایش -->
                 <div class="page-size-selector">
                     <span class="text-muted small">تعداد نمایش:</span>
 
-                    <select class="select-page-size" @bind="pageSize" @bind:event="oninput">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="0">همه</option>
-                    </select>
+                    <PageSizeSelector @bind-Value="pageSize"
+                                      @bind-CurrentPage="currentPage" />
                 </div>
             </div>
 
@@ -170,7 +97,7 @@
 
         <div class="table-card-body">
             <div class="table-scroll-wrapper">
-                <table class="table-modern table-striped-modern">
+                <GlobalDataGrid class="table-modern table-striped-modern">
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
@@ -312,7 +239,7 @@
                             }
                         }
                     </tbody>
-                </table>
+                </GlobalDataGrid>
             </div>
         </div>
 
@@ -323,33 +250,9 @@
                     از <strong>@filteredExpenses.Count</strong> مصرف
                 </span>
 
-                @if (totalPages > 1)
-                {
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination-modern">
-                            <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage - 1)">
-                                    <i class="bi bi-chevron-right"></i>
-                                </button>
-                            </li>
-
-                            @for (int i = 1; i <= totalPages; i++)
-                            {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <button class="page-link" @onclick="() => GoToPage(i)">
-                                        @i
-                                    </button>
-                                </li>
-                            }
-
-                            <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
-                                <button class="page-link" @onclick="() => GoToPage(currentPage + 1)">
-                                    <i class="bi bi-chevron-left"></i>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                }
+                <CompactPagination CurrentPage="currentPage"
+                                   TotalPages="totalPages"
+                                   PageChanged="GoToPage" />
             </div>
 
             <div class="table-card-footer-right">

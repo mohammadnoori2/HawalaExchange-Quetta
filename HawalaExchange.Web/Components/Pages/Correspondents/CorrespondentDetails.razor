@@ -62,23 +62,6 @@
             </div>
         </header>
 
-        <div class="correspondent-profile-grid">
-            <div><span>کد نمایندگی</span><strong>@correspondent.Code</strong></div>
-            <div><span>نام نمایندگی</span><strong>@correspondent.Name</strong></div>
-            <div><span>کشور</span><strong>@(correspondent.Country ?? "—")</strong></div>
-            <div><span>شهر</span><strong>@(correspondent.City ?? "—")</strong></div>
-            <div><span>شماره تلفن</span><strong dir="ltr">@(correspondent.PhoneNumber ?? "—")</strong></div>
-            <div><span>آدرس</span><strong>@(correspondent.Address ?? "—")</strong></div>
-            <div><span>ارز توافقی</span><strong>@(correspondent.SettlementCurrencyCode ?? "بدون ارز توافقی")</strong></div>
-            <div>
-                <span>وضعیت</span>
-                <strong class="@(correspondent.IsArchived ? "text-danger" : "text-success")">
-                    @(correspondent.IsArchived ? "بایگانی" : "فعال")
-                </strong>
-            </div>
-            <div><span>تاریخ ایجاد</span><strong dir="ltr">@PersianDateHelper.ToPersianDateTime12(correspondent.CreatedAt)</strong></div>
-        </div>
-
         @if (correspondent.IsArchived)
         {
             <div class="alert alert-warning py-2 mb-2">این نمایندگی بایگانی است؛ حواله‌های قبلی قابل مشاهده‌اند، اما برای ثبت حواله جدید ابتدا آن را از بایگانی خارج کنید.</div>

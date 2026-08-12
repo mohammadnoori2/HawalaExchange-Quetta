@@ -60,6 +60,8 @@ namespace HawalaExchange.Application.DTOs
         public DateTime? PaidAt { get; set; }
         public long? PaidBy { get; set; }
         public long? PaidFromAccountId { get; set; }
+        public string? PaidFromAccountName { get; set; }
+        public string? PaidFromAccountType { get; set; }
         public long? SourceHawalaId { get; set; }
         public bool IsSystemGenerated { get; set; }
         public long? GeneratedSendHawalaNumber { get; set; }

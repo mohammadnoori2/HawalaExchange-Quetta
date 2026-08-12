@@ -95,6 +95,8 @@
                             <th>کارمزد</th>
                             <th>وضعیت</th>
                             <th>تاریخ</th>
+                            <th>زمان اجرا</th>
+                            <th>حساب اجرا</th>
                             <th class="text-center" style="width:80px;">عملیات</th>
                         </tr>
                     </thead>
@@ -103,7 +105,7 @@
                         @if (isLoading)
                         {
                             <tr>
-                                <td colspan="10" class="text-center py-5">
+                                <td colspan="12" class="text-center py-5">
                                     <div class="spinner-border text-primary"></div>
                                     <p class="text-muted mt-2">در حال بارگذاری...</p>
                                 </td>
@@ -112,7 +114,7 @@
                         else if (!pagedHawalas.Any())
                         {
                             <tr>
-                                <td colspan="10" class="text-center py-5">
+                                <td colspan="12" class="text-center py-5">
                                     هیچ حواله دریافتی یافت نشد.
                                 </td>
                             </tr>
@@ -154,6 +156,14 @@
                                     <td dir="ltr">
                                         @PersianDateHelper.ToPersianDateTime12(hawala.CreatedAt)
                                     </td>
+
+                                    <td dir="ltr">
+                                        @(hawala.PaidAt.HasValue
+                                            ? PersianDateHelper.ToPersianDateTime12(hawala.PaidAt.Value)
+                                            : "-")
+                                    </td>
+
+                                    <td>@GetExecutionAccountText(hawala)</td>
 
                                     <td class="text-center operation-cell">
                                         <HawalaOperationMenu Hawala="hawala"
@@ -331,7 +341,7 @@
                         {
                             <div class="col-md-4">
                                 <div class="info-card">
-                                    <span class="info-label">تاریخ پرداخت</span>
+                                    <span class="info-label">زمان اجرا</span>
                                     <span class="info-value" dir="ltr">
                                         @PersianDateHelper.ToPersianDateTime12(selectedHawala.PaidAt.Value)
                                     </span>
@@ -1203,6 +1213,18 @@
             "Cancel" => "badge-danger",
             _ => "badge-secondary"
         };
+    }
+
+    private static string GetExecutionAccountText(HawalaDto hawala)
+    {
+        if (!hawala.PaidAt.HasValue || string.IsNullOrWhiteSpace(hawala.PaidFromAccountName))
+        {
+            return "-";
+        }
+
+        return string.Equals(hawala.PaidFromAccountType, "Customer", StringComparison.OrdinalIgnoreCase)
+            ? $"به حساب {hawala.PaidFromAccountName}"
+            : $"از حساب {hawala.PaidFromAccountName}";
     }
 
     private string GetPaymentLocation(HawalaDto hawala)

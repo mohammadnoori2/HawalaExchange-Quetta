@@ -314,6 +314,8 @@ namespace HawalaSystem.Mappings
                .ForMember(dest => dest.AgentCommissionCurrencyCode, opt => opt.MapFrom(src => src.AgentCommissionCurrency != null ? src.AgentCommissionCurrency.Code : null))
                .ForMember(dest => dest.AgentCommissionCurrencyName, opt => opt.MapFrom(src => src.AgentCommissionCurrency != null ? src.AgentCommissionCurrency.Name : null))
                .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser != null ? src.CreatedByUser.FullName : ""))
+               .ForMember(dest => dest.PaidFromAccountName, opt => opt.MapFrom(src => src.PaidFromAccount != null ? src.PaidFromAccount.AccountName : null))
+               .ForMember(dest => dest.PaidFromAccountType, opt => opt.MapFrom(src => src.PaidFromAccount != null ? src.PaidFromAccount.AccountType : null))
                .ForMember(dest => dest.HawalaTypeName, opt => opt.Ignore())
                .ForMember(dest => dest.StatusName, opt => opt.Ignore())
                .ForMember(dest => dest.FromAccountId, opt => opt.Ignore())

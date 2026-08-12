@@ -673,6 +673,7 @@
         try
         {
             correspondents = (await CorrespondentService.GetAllAsync())
+                .Where(x => !x.IsArchived)
                 .OrderBy(x => x.Name)
                 .ToList();
             currencies = (await CurrencyService.GetAllAsync())

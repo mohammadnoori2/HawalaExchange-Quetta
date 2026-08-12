@@ -29,6 +29,9 @@
             <PageHeaderStat Label="امروز" Value="@(correspondents?.Count(c => c.CreatedAt.Date == DateTime.Today) ?? 0)" Icon="bi-clock-history" Tone="info" />
         </PageHeaderStats>
         <div class="page-actions">
+            <ArchiveViewToggle @bind-ShowArchived="showArchived"
+                               ArchivedCount="@correspondents.Count(c => c.IsArchived)"
+                               @bind-ShowArchived:after="ArchiveViewChanged" />
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> نماینده جدید
             </button>
@@ -159,11 +162,21 @@
                                         }
                                     </td>
                                     <td>
-                                        <button type="button"
-                                                class="btn btn-sm btn-outline-primary px-3"
-                                                @onclick="() => ViewCorrespondent(correspondent.Id)">
-                                            مشاهده نمایندگی
-                                        </button>
+                                        <div class="action-group justify-content-center">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-primary px-3"
+                                                    @onclick="() => ViewCorrespondent(correspondent.Id)">
+                                                مشاهده نمایندگی
+                                            </button>
+                                            @if (correspondent.IsArchived)
+                                            {
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-success"
+                                                        @onclick="() => ShowUnarchiveConfirm(correspondent.Id)">
+                                                    <i class="bi bi-arrow-counterclockwise"></i> خروج از بایگانی
+                                                </button>
+                                            }
+                                        </div>
                                     </td>
                                 </tr>
                                 rowIndex++;
@@ -714,6 +727,7 @@
 
     // ===== جستجو، صفحه‌بندی و مرتب‌سازی =====
     private string _searchTerm = string.Empty;
+    private bool showArchived;
     private string searchTerm
     {
         get => _searchTerm;
@@ -815,7 +829,7 @@
             isLoading = true;
             var result = await CorrespondentService.GetAllAsync();
             correspondents = result.ToList();
-            filteredCorrespondents = correspondents;
+            SearchCorrespondents();
             currentPage = 1;
         }
         catch (Exception ex)
@@ -858,21 +872,19 @@
     // ===== جستجو =====
     private void SearchCorrespondents()
     {
-        if (string.IsNullOrWhiteSpace(_searchTerm))
-        {
-            filteredCorrespondents = correspondents;
-        }
-        else
+        var query = correspondents.Where(c => c.IsArchived == showArchived);
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
             var term = _searchTerm.Trim().ToLower();
-            filteredCorrespondents = correspondents.Where(c =>
+            query = query.Where(c =>
                 c.Code.ToLower().Contains(term) ||
                 c.Name.ToLower().Contains(term) ||
                 (c.Country != null && c.Country.ToLower().Contains(term)) ||
                 (c.City != null && c.City.ToLower().Contains(term)) ||
                 (c.PhoneNumber != null && c.PhoneNumber.Contains(term, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
+            );
         }
+        filteredCorrespondents = query.ToList();
         currentPage = 1;
         StateHasChanged();
     }
@@ -880,9 +892,14 @@
     private void ClearSearch()
     {
         _searchTerm = string.Empty;
-        filteredCorrespondents = correspondents;
+        filteredCorrespondents = correspondents.Where(c => c.IsArchived == showArchived).ToList();
         currentPage = 1;
         StateHasChanged();
+    }
+
+    private void ArchiveViewChanged()
+    {
+        SearchCorrespondents();
     }
 
     // ===== صفحه‌بندی و مرتب‌سازی =====

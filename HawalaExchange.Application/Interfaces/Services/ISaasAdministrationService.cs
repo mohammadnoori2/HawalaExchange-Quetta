@@ -5,7 +5,7 @@ namespace HawalaExchange.Application.Interfaces.Services;
 public interface ISaasAdministrationService
 {
     Task<SaasDashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<SaasTenantDto>> GetTenantsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SaasTenantDto>> GetTenantsAsync(bool includeArchived = false, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SubscriptionPlanDto>> GetPlansAsync(bool includeInactive = true, CancellationToken cancellationToken = default);
     Task<SubscriptionPlanDto> CreatePlanAsync(SaveSubscriptionPlanDto dto, CancellationToken cancellationToken = default);
     Task<SubscriptionPlanDto> UpdatePlanAsync(long id, SaveSubscriptionPlanDto dto, CancellationToken cancellationToken = default);

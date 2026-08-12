@@ -708,7 +708,7 @@
         try
         {
             var result = await BranchService.GetAllAsync();
-            branches = result.ToList();
+            branches = result.Where(x => !x.IsArchived).ToList();
         }
         catch (Exception ex)
         {

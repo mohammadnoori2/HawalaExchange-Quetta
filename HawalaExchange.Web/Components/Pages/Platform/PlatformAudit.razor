@@ -77,7 +77,8 @@
     private async Task GoToPageAsync(int page){var target=Math.Clamp(page,1,TotalPages);if(target==filter.Page)return;filter.Page=target;await LoadAsync();}
     private static string ActionLabel(string action) => action switch
     {
-        "CREATE_TENANT" => "ایجاد صرافی", "CREATE_PLATFORM_USER" => "ایجاد کاربر مرکزی", "SET_PLATFORM_USER_ACTIVE" => "تغییر وضعیت کاربر",
+        "CREATE_TENANT" => "ایجاد صرافی", "ARCHIVE_TENANT" => "بایگانی صرافی", "UNARCHIVE_TENANT" => "خروج صرافی از بایگانی",
+        "CREATE_PLATFORM_USER" => "ایجاد کاربر مرکزی", "SET_PLATFORM_USER_ACTIVE" => "تغییر وضعیت کاربر",
         "CHANGE_PLATFORM_USER_ROLE" => "تغییر نقش کاربر", "CREATE_PLAN" => "ایجاد پلن", "UPDATE_PLAN" => "ویرایش پلن",
         "CHANGE_SUBSCRIPTION" => "تغییر اشتراک", "RECORD_PAYMENT" => "ثبت پرداخت", "CREATE_INVOICE" => "ایجاد فاکتور",
         "RECORD_INVOICE_PAYMENT" => "ثبت پرداخت فاکتور", "CANCEL_INVOICE" => "لغو فاکتور", _ => "عملیات مدیریتی"

@@ -29,6 +29,9 @@
             <PageHeaderStat Label="نوع حساب" Value="@(accounts?.Select(a => a.AccountType).Distinct().Count() ?? 0)" Icon="bi-collection" Tone="info" />
         </PageHeaderStats>
         <div class="page-actions">
+            <ArchiveViewToggle @bind-ShowArchived="showArchived"
+                               ArchivedCount="@accounts.Count(a => a.IsArchived)"
+                               @bind-ShowArchived:after="ArchiveViewChanged" />
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> حساب جدید
             </button>
@@ -190,6 +193,14 @@
                                                     @onclick="() => ViewAccount(account.Id)">
                                                 مشاهده حساب
                                             </button>
+                                            @if (account.IsArchived)
+                                            {
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-success"
+                                                        @onclick="() => ShowUnarchiveConfirm(account.Id)">
+                                                    <i class="bi bi-arrow-counterclockwise"></i> خروج از بایگانی
+                                                </button>
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -582,6 +593,7 @@
     }
 
     private string _filterAccountType = string.Empty;
+    private bool showArchived;
     private string filterAccountType
     {
         get => _filterAccountType;
@@ -706,8 +718,8 @@
     {
         try
         {
-            customers = (await CustomerService.GetAllAsync()).ToList();
-            correspondents = (await CorrespondentService.GetAllAsync()).ToList();
+            customers = (await CustomerService.GetAllAsync()).Where(x => !x.IsArchived).ToList();
+            correspondents = (await CorrespondentService.GetAllAsync()).Where(x => !x.IsArchived).ToList();
 
             var currencyResult = await CurrencyService.GetActiveCurrenciesAsync();
             currencies = currencyResult.ToList();
@@ -725,7 +737,7 @@
             isLoading = true;
             var result = await AccountService.GetAllAsync();
             accounts = result.ToList();
-            filteredAccounts = accounts;
+            SearchAccounts();
             currentPage = 1;
         }
         catch (Exception ex)
@@ -743,7 +755,7 @@
 
     private void SearchAccounts()
     {
-        var query = accounts.AsEnumerable();
+        var query = accounts.Where(a => a.IsArchived == showArchived);
 
         if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
@@ -770,9 +782,14 @@
     {
         _searchTerm = string.Empty;
         _filterAccountType = string.Empty;
-        filteredAccounts = accounts;
+        filteredAccounts = accounts.Where(a => a.IsArchived == showArchived).ToList();
         currentPage = 1;
         StateHasChanged();
+    }
+
+    private void ArchiveViewChanged()
+    {
+        SearchAccounts();
     }
 
     private void GoToPage(int page)

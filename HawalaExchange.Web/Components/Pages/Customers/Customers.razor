@@ -29,6 +29,9 @@
             <PageHeaderStat Label="امروز" Value="@(customers?.Count(c => c.CreatedAt.Date == DateTime.Today) ?? 0)" Icon="bi-clock-history" Tone="info" />
         </PageHeaderStats>
         <div class="page-actions">
+            <ArchiveViewToggle @bind-ShowArchived="showArchived"
+                               ArchivedCount="@customers.Count(c => c.IsArchived)"
+                               @bind-ShowArchived:after="ArchiveViewChanged" />
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> مشتری جدید
             </button>
@@ -153,6 +156,14 @@
                                                     @onclick="() => ViewAccount(customer.Id)">
                                                 مشاهده مشتری
                                             </button>
+                                            @if (customer.IsArchived)
+                                            {
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-success"
+                                                        @onclick="() => ShowUnarchiveConfirm(customer.Id)">
+                                                    <i class="bi bi-arrow-counterclockwise"></i> خروج از بایگانی
+                                                </button>
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -804,6 +815,7 @@
 
     // ===== جستجو =====
     private string _searchTerm = string.Empty;
+    private bool showArchived;
     private string searchTerm
     {
         get => _searchTerm;
@@ -917,7 +929,7 @@
             isLoading = true;
             var result = await CustomerService.GetAllAsync();
             customers = result.ToList();
-            filteredCustomers = customers;
+            SearchCustomers();
             currentPage = 1;
         }
         catch (Exception ex)
@@ -960,21 +972,19 @@
     // ===== جستجو =====
     private void SearchCustomers()
     {
-        if (string.IsNullOrWhiteSpace(_searchTerm))
-        {
-            filteredCustomers = customers;
-        }
-        else
+        var query = customers.Where(c => c.IsArchived == showArchived);
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
             var term = _searchTerm.Trim();
-            filteredCustomers = customers.Where(c =>
+            query = query.Where(c =>
                 c.CustomerCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 c.FullName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 (c.PhoneNumber != null && c.PhoneNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
                 (c.TazkiraNumber != null && c.TazkiraNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
                 (c.Address != null && c.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
+            );
         }
+        filteredCustomers = query.ToList();
         currentPage = 1;
         StateHasChanged();
     }
@@ -982,9 +992,14 @@
     private void ClearSearch()
     {
         _searchTerm = string.Empty;
-        filteredCustomers = customers;
+        filteredCustomers = customers.Where(c => c.IsArchived == showArchived).ToList();
         currentPage = 1;
         StateHasChanged();
+    }
+
+    private void ArchiveViewChanged()
+    {
+        SearchCustomers();
     }
 
     private void GoToPage(int page)

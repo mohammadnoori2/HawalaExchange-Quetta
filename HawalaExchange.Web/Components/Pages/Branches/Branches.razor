@@ -24,6 +24,9 @@
             <PageHeaderStat Label="امروز" Value="@(branches?.Count(b => b.CreatedAt.Date == DateTime.Today) ?? 0)" Icon="bi-clock-history" Tone="info" />
         </PageHeaderStats>
         <div class="page-actions">
+            <ArchiveViewToggle @bind-ShowArchived="showArchived"
+                               ArchivedCount="@branches.Count(b => b.IsArchived)"
+                               @bind-ShowArchived:after="ArchiveViewChanged" />
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> شعبه جدید
             </button>
@@ -354,6 +357,7 @@
     private List<BranchDto> filteredBranches = new();
 
     private string _searchTerm = string.Empty;
+    private bool showArchived;
     private string searchTerm
     {
         get => _searchTerm;
@@ -432,7 +436,7 @@
             isLoading = true;
             var result = await BranchService.GetAllAsync();
             branches = result.ToList();
-            filteredBranches = branches;
+            SearchBranches();
             currentPage = 1;
         }
         catch (Exception ex)
@@ -448,20 +452,18 @@
 
     private void SearchBranches()
     {
-        if (string.IsNullOrWhiteSpace(_searchTerm))
-        {
-            filteredBranches = branches;
-        }
-        else
+        var query = branches.Where(b => b.IsArchived == showArchived);
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
             var term = _searchTerm.Trim();
-            filteredBranches = branches.Where(b =>
+            query = query.Where(b =>
                 b.Code.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 b.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 (b.PhoneNumber != null && b.PhoneNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
                 (b.Address != null && b.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
+            );
         }
+        filteredBranches = query.ToList();
         currentPage = 1;
         StateHasChanged();
     }
@@ -469,9 +471,14 @@
     private void ClearSearch()
     {
         _searchTerm = string.Empty;
-        filteredBranches = branches;
+        filteredBranches = branches.Where(b => b.IsArchived == showArchived).ToList();
         currentPage = 1;
         StateHasChanged();
+    }
+
+    private void ArchiveViewChanged()
+    {
+        SearchBranches();
     }
 
     private void GoToPage(int page)

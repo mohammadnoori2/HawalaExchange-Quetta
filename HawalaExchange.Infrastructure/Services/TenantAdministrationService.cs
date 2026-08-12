@@ -21,6 +21,7 @@ public sealed class TenantAdministrationService(
                 Id = x.Id,
                 Name = x.Name,
                 IsActive = x.IsActive,
+                IsArchived = x.IsArchived,
                 CreatedAt = x.CreatedAt,
                 UserCount = context.Users.IgnoreQueryFilters().Count(u => u.TenantId == x.Id && !u.IsPlatformUser),
                 BranchCount = context.Branches.IgnoreQueryFilters().Count(b => b.TenantId == x.Id)
@@ -138,6 +139,7 @@ public sealed class TenantAdministrationService(
             Id = tenant.Id,
             Name = tenant.Name,
             IsActive = tenant.IsActive,
+            IsArchived = tenant.IsArchived,
             UserCount = 1,
             BranchCount = 1,
             CreatedAt = tenant.CreatedAt
@@ -164,10 +166,53 @@ public sealed class TenantAdministrationService(
             Id = tenant.Id,
             Name = tenant.Name,
             IsActive = tenant.IsActive,
+            IsArchived = tenant.IsArchived,
             UserCount = await context.Users.IgnoreQueryFilters().CountAsync(x => x.TenantId == id && !x.IsPlatformUser, cancellationToken),
             BranchCount = await context.Branches.IgnoreQueryFilters().CountAsync(x => x.TenantId == id, cancellationToken),
             CreatedAt = tenant.CreatedAt
         };
+    }
+
+    public async Task ArchiveAsync(long id, CancellationToken cancellationToken = default)
+    {
+        var tenant = await context.Tenants.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new KeyNotFoundException("صرافی مورد نظر یافت نشد.");
+
+        if (id == context.CurrentTenantId)
+            throw new InvalidOperationException("صرافی جاری را نمی‌توانید بایگانی کنید.");
+
+        tenant.IsArchived = true;
+        tenant.IsActive = false;
+        context.PlatformAuditLogs.Add(new PlatformAuditLog
+        {
+            ActorUserId = context.CurrentUserId > 0 ? context.CurrentUserId : null,
+            TenantId = tenant.Id,
+            Action = "ARCHIVE_TENANT",
+            EntityName = nameof(Tenant),
+            EntityId = tenant.Id,
+            Details = $"صرافی {tenant.Name} بایگانی شد.",
+            CreatedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UnarchiveAsync(long id, CancellationToken cancellationToken = default)
+    {
+        var tenant = await context.Tenants.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new KeyNotFoundException("صرافی مورد نظر یافت نشد.");
+
+        tenant.IsArchived = false;
+        context.PlatformAuditLogs.Add(new PlatformAuditLog
+        {
+            ActorUserId = context.CurrentUserId > 0 ? context.CurrentUserId : null,
+            TenantId = tenant.Id,
+            Action = "UNARCHIVE_TENANT",
+            EntityName = nameof(Tenant),
+            EntityId = tenant.Id,
+            Details = $"صرافی {tenant.Name} از بایگانی خارج شد.",
+            CreatedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     private static Currency[] CreateCurrencies(long tenantId) =>

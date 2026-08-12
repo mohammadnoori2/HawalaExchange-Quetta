@@ -1,0 +1,14 @@
+<button type="button"
+        class="btn-modern @(ShowArchived ? "btn-light-modern" : "btn-outline-secondary")"
+        @onclick="ToggleAsync">
+    <i class="bi @(ShowArchived ? "bi-arrow-right" : "bi-archive")"></i>
+    @(ShowArchived ? "بازگشت به لیست" : $"بایگانی‌ها ({ArchivedCount})")
+</button>
+
+@code {
+    [Parameter] public bool ShowArchived { get; set; }
+    [Parameter] public int ArchivedCount { get; set; }
+    [Parameter] public EventCallback<bool> ShowArchivedChanged { get; set; }
+
+    private Task ToggleAsync() => ShowArchivedChanged.InvokeAsync(!ShowArchived);
+}

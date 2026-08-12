@@ -1004,7 +1004,9 @@
             isDataLoading = true;
             StateHasChanged();
 
-            CorrespondentsList = (await CorrespondentService.GetAllAsync()).ToList();
+            CorrespondentsList = (await CorrespondentService.GetAllAsync())
+                .Where(x => !x.IsArchived)
+                .ToList();
             CurrenciesList = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
             AccountsList = (await AccountService.GetAllAsync()).Where(a => !a.IsArchived).ToList();
             PaymentLocationsList = (await PaymentLocationService.GetActiveAsync()).ToList();

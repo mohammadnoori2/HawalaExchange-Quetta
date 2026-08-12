@@ -11,7 +11,7 @@ public sealed class SaasAdministrationService(ApplicationDbContext context) : IS
     public async Task<SaasDashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default)
     {
         await RefreshSubscriptionStatusesAsync(cancellationToken);
-        var tenants = await GetTenantsAsync(cancellationToken);
+        var tenants = await GetTenantsAsync(cancellationToken: cancellationToken);
         var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
         return new SaasDashboardDto
@@ -30,11 +30,15 @@ public sealed class SaasAdministrationService(ApplicationDbContext context) : IS
         };
     }
 
-    public async Task<IReadOnlyList<SaasTenantDto>> GetTenantsAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SaasTenantDto>> GetTenantsAsync(
+        bool includeArchived = false,
+        CancellationToken cancellationToken = default)
     {
-        var rows = await context.Tenants
-            .AsNoTracking()
-            .Where(x => !x.IsArchived)
+        var query = context.Tenants.AsNoTracking();
+        if (!includeArchived)
+            query = query.Where(x => !x.IsArchived);
+
+        var rows = await query
             .OrderBy(x => x.Name)
             .Select(x => new
             {

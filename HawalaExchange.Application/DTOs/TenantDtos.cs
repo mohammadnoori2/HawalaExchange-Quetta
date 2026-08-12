@@ -8,6 +8,7 @@ public sealed class TenantDto
     public long Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public bool IsArchived { get; set; }
     public int UserCount { get; set; }
     public int BranchCount { get; set; }
     public DateTime CreatedAt { get; set; }

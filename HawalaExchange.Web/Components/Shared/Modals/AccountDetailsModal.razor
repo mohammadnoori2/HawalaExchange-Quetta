@@ -50,7 +50,7 @@
                                 @(ActionArchived ? UnarchiveButtonText : ArchiveButtonText)
                             </button>
                         }
-                        @if (PageMode)
+                        @if (PageMode && ShowBackButton)
                         {
                             <button type="button" class="btn btn-sm btn-light border" @onclick="Close">
                                 @BackButtonText
@@ -400,6 +400,7 @@
     [Parameter] public string BackButtonText { get; set; } = "بازگشت";
     [Parameter] public bool ShowAccountFacts { get; set; } = true;
     [Parameter] public bool ShowFinancialActions { get; set; } = true;
+    [Parameter] public bool ShowBackButton { get; set; } = true;
     [Parameter] public bool? ActionEntityArchived { get; set; }
     [Parameter] public RenderFragment? HeaderActions { get; set; }
     [Parameter] public RenderFragment? ProfileSummary { get; set; }

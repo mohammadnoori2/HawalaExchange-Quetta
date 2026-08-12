@@ -1,0 +1,173 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="operation-dropdown" @onclick:stopPropagation="true">
+    <button id="@buttonId"
+            type="button"
+            class="operation-dot-btn"
+            title="عملیات نمایندگی"
+            aria-label="عملیات نمایندگی"
+            aria-haspopup="menu"
+            aria-expanded="@isOpen.ToString().ToLowerInvariant()"
+            @onclick="ToggleAsync">
+        <i class="bi bi-three-dots-vertical"></i>
+    </button>
+
+    @if (isOpen)
+    {
+        <div id="@menuId" class="operation-menu correspondent-operation-menu" dir="rtl" role="menu">
+            <button type="button" class="operation-menu-item" role="menuitem" @onclick="ViewStatusAsync">
+                <i class="bi bi-bar-chart-line text-info"></i>
+                وضعیت نمایندگی
+            </button>
+            <button type="button" class="operation-menu-item" role="menuitem" @onclick="ViewRangeAsync">
+                <i class="bi bi-calendar-range text-primary"></i>
+                محدوده حواله‌ها
+            </button>
+
+            @if (CanUseFinancialActions)
+            {
+                <div class="operation-menu-divider"></div>
+
+                @if (HasSettlementCurrency)
+                {
+                    <button type="button" class="operation-menu-item" role="menuitem" @onclick="ConvertBalanceAsync">
+                        <i class="bi bi-arrow-repeat text-success"></i>
+                        تبدیل مانده به @SettlementCurrencyCode
+                    </button>
+                }
+                <button type="button" class="operation-menu-item" role="menuitem" @onclick="ExchangeAsync">
+                    <i class="bi bi-currency-exchange text-primary"></i>
+                    تبادله اسعار
+                </button>
+                <button type="button" class="operation-menu-item" role="menuitem" @onclick="TransferAsync">
+                    <i class="bi bi-arrow-left-right text-warning"></i>
+                    انتقال بین حساب
+                </button>
+                <button type="button" class="operation-menu-item" role="menuitem" @onclick="ReceiptOrWithdrawalAsync">
+                    <i class="bi bi-cash-stack text-success"></i>
+                    رسید / برد
+                </button>
+            }
+
+            <div class="operation-menu-divider"></div>
+
+            @if (!IsArchived)
+            {
+                <button type="button" class="operation-menu-item" role="menuitem" @onclick="EditAsync">
+                    <i class="bi bi-pencil text-primary"></i>
+                    ویرایش نمایندگی
+                </button>
+            }
+            <button type="button"
+                    class="operation-menu-item @(IsArchived ? null : "operation-menu-danger")"
+                    role="menuitem"
+                    @onclick="ArchiveAsync">
+                <i class="bi @(IsArchived ? "bi-archive-fill text-success" : "bi-archive")"></i>
+                @(IsArchived ? "خروج از بایگانی" : "بایگانی نمایندگی")
+            </button>
+
+            <div class="operation-menu-divider"></div>
+
+            <button type="button" class="operation-menu-item" role="menuitem" @onclick="BackAsync">
+                <i class="bi bi-arrow-right text-secondary"></i>
+                بازگشت به نمایندگی‌ها
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public bool IsArchived { get; set; }
+    [Parameter] public bool CanUseFinancialActions { get; set; }
+    [Parameter] public string? SettlementCurrencyCode { get; set; }
+    [Parameter] public EventCallback OnViewStatus { get; set; }
+    [Parameter] public EventCallback OnViewRange { get; set; }
+    [Parameter] public EventCallback OnConvertBalance { get; set; }
+    [Parameter] public EventCallback OnExchange { get; set; }
+    [Parameter] public EventCallback OnTransfer { get; set; }
+    [Parameter] public EventCallback OnReceiptOrWithdrawal { get; set; }
+    [Parameter] public EventCallback OnEdit { get; set; }
+    [Parameter] public EventCallback OnArchive { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private readonly string instanceId = Guid.NewGuid().ToString("N");
+    private bool isOpen;
+    private bool positionAfterRender;
+    private DotNetObjectReference<CorrespondentActionsMenu>? dotNetReference;
+    private bool HasSettlementCurrency => !string.IsNullOrWhiteSpace(SettlementCurrencyCode);
+    private string buttonId => $"correspondent-operation-button-{instanceId}";
+    private string menuId => $"correspondent-operation-menu-{instanceId}";
+
+    private async Task ToggleAsync()
+    {
+        if (isOpen)
+        {
+            await CloseMenuAsync();
+            return;
+        }
+
+        isOpen = true;
+        positionAfterRender = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!isOpen || !positionAfterRender)
+            return;
+
+        positionAfterRender = false;
+        dotNetReference ??= DotNetObjectReference.Create(this);
+        await JS.InvokeVoidAsync("hawalaTools.openOperationMenu", buttonId, menuId, dotNetReference);
+    }
+
+    [JSInvokable]
+    public Task CloseFromJs() => InvokeAsync(() =>
+    {
+        isOpen = false;
+        positionAfterRender = false;
+        StateHasChanged();
+    });
+
+    private async Task CloseMenuAsync()
+    {
+        if (!isOpen)
+            return;
+
+        isOpen = false;
+        positionAfterRender = false;
+        await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", menuId);
+    }
+
+    private async Task InvokeCallbackAsync(EventCallback callback)
+    {
+        await CloseMenuAsync();
+        await callback.InvokeAsync();
+    }
+
+    private Task ViewStatusAsync() => InvokeCallbackAsync(OnViewStatus);
+    private Task ViewRangeAsync() => InvokeCallbackAsync(OnViewRange);
+    private Task ConvertBalanceAsync() => InvokeCallbackAsync(OnConvertBalance);
+    private Task ExchangeAsync() => InvokeCallbackAsync(OnExchange);
+    private Task TransferAsync() => InvokeCallbackAsync(OnTransfer);
+    private Task ReceiptOrWithdrawalAsync() => InvokeCallbackAsync(OnReceiptOrWithdrawal);
+    private Task EditAsync() => InvokeCallbackAsync(OnEdit);
+    private Task ArchiveAsync() => InvokeCallbackAsync(OnArchive);
+    private Task BackAsync() => InvokeCallbackAsync(OnBack);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (dotNetReference is null)
+            return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", menuId);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        dotNetReference.Dispose();
+    }
+}

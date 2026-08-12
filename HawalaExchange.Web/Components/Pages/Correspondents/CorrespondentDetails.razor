@@ -1,11 +1,14 @@
 @page "/correspondents/{CorrespondentId:long}"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
+@using HawalaExchange.Web.Components.Shared.Modals
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
 @inject ICurrencyService CurrencyService
+@inject IAccountService AccountService
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(correspondent == null ? "مشاهده نمایندگی" : correspondent.Name)</PageTitle>
@@ -49,16 +52,18 @@
                 <span>@correspondent.Name · @correspondent.Code</span>
             </div>
             <div class="correspondent-header-actions">
-                <a class="btn btn-sm btn-primary" href="@($"/correspondents/{CorrespondentId}/status")">وضعیت نمایندگی</a>
-                @if (!correspondent.IsArchived)
-                {
-                    <button class="btn btn-sm btn-outline-primary" @onclick="OpenEdit">ویرایش نمایندگی</button>
-                }
-                <button class="btn btn-sm @(correspondent.IsArchived ? "btn-outline-success" : "btn-outline-danger")"
-                        @onclick="OpenArchiveConfirmation">
-                    @(correspondent.IsArchived ? "خروج از بایگانی" : "بایگانی نمایندگی")
-                </button>
-                <button class="btn btn-sm btn-light border" @onclick="BackToList">بازگشت</button>
+                <CorrespondentActionsMenu IsArchived="@correspondent.IsArchived"
+                                           CanUseFinancialActions="@(correspondentAccount != null && !correspondent.IsArchived)"
+                                           SettlementCurrencyCode="@correspondent.SettlementCurrencyCode"
+                                           OnViewStatus="ViewStatus"
+                                           OnViewRange="ViewRange"
+                                           OnConvertBalance="OpenBalanceSettlement"
+                                           OnExchange="OpenExchange"
+                                           OnTransfer="OpenTransfer"
+                                           OnReceiptOrWithdrawal="OpenAccountOperation"
+                                           OnEdit="OpenEdit"
+                                           OnArchive="OpenArchiveConfirmation"
+                                           OnBack="BackToList" />
             </div>
         </header>
 
@@ -102,6 +107,27 @@
         </div>
     }
 </div>
+
+<CorrespondentSettlementModal IsVisible="@showBalanceSettlementModal"
+                               IsVisibleChanged="HandleBalanceSettlementVisibility"
+                               CorrespondentId="@CorrespondentId"
+                               AccountMode="true"
+                               OnConverted="HandleBalanceConvertedAsync" />
+
+<MoneyExchangeModal IsVisible="@showExchangeModal"
+                    IsVisibleChanged="@((bool value) => showExchangeModal = value)"
+                    InitialAccountId="@correspondentAccount?.Id"
+                    OnSaveSuccess="@HandleExchangeSavedAsync" />
+
+<TransferModal IsVisible="@showTransferModal"
+               IsVisibleChanged="@((bool value) => showTransferModal = value)"
+               InitialAccountId="@correspondentAccount?.Id"
+               OnSaveSuccess="@HandleTransferSavedAsync" />
+
+<DepositWithdrawModal IsVisible="@showAccountOperationModal"
+                      IsVisibleChanged="@((bool value) => showAccountOperationModal = value)"
+                      InitialAccountId="@correspondentAccount?.Id"
+                      OnSaveSuccess="@HandleAccountOperationSavedAsync" />
 
 @if (showEditModal && correspondent != null)
 {
@@ -203,6 +229,7 @@
     [Parameter] public long CorrespondentId { get; set; }
 
     private CorrespondentDto? correspondent;
+    private AccountDto? correspondentAccount;
     private List<CurrencyDto> currencies = [];
     private UpdateCorrespondentDto editModel = new();
     private readonly List<string> editErrors = new();
@@ -210,6 +237,10 @@
     private bool isSaving;
     private bool showEditModal;
     private bool showArchiveConfirmation;
+    private bool showBalanceSettlementModal;
+    private bool showExchangeModal;
+    private bool showTransferModal;
+    private bool showAccountOperationModal;
     private string pageError = string.Empty;
     private string successMessage = string.Empty;
     private long? loadedCorrespondentId;
@@ -233,7 +264,13 @@
             correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId);
             currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.Code).ToList();
             if (correspondent == null)
+            {
                 pageError = "نمایندگی مورد نظر وجود ندارد یا حذف شده است.";
+                correspondentAccount = null;
+                return;
+            }
+
+            correspondentAccount = (await AccountService.GetByReferenceAsync("Correspondent", CorrespondentId)).FirstOrDefault();
         }
         catch (Exception ex)
         {
@@ -247,7 +284,73 @@
     }
 
     private void BackToList() => NavigationManager.NavigateTo("/correspondents");
+    private void ViewStatus() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/status");
+    private void ViewRange() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/range");
     private void SelectHawalaType(string hawalaType) => activeHawalaType = hawalaType;
+
+    private void OpenBalanceSettlement()
+    {
+        if (correspondentAccount != null && correspondent?.SettlementCurrencyId.HasValue == true)
+            showBalanceSettlementModal = true;
+    }
+
+    private Task HandleBalanceSettlementVisibility(bool visible)
+    {
+        showBalanceSettlementModal = visible;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleBalanceConvertedAsync(CorrespondentSettlementResultDto result)
+    {
+        successMessage = BuildSettlementResultMessage(result);
+        await LoadCorrespondentAsync();
+    }
+
+    private void OpenExchange()
+    {
+        if (correspondentAccount != null)
+            showExchangeModal = true;
+    }
+
+    private void OpenTransfer()
+    {
+        if (correspondentAccount != null)
+            showTransferModal = true;
+    }
+
+    private void OpenAccountOperation()
+    {
+        if (correspondentAccount != null)
+            showAccountOperationModal = true;
+    }
+
+    private Task HandleExchangeSavedAsync(CreateMoneyExchangeOperationDto _)
+    {
+        successMessage = "عملیات مالی با موفقیت ثبت شد.";
+        return Task.CompletedTask;
+    }
+
+    private Task HandleTransferSavedAsync(CreateTransferDto _)
+    {
+        successMessage = "عملیات مالی با موفقیت ثبت شد.";
+        return Task.CompletedTask;
+    }
+
+    private Task HandleAccountOperationSavedAsync(CreateAccountMoneyOperationDto _)
+    {
+        successMessage = "عملیات مالی با موفقیت ثبت شد.";
+        return Task.CompletedTask;
+    }
+
+    private static string BuildSettlementResultMessage(CorrespondentSettlementResultDto result)
+    {
+        if (result.Items.Count == 0)
+            return "تبدیل به ارز توافقی با موفقیت ثبت شد.";
+
+        return string.Join("؛ ", result.Items.Select(item =>
+            $"ماندهٔ {item.BalanceDirection} به مقدار {MoneyFormatHelper.Format(item.SourceAmount)} {item.SourceCurrencyCode} " +
+            $"با نرخ {AmountValueHelper.Format(item.ExchangeRate)} به {MoneyFormatHelper.Format(item.TargetAmount)} {item.TargetCurrencyCode} تبدیل شد"));
+    }
 
     private void OpenEdit()
     {

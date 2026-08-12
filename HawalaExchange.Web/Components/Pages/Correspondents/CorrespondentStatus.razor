@@ -1,13 +1,11 @@
 @page "/correspondents/{CorrespondentId:long}/status"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
-@using HawalaExchange.Application.Services
 @using HawalaExchange.Web.Components.Shared.Modals
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
-@inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject NavigationManager NavigationManager
 
@@ -31,37 +29,17 @@
     }
     else
     {
-        @if (!string.IsNullOrWhiteSpace(successMessage))
-        {
-            <div class="alert alert-success entity-page-alert">
-                @successMessage
-                <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
-            </div>
-        }
-
         <AccountDetailsModal IsVisible="true"
                              PageMode="true"
                              Account="@accountForView"
                              ViewTitle="وضعیت نمایندگی"
                              ViewSubtitle="@($"{correspondent.Name} · {correspondent.Code}")"
-                             EditButtonText="ویرایش نمایندگی"
-                             ArchiveButtonText="بایگانی نمایندگی"
-                             UnarchiveButtonText="خروج از بایگانی"
                              BackButtonText="بازگشت به حواله‌ها"
                              ShowAccountFacts="false"
-                             ShowFinancialActions="@(correspondentAccount != null)"
+                             ShowFinancialActions="false"
+                             ShowBackButton="false"
                              ActionEntityArchived="@correspondent.IsArchived"
-                             IsVisibleChanged="HandleVisibilityChanged"
-                             OnEditRequested="OpenEdit"
-                             OnArchiveToggleRequested="OpenArchiveConfirmation">
-            <HeaderActions>
-                @if (correspondentAccount != null && correspondent.SettlementCurrencyId.HasValue)
-                {
-                    <button class="btn btn-sm btn-success" @onclick="OpenBalanceSettlement">تبدیل مانده به @correspondent.SettlementCurrencyCode</button>
-                }
-                <a class="btn btn-sm btn-outline-secondary" href="@($"/correspondents/{CorrespondentId}")">حواله‌های نمایندگی</a>
-                <a class="btn btn-sm btn-outline-secondary" href="@($"/correspondents/{CorrespondentId}/range")">محدوده حواله‌ها</a>
-            </HeaderActions>
+                             IsVisibleChanged="HandleVisibilityChanged">
             <ProfileSummary>
                 @if (correspondentAccount == null)
                 {
@@ -72,124 +50,14 @@
     }
 </div>
 
-<CorrespondentSettlementModal IsVisible="@showBalanceSettlementModal"
-                               IsVisibleChanged="HandleBalanceSettlementVisibility"
-                               CorrespondentId="@CorrespondentId"
-                               AccountMode="true"
-                               OnConverted="HandleBalanceConvertedAsync" />
-
-@if (showEditModal && correspondent != null)
-{
-    <div class="modal show d-block entity-action-overlay" tabindex="-1" dir="rtl">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content entity-action-modal">
-                <div class="modal-header">
-                    <div>
-                        <h5 class="modal-title">ویرایش نمایندگی</h5>
-                        <small>@correspondent.Code</small>
-                    </div>
-                    <button type="button" class="btn-close" @onclick="CloseEdit"></button>
-                </div>
-                <div class="modal-body">
-                    @if (editErrors.Any())
-                    {
-                        <div class="alert alert-danger py-2">
-                            @foreach (var error in editErrors)
-                            {
-                                <div>@error</div>
-                            }
-                        </div>
-                    }
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">نام نمایندگی</label>
-                            <input class="form-control" @bind="editModel.Name" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">کشور</label>
-                            <input class="form-control" @bind="editModel.Country" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">شهر</label>
-                            <input class="form-control" @bind="editModel.City" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">شماره تلفن</label>
-                            <input class="form-control" @bind="editModel.PhoneNumber" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">آدرس</label>
-                            <input class="form-control" @bind="editModel.Address" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">ارز توافقی</label>
-                            <select class="form-select" @bind="editModel.SettlementCurrencyId">
-                                <option value="">بدون ارز توافقی</option>
-                                @foreach (var currency in currencies)
-                                {
-                                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                                }
-                            </select>
-                            <div class="form-text">نمایندگی می‌تواند بدون ارز توافقی نیز فعالیت کند.</div>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">یادداشت</label>
-                            <textarea class="form-control" rows="2" @bind="editModel.Remarks"></textarea>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-light border" @onclick="CloseEdit">انصراف</button>
-                    <button class="btn btn-primary" disabled="@isSaving" @onclick="SaveEdit">
-                        @(isSaving ? "در حال ذخیره..." : "ذخیره تغییرات")
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
-@if (showArchiveConfirmation && correspondent != null)
-{
-    <div class="modal show d-block entity-action-overlay" tabindex="-1" dir="rtl">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
-            <div class="modal-content entity-action-modal">
-                <div class="modal-header">
-                    <h5 class="modal-title">تأیید عملیات</h5>
-                    <button type="button" class="btn-close" @onclick="CloseArchiveConfirmation"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="mb-0">@(correspondent.IsArchived ? "نمایندگی از بایگانی خارج شود؟" : "نمایندگی بایگانی شود؟")</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-light border" @onclick="CloseArchiveConfirmation">انصراف</button>
-                    <button class="btn @(correspondent.IsArchived ? "btn-success" : "btn-danger")"
-                            disabled="@isSaving"
-                            @onclick="ToggleArchive">
-                        @(correspondent.IsArchived ? "خروج از بایگانی" : "بایگانی")
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
 @code {
     [Parameter] public long CorrespondentId { get; set; }
 
     private CorrespondentDto? correspondent;
-    private List<CurrencyDto> currencies = [];
     private AccountDto? correspondentAccount;
     private AccountDto? accountForView;
-    private UpdateCorrespondentDto editModel = new();
-    private readonly List<string> editErrors = new();
     private bool isLoading = true;
-    private bool isSaving;
-    private bool showEditModal;
-    private bool showArchiveConfirmation;
-    private bool showBalanceSettlementModal;
     private string pageError = string.Empty;
-    private string successMessage = string.Empty;
     private long? loadedCorrespondentId;
 
     protected override async Task OnParametersSetAsync()
@@ -198,10 +66,10 @@
             return;
 
         loadedCorrespondentId = CorrespondentId;
-        await LoadCorrespondent();
+        await LoadCorrespondentAsync();
     }
 
-    private async Task LoadCorrespondent()
+    private async Task LoadCorrespondentAsync()
     {
         try
         {
@@ -213,8 +81,6 @@
                 pageError = "نمایندگی مورد نظر وجود ندارد یا حذف شده است.";
                 return;
             }
-
-            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.Code).ToList();
 
             correspondentAccount = (await AccountService.GetByReferenceAsync("Correspondent", CorrespondentId)).FirstOrDefault();
             accountForView = correspondentAccount ?? new AccountDto
@@ -245,132 +111,10 @@
     private Task HandleVisibilityChanged(bool visible)
     {
         if (!visible)
-            BackToHawalas();
+            NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}");
+
         return Task.CompletedTask;
     }
 
     private void BackToCorrespondents() => NavigationManager.NavigateTo("/correspondents");
-    private void BackToHawalas() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}");
-
-    private Task OpenEdit(long _)
-    {
-        if (correspondent == null)
-            return Task.CompletedTask;
-
-        editErrors.Clear();
-        editModel = new UpdateCorrespondentDto
-        {
-            Code = correspondent.Code,
-            Name = correspondent.Name,
-            Country = correspondent.Country,
-            City = correspondent.City,
-            PhoneNumber = correspondent.PhoneNumber,
-            Address = correspondent.Address,
-            Remarks = correspondent.Remarks,
-            SettlementCurrencyId = correspondent.SettlementCurrencyId,
-            IsArchived = correspondent.IsArchived
-        };
-        showEditModal = true;
-        return Task.CompletedTask;
-    }
-
-    private void CloseEdit()
-    {
-        showEditModal = false;
-        editErrors.Clear();
-    }
-
-    private void OpenBalanceSettlement() => showBalanceSettlementModal = true;
-
-    private Task HandleBalanceSettlementVisibility(bool visible)
-    {
-        showBalanceSettlementModal = visible;
-        return Task.CompletedTask;
-    }
-
-    private async Task HandleBalanceConvertedAsync(CorrespondentSettlementResultDto result)
-    {
-        successMessage = BuildSettlementResultMessage(result);
-        await LoadCorrespondent();
-    }
-
-    private static string BuildSettlementResultMessage(CorrespondentSettlementResultDto result)
-    {
-        if (result.Items.Count == 0)
-            return "تبدیل به ارز توافقی با موفقیت ثبت شد.";
-
-        return string.Join("؛ ", result.Items.Select(item =>
-            $"ماندهٔ {item.BalanceDirection} به مقدار {MoneyFormatHelper.Format(item.SourceAmount)} {item.SourceCurrencyCode} " +
-            $"با نرخ {AmountValueHelper.Format(item.ExchangeRate)} به {MoneyFormatHelper.Format(item.TargetAmount)} {item.TargetCurrencyCode} تبدیل شد"));
-    }
-
-    private async Task SaveEdit()
-    {
-        if (correspondent == null)
-            return;
-
-        editErrors.Clear();
-        if (string.IsNullOrWhiteSpace(editModel.Name))
-            editErrors.Add("نام نمایندگی الزامی است.");
-        if (editErrors.Any())
-            return;
-
-        try
-        {
-            isSaving = true;
-            await CorrespondentService.UpdateAsync(correspondent.Id, editModel);
-            showEditModal = false;
-            successMessage = "تغییرات نمایندگی ذخیره شد.";
-            await LoadCorrespondent();
-        }
-        catch (Exception ex)
-        {
-            editErrors.Add($"ذخیره تغییرات انجام نشد: {ex.Message}");
-        }
-        finally
-        {
-            isSaving = false;
-        }
-    }
-
-    private Task OpenArchiveConfirmation(long _)
-    {
-        showArchiveConfirmation = true;
-        return Task.CompletedTask;
-    }
-
-    private void CloseArchiveConfirmation() => showArchiveConfirmation = false;
-
-    private async Task ToggleArchive()
-    {
-        if (correspondent == null)
-            return;
-
-        try
-        {
-            isSaving = true;
-            if (correspondent.IsArchived)
-            {
-                await CorrespondentService.UnarchiveAsync(correspondent.Id);
-                successMessage = "نمایندگی از بایگانی خارج شد.";
-            }
-            else
-            {
-                await CorrespondentService.ArchiveAsync(correspondent.Id);
-                successMessage = "نمایندگی بایگانی شد.";
-            }
-
-            showArchiveConfirmation = false;
-            await LoadCorrespondent();
-        }
-        catch (Exception ex)
-        {
-            pageError = $"عملیات بایگانی انجام نشد: {ex.Message}";
-        }
-        finally
-        {
-            isSaving = false;
-        }
-    }
-
 }

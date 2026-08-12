@@ -246,7 +246,7 @@
                                     <td><span class="fw-bold">@hawala.Number</span></td>
                                     <td>
                                         <span class="badge-modern @GetTypeBadge(hawala.HawalaType)">
-                                            @hawala.HawalaTypeName
+                                            @GetListHawalaType(hawala)
                                         </span>
                                     </td>
                                     <td><span class="fw-semibold">@(hawala.SenderName ?? "-")</span></td>
@@ -266,10 +266,13 @@
                                     <td>@(hawala.CorrespondentName ?? "-")</td>
                                     <td>
                                         <span class="badge-modern @GetStatusBadge(hawala.Status)">
-                                            @hawala.StatusName
+                                            @GetListStatus(hawala)
                                         </span>
                                     </td>
-                                    <td dir="ltr">@PersianDateHelper.ToPersianDateTime12(hawala.CreatedAt)</td>
+                                    <td dir="ltr" class="hawala-date-cell">
+                                        <span class="hawala-date">@PersianDateHelper.ToPersianDate(hawala.CreatedAt)</span>
+                                        <small class="hawala-time">@GetHawalaTime(hawala.CreatedAt)</small>
+                                    </td>
                                     <td class="text-center operation-cell">
                                         <HawalaOperationMenu Hawala="hawala"
                                                              ShowEdit="true"
@@ -1472,6 +1475,31 @@
             "Cancel" => "badge-danger",
             _ => "badge-secondary"
         };
+    }
+
+    private static string GetListHawalaType(HawalaDto hawala) => hawala.HawalaType switch
+    {
+        "HawalaSend" => "ارسالی",
+        "HawalaReceive" => "دریافتی",
+        "HawalaOther" => "متفرقه",
+        _ => hawala.HawalaTypeName
+    };
+
+    private static string GetListStatus(HawalaDto hawala) => (hawala.HawalaType, hawala.Status) switch
+    {
+        (_, "Cancel" or "Cancelled") => "لغو شده",
+        ("HawalaSend", "Paid") => "پرداخت شده",
+        ("HawalaSend", "Pending") => "پرداخت نشده",
+        ("HawalaReceive", "Paid") => "اجرا شده",
+        ("HawalaReceive", "Pending") => "اجرا نشده",
+        _ => hawala.StatusName
+    };
+
+    private static string GetHawalaTime(DateTime createdAt)
+    {
+        var dateTime = PersianDateHelper.ToPersianDateTime12(createdAt);
+        var separatorIndex = dateTime.IndexOf(' ');
+        return separatorIndex >= 0 ? dateTime[(separatorIndex + 1)..] : string.Empty;
     }
 
     private string GetAccountTypeName(string type) => AppDisplayText.AccountType(type);

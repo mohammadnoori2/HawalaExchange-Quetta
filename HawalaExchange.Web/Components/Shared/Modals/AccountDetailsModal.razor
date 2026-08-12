@@ -22,43 +22,64 @@
                     </div>
                     <div class="account-view-header-actions">
                         @HeaderActions
-                        @if (PageMode && ShowFinancialActions && !ActionArchived)
+                        @if (PageMode && UseActionsMenu)
                         {
-                            <button type="button" class="btn btn-sm btn-primary" @onclick="OpenCreateExchange">
-                                تبادله اسعار
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateTransfer">
-                                انتقال بین حساب
-                            </button>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
-                                رسید / برد
-                            </button>
-                        }
-                        @if (!ActionArchived && OnEditRequested.HasDelegate)
-                        {
-                            <button type="button"
-                                    class="btn btn-sm @(PageMode ? "btn-outline-primary" : "btn-light")"
-                                    @onclick="RequestEditAsync">
-                                @EditButtonText
-                            </button>
-                        }
-                        @if (OnArchiveToggleRequested.HasDelegate)
-                        {
-                            <button type="button"
-                                    class="btn btn-sm @(ActionArchived ? "btn-outline-success" : (PageMode ? "btn-outline-danger" : "btn-warning"))"
-                                    @onclick="RequestArchiveToggleAsync">
-                                @(ActionArchived ? UnarchiveButtonText : ArchiveButtonText)
-                            </button>
-                        }
-                        @if (PageMode && ShowBackButton)
-                        {
-                            <button type="button" class="btn btn-sm btn-light border" @onclick="Close">
-                                @BackButtonText
-                            </button>
+                            <AccountActionsMenu IsArchived="@ActionArchived"
+                                                CanUseFinancialActions="@(ShowFinancialActions && !ActionArchived)"
+                                                CanEdit="@OnEditRequested.HasDelegate"
+                                                CanArchive="@OnArchiveToggleRequested.HasDelegate"
+                                                ShowTransactions="@ShowTransactionsInActionsMenu"
+                                                OnViewTransactions="OnViewTransactions"
+                                                OnExchange="OpenCreateExchange"
+                                                OnTransfer="OpenCreateTransfer"
+                                                OnReceiptOrWithdrawal="OpenCreateAccountOperation"
+                                                OnEdit="RequestEditAsync"
+                                                OnArchive="RequestArchiveToggleAsync"
+                                                OnBack="Close" />
                         }
                         else
                         {
-                            <button type="button" class="btn-close btn-close-white" @onclick="Close"></button>
+                            @if (PageMode && ShowFinancialActions && !ActionArchived)
+                            {
+                                <button type="button" class="btn btn-sm btn-primary" @onclick="OpenCreateExchange">
+                                    تبادله اسعار
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateTransfer">
+                                    انتقال بین حساب
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
+                                    رسید / برد
+                                </button>
+                            }
+                            @if (!ActionArchived && OnEditRequested.HasDelegate)
+                            {
+                                <button type="button"
+                                        class="btn btn-sm @(PageMode ? "btn-outline-primary" : "btn-light")"
+                                        @onclick="RequestEditAsync">
+                                    @EditButtonText
+                                </button>
+                            }
+                            @if (OnArchiveToggleRequested.HasDelegate)
+                            {
+                                <button type="button"
+                                        class="btn btn-sm @(ActionArchived ? "btn-outline-success" : (PageMode ? "btn-outline-danger" : "btn-warning"))"
+                                        @onclick="RequestArchiveToggleAsync">
+                                    @(ActionArchived ? UnarchiveButtonText : ArchiveButtonText)
+                                </button>
+                            }
+                            @if (PageMode)
+                            {
+                                @if (ShowBackButton)
+                                {
+                                    <button type="button" class="btn btn-sm btn-light border" @onclick="Close">
+                                        @BackButtonText
+                                    </button>
+                                }
+                            }
+                            else
+                            {
+                                <button type="button" class="btn-close btn-close-white" @onclick="Close"></button>
+                            }
                         }
                     </div>
                 </div>
@@ -401,12 +422,15 @@
     [Parameter] public bool ShowAccountFacts { get; set; } = true;
     [Parameter] public bool ShowFinancialActions { get; set; } = true;
     [Parameter] public bool ShowBackButton { get; set; } = true;
+    [Parameter] public bool UseActionsMenu { get; set; }
+    [Parameter] public bool ShowTransactionsInActionsMenu { get; set; }
     [Parameter] public bool? ActionEntityArchived { get; set; }
     [Parameter] public RenderFragment? HeaderActions { get; set; }
     [Parameter] public RenderFragment? ProfileSummary { get; set; }
     [Parameter] public RenderFragment? AdditionalContent { get; set; }
     [Parameter] public EventCallback<long> OnEditRequested { get; set; }
     [Parameter] public EventCallback<long> OnArchiveToggleRequested { get; set; }
+    [Parameter] public EventCallback OnViewTransactions { get; set; }
 
     private List<string> ValidationErrors { get; set; } = new();
     private string SuccessMessage { get; set; } = string.Empty;

@@ -50,17 +50,13 @@
                              BackButtonText="بازگشت"
                              ShowAccountFacts="false"
                              ShowFinancialActions="@(customerAccount != null)"
+                             UseActionsMenu="true"
+                             ShowTransactionsInActionsMenu="true"
                              ActionEntityArchived="@customer.IsArchived"
                              IsVisibleChanged="HandleVisibilityChanged"
                              OnEditRequested="OpenEdit"
-                             OnArchiveToggleRequested="OpenArchiveConfirmation">
-            <HeaderActions>
-                <button type="button"
-                        class="btn btn-sm btn-outline-secondary"
-                        @onclick="ViewTransactions">
-                    تراکنش‌ها
-                </button>
-            </HeaderActions>
+                             OnArchiveToggleRequested="OpenArchiveConfirmation"
+                             OnViewTransactions="ViewTransactions">
             <ProfileSummary>
                 @if (customerAccount == null)
                 {

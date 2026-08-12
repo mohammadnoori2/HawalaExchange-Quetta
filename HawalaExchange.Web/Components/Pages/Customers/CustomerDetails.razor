@@ -62,21 +62,6 @@
                 </button>
             </HeaderActions>
             <ProfileSummary>
-                <div class="entity-profile-grid mb-2">
-                    <div class="entity-profile-item"><span>کد مشتری</span><strong>@customer.CustomerCode</strong></div>
-                    <div class="entity-profile-item"><span>نام کامل</span><strong>@customer.FullName</strong></div>
-                    <div class="entity-profile-item"><span>نام پدر</span><strong>@(customer.FatherName ?? "—")</strong></div>
-                    <div class="entity-profile-item"><span>شماره تلفن</span><strong dir="ltr">@(customer.PhoneNumber ?? "—")</strong></div>
-                    <div class="entity-profile-item"><span>شماره تذکره</span><strong>@(customer.TazkiraNumber ?? "—")</strong></div>
-                    <div class="entity-profile-item"><span>آدرس</span><strong>@(customer.Address ?? "—")</strong></div>
-                    <div class="entity-profile-item">
-                        <span>وضعیت</span>
-                        <strong class="@(customer.IsArchived ? "text-danger" : "text-success")">
-                            @(customer.IsArchived ? "بایگانی" : "فعال")
-                        </strong>
-                    </div>
-                    <div class="entity-profile-item"><span>تاریخ ایجاد</span><strong dir="ltr">@PersianDateHelper.ToPersianDateTime12(customer.CreatedAt)</strong></div>
-                </div>
                 @if (customerAccount == null)
                 {
                     <div class="alert alert-warning py-2 mb-2">برای این مشتری حسابی افتتاح نشده است؛ عملیات مالی در دسترس نیست.</div>

@@ -199,28 +199,58 @@
                                 </div>
                             }
 
-                            <div class="account-operation-filters d-flex flex-wrap gap-1 border-top border-bottom py-2 mb-2">
-                                <button class="btn btn-sm @(OperationFilter == "All" ? "btn-dark" : "btn-outline-dark")"
-                                        @onclick='() => SetOperationFilter("All")'>
-                                    همه معاملات
-                                </button>
-                                <button class="btn btn-sm @(OperationFilter == "تبدیل پول" ? "btn-primary" : "btn-outline-primary")"
-                                        @onclick='() => SetOperationFilter("تبدیل پول")'>
-                                    تبادله اسعار
-                                </button>
-                                <button class="btn btn-sm @(OperationFilter == "انتقال" ? "btn-warning" : "btn-outline-warning")"
-                                        @onclick='() => SetOperationFilter("انتقال")'>
-                                    انتقال بین حساب
-                                </button>
-                                <button class="btn btn-sm @(OperationFilter == "واریز / برداشت / پرداخت" ? "btn-success" : "btn-outline-success")"
-                                        @onclick='() => SetOperationFilter("واریز / برداشت / پرداخت")'>
-                                    رسید / برد
-                                </button>
-                                <button class="btn btn-sm @(OperationFilter == "Other" ? "btn-secondary" : "btn-outline-secondary")"
-                                        @onclick='() => SetOperationFilter("Other")'>
-                                    سایر عملیات
-                                </button>
-                            </div>
+                            <CompactFilterBar AriaLabel="جستجو و فیلتر معاملات حساب"
+                                              CssClass="account-operation-filters mb-2"
+                                              HasActiveFilters="@HasActiveOperationFilters"
+                                              ActiveFilterCount="@AdvancedOperationFilterCount"
+                                              Reset="ResetOperationFilters">
+                                <SearchContent>
+                                    <input type="text"
+                                           class="form-control"
+                                           aria-label="جستجوی معاملات حساب"
+                                           placeholder="جستجو با شماره، شرح، حساب یا جزئیات معامله..."
+                                           @bind="OperationSearchTerm"
+                                           @bind:event="oninput" />
+                                </SearchContent>
+                                <QuickFilters>
+                                    <select class="form-select compact-quick-filter"
+                                            aria-label="نوع معامله"
+                                            @bind="OperationFilter"
+                                            @bind:event="oninput">
+                                        <option value="All">همه معاملات</option>
+                                        <option value="تبدیل پول">تبادله اسعار</option>
+                                        <option value="انتقال">انتقال بین حساب</option>
+                                        <option value="واریز / برداشت / پرداخت">رسید / برد</option>
+                                        <option value="Other">سایر عملیات</option>
+                                    </select>
+                                </QuickFilters>
+                                <AdvancedFilters>
+                                    <div class="compact-filter-field">
+                                        <label class="form-label">ارز</label>
+                                        <select class="form-select" @bind="OperationCurrencyFilter" @bind:event="oninput">
+                                            <option value="">همه ارزها</option>
+                                            @foreach (var currencyCode in OperationCurrencyCodes)
+                                            {
+                                                <option value="@currencyCode">@currencyCode</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="compact-filter-field">
+                                        <label class="form-label">از تاریخ</label>
+                                        <PersianDatePicker @bind-Value="OperationFromDate"
+                                                           IncludeTime="false"
+                                                           AllowEmpty="true"
+                                                           Placeholder="انتخاب تاریخ" />
+                                    </div>
+                                    <div class="compact-filter-field">
+                                        <label class="form-label">تا تاریخ</label>
+                                        <PersianDatePicker @bind-Value="OperationToDate"
+                                                           IncludeTime="false"
+                                                           AllowEmpty="true"
+                                                           Placeholder="انتخاب تاریخ" />
+                                    </div>
+                                </AdvancedFilters>
+                            </CompactFilterBar>
 
                             @if (IsOperationsLoading)
                             {
@@ -384,6 +414,10 @@
     private List<BalanceDto> BalanceSummary { get; set; } = new();
     private List<JournalOperationDto> Operations { get; set; } = new();
     private string OperationFilter { get; set; } = "All";
+    private string OperationSearchTerm { get; set; } = string.Empty;
+    private string OperationCurrencyFilter { get; set; } = string.Empty;
+    private DateTime OperationFromDate { get; set; } = DateTime.MinValue;
+    private DateTime OperationToDate { get; set; } = DateTime.MinValue;
 
     private bool showExchangeModal;
     private bool isExchangeEditMode;
@@ -401,17 +435,33 @@
     private bool wasVisible;
     private bool ActionArchived => ActionEntityArchived ?? Account?.IsArchived ?? false;
 
-    private IReadOnlyList<JournalOperationDto> FilteredOperations =>
-        OperationFilter switch
-        {
-            "All" => Operations,
-            "Other" => Operations
-                .Where(x => x.SourceType is not "تبدیل پول" and
-                                            not "انتقال" and
-                                            not "واریز / برداشت / پرداخت")
-                .ToList(),
-            _ => Operations.Where(x => x.SourceType == OperationFilter).ToList()
-        };
+    private IReadOnlyList<string> OperationCurrencyCodes => Operations
+        .SelectMany(operation => operation.CurrencySummaries)
+        .Select(summary => summary.CurrencyCode)
+        .Where(code => !string.IsNullOrWhiteSpace(code))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(code => code)
+        .ToList();
+
+    private bool HasActiveOperationFilters =>
+        !string.IsNullOrWhiteSpace(OperationSearchTerm) ||
+        OperationFilter != "All" ||
+        AdvancedOperationFilterCount > 0;
+
+    private int AdvancedOperationFilterCount =>
+        (!string.IsNullOrWhiteSpace(OperationCurrencyFilter) ? 1 : 0) +
+        (OperationFromDate != DateTime.MinValue ? 1 : 0) +
+        (OperationToDate != DateTime.MinValue ? 1 : 0);
+
+    private IReadOnlyList<JournalOperationDto> FilteredOperations => Operations
+        .Where(MatchesOperationType)
+        .Where(MatchesOperationSearch)
+        .Where(operation => string.IsNullOrWhiteSpace(OperationCurrencyFilter) ||
+            operation.CurrencySummaries.Any(summary =>
+                string.Equals(summary.CurrencyCode, OperationCurrencyFilter, StringComparison.OrdinalIgnoreCase)))
+        .Where(operation => OperationFromDate == DateTime.MinValue || operation.CreatedAt.Date >= OperationFromDate.Date)
+        .Where(operation => OperationToDate == DateTime.MinValue || operation.CreatedAt.Date <= OperationToDate.Date)
+        .ToList();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -427,7 +477,7 @@
 
         if (shouldLoad)
         {
-            OperationFilter = "All";
+            ResetOperationFilters();
             await LoadAccountData(Account.Id);
         }
     }
@@ -459,9 +509,46 @@
         }
     }
 
-    private void SetOperationFilter(string filter)
+    private bool MatchesOperationType(JournalOperationDto operation)
     {
-        OperationFilter = filter;
+        if (OperationFilter == "All")
+            return true;
+
+        if (OperationFilter == "Other")
+        {
+            return operation.SourceType is not "تبدیل پول" and
+                                               not "انتقال" and
+                                               not "واریز / برداشت / پرداخت";
+        }
+
+        return operation.SourceType == OperationFilter;
+    }
+
+    private bool MatchesOperationSearch(JournalOperationDto operation)
+    {
+        var search = OperationSearchTerm.Trim();
+        if (string.IsNullOrWhiteSpace(search))
+            return true;
+
+        return ContainsSearch(operation.DocumentNumber, search) ||
+               ContainsSearch(operation.Description, search) ||
+               ContainsSearch(operation.SummarySentence, search) ||
+               ContainsSearch(GetSourceTypeName(operation.SourceType), search) ||
+               operation.AccountNames.Any(value => ContainsSearch(value, search)) ||
+               operation.SourceDetails.Any(detail =>
+                   ContainsSearch(detail.Label, search) || ContainsSearch(detail.Value, search));
+    }
+
+    private static bool ContainsSearch(string? value, string search) =>
+        value?.Contains(search, StringComparison.OrdinalIgnoreCase) == true;
+
+    private void ResetOperationFilters()
+    {
+        OperationSearchTerm = string.Empty;
+        OperationFilter = "All";
+        OperationCurrencyFilter = string.Empty;
+        OperationFromDate = DateTime.MinValue;
+        OperationToDate = DateTime.MinValue;
     }
 
     private async Task RequestEditAsync()

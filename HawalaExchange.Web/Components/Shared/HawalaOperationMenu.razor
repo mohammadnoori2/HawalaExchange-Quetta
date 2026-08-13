@@ -2,21 +2,52 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<div class="operation-dropdown" @onclick:stopPropagation="true">
-    <button id="@buttonId"
-            type="button"
-            class="operation-dot-btn"
-            title="عملیات"
-            aria-label="عملیات حواله @Hawala.Number"
-            aria-haspopup="menu"
-            aria-expanded="@isOpen.ToString().ToLowerInvariant()"
-            @onclick="ToggleAsync">
-        <i class="bi bi-three-dots-vertical"></i>
+<div class="hawala-quick-actions" @onclick:stopPropagation="true">
+    <button type="button"
+            class="hawala-quick-action"
+            title="کاپی معلومات"
+            aria-label="کاپی معلومات حواله @Hawala.Number"
+            @onclick="CopyAsync">
+        <i class="bi bi-clipboard"></i>
     </button>
 
-    @if (isOpen)
+    @if (ShowEdit && Hawala.Status != "Cancel")
     {
-        <div id="@menuId" class="operation-menu" dir="rtl" role="menu">
+        <button type="button"
+                class="hawala-quick-action hawala-quick-action-edit"
+                title="ویرایش"
+                aria-label="ویرایش حواله @Hawala.Number"
+                @onclick="EditAsync">
+            <i class="bi bi-pencil"></i>
+        </button>
+    }
+
+    @if (ShowDelete)
+    {
+        <button type="button"
+                class="hawala-quick-action hawala-quick-action-delete"
+                title="حذف"
+                aria-label="حذف حواله @Hawala.Number"
+                @onclick="DeleteAsync">
+            <i class="bi bi-trash"></i>
+        </button>
+    }
+
+    <div class="operation-dropdown">
+        <button id="@buttonId"
+                type="button"
+                class="operation-dot-btn"
+                title="سایر عملیات"
+                aria-label="سایر عملیات حواله @Hawala.Number"
+                aria-haspopup="menu"
+                aria-expanded="@isOpen.ToString().ToLowerInvariant()"
+                @onclick="ToggleAsync">
+            <i class="bi bi-three-dots-vertical"></i>
+        </button>
+
+        @if (isOpen)
+        {
+            <div id="@menuId" class="operation-menu" dir="rtl" role="menu">
             <button type="button" class="operation-menu-item" role="menuitem" @onclick="ViewAsync">
                 <i class="bi bi-eye text-info"></i>
                 مشاهده
@@ -25,11 +56,6 @@
             <button type="button" class="operation-menu-item" role="menuitem" @onclick="ReceiptAsync">
                 <i class="bi bi-receipt text-primary"></i>
                 رسید حواله
-            </button>
-
-            <button type="button" class="operation-menu-item" role="menuitem" @onclick="CopyAsync">
-                <i class="bi bi-clipboard text-secondary"></i>
-                کاپی معلومات
             </button>
 
             <button type="button" class="operation-menu-item" role="menuitem" @onclick="WhatsAppAsync">
@@ -41,16 +67,6 @@
                 <i class="bi bi-telegram text-primary"></i>
                 ارسال تلگرام
             </button>
-
-            @if (ShowEdit && Hawala.Status != "Cancel")
-            {
-                <div class="operation-menu-divider"></div>
-
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="EditAsync">
-                    <i class="bi bi-pencil text-warning"></i>
-                    ویرایش
-                </button>
-            }
 
             @if (ShowPay && Hawala.Status == "Pending" && Hawala.HawalaType == "HawalaReceive")
             {
@@ -68,17 +84,9 @@
                 </button>
             }
 
-            @if (ShowDelete)
-            {
-                <div class="operation-menu-divider"></div>
-
-                <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="DeleteAsync">
-                    <i class="bi bi-trash"></i>
-                    حذف
-                </button>
-            }
-        </div>
-    }
+            </div>
+        }
+    </div>
 </div>
 
 @code {

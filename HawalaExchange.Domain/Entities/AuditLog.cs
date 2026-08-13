@@ -15,6 +15,8 @@ namespace HawalaExchange.Domain.Entities
 
         public long? UserId { get; set; }
 
+        public Guid ProcessId { get; set; }
+
         [Required]
         [MaxLength(50)]
         public string Action { get; set; }

@@ -1,81 +1,96 @@
 @page "/auditlogs"
 @attribute [Authorize(Roles = "Admin")]
 
-@using HawalaExchange.Application.Interfaces.Services
-@using Microsoft.AspNetCore.Identity
-@using Microsoft.AspNetCore.Authorization
-@using Microsoft.EntityFrameworkCore
-@using HawalaExchange.Domain.Entities
 @using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Helpers
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
 @inject IAuditLogService AuditLogService
 @inject UserManager<ApplicationUser> UserManager
-@inject NavigationManager NavigationManager
 @inject ILogger<AuditLogs> Logger
 @rendermode InteractiveServer
 
+<PageTitle>لاگ‌های سیستم</PageTitle>
+
 <div class="page-wrapper">
-    <!-- هدر صفحه -->
-    <div class="page-header">
-        <div>
-            <h5 class="page-title">
-                <i class="bi bi-clock-history"></i>
-                لاگ‌های سیستم
-                <span class="page-subtitle">مشاهده و جستجوی رویدادهای سیستم</span>
-            </h5>
-        </div>
-        <PageHeaderStats AriaLabel="آمار لاگ‌ها">
-            <PageHeaderStat Label="کل" Value="@totalCount" Icon="bi-clock-history" />
-            <PageHeaderStat Label="ایجاد" Value="@createCount" Icon="bi-plus-circle" Tone="success" />
-            <PageHeaderStat Label="ویرایش" Value="@updateCount" Icon="bi-pencil" Tone="info" />
-            <PageHeaderStat Label="حذف" Value="@deleteCount" Icon="bi-trash" Tone="danger" />
-            <PageHeaderStat Label="لغو" Value="@cancelCount" Icon="bi-x-circle" Tone="warning" />
-        </PageHeaderStats>
-        <div class="page-actions">
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="LoadLogs">
+    <AppPageHeader Title="لاگ‌های سیستم"
+                   Subtitle="هر پروسس در یک ردیف؛ تمام تغییرات وابسته در جزئیات همان ردیف"
+                   Icon="bi-clock-history">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار لاگ‌ها">
+                <PageHeaderStat Label="کل" Value="@statisticsTotal" Icon="bi-clock-history" />
+                <PageHeaderStat Label="ایجاد" Value="@createCount" Icon="bi-plus-circle" Tone="success" />
+                <PageHeaderStat Label="ویرایش" Value="@updateCount" Icon="bi-pencil" Tone="info" />
+                <PageHeaderStat Label="حذف" Value="@deleteCount" Icon="bi-trash" Tone="danger" />
+                <PageHeaderStat Label="لغو" Value="@cancelCount" Icon="bi-x-circle" Tone="warning" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
+            <button type="button" class="btn-modern btn-primary-modern btn-rounded" @onclick="LoadLogs">
                 <i class="bi bi-arrow-clockwise"></i> بروزرسانی
             </button>
-        </div>
-    </div>
+        </Actions>
+    </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر لاگ‌ها"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || filterUserId.HasValue || !string.IsNullOrWhiteSpace(filterAction) || !string.IsNullOrWhiteSpace(filterTable) || fromDate != DateTime.MinValue || toDate != DateTime.MinValue)"
-                      ActiveFilterCount="@((!string.IsNullOrWhiteSpace(filterTable) ? 1 : 0) + (fromDate != DateTime.MinValue ? 1 : 0) + (toDate != DateTime.MinValue ? 1 : 0))"
+                      HasActiveFilters="@HasActiveFilters"
+                      ActiveFilterCount="@ActiveFilterCount"
                       Reset="ResetFilters">
         <SearchContent>
-            <input class="form-control" placeholder="جستجو در لاگ‌ها، جدول یا مقدار..."
+            <input class="form-control"
+                   placeholder="جستجو در نام کاربر، بخش، شناسه یا جزئیات تغییر..."
                    @bind="searchTerm" @bind:event="oninput" @bind:after="OnFilterChangedAsync" />
         </SearchContent>
         <QuickFilters>
-            <select class="form-select compact-quick-filter" aria-label="کاربر" @bind="filterUserId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+            <select class="form-select compact-quick-filter" aria-label="کاربر"
+                    @bind="filterUserId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه کاربران</option>
                 @foreach (var user in users)
                 {
                     <option value="@user.Id">@user.FullName (@user.UserName)</option>
                 }
             </select>
-            <select class="form-select compact-quick-filter" aria-label="عملیات" @bind="filterAction" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+            <select class="form-select compact-quick-filter" aria-label="نوع عملیات"
+                    @bind="filterAction" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
                 <option value="">همه عملیات</option>
                 <option value="CREATE">ایجاد</option>
                 <option value="UPDATE">ویرایش</option>
                 <option value="DELETE">حذف</option>
                 <option value="CANCEL">لغو</option>
-                <option value="REVERSE">برگشت</option>
+                <option value="REVERSE">برگشت عملیات مالی</option>
             </select>
         </QuickFilters>
         <AdvancedFilters>
-            <div class="compact-filter-field"><label class="form-label">نام جدول</label><input class="form-control" placeholder="نام جدول" @bind="filterTable" @bind:event="oninput" @bind:after="OnFilterChangedAsync" /></div>
-            <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="fromDate" @bind-Value:after="OnFilterChangedAsync" IncludeTime="true" AllowEmpty="true" Placeholder="انتخاب تاریخ و زمان" /></div>
-            <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="toDate" @bind-Value:after="OnFilterChangedAsync" IncludeTime="true" AllowEmpty="true" Placeholder="انتخاب تاریخ و زمان" /></div>
+            <div class="compact-filter-field">
+                <label class="form-label">بخش سیستم</label>
+                <select class="form-select" @bind="filterTable" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
+                    <option value="">همه بخش‌ها</option>
+                    @foreach (var table in tables)
+                    {
+                        <option value="@table">@AuditLogDisplayHelper.EntityName(table)</option>
+                    }
+                </select>
+            </div>
+            <div class="compact-filter-field">
+                <label class="form-label">از تاریخ</label>
+                <PersianDatePicker @bind-Value="fromDate" @bind-Value:after="OnFilterChangedAsync"
+                                   IncludeTime="true" AllowEmpty="true" Placeholder="تاریخ و زمان شروع" />
+            </div>
+            <div class="compact-filter-field">
+                <label class="form-label">تا تاریخ</label>
+                <PersianDatePicker @bind-Value="toDate" @bind-Value:after="OnFilterChangedAsync"
+                                   IncludeTime="true" AllowEmpty="true" Placeholder="تاریخ و زمان پایان" />
+            </div>
         </AdvancedFilters>
     </CompactFilterBar>
 
-    <!-- کارت جدول -->
     <div class="table-card">
         <div class="table-card-header">
             <div class="table-card-header-right">
-                <span class="badge-modern badge-info">
-                    <i class="bi bi-list-ul"></i> @filteredLogs.Count
-                </span>
+                <span class="badge-modern badge-info"><i class="bi bi-list-ul"></i> @totalCount</span>
             </div>
         </div>
 
@@ -84,112 +99,50 @@
                 <GlobalDataGrid class="table-modern table-striped-modern">
                     <thead>
                         <tr>
-                            <th style="width: 50px;">#</th>
-                            <th class="sortable-header @(sortColumn == "UserName" ? "active" : "")" @onclick="@(() => SortBy("UserName"))">
-                                کاربر
-                                @if (sortColumn == "UserName")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
-                            <th class="sortable-header @(sortColumn == "Action" ? "active" : "")" @onclick="@(() => SortBy("Action"))">
-                                عملیات
-                                @if (sortColumn == "Action")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
-                            <th class="sortable-header @(sortColumn == "TableName" ? "active" : "")" @onclick="@(() => SortBy("TableName"))">
-                                جدول
-                                @if (sortColumn == "TableName")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
-                            <th>شناسه رکورد</th>
-                            <th>مقدار قبلی</th>
-                            <th>مقدار جدید</th>
-                            <th class="sortable-header @(sortColumn == "CreatedAt" ? "active" : "")" @onclick="@(() => SortBy("CreatedAt"))">
-                                تاریخ
-                                @if (sortColumn == "CreatedAt")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
+                            <th style="width:50px">#</th>
+                            <th class="sortable-header @(sortColumn == "UserName" ? "active" : "")" @onclick="@(() => SortBy("UserName"))">کاربر @(SortIcon("UserName"))</th>
+                            <th class="sortable-header @(sortColumn == "Action" ? "active" : "")" @onclick="@(() => SortBy("Action"))">عملیات @(SortIcon("Action"))</th>
+                            <th class="sortable-header @(sortColumn == "TableName" ? "active" : "")" @onclick="@(() => SortBy("TableName"))">بخش @(SortIcon("TableName"))</th>
+                            <th class="sortable-header @(sortColumn == "RecordId" ? "active" : "")" @onclick="@(() => SortBy("RecordId"))">شماره @(SortIcon("RecordId"))</th>
+                            <th>خلاصه کار انجام‌شده</th>
+                            <th class="sortable-header @(sortColumn == "CreatedAt" ? "active" : "")" @onclick="@(() => SortBy("CreatedAt"))">تاریخ و زمان @(SortIcon("CreatedAt"))</th>
                             <th class="text-center">عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @if (isLoading && logs == null)
+                        @if (isLoading && !filteredLogs.Any())
                         {
-                            <tr>
-                                <td colspan="9" class="text-center py-5">
-                                    <div class="loading-state">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">در حال بارگذاری...</span>
-                                        </div>
-                                        <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
-                                    </div>
-                                </td>
-                            </tr>
+                            <tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="text-muted mt-2">در حال بارگذاری لاگ‌ها...</p></td></tr>
                         }
                         else if (!filteredLogs.Any())
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="8" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ لاگی یافت نشد</span>
-                                        <p class="text-muted small">هیچ رویدادی در سیستم ثبت نشده است.</p>
+                                        <p class="text-muted small">@(HasActiveFilters ? "فیلترها را تغییر دهید یا پاک کنید." : "هنوز رویدادی در سیستم ثبت نشده است.")</p>
                                     </div>
                                 </td>
                             </tr>
                         }
                         else
                         {
-                            int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredLogs.Count : pageSize) + 1;
+                            var rowIndex = (currentPage - 1) * EffectivePageSize + 1;
                             @foreach (var log in filteredLogs)
                             {
                                 <tr>
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
-                                    <td>
-                                        <span class="fw-semibold">@(log.UserName ?? "سیستم")</span>
-                                    </td>
-                                    <td>
-                                        <span class="badge-modern @GetActionBadge(log.Action)">
-                                            @GetActionName(log.Action)
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="customer-code">@log.TableName</span>
-                                    </td>
-                                    <td>@log.RecordId</td>
-                                    <td>
-                                        @if (!string.IsNullOrEmpty(log.OldValue))
-                                        {
-                                            <span class="overflow-ellipsis" style="max-width: 120px;" title="@log.OldValue">@log.OldValue</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">—</span>
-                                        }
-                                    </td>
-                                    <td>
-                                        @if (!string.IsNullOrEmpty(log.NewValue))
-                                        {
-                                            <span class="overflow-ellipsis" style="max-width: 120px;" title="@log.NewValue">@log.NewValue</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">—</span>
-                                        }
-                                    </td>
-                                    <td><AppDateTime Value="@log.CreatedAt" Use24Hour="true" ShowSeconds="true" /></td>
+                                    <td><span class="fw-semibold">@(log.UserName ?? "سیستم")</span></td>
+                                    <td><span class="badge-modern @GetActionBadge(log.Action)">@GetActionName(log.Action)</span></td>
+                                    <td><span class="fw-semibold">@AuditLogDisplayHelper.EntityName(log.TableName)</span></td>
+                                    <td dir="ltr">#@log.RecordId</td>
+                                    <td><span title="@AuditLogDisplayHelper.Summary(log)">@AuditLogDisplayHelper.Summary(log)</span></td>
+                                    <td><AppDateTime Value="@log.CreatedAt" /></td>
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات لاگ {log.Id}")">
-                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewLog(log.Id)">
-                                                <i class="bi bi-eye text-primary"></i>
-                                                مشاهده جزئیات
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewLog(log)">
+                                                <i class="bi bi-eye text-primary"></i> مشاهده جزئیات
                                             </button>
                                         </AppActionMenu>
                                     </td>
@@ -204,132 +157,54 @@
 
         <div class="table-card-footer">
             <div class="table-card-footer-left">
-                <span class="text-muted small">
-                    نمایش <strong>@filteredLogs.Count</strong> از <strong>@totalCount</strong> لاگ
-                </span>
-
-                <!-- صفحه‌بندی -->
-                <CompactPagination CurrentPage="currentPage"
-                                   TotalPages="totalPages"
-                                   PageChanged="GoToPage" />
+                <span class="text-muted small">نمایش <strong>@filteredLogs.Count</strong> از <strong>@totalCount</strong> لاگ</span>
+                <CompactPagination CurrentPage="currentPage" TotalPages="totalPages" PageChanged="GoToPage" />
             </div>
-
-            <div class="table-card-footer-right">
-                <span class="badge-modern badge-success">
-                    <i class="bi bi-plus-circle"></i> ایجاد: @createCount
-                </span>
-                <span class="badge-modern badge-info">
-                    <i class="bi bi-pencil"></i> ویرایش: @updateCount
-                </span>
-                <span class="badge-modern badge-danger">
-                    <i class="bi bi-trash"></i> حذف: @deleteCount
-                </span>
-                <span class="badge-modern badge-warning">
-                    <i class="bi bi-x-circle"></i> لغو: @cancelCount
-                </span>
-                <span class="badge-modern badge-secondary">
-                    <i class="bi bi-arrow-counterclockwise"></i> برگشت: @reverseCount
-                </span>
-            </div>
-            <PageSizeSelector @bind-Value="pageSize"
-                              @bind-CurrentPage="currentPage"
-                              Changed="OnPageSizeChangedAsync" />
+            <PageSizeSelector @bind-Value="pageSize" @bind-CurrentPage="currentPage"
+                              Changed="OnPageSizeChangedAsync" PersistenceKey="auditlogs"
+                              AriaLabel="تعداد لاگ در هر صفحه" />
         </div>
     </div>
 </div>
 
-<!-- مودال مشاهده جزئیات لاگ -->
 @if (showDetailModal && selectedLog != null)
 {
-    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
-        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color:rgba(0,0,0,.5);backdrop-filter:blur(4px)" dir="rtl">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header" style="background: linear-gradient(135deg, #0dcaf0, #0a9ec4);">
-                    <h5 class="modal-title text-white">
-                        <i class="bi bi-info-circle me-2"></i> جزئیات لاگ
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="CloseDetailModal"></button>
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white"><i class="bi bi-clock-history me-2"></i> جزئیات کامل تغییر</h5>
+                    <button type="button" class="btn-close btn-close-white" aria-label="بستن" @onclick="CloseDetailModal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-4">
-                            <div class="info-card">
-                                <span class="info-label">شناسه</span>
-                                <span class="info-value">@selectedLog.Id</span>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="info-card">
-                                <span class="info-label">کاربر</span>
-                                <span class="info-value">@(selectedLog.UserName ?? "سیستم")</span>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="info-card">
-                                <span class="info-label">تاریخ</span>
-                                <span class="info-value"><AppDateTime Value="@selectedLog.CreatedAt" Use24Hour="true" ShowSeconds="true" /></span>
-                            </div>
-                        </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3"><strong>کاربر:</strong> @(selectedLog.UserName ?? "سیستم")</div>
+                        <div class="col-md-3"><strong>عملیات:</strong> @GetActionName(selectedLog.Action)</div>
+                        <div class="col-md-3"><strong>بخش:</strong> @AuditLogDisplayHelper.EntityName(selectedLog.TableName)</div>
+                        <div class="col-md-3"><strong>شماره:</strong> <span dir="ltr">@selectedLog.RecordId</span></div>
+                        <div class="col-12"><strong>زمان:</strong> <AppDateTime Value="@selectedLog.CreatedAt" /></div>
                     </div>
 
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-4">
-                            <div class="info-card">
-                                <span class="info-label">عملیات</span>
-                                <span class="info-value">
-                                    <span class="badge-modern @GetActionBadge(selectedLog.Action)">
-                                        @GetActionName(selectedLog.Action)
-                                    </span>
-                                </span>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="info-card">
-                                <span class="info-label">جدول</span>
-                                <span class="info-value">@selectedLog.TableName</span>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="info-card">
-                                <span class="info-label">شناسه رکورد</span>
-                                <span class="info-value">@selectedLog.RecordId</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <hr />
-
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-light">
-                                    <h6 class="mb-0 text-danger">
-                                        <i class="bi bi-arrow-left"></i> مقدار قبلی
-                                    </h6>
-                                </div>
-                                <div class="card-body p-3">
-                                    <pre class="bg-light p-2 border rounded mb-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem;">@(selectedLog.OldValue ?? "—")</pre>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-light">
-                                    <h6 class="mb-0 text-success">
-                                        <i class="bi bi-arrow-right"></i> مقدار جدید
-                                    </h6>
-                                </div>
-                                <div class="card-body p-3">
-                                    <pre class="bg-light p-2 border rounded mb-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem;">@(selectedLog.NewValue ?? "—")</pre>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="table-responsive border rounded">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr><th>چه چیزی تغییر کرد؟</th><th>قبل از تغییر</th><th>بعد از تغییر</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var change in SelectedChanges)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@change.FieldName</td>
+                                        <td class="text-danger text-break">@(change.OldValue ?? "—")</td>
+                                        <td class="text-success text-break">@(change.NewValue ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn-modern btn-light-modern" @onclick="CloseDetailModal">
-                        <i class="bi bi-x-circle"></i> بستن
-                    </button>
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="CloseDetailModal"><i class="bi bi-x-circle"></i> بستن</button>
                 </div>
             </div>
         </div>
@@ -337,41 +212,44 @@
 }
 
 @code {
-    private List<AuditLogDto> logs = new();
-    private List<AuditLogDto> filteredLogs = new();
-    private List<UserDto> users = new();
-
-    // فیلترها
+    private List<AuditLogDto> filteredLogs = [];
+    private List<UserDto> users = [];
+    private List<string> tables = [];
     private DateTime fromDate = DateTime.MinValue;
     private DateTime toDate = DateTime.MinValue;
     private long? filterUserId;
     private string filterAction = "";
     private string filterTable = "";
     private string searchTerm = "";
-
-    // صفحه‌بندی
     private int pageSize = 10;
     private int currentPage = 1;
-    private string sortColumn = "CreatedAt";
-    private bool sortAscending = false;
-
-    // آمار
-    private int totalCount = 0;
     private int totalPages = 1;
-    private int createCount = 0;
-    private int updateCount = 0;
-    private int deleteCount = 0;
-    private int cancelCount = 0;
-    private int reverseCount = 0;
-
-    private bool isLoading = false;
-    private bool showDetailModal = false;
-    private AuditLogDto? selectedLog = null;
+    private int totalCount;
+    private int statisticsTotal;
+    private int createCount;
+    private int updateCount;
+    private int deleteCount;
+    private int cancelCount;
+    private string sortColumn = "CreatedAt";
+    private bool sortAscending;
+    private bool isLoading;
+    private bool showDetailModal;
+    private AuditLogDto? selectedLog;
     private CancellationTokenSource? filterChangeCts;
+
+    private bool HasActiveFilters => !string.IsNullOrWhiteSpace(searchTerm) || filterUserId.HasValue ||
+        !string.IsNullOrWhiteSpace(filterAction) || !string.IsNullOrWhiteSpace(filterTable) ||
+        fromDate != DateTime.MinValue || toDate != DateTime.MinValue;
+    private int ActiveFilterCount => (!string.IsNullOrWhiteSpace(searchTerm) ? 1 : 0) + (filterUserId.HasValue ? 1 : 0) +
+        (!string.IsNullOrWhiteSpace(filterAction) ? 1 : 0) + (!string.IsNullOrWhiteSpace(filterTable) ? 1 : 0) +
+        (fromDate != DateTime.MinValue ? 1 : 0) + (toDate != DateTime.MinValue ? 1 : 0);
+    private int EffectivePageSize => pageSize == 0 ? Math.Max(totalCount, 1) : pageSize;
+    private IReadOnlyList<AuditFieldChange> SelectedChanges => selectedLog == null ? [] : AuditLogDisplayHelper.GetChanges(selectedLog);
 
     protected override async Task OnInitializedAsync()
     {
         await LoadUsers();
+        await LoadTables();
         await LoadLogs();
     }
 
@@ -379,25 +257,22 @@
     {
         try
         {
-            var dbUsers = await UserManager.Users
-                .Where(u => u.IsActive)
-                .OrderBy(u => u.FullName)
+            users = await UserManager.Users.Where(x => x.IsActive).OrderBy(x => x.FullName)
+                .Select(x => new UserDto { Id = x.Id, UserName = x.UserName, FullName = x.FullName, Email = x.Email, IsActive = x.IsActive, CreatedAt = x.CreatedAt })
                 .ToListAsync();
+        }
+        catch (Exception ex) { Logger.LogError(ex, "Error loading audit users"); }
+    }
 
-            users = dbUsers.Select(u => new UserDto
-            {
-                Id = u.Id,
-                UserName = u.UserName,
-                FullName = u.FullName,
-                Email = u.Email,
-                IsActive = u.IsActive,
-                CreatedAt = u.CreatedAt
-            }).ToList();
-        }
-        catch (Exception ex)
+    private async Task LoadTables()
+    {
+        try
         {
-            Logger?.LogError(ex, "Error loading users for audit logs");
+            tables = (await AuditLogService.GetDistinctTablesAsync())
+                .OrderBy(AuditLogDisplayHelper.EntityName)
+                .ToList();
         }
+        catch (Exception ex) { Logger.LogError(ex, "Error loading audit tables"); }
     }
 
     private async Task LoadLogs()
@@ -405,57 +280,31 @@
         try
         {
             isLoading = true;
-            StateHasChanged();
-
-            var filter = new AuditLogFilterDto
+            var result = await AuditLogService.GetFilteredLogsAsync(new AuditLogFilterDto
             {
                 FromDate = fromDate == DateTime.MinValue ? null : fromDate,
                 ToDate = toDate == DateTime.MinValue ? null : toDate,
                 UserId = filterUserId,
-                Action = string.IsNullOrEmpty(filterAction) ? null : filterAction,
-                TableName = string.IsNullOrEmpty(filterTable) ? null : filterTable,
-                SearchTerm = string.IsNullOrEmpty(searchTerm) ? null : searchTerm,
+                Action = string.IsNullOrWhiteSpace(filterAction) ? null : filterAction,
+                TableName = string.IsNullOrWhiteSpace(filterTable) ? null : filterTable,
+                SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm,
                 PageNumber = currentPage,
                 PageSize = pageSize == 0 ? int.MaxValue : pageSize,
                 SortColumn = sortColumn,
                 SortDirection = sortAscending ? "asc" : "desc"
-            };
-
-            var result = await AuditLogService.GetFilteredLogsAsync(filter);
-
+            });
             filteredLogs = result.Items.ToList();
             totalCount = result.TotalCount;
-            totalPages = result.TotalPages;
-
-            await LoadStatistics();
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogError(ex, "Error loading audit logs");
-        }
-        finally
-        {
-            isLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task LoadStatistics()
-    {
-        try
-        {
+            totalPages = Math.Max(result.TotalPages, 1);
             var stats = await AuditLogService.GetStatisticsAsync();
-            totalCount = stats.TotalLogs;
+            statisticsTotal = stats.TotalLogs;
             createCount = stats.CreateCount;
             updateCount = stats.UpdateCount;
             deleteCount = stats.DeleteCount;
             cancelCount = stats.CancelCount;
-            reverseCount = stats.ReverseCount;
         }
-        catch (Exception ex)
-        {
-            Logger?.LogError(ex, "Error loading statistics");
-        }
+        catch (Exception ex) { Logger.LogError(ex, "Error loading audit logs"); }
+        finally { isLoading = false; }
     }
 
     private async Task OnFilterChangedAsync()
@@ -463,97 +312,31 @@
         filterChangeCts?.Cancel();
         filterChangeCts?.Dispose();
         filterChangeCts = new CancellationTokenSource();
-
-        try
-        {
-            await Task.Delay(150, filterChangeCts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
+        try { await Task.Delay(180, filterChangeCts.Token); }
+        catch (OperationCanceledException) { return; }
         currentPage = 1;
         await LoadLogs();
     }
 
-    private void ResetFilters()
+    private async Task ResetFilters()
     {
-        fromDate = DateTime.MinValue;
-        toDate = DateTime.MinValue;
+        searchTerm = filterAction = filterTable = "";
         filterUserId = null;
-        filterAction = "";
-        filterTable = "";
-        searchTerm = "";
-        currentPage = 1;
-        _ = LoadLogs();
-    }
-
-    private void ClearSearch()
-    {
-        searchTerm = "";
-        currentPage = 1;
-        _ = LoadLogs();
-    }
-
-    private async Task OnPageSizeChangedAsync()
-    {
+        fromDate = toDate = DateTime.MinValue;
         currentPage = 1;
         await LoadLogs();
     }
 
-    private async Task GoToPage(int page)
+    private async Task OnPageSizeChangedAsync() { currentPage = 1; await LoadLogs(); }
+    private async Task GoToPage(int page) { if (page < 1 || page > totalPages || page == currentPage) return; currentPage = page; await LoadLogs(); }
+    private void SortBy(string column) { sortAscending = sortColumn == column ? !sortAscending : true; sortColumn = column; currentPage = 1; _ = LoadLogs(); }
+    private MarkupString SortIcon(string column) => sortColumn == column ? (MarkupString)$"<i class='bi {(sortAscending ? "bi-chevron-up" : "bi-chevron-down")}'></i>" : default;
+    private void ViewLog(AuditLogDto log) { selectedLog = log; showDetailModal = true; }
+    private void CloseDetailModal() { selectedLog = null; showDetailModal = false; }
+    private static string GetActionName(string? action) => action?.ToUpperInvariant() == "REVERSE" ? "برگشت عملیات مالی" : AppDisplayText.AuditAction(action?.ToUpperInvariant());
+    private static string GetActionBadge(string? action) => action?.ToUpperInvariant() switch
     {
-        if (page >= 1 && page <= totalPages && page != currentPage)
-        {
-            currentPage = page;
-            await LoadLogs();
-        }
-    }
-
-    private void SortBy(string column)
-    {
-        if (sortColumn == column)
-        {
-            sortAscending = !sortAscending;
-        }
-        else
-        {
-            sortColumn = column;
-            sortAscending = true;
-        }
-        currentPage = 1;
-        _ = LoadLogs();
-    }
-
-    private async Task ViewLog(long id)
-    {
-        selectedLog = filteredLogs.FirstOrDefault(l => l.Id == id);
-        if (selectedLog != null)
-        {
-            showDetailModal = true;
-            StateHasChanged();
-        }
-    }
-
-    private void CloseDetailModal()
-    {
-        showDetailModal = false;
-        selectedLog = null;
-        StateHasChanged();
-    }
-
-    private string GetActionName(string action) => action?.ToUpper() == "REVERSE"
-        ? "برگشت عملیات مالی"
-        : AppDisplayText.AuditAction(action?.ToUpper());
-
-    private string GetActionBadge(string action) => action?.ToUpper() switch
-    {
-        "CREATE" => "badge-success",
-        "UPDATE" => "badge-info",
-        "DELETE" => "badge-danger",
-        "CANCEL" => "badge-warning",
-        "REVERSE" => "badge-secondary",
-        _ => "badge-light"
+        "CREATE" => "badge-success", "UPDATE" => "badge-info", "DELETE" => "badge-danger",
+        "CANCEL" => "badge-warning", "REVERSE" => "badge-secondary", _ => "badge-light"
     };
 }

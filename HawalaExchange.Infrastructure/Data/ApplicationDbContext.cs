@@ -5,7 +5,11 @@ using HawalaExchange.Application.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 using System.Linq.Expressions;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace HawalaExchange.Infrastructure.Data
 {
@@ -254,7 +258,24 @@ namespace HawalaExchange.Infrastructure.Data
             AssignAndValidateTenantIds();
             ValidateSubscriptionWriteAccess();
             ValidateAccountDebtLimits();
-            return base.SaveChanges(acceptAllChangesOnSuccess);
+            var auditEntries = CaptureAuditEntries();
+            EnrichAuditEntries(auditEntries);
+            var processId = GetCurrentAuditProcessId();
+            using var transaction = auditEntries.Count > 0 && Database.IsRelational() && Database.CurrentTransaction == null
+                ? Database.BeginTransaction()
+                : null;
+            try
+            {
+                var result = base.SaveChanges(acceptAllChangesOnSuccess);
+                SaveAuditEntries(auditEntries, processId);
+                transaction?.Commit();
+                return result;
+            }
+            catch
+            {
+                transaction?.Rollback();
+                throw;
+            }
         }
 
         public override async Task<int> SaveChangesAsync(
@@ -264,8 +285,404 @@ namespace HawalaExchange.Infrastructure.Data
             AssignAndValidateTenantIds();
             await ValidateSubscriptionWriteAccessAsync(cancellationToken);
             await ValidateAccountDebtLimitsAsync(cancellationToken);
-            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+            var auditEntries = CaptureAuditEntries();
+            await EnrichAuditEntriesAsync(auditEntries, cancellationToken);
+            var processId = GetCurrentAuditProcessId();
+            await using var transaction = auditEntries.Count > 0 && Database.IsRelational() && Database.CurrentTransaction == null
+                ? await Database.BeginTransactionAsync(cancellationToken)
+                : null;
+            try
+            {
+                var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+                await SaveAuditEntriesAsync(auditEntries, processId, cancellationToken);
+                if (transaction != null) await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+            catch
+            {
+                if (transaction != null) await transaction.RollbackAsync(cancellationToken);
+                throw;
+            }
         }
+
+        private List<PendingAuditEntry> CaptureAuditEntries()
+        {
+            ChangeTracker.DetectChanges();
+            var entries = new List<PendingAuditEntry>();
+
+            foreach (var entry in ChangeTracker.Entries()
+                         .Where(x => x.Entity is ITenantEntity &&
+                                     x.Entity is not AuditLog &&
+                                     x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            {
+                var oldValues = new Dictionary<string, object?>();
+                var newValues = new Dictionary<string, object?>();
+
+                foreach (var property in entry.Properties.Where(x => ShouldAuditProperty(x.Metadata.Name)))
+                {
+                    if (entry.State == EntityState.Added)
+                    {
+                        newValues[property.Metadata.Name] = NormalizeAuditValue(property.CurrentValue);
+                    }
+                    else if (entry.State == EntityState.Deleted)
+                    {
+                        oldValues[property.Metadata.Name] = NormalizeAuditValue(property.OriginalValue);
+                    }
+                    else if (property.IsModified && !Equals(property.OriginalValue, property.CurrentValue))
+                    {
+                        oldValues[property.Metadata.Name] = NormalizeAuditValue(property.OriginalValue);
+                        newValues[property.Metadata.Name] = NormalizeAuditValue(property.CurrentValue);
+                    }
+                }
+
+                if (oldValues.Count == 0 && newValues.Count == 0)
+                    continue;
+
+                if (entry.Metadata.GetTableName() == "Hawalas")
+                {
+                    var numberProperty = entry.Property(nameof(Hawala.Number));
+                    var number = entry.State == EntityState.Deleted
+                        ? numberProperty.OriginalValue
+                        : numberProperty.CurrentValue;
+                    oldValues["__RecordNumber"] = number;
+                    newValues["__RecordNumber"] = number;
+                }
+
+                var recordLabel = GetAuditRecordLabel(entry);
+                if (!string.IsNullOrWhiteSpace(recordLabel))
+                {
+                    oldValues["__RecordLabel"] = recordLabel;
+                    newValues["__RecordLabel"] = recordLabel;
+                }
+
+                entries.Add(new PendingAuditEntry(
+                    entry,
+                    entry.State switch
+                    {
+                        EntityState.Added => "CREATE",
+                        EntityState.Modified => "UPDATE",
+                        EntityState.Deleted => "DELETE",
+                        _ => throw new InvalidOperationException()
+                    },
+                    entry.Metadata.GetTableName() ?? entry.Metadata.ClrType.Name,
+                    ((ITenantEntity)entry.Entity).TenantId,
+                    CurrentUserId > 0 ? CurrentUserId : null,
+                    oldValues,
+                    newValues));
+            }
+
+            return entries;
+        }
+
+        public Guid GetCurrentAuditProcessId()
+        {
+            if (Database.CurrentTransaction != null)
+                return Database.CurrentTransaction.TransactionId;
+
+            var activity = Activity.Current;
+            if (activity == null) return Guid.NewGuid();
+
+            var activityIdentity = $"{activity.TraceId}:{activity.SpanId}";
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(activityIdentity));
+            return new Guid(hash.AsSpan(0, 16));
+        }
+
+        private void EnrichAuditEntries(IReadOnlyCollection<PendingAuditEntry> entries)
+        {
+            if (entries.Count == 0) return;
+            var references = GetAuditReferenceIds(entries);
+            var labels = new AuditReferenceLabels(
+                references.AccountIds.Count == 0 ? new Dictionary<long, string>() : Accounts.AsNoTracking().Where(x => references.AccountIds.Contains(x.Id)).ToDictionary(x => x.Id, x => x.AccountName),
+                references.CurrencyIds.Count == 0 ? new Dictionary<long, string>() : Currencies.AsNoTracking().Where(x => references.CurrencyIds.Contains(x.Id)).ToDictionary(x => x.Id, x => x.Name),
+                references.CustomerIds.Count == 0 ? new Dictionary<long, string>() : Customers.AsNoTracking().Where(x => references.CustomerIds.Contains(x.Id)).ToDictionary(x => x.Id, x => x.FullName),
+                references.CorrespondentIds.Count == 0 ? new Dictionary<long, string>() : Correspondents.AsNoTracking().Where(x => references.CorrespondentIds.Contains(x.Id)).ToDictionary(x => x.Id, x => x.Name),
+                references.BranchIds.Count == 0 ? new Dictionary<long, string>() : Branches.AsNoTracking().Where(x => references.BranchIds.Contains(x.Id)).ToDictionary(x => x.Id, x => x.Name),
+                references.PaymentLocationIds.Count == 0 ? new Dictionary<long, string>() : PaymentLocations.AsNoTracking().Where(x => references.PaymentLocationIds.Contains(x.Id)).ToDictionary(x => x.Id, x => x.Name),
+                references.UserIds.Count == 0 ? new Dictionary<long, string>() : Users.AsNoTracking().Where(x => references.UserIds.Contains(x.Id)).ToDictionary(x => x.Id, x => x.FullName));
+            ApplyAuditLabels(entries, labels);
+        }
+
+        private async Task EnrichAuditEntriesAsync(
+            IReadOnlyCollection<PendingAuditEntry> entries,
+            CancellationToken cancellationToken)
+        {
+            if (entries.Count == 0) return;
+            var references = GetAuditReferenceIds(entries);
+            var labels = new AuditReferenceLabels(
+                references.AccountIds.Count == 0 ? new Dictionary<long, string>() : await Accounts.AsNoTracking().Where(x => references.AccountIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.AccountName, cancellationToken),
+                references.CurrencyIds.Count == 0 ? new Dictionary<long, string>() : await Currencies.AsNoTracking().Where(x => references.CurrencyIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken),
+                references.CustomerIds.Count == 0 ? new Dictionary<long, string>() : await Customers.AsNoTracking().Where(x => references.CustomerIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName, cancellationToken),
+                references.CorrespondentIds.Count == 0 ? new Dictionary<long, string>() : await Correspondents.AsNoTracking().Where(x => references.CorrespondentIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken),
+                references.BranchIds.Count == 0 ? new Dictionary<long, string>() : await Branches.AsNoTracking().Where(x => references.BranchIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken),
+                references.PaymentLocationIds.Count == 0 ? new Dictionary<long, string>() : await PaymentLocations.AsNoTracking().Where(x => references.PaymentLocationIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken),
+                references.UserIds.Count == 0 ? new Dictionary<long, string>() : await Users.AsNoTracking().Where(x => references.UserIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.FullName, cancellationToken));
+            ApplyAuditLabels(entries, labels);
+        }
+
+        private static AuditReferenceIds GetAuditReferenceIds(IEnumerable<PendingAuditEntry> entries)
+        {
+            var references = new AuditReferenceIds();
+            foreach (var entry in entries)
+            foreach (var values in new[] { entry.OldValues, entry.NewValues })
+            foreach (var value in values)
+            {
+                if (!TryGetLong(value.Value, out var id) || id <= 0) continue;
+                if (IsAccountReference(value.Key)) references.AccountIds.Add(id);
+                else if (IsCurrencyReference(value.Key)) references.CurrencyIds.Add(id);
+                else if (value.Key == "CustomerId") references.CustomerIds.Add(id);
+                else if (value.Key == "CorrespondentId") references.CorrespondentIds.Add(id);
+                else if (value.Key == "BranchId") references.BranchIds.Add(id);
+                else if (value.Key == "PaymentLocationId") references.PaymentLocationIds.Add(id);
+                else if (IsUserReference(value.Key)) references.UserIds.Add(id);
+            }
+            return references;
+        }
+
+        private static void ApplyAuditLabels(
+            IEnumerable<PendingAuditEntry> entries,
+            AuditReferenceLabels labels)
+        {
+            foreach (var entry in entries)
+            {
+                entry.OldValues["__DisplayName"] = GetAuditDisplayName(entry, useOriginalValues: true);
+                entry.NewValues["__DisplayName"] = GetAuditDisplayName(entry, useOriginalValues: false);
+                ReplaceReferenceValues(entry.OldValues, labels);
+                ReplaceReferenceValues(entry.NewValues, labels);
+            }
+        }
+
+        private static string? GetAuditDisplayName(PendingAuditEntry auditEntry, bool useOriginalValues)
+        {
+            var entry = auditEntry.Entry;
+            object? Value(string property)
+            {
+                var item = entry.Properties.FirstOrDefault(x => x.Metadata.Name == property);
+                return item == null ? null : useOriginalValues ? item.OriginalValue : item.CurrentValue;
+            }
+
+            return auditEntry.TableName switch
+            {
+                "Hawalas" => Value(nameof(Hawala.Number))?.ToString(),
+                "Customers" => Value(nameof(Customer.FullName))?.ToString(),
+                "Correspondents" => Value(nameof(Correspondent.Name))?.ToString(),
+                "Accounts" => Value(nameof(Account.AccountName))?.ToString(),
+                "Currencies" => Value(nameof(Currency.Name))?.ToString(),
+                "Branches" => Value(nameof(Branch.Name))?.ToString(),
+                "PaymentLocations" => Value(nameof(PaymentLocation.Name))?.ToString(),
+                "Expenses" => Value(nameof(Expense.Title))?.ToString(),
+                "Transactions" => Value(nameof(Transaction.TransactionNo))?.ToString(),
+                "Users" or "AspNetUsers" => Value(nameof(ApplicationUser.FullName))?.ToString(),
+                _ => null
+            };
+        }
+
+        private static void ReplaceReferenceValues(
+            Dictionary<string, object?> values,
+            AuditReferenceLabels labels)
+        {
+            foreach (var property in values.Keys.ToList())
+            {
+                if (!TryGetLong(values[property], out var id) || id <= 0) continue;
+                string? label = null;
+                if (IsAccountReference(property)) labels.Accounts.TryGetValue(id, out label);
+                else if (IsCurrencyReference(property)) labels.Currencies.TryGetValue(id, out label);
+                else if (property == "CustomerId") labels.Customers.TryGetValue(id, out label);
+                else if (property == "CorrespondentId") labels.Correspondents.TryGetValue(id, out label);
+                else if (property == "BranchId") labels.Branches.TryGetValue(id, out label);
+                else if (property == "PaymentLocationId") labels.PaymentLocations.TryGetValue(id, out label);
+                else if (IsUserReference(property)) labels.Users.TryGetValue(id, out label);
+                if (!string.IsNullOrWhiteSpace(label)) values[property] = label;
+            }
+        }
+
+        private static bool IsAccountReference(string property) => property is
+            "AccountId" or "FromAccountId" or "ToAccountId" or "CashOrBankAccountId" or
+            "PaidFromAccountId" or "ExpenseAccountId" or "ReceivingAccountId" or "CapitalAccountId";
+
+        private static bool IsCurrencyReference(string property) => property.EndsWith("CurrencyId", StringComparison.Ordinal);
+
+        private static bool IsUserReference(string property) => property is
+            "UserId" or "CreatedBy" or "UpdatedBy" or "ModifiedBy" or "PaidBy" or "CancelledBy";
+
+        private static bool TryGetLong(object? value, out long id)
+        {
+            try { id = value == null ? 0 : Convert.ToInt64(value); return value != null; }
+            catch { id = 0; return false; }
+        }
+
+        private void SaveAuditEntries(IReadOnlyCollection<PendingAuditEntry> entries, Guid processId)
+        {
+            if (entries.Count == 0) return;
+            var auditLog = AuditLogs.Local.FirstOrDefault(x => x.ProcessId == processId) ??
+                           AuditLogs.FirstOrDefault(x => x.ProcessId == processId);
+            MergeAuditEntries(auditLog, entries, processId);
+            base.SaveChanges();
+        }
+
+        private async Task SaveAuditEntriesAsync(
+            IReadOnlyCollection<PendingAuditEntry> entries,
+            Guid processId,
+            CancellationToken cancellationToken)
+        {
+            if (entries.Count == 0) return;
+            var auditLog = AuditLogs.Local.FirstOrDefault(x => x.ProcessId == processId) ??
+                           await AuditLogs.FirstOrDefaultAsync(x => x.ProcessId == processId, cancellationToken);
+            MergeAuditEntries(auditLog, entries, processId);
+            await base.SaveChangesAsync(cancellationToken);
+        }
+
+        private void MergeAuditEntries(
+            AuditLog? auditLog,
+            IReadOnlyCollection<PendingAuditEntry> entries,
+            Guid processId)
+        {
+            var primary = entries.OrderBy(x => GetAuditPriority(x.TableName)).First();
+            if (auditLog == null)
+            {
+                auditLog = new AuditLog
+                {
+                    TenantId = primary.TenantId,
+                    UserId = primary.UserId,
+                    ProcessId = processId,
+                    Action = primary.Action,
+                    TableName = primary.TableName,
+                    RecordId = GetRecordId(primary.Entry),
+                    CreatedAt = DateTime.UtcNow
+                };
+                AuditLogs.Add(auditLog);
+            }
+            else if (GetAuditPriority(primary.TableName) < GetAuditPriority(auditLog.TableName))
+            {
+                auditLog.Action = primary.Action;
+                auditLog.TableName = primary.TableName;
+                auditLog.RecordId = GetRecordId(primary.Entry);
+            }
+
+            var oldValues = FlattenAuditValues(entries, oldValues: true);
+            var newValues = FlattenAuditValues(entries, oldValues: false);
+            auditLog.OldValue = MergeAuditJson(auditLog.OldValue, oldValues, overwrite: false);
+            auditLog.NewValue = MergeAuditJson(auditLog.NewValue, newValues, overwrite: true);
+        }
+
+        private static Dictionary<string, object?> FlattenAuditValues(
+            IEnumerable<PendingAuditEntry> entries,
+            bool oldValues)
+        {
+            var result = new Dictionary<string, object?>();
+            foreach (var entry in entries)
+            {
+                var recordId = GetRecordId(entry.Entry);
+                var values = oldValues ? entry.OldValues : entry.NewValues;
+                foreach (var value in values)
+                    result[$"{entry.TableName}\u001f{recordId}\u001f{value.Key}"] = value.Value;
+            }
+            return result;
+        }
+
+        public static string? MergeAuditJson(
+            string? existingJson,
+            IReadOnlyDictionary<string, object?> additions,
+            bool overwrite)
+        {
+            if (additions.Count == 0) return existingJson;
+            Dictionary<string, object?> values;
+            try
+            {
+                values = string.IsNullOrWhiteSpace(existingJson)
+                    ? new Dictionary<string, object?>()
+                    : JsonSerializer.Deserialize<Dictionary<string, object?>>(existingJson) ?? [];
+            }
+            catch (JsonException)
+            {
+                values = new Dictionary<string, object?>();
+                if (!string.IsNullOrWhiteSpace(existingJson)) values["__PreviousDescription"] = existingJson;
+            }
+
+            foreach (var addition in additions)
+            {
+                if (overwrite || !values.ContainsKey(addition.Key)) values[addition.Key] = addition.Value;
+            }
+            return JsonSerializer.Serialize(values);
+        }
+
+        private static int GetAuditPriority(string tableName) => tableName switch
+        {
+            "Hawalas" => 0,
+            "MoneyExchangeOperations" or "AccountMoneyOperations" or "Transfers" or
+                "CapitalInvestments" or "Expenses" or "CorrespondentSettlementConversions" => 1,
+            "Customers" or "Correspondents" or "Accounts" or "Branches" or "Users" => 2,
+            "Transactions" => 3,
+            "LedgerEntries" or "TransactionDetails" => 10,
+            _ => 5
+        };
+
+        private static long GetRecordId(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry)
+        {
+            var key = entry.Metadata.FindPrimaryKey()?.Properties
+                .FirstOrDefault(x => x.ClrType == typeof(long) || x.ClrType == typeof(int));
+            if (key == null) return 0;
+            return Convert.ToInt64(entry.Property(key.Name).CurrentValue ?? 0);
+        }
+
+        private static string? GetAuditRecordLabel(Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry)
+        {
+            string[] preferredProperties =
+            [
+                "FullName", "AccountName", "Name", "Title", "CompanyName",
+                "TransactionNo", "SettlementNumber", "Code", "CustomerCode", "ReferenceNumber"
+            ];
+
+            foreach (var propertyName in preferredProperties)
+            {
+                var property = entry.Metadata.FindProperty(propertyName);
+                if (property == null) continue;
+                var value = entry.State == EntityState.Deleted
+                    ? entry.Property(propertyName).OriginalValue
+                    : entry.Property(propertyName).CurrentValue;
+                if (!string.IsNullOrWhiteSpace(value?.ToString())) return value.ToString();
+            }
+
+            return null;
+        }
+
+        private static bool ShouldAuditProperty(string propertyName) => propertyName is not
+            ("TenantId" or "RowVersion" or "PasswordHash" or "SecurityStamp" or
+             "ConcurrencyStamp" or "AuthenticatorKey" or "RecoveryCodes");
+
+        private static object? NormalizeAuditValue(object? value) => value switch
+        {
+            byte[] bytes => $"فایل باینری ({bytes.Length} بایت)",
+            _ => value
+        };
+
+        private sealed record PendingAuditEntry(
+            Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry Entry,
+            string Action,
+            string TableName,
+            long TenantId,
+            long? UserId,
+            Dictionary<string, object?> OldValues,
+            Dictionary<string, object?> NewValues);
+
+        private sealed class AuditReferenceIds
+        {
+            public HashSet<long> AccountIds { get; } = [];
+            public HashSet<long> CurrencyIds { get; } = [];
+            public HashSet<long> CustomerIds { get; } = [];
+            public HashSet<long> CorrespondentIds { get; } = [];
+            public HashSet<long> BranchIds { get; } = [];
+            public HashSet<long> PaymentLocationIds { get; } = [];
+            public HashSet<long> UserIds { get; } = [];
+        }
+
+        private sealed record AuditReferenceLabels(
+            IReadOnlyDictionary<long, string> Accounts,
+            IReadOnlyDictionary<long, string> Currencies,
+            IReadOnlyDictionary<long, string> Customers,
+            IReadOnlyDictionary<long, string> Correspondents,
+            IReadOnlyDictionary<long, string> Branches,
+            IReadOnlyDictionary<long, string> PaymentLocations,
+            IReadOnlyDictionary<long, string> Users);
 
         private void ValidateAccountDebtLimits()
         {
@@ -849,6 +1266,7 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Document>().HasIndex(x => new { x.TenantId, x.AccountId });
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.TableName, x.RecordId });
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+            modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.ProcessId });
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.HawalaType, x.Status });
             modelBuilder.Entity<CorrespondentSettlementConversion>()
                 .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.CreatedAt });

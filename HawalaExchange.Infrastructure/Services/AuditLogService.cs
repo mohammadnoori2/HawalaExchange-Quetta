@@ -20,17 +20,42 @@ namespace HawalaExchange.Application.Services
 
         public async Task<AuditLogDto> LogAsync(string action, string tableName, long recordId, string? oldValue = null, string? newValue = null, long? userId = null)
         {
-            var log = new AuditLog
+            var processId = _context.GetCurrentAuditProcessId();
+            var log = _context.AuditLogs.Local.FirstOrDefault(x => x.ProcessId == processId) ??
+                      await _context.AuditLogs.FirstOrDefaultAsync(x => x.ProcessId == processId);
+
+            if (log == null)
             {
-                UserId = userId,
-                Action = action,
-                TableName = tableName,
-                RecordId = recordId,
-                OldValue = oldValue,
-                NewValue = newValue,
-                CreatedAt = DateTime.UtcNow
-            };
-            await _context.AuditLogs.AddAsync(log);
+                log = new AuditLog
+                {
+                    UserId = userId,
+                    ProcessId = processId,
+                    Action = action,
+                    TableName = tableName,
+                    RecordId = recordId,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.AuditLogs.AddAsync(log);
+            }
+            else
+            {
+                log.UserId ??= userId;
+                log.Action = action;
+                log.TableName = tableName;
+                log.RecordId = recordId;
+            }
+
+            if (!string.IsNullOrWhiteSpace(oldValue))
+                log.OldValue = ApplicationDbContext.MergeAuditJson(
+                    log.OldValue,
+                    new Dictionary<string, object?> { ["__PreviousDescription"] = oldValue },
+                    overwrite: false);
+            if (!string.IsNullOrWhiteSpace(newValue))
+                log.NewValue = ApplicationDbContext.MergeAuditJson(
+                    log.NewValue,
+                    new Dictionary<string, object?> { ["__Description"] = newValue },
+                    overwrite: true);
+
             await _context.SaveChangesAsync();
             return _mapper.Map<AuditLogDto>(log);
         }
@@ -108,14 +133,32 @@ namespace HawalaExchange.Application.Services
             if (!string.IsNullOrEmpty(filter.SearchTerm))
             {
                 var term = filter.SearchTerm.Trim().ToLower();
+                var isRecordId = long.TryParse(term, out var recordId);
                 query = query.Where(l =>
                     l.TableName.ToLower().Contains(term) ||
+                    l.Action.ToLower().Contains(term) ||
+                    (l.User != null && l.User.FullName.ToLower().Contains(term)) ||
                     (l.OldValue != null && l.OldValue.ToLower().Contains(term)) ||
-                    (l.NewValue != null && l.NewValue.ToLower().Contains(term))
+                    (l.NewValue != null && l.NewValue.ToLower().Contains(term)) ||
+                    (isRecordId && l.RecordId == recordId)
                 );
             }
 
             var totalCount = await query.CountAsync();
+
+            query = (filter.SortColumn, filter.SortDirection.Equals("asc", StringComparison.OrdinalIgnoreCase)) switch
+            {
+                ("UserName", true) => query.OrderBy(x => x.User != null ? x.User.FullName : ""),
+                ("UserName", false) => query.OrderByDescending(x => x.User != null ? x.User.FullName : ""),
+                ("Action", true) => query.OrderBy(x => x.Action),
+                ("Action", false) => query.OrderByDescending(x => x.Action),
+                ("TableName", true) => query.OrderBy(x => x.TableName),
+                ("TableName", false) => query.OrderByDescending(x => x.TableName),
+                ("RecordId", true) => query.OrderBy(x => x.RecordId),
+                ("RecordId", false) => query.OrderByDescending(x => x.RecordId),
+                ("CreatedAt", true) => query.OrderBy(x => x.CreatedAt),
+                _ => query.OrderByDescending(x => x.CreatedAt)
+            };
 
             if (filter.PageSize > 0)
             {

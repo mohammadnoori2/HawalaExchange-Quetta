@@ -92,7 +92,13 @@
                         dto.GeneratedSendHawalaNumber);
                     await _context.SaveChangesAsync();
 
-                    await _auditLogService.LogAsync("CREATE", "Hawalas", hawala.Id, null, $"حواله {hawala.HawalaType} با شماره {hawala.Number} ایجاد شد", GetCurrentUserId());
+                    var hawalaTypeName = hawala.HawalaType switch
+                    {
+                        "HawalaSend" => "ارسالی",
+                        "HawalaReceive" => "دریافتی",
+                        _ => "متفرقه"
+                    };
+                    await _auditLogService.LogAsync("CREATE", "Hawalas", hawala.Id, null, $"حواله {hawalaTypeName} شماره {hawala.Number} ثبت شد.", GetCurrentUserId());
 
                     await transaction.CommitAsync();
 

@@ -65,12 +65,12 @@ public static class AppDisplayText
 
     public static string AuditAction(string? value) => value switch
     {
-        "CREATE" => "ایجاد رکورد جدید",
-        "UPDATE" => "ویرایش اطلاعات",
-        "DELETE" => "حذف اطلاعات",
-        "ARCHIVE" => "انتقال به بایگانی",
+        "CREATE" => "ایجاد",
+        "UPDATE" => "ویرایش",
+        "DELETE" => "حذف",
+        "ARCHIVE" => "بایگانی",
         "UNARCHIVE" => "خروج از بایگانی",
-        "CANCEL" => "لغو عملیات",
+        "CANCEL" => "لغو",
         "CONVERT_HAWALAS_TO_SETTLEMENT" => "تبدیل حواله‌ها به ارز توافقی",
         "CONVERT_BALANCE_TO_SETTLEMENT" => "تبدیل مانده نمایندگی به ارز توافقی",
         null or "" => "عملیات مشخص نشده",

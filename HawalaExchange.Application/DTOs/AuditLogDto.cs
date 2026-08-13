@@ -8,6 +8,7 @@ namespace HawalaExchange.Application.DTOs
     {
         public long Id { get; set; }
         public long? UserId { get; set; }
+        public Guid ProcessId { get; set; }
         public string? UserName { get; set; }
         public string Action { get; set; }
         public string TableName { get; set; }

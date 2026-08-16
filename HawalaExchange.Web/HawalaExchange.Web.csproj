@@ -31,4 +31,10 @@
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
+  <!-- Include native wkhtmltox library for DinkToPdf: place the appropriate DLL in runtimes\win-x64\native -->
+  <ItemGroup>
+    <None Include="runtimes\win-x64\native\**\*" CopyToOutputDirectory="Always" />
+    <None Include="runtimes\win-x86\native\**\*" CopyToOutputDirectory="Always" />
+  </ItemGroup>
+
 </Project>

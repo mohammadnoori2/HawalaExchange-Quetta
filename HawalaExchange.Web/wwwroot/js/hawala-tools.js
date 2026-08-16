@@ -116,6 +116,21 @@ window.hawalaTools = {
         window.addEventListener("resize", state.onResize);
     },
 
+    // helper to download base64 data url
+    downloadFromDataUrl: function (dataUrl, fileName) {
+        try {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        } catch (e) {
+            console.error('downloadFromDataUrl', e);
+            alert('خطا در دانلود فایل.');
+        }
+    },
+
     closeOperationMenu: function (menuId) {
         if (!activeHawalaOperationMenu || activeHawalaOperationMenu.menuId !== menuId) {
             return;

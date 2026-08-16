@@ -1,5 +1,6 @@
 ﻿using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
+using HawalaExchange.Infrastructure.Services;
 using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -40,6 +41,7 @@ namespace HawalaExchange.Infrastructure
             services.AddScoped<ITransferService, TransferService>();
             services.AddScoped<IExpenseService, ExpenseService>();
             services.AddScoped<ICurrencyCostService, CurrencyCostService>();
+            services.AddScoped<IExportService, ExportService>();
 
             // Document and Audit
             services.AddScoped<IDocumentService, DocumentService>();
@@ -49,6 +51,9 @@ namespace HawalaExchange.Infrastructure
             services.AddScoped<IBalanceService, BalanceService>();
             services.AddScoped<IReportService, ReportService>();
             services.AddScoped<IFinancialReportService, FinancialReportService>();
+
+            // PDF converter (DinkToPdf)
+            services.AddSingleton(typeof(DinkToPdf.Contracts.IConverter), new DinkToPdf.SynchronizedConverter(new DinkToPdf.PdfTools()));
 
             return services;
         }

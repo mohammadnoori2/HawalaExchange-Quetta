@@ -1,0 +1,101 @@
+@page "/reports/customer-activities"
+@using System.Linq
+@using System.Net.Http.Json
+@using HawalaExchange.Application.DTOs
+@using Microsoft.JSInterop
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+
+<div class="card">
+    <div class="card-header">گزارش فعالیت مشتری</div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <label>کد مشتری</label>
+                <input class="form-control" @bind="filter.CustomerId" />
+            </div>
+            <div class="col-md-4">
+                <label>از تاریخ</label>
+                <input type="date" class="form-control" @bind="fromDateStr" />
+            </div>
+            <div class="col-md-4">
+                <label>تا تاریخ</label>
+                <input type="date" class="form-control" @bind="toDateStr" />
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <label>نوع تراکنش‌ها (comma separated)</label>
+            <input class="form-control" @bind="typesInput" />
+        </div>
+
+        <div class="mt-3">
+            <button class="btn btn-primary me-2" @onclick="ExportExcel">دانلود اکسل</button>
+            <button class="btn btn-secondary" @onclick="ExportPdf">دانلود PDF</button>
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <div class="text-danger mt-2">@error</div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private ExportFilterDto filter = new();
+    private string fromDateStr = string.Empty;
+    private string toDateStr = string.Empty;
+    private string typesInput = string.Empty;
+    private string error = string.Empty;
+
+    private void BindDates()
+    {
+        if (DateTime.TryParse(fromDateStr, out var fd)) filter.FromDate = fd;
+        else filter.FromDate = null;
+
+        if (DateTime.TryParse(toDateStr, out var td)) filter.ToDate = td.AddDays(1).AddTicks(-1);
+        else filter.ToDate = null;
+
+        if (!string.IsNullOrWhiteSpace(typesInput))
+            filter.TransactionTypes = typesInput.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+        else
+            filter.TransactionTypes = null;
+    }
+
+    private async Task Export(ExportFormat format)
+    {
+        error = string.Empty;
+        BindDates();
+
+        if (!filter.CustomerId.HasValue || filter.CustomerId.Value == 0)
+        {
+            error = "کد مشتری را وارد کنید.";
+            return;
+        }
+
+        try
+        {
+            var resp = await Http.PostAsJsonAsync($"api/exports/customer-activities?format={format}", filter);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var text = await resp.Content.ReadAsStringAsync();
+                error = text;
+                return;
+            }
+
+            var content = await resp.Content.ReadAsByteArrayAsync();
+            var contentType = resp.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+            var fileName = resp.Content.Headers.ContentDisposition?.FileName?.Trim('"') ?? $"report-{DateTime.Now:yyyyMMddHHmmss}";
+
+            var base64 = Convert.ToBase64String(content);
+            var url = $"data:{contentType};base64,{base64}";
+            await JSRuntime.InvokeVoidAsync("downloadFromDataUrl", url, fileName);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private Task ExportExcel() => Export(ExportFormat.Excel);
+    private Task ExportPdf() => Export(ExportFormat.Pdf);
+}

@@ -21,27 +21,49 @@
                    Icon="bi-people-fill">
         <Stats>
             <PageHeaderStats AriaLabel="آمار مشتریان">
-                <PageHeaderStat Label="کل" Value="@customers.Count" Icon="bi-people" />
-                <PageHeaderStat Label="فعال" Value="@customers.Count(c => !c.IsArchived)" Icon="bi-check-circle" Tone="success" />
-                <PageHeaderStat Label="بایگانی" Value="@customers.Count(c => c.IsArchived)" Icon="bi-archive" Tone="danger" />
-                <PageHeaderStat Label="امروز" Value="@customers.Count(c => c.CreatedAt.Date == DateTime.Today)" Icon="bi-clock-history" Tone="info" />
+                <PageHeaderStat Label="کل" Value="@activeTypeCustomers.Count" Icon="bi-people" />
+                <PageHeaderStat Label="فعال" Value="@activeTypeCustomers.Count(c => !c.IsArchived)" Icon="bi-check-circle" Tone="success" />
+                <PageHeaderStat Label="بایگانی" Value="@activeTypeCustomers.Count(c => c.IsArchived)" Icon="bi-archive" Tone="danger" />
+                <PageHeaderStat Label="امروز" Value="@activeTypeCustomers.Count(c => c.CreatedAt.ToLocalTime().Date == DateTime.Today)" Icon="bi-clock-history" Tone="info" />
             </PageHeaderStats>
         </Stats>
         <Actions>
             <ArchiveViewToggle @bind-ShowArchived="showArchived"
-                               ArchivedCount="@customers.Count(c => c.IsArchived)"
+                               ArchivedCount="@activeTypeCustomers.Count(c => c.IsArchived)"
                                @bind-ShowArchived:after="ArchiveViewChanged" />
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
-                <i class="bi bi-plus-circle"></i> مشتری جدید
+                <i class="bi bi-plus-circle"></i> @(IsRegisteredReceiverTab ? "گیرنده جدید" : "مشتری جدید")
             </button>
         </Actions>
     </AppPageHeader>
 
-    <CompactFilterBar AriaLabel="جستجوی مشتریان"
+    <div class="customer-type-tabs" role="tablist" aria-label="نوع اشخاص ثبت‌شده">
+        <button type="button"
+                class="@(!IsRegisteredReceiverTab ? "active" : null)"
+                @onclick='() => SelectCustomerType("Customers")'>
+            مشتریان
+        </button>
+        <button type="button"
+                class="@(IsRegisteredReceiverTab ? "active" : null)"
+                @onclick='() => SelectCustomerType("RegisteredReceivers")'>
+            گیرندگان ثبت‌شده
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(pageOperationMessage))
+    {
+        <div class="alert alert-success py-2">@pageOperationMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(pageOperationError))
+    {
+        <div class="alert alert-danger py-2">@pageOperationError</div>
+    }
+
+    <CompactFilterBar AriaLabel="@(IsRegisteredReceiverTab ? "جستجوی گیرندگان ثبت‌شده" : "جستجوی مشتریان")"
                       HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
                       Reset="ClearSearch">
         <SearchContent>
-            <input class="form-control" placeholder="جستجو با کد، نام، تلفن یا تذکره..."
+            <input class="form-control" placeholder="جستجو با کد، نام، نام پدر، تلفن یا تذکره..."
                    @bind="searchTerm" @bind:event="oninput" />
         </SearchContent>
     </CompactFilterBar>
@@ -76,6 +98,7 @@
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
+                            <th>نام پدر</th>
                             <th>شماره تلفن</th>
                             <th>شماره تذکره</th>
                             <th>آدرس</th>
@@ -87,7 +110,7 @@
                         @if (isLoading && customers == null)
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status">
                                             <span class="visually-hidden">در حال بارگذاری...</span>
@@ -100,11 +123,11 @@
                         else if (!pagedCustomers.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
-                                        <span class="fs-5 text-muted">هیچ مشتری‌ای یافت نشد</span>
-                                        <p class="text-muted small">@(showArchived ? "هیچ مشتری‌ای در بایگانی وجود ندارد." : "برای افزودن مشتری جدید، دکمه «مشتری جدید» را انتخاب کنید.")</p>
+                                        <span class="fs-5 text-muted">@(IsRegisteredReceiverTab ? "هیچ گیرندهٔ ثبت‌شده‌ای یافت نشد" : "هیچ مشتری‌ای یافت نشد")</span>
+                                        <p class="text-muted small">@GetEmptyStateDescription()</p>
                                     </div>
                                 </td>
                             </tr>
@@ -122,6 +145,7 @@
                                     <td>
                                         <span class="fw-semibold">@customer.FullName</span>
                                     </td>
+                                    <td>@(customer.FatherName ?? "—")</td>
                                     <td>
                                         <span class="phone-number">@customer.PhoneNumber</span>
                                     </td>
@@ -145,10 +169,29 @@
                                     </td>
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات مشتری {customer.FullName}")">
-                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewAccount(customer.Id)">
-                                                <i class="bi bi-eye text-primary"></i>
-                                                مشاهده مشتری
-                                            </button>
+                                            @if (HasCustomerAccount(customer.Id))
+                                            {
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewAccount(customer.Id)">
+                                                    <i class="bi bi-eye text-primary"></i>
+                                                    مشاهده مشتری
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(customer.Id)">
+                                                    <i class="bi bi-pencil text-primary"></i>
+                                                    ویرایش مشخصات
+                                                </button>
+                                                @if (!customer.IsArchived)
+                                                {
+                                                    <button type="button" class="operation-menu-item" role="menuitem"
+                                                            disabled="@(creatingAccountCustomerId == customer.Id)"
+                                                            @onclick="() => CreateAccountForReceiver(customer)">
+                                                        <i class="bi bi-wallet2 text-success"></i>
+                                                        ایجاد حساب مشتری
+                                                    </button>
+                                                }
+                                            }
                                             @if (customer.IsArchived)
                                             {
                                                 <div class="operation-menu-divider"></div>
@@ -171,7 +214,7 @@
         <div class="table-card-footer">
             <div class="table-card-footer-left">
                 <span class="text-muted small">
-                    نمایش <strong>@pagedCustomers.Count</strong> از <strong>@filteredCustomers.Count</strong> مشتری
+                    نمایش <strong>@pagedCustomers.Count</strong> از <strong>@filteredCustomers.Count</strong> @(IsRegisteredReceiverTab ? "گیرندهٔ ثبت‌شده" : "مشتری")
                 </span>
 
                 <CompactPagination CurrentPage="currentPage"
@@ -197,7 +240,7 @@
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
-                        @(isEditMode ? "ویرایش مشتری" : "ایجاد مشتری جدید")
+                        @GetCustomerModalTitle()
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
                 </div>
@@ -798,6 +841,18 @@
     private List<CustomerDto> filteredCustomers = new();
     private List<CurrencyDto> currencies = new();
     private List<AccountDto> accounts = new();
+    private readonly HashSet<long> customerIdsWithAccounts = [];
+    private string activeCustomerType = "Customers";
+    private long creatingAccountCustomerId;
+    private string pageOperationMessage = string.Empty;
+    private string pageOperationError = string.Empty;
+
+    private bool IsRegisteredReceiverTab => activeCustomerType == "RegisteredReceivers";
+    private List<CustomerDto> activeTypeCustomers => customers
+        .Where(customer => IsRegisteredReceiverTab
+            ? !HasCustomerAccount(customer.Id)
+            : HasCustomerAccount(customer.Id))
+        .ToList();
 
     // ===== جستجو =====
     private string _searchTerm = string.Empty;
@@ -903,9 +958,9 @@
     // ===== بارگذاری داده‌ها =====
     protected override async Task OnInitializedAsync()
     {
+        await LoadAccounts();
         await LoadCustomers();
         await LoadCurrencies();
-        await LoadAccounts();
     }
 
     private async Task LoadCustomers()
@@ -947,7 +1002,18 @@
         try
         {
             var result = await AccountService.GetAllAsync();
-            accounts = result.Where(a => !a.IsArchived).ToList();
+            var allAccounts = result.ToList();
+            customerIdsWithAccounts.Clear();
+            foreach (var account in allAccounts.Where(account =>
+                         account.ReferenceId.HasValue &&
+                         (string.Equals(account.ReferenceType, "Customer", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(account.AccountType, "Customer", StringComparison.OrdinalIgnoreCase))))
+            {
+                customerIdsWithAccounts.Add(account.ReferenceId!.Value);
+            }
+
+            accounts = allAccounts.Where(a => !a.IsArchived).ToList();
+            SearchCustomers();
         }
         catch (Exception ex)
         {
@@ -958,13 +1024,14 @@
     // ===== جستجو =====
     private void SearchCustomers()
     {
-        var query = customers.Where(c => c.IsArchived == showArchived);
+        var query = activeTypeCustomers.Where(c => c.IsArchived == showArchived);
         if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
             var term = _searchTerm.Trim();
             query = query.Where(c =>
                 c.CustomerCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 c.FullName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (c.FatherName != null && c.FatherName.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
                 (c.PhoneNumber != null && c.PhoneNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
                 (c.TazkiraNumber != null && c.TazkiraNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
                 (c.Address != null && c.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
@@ -978,7 +1045,7 @@
     private void ClearSearch()
     {
         _searchTerm = string.Empty;
-        filteredCustomers = customers.Where(c => c.IsArchived == showArchived).ToList();
+        filteredCustomers = activeTypeCustomers.Where(c => c.IsArchived == showArchived).ToList();
         currentPage = 1;
         StateHasChanged();
     }
@@ -986,6 +1053,34 @@
     private void ArchiveViewChanged()
     {
         SearchCustomers();
+    }
+
+    private void SelectCustomerType(string customerType)
+    {
+        if (activeCustomerType == customerType)
+            return;
+
+        activeCustomerType = customerType;
+        showArchived = false;
+        _searchTerm = string.Empty;
+        pageOperationMessage = string.Empty;
+        pageOperationError = string.Empty;
+        currentPage = 1;
+        SearchCustomers();
+    }
+
+    private bool HasCustomerAccount(long customerId) => customerIdsWithAccounts.Contains(customerId);
+
+    private string GetEmptyStateDescription()
+    {
+        if (showArchived)
+            return IsRegisteredReceiverTab
+                ? "هیچ گیرندهٔ ثبت‌شده‌ای در بایگانی وجود ندارد."
+                : "هیچ مشتری‌ای در بایگانی وجود ندارد.";
+
+        return IsRegisteredReceiverTab
+            ? "مشخصات گیرندگان هنگام اجرای حواله در این بخش ذخیره می‌شود."
+            : "برای افزودن مشتری جدید، دکمه «مشتری جدید» را انتخاب کنید.";
     }
 
     private void GoToPage(int page)
@@ -1015,7 +1110,10 @@
     // ===== باز و بسته کردن مودال‌ها (ایجاد/ویرایش) =====
     private void OpenCreateModal()
     {
-        currentCustomer = new CreateCustomerDto();
+        currentCustomer = new CreateCustomerDto
+        {
+            OpenAccount = !IsRegisteredReceiverTab
+        };
         customerCodeDisplay = null;
         isEditMode = false;
         editId = 0;
@@ -1026,6 +1124,14 @@
         initialBalances.Clear();
         newInitialBalance = new InitialBalanceDto();
         StateHasChanged();
+    }
+
+    private string GetCustomerModalTitle()
+    {
+        if (isEditMode)
+            return IsRegisteredReceiverTab ? "ویرایش گیرندهٔ ثبت‌شده" : "ویرایش مشتری";
+
+        return IsRegisteredReceiverTab ? "ایجاد گیرندهٔ جدید" : "ایجاد مشتری جدید";
     }
 
     private async Task OpenEditModal(long id)
@@ -1192,6 +1298,7 @@
             }
 
             showModal = false;
+            await LoadAccounts();
             await LoadCustomers();
         }
         catch (InvalidOperationException ex)
@@ -1304,6 +1411,40 @@
     private void ViewAccount(long customerId)
     {
         NavigationManager.NavigateTo($"/customers/{customerId}");
+    }
+
+    private async Task CreateAccountForReceiver(CustomerDto customer)
+    {
+        if (HasCustomerAccount(customer.Id) || creatingAccountCustomerId != 0)
+            return;
+
+        pageOperationMessage = string.Empty;
+        pageOperationError = string.Empty;
+        try
+        {
+            creatingAccountCustomerId = customer.Id;
+            await AccountService.CreateAsync(new CreateAccountDto
+            {
+                AccountType = "Customer",
+                AccountName = $"مشتری: {customer.FullName}",
+                ReferenceType = "Customer",
+                ReferenceId = customer.Id,
+                HasInitialBalance = false
+            });
+
+            await LoadAccounts();
+            await LoadCustomers();
+            pageOperationMessage = $"حساب {customer.FullName} ساخته شد و اکنون در تب مشتریان قرار دارد.";
+        }
+        catch (Exception ex)
+        {
+            pageOperationError = $"ایجاد حساب انجام نشد: {ex.Message}";
+        }
+        finally
+        {
+            creatingAccountCustomerId = 0;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadAccountData(long customerId)

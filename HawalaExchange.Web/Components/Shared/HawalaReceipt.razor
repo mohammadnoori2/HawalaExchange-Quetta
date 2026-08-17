@@ -33,8 +33,14 @@
                 </td>
             </tr>
             <tr>
-                <th>شماره حواله:</th>
-                <td class="receipt-strong">@Hawala.Number</td>
+                <th>نمبر حواله:</th>
+                <td class="receipt-strong">
+                    <span>@Hawala.Number</span>
+                    @if (!string.IsNullOrWhiteSpace(Hawala.ReferenceNumber))
+                    {
+                        <span class="receipt-reference">@Hawala.ReferenceNumber</span>
+                    }
+                </td>
             </tr>
             @if (!string.IsNullOrWhiteSpace(Hawala.SenderName))
             {
@@ -46,11 +52,16 @@
             }
             @if (!string.IsNullOrWhiteSpace(Hawala.ReceiverName))
             {
-                <tr><th>گیرنده:</th><td>@Hawala.ReceiverName</td></tr>
-            }
-            @if (!string.IsNullOrWhiteSpace(Hawala.ReceiverFatherName))
-            {
-                <tr><th>پدر گیرنده:</th><td>@Hawala.ReceiverFatherName</td></tr>
+                <tr>
+                    <th>گیرنده:</th>
+                    <td>
+                        @Hawala.ReceiverName
+                        @if (!string.IsNullOrWhiteSpace(Hawala.ReceiverFatherName))
+                        {
+                            <span> ولد @Hawala.ReceiverFatherName</span>
+                        }
+                    </td>
+                </tr>
             }
             @if (!string.IsNullOrWhiteSpace(Hawala.ReceiverPhone))
             {
@@ -87,10 +98,6 @@
                     </td>
                 </tr>
             }
-            @if (!string.IsNullOrWhiteSpace(Hawala.ReferenceNumber))
-            {
-                <tr><th>نمبر متفرقه:</th><td>@Hawala.ReferenceNumber</td></tr>
-            }
             @if (HasPaymentLocation())
             {
                 <tr><th>محل پرداخت:</th><td>@GetPaymentLocation()</td></tr>
@@ -99,10 +106,6 @@
             {
                 <tr><th>آدرس گیرنده:</th><td>@Hawala.ReceiverAddress</td></tr>
             }
-            @if (Hawala.PaidAt.HasValue)
-            {
-                <tr><th>تاریخ پرداخت:</th><td><AppDateTime Value="@Hawala.PaidAt" /></td></tr>
-            }
             @if (!string.IsNullOrWhiteSpace(Hawala.Notes))
             {
                 <tr><th>یادداشت:</th><td>@Hawala.Notes</td></tr>
@@ -110,27 +113,17 @@
         </tbody>
     </table>
 
-    @if (ShowCompanyHeader && HasCompanyContactInformation())
+    @if (HasCompanyContactInformation())
     {
         <section class="receipt-company-contact">
             @if (!string.IsNullOrWhiteSpace(Company.Address))
             {
-                <div class="receipt-company-address">@Company.Address</div>
+                <div class="receipt-company-address">آدرس: @Company.Address</div>
             }
-            <div class="receipt-contact-list" dir="ltr">
-                @if (!string.IsNullOrWhiteSpace(Company.PhoneNumber))
-                {
-                    <span>@Company.PhoneNumber</span>
-                }
-                @if (!string.IsNullOrWhiteSpace(Company.WhatsAppNumber))
-                {
-                    <span>WhatsApp: @Company.WhatsAppNumber</span>
-                }
-                @if (!string.IsNullOrWhiteSpace(Company.TelegramUserName))
-                {
-                    <span>Telegram: @Company.TelegramUserName</span>
-                }
-            </div>
+            @if (!string.IsNullOrWhiteSpace(Company.PhoneNumber))
+            {
+                <div class="receipt-company-phone">شماره تلفون: <span dir="ltr">@Company.PhoneNumber</span></div>
+            }
         </section>
     }
 
@@ -232,6 +225,13 @@
         font-weight: 800;
     }
 
+    .receipt-reference {
+        display: block;
+        margin-top: .5mm;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
     .receipt-company-contact {
         padding: 3mm 1.5mm 1mm;
         text-align: center;
@@ -243,11 +243,7 @@
         font-weight: 600;
     }
 
-    .receipt-contact-list {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-around;
-        gap: 1mm 3mm;
+    .receipt-company-phone {
         font-weight: 700;
     }
 
@@ -315,9 +311,7 @@
 
     private bool HasCompanyContactInformation() =>
         !string.IsNullOrWhiteSpace(Company.Address) ||
-        !string.IsNullOrWhiteSpace(Company.PhoneNumber) ||
-        !string.IsNullOrWhiteSpace(Company.WhatsAppNumber) ||
-        !string.IsNullOrWhiteSpace(Company.TelegramUserName);
+        !string.IsNullOrWhiteSpace(Company.PhoneNumber);
 
     private static string GetCurrencyName(string? name, string? code) =>
         !string.IsNullOrWhiteSpace(name) ? name : code ?? string.Empty;

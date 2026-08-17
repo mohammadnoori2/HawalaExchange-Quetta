@@ -1,5 +1,6 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
 @inject ICorrespondentSettlementService SettlementService
 
 @if (IsVisible)
@@ -29,23 +30,64 @@
                     else if (preview != null)
                     {
                         <div class="alert alert-info py-2">
-                            نرخ را مطابق روش معمول سیستم وارد کنید. تبدیل هر ارز جداگانه محاسبه و در دفترکل ثبت می‌شود.
+                            نرخ هر ارز را یک‌بار وارد کنید؛ این نرخ برای تمام حواله‌های همان ارز اعمال می‌شود، اما برای هر حواله جداگانه ذخیره خواهد شد.
                         </div>
                         <div class="table-responsive">
                             <GlobalDataGrid class="table table-sm align-middle">
-                                <thead><tr><th>ارز مبدأ</th><th>مانده/حواله</th><th>نرخ تبدیل به @preview.TargetCurrencyCode</th></tr></thead>
+                                <thead><tr><th>ارز فعلی</th><th>تعداد حواله</th><th>مجموع مبلغ فعلی</th><th>نرخ تبدیل</th><th>مجموع به @preview.TargetCurrencyCode</th></tr></thead>
                                 <tbody>
-                                    @foreach (var item in rateInputs)
+                                    @foreach (var group in rateGroups)
                                     {
                                         <tr>
-                                            <td class="fw-bold">@item.CurrencyCode</td>
-                                            <td dir="ltr">@item.Description</td>
-                                            <td><input type="number" min="0.00000001" step="any" class="form-control form-control-sm" @bind="item.Rate" /></td>
+                                            <td class="fw-bold">@group.CurrencyCode</td>
+                                            <td>@(AccountMode ? "مانده حساب" : $"{group.Items.Select(x => x.HawalaId).Distinct().Count()} حواله")</td>
+                                            <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(GetSourceTotal(group)) @group.CurrencyCode</td>
+                                            <td style="min-width:9rem">
+                                                <input type="number" min="0.00000001" step="any" class="form-control form-control-sm"
+                                                       @bind="group.Rate" @bind:event="oninput" @bind:after="() => ApplyGroupRate(group)" />
+                                            </td>
+                                            <td dir="ltr" class="fw-bold text-success">
+                                                @(group.Items.All(x => x.Rate > 0) ? $"{MoneyFormatHelper.Format(GetTargetTotal(group))} {preview.TargetCurrencyCode}" : "—")
+                                            </td>
                                         </tr>
                                     }
                                 </tbody>
                             </GlobalDataGrid>
                         </div>
+                        @if (rateInputs.Count > 0 && rateInputs.All(x => x.Rate > 0))
+                        {
+                            <div class="alert alert-success py-2 d-flex justify-content-between align-items-center">
+                                <span>مجموع نهایی به ارز توافقی</span>
+                                <strong dir="ltr">@MoneyFormatHelper.Format(GetOverallTargetTotal()) @preview.TargetCurrencyCode</strong>
+                            </div>
+                        }
+                        @if (!AccountMode && rateInputs.Count > 1)
+                        {
+                            <button type="button" class="btn btn-sm btn-link px-0 mb-2" @onclick="() => showIndividualRates = !showIndividualRates">
+                                <i class="bi @(showIndividualRates ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                @(showIndividualRates ? "بستن نرخ‌های جداگانه" : "وارد کردن نرخ متفاوت برای یک حواله")
+                            </button>
+                        }
+                        @if (showIndividualRates)
+                        {
+                            <div class="table-responsive mb-2">
+                                <GlobalDataGrid class="table table-sm align-middle">
+                                    <thead><tr><th>حواله</th><th>ارز</th><th>مبلغ</th><th>نرخ مستقل</th><th>مبلغ تبدیل‌شده</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var item in rateInputs)
+                                        {
+                                            <tr>
+                                                <td>شماره @item.HawalaNumber</td>
+                                                <td class="fw-bold">@item.CurrencyCode</td>
+                                                <td dir="ltr">@MoneyFormatHelper.Format(item.SourceAmount) @item.CurrencyCode</td>
+                                                <td><input type="number" min="0.00000001" step="any" class="form-control form-control-sm" @bind="item.Rate" @bind:event="oninput" /></td>
+                                                <td dir="ltr">@(item.Rate.GetValueOrDefault() > 0 ? $"{MoneyFormatHelper.Format(ConvertInput(item))} {preview.TargetCurrencyCode}" : "—")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </GlobalDataGrid>
+                            </div>
+                        }
                         <label class="form-label">یادداشت (اختیاری)</label>
                         <textarea class="form-control" rows="2" maxlength="500" @bind="note"></textarea>
                     }
@@ -71,11 +113,13 @@
 
     private CorrespondentSettlementPreviewDto? preview;
     private readonly List<RateInput> rateInputs = [];
+    private readonly List<RateGroup> rateGroups = [];
     private bool loading;
     private bool saving;
     private string error = string.Empty;
     private string? note;
     private bool wasVisible;
+    private bool showIndividualRates;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -90,6 +134,8 @@
         error = string.Empty;
         note = null;
         rateInputs.Clear();
+        rateGroups.Clear();
+        showIndividualRates = false;
         try
         {
             preview = await SettlementService.GetPreviewAsync(CorrespondentId);
@@ -99,6 +145,8 @@
                 {
                     CurrencyId = x.SourceCurrencyId,
                     CurrencyCode = x.SourceCurrencyCode,
+                    SourceQuotationPriority = x.SourceQuotationPriority,
+                    SourceAmount = Math.Abs(x.NetAmount),
                     Description = x.TalabKar > 0
                         ? $"طلبکار: {x.TalabKar:N2}"
                         : $"بدهکار: {x.BadehKar:N2}"
@@ -106,16 +154,31 @@
             }
             else
             {
-                rateInputs.AddRange(SelectedHawalas
-                    .Where(x => x.SettlementState == "Pending")
-                    .GroupBy(x => new { Id = x.SettlementSourceCurrencyId, Code = x.SettlementSourceCurrencyCode })
-                    .Select(x => new RateInput
+                var hawalaBalances = await SettlementService.GetHawalaPreviewAsync(
+                    CorrespondentId,
+                    SelectedHawalas.Where(x => x.SettlementState == "Pending").Select(x => x.Id).ToArray());
+                rateInputs.AddRange(hawalaBalances.Select(x => new RateInput
                     {
-                        CurrencyId = x.Key.Id,
-                        CurrencyCode = x.Key.Code,
-                        Description = $"{x.Count()} حواله"
+                        HawalaId = x.HawalaId,
+                        HawalaNumber = x.HawalaNumber,
+                        CurrencyId = x.SourceCurrencyId,
+                        CurrencyCode = x.SourceCurrencyCode,
+                        SourceQuotationPriority = x.SourceQuotationPriority,
+                        SourceAmount = Math.Abs(x.NetAmount),
+                        Description = x.TalabKar > 0
+                            ? $"طلبکار: {x.TalabKar:N2}"
+                            : $"بدهکار: {x.BadehKar:N2}"
                     }));
             }
+
+            rateGroups.AddRange(rateInputs
+                .GroupBy(x => new { x.CurrencyId, x.CurrencyCode })
+                .Select(x => new RateGroup
+                {
+                    CurrencyId = x.Key.CurrencyId,
+                    CurrencyCode = x.Key.CurrencyCode,
+                    Items = x.ToList()
+                }));
 
             if (rateInputs.Count == 0)
                 error = AccountMode ? "مانده‌ای برای تبدیل وجود ندارد." : "حوالهٔ تبدیل‌نشده‌ای انتخاب نشده است.";
@@ -134,32 +197,36 @@
     private async Task SubmitAsync()
     {
         error = string.Empty;
-        if (rateInputs.Any(x => x.Rate <= 0))
+        if (rateInputs.Any(x => x.Rate.GetValueOrDefault() <= 0))
         {
-            error = "برای همه ارزها نرخ معتبر وارد کنید.";
+            error = "برای همه ردیف‌ها نرخ معتبر وارد کنید.";
             return;
         }
 
         try
         {
             saving = true;
-            var rates = rateInputs.Select(x => new SettlementRateDto
-            {
-                SourceCurrencyId = x.CurrencyId,
-                Rate = x.Rate
-            }).ToList();
             var result = AccountMode
                 ? await SettlementService.ConvertBalanceAsync(new ConvertCorrespondentBalanceDto
                 {
                     CorrespondentId = CorrespondentId,
-                    Rates = rates,
+                    Rates = rateInputs.Select(x => new SettlementRateDto
+                    {
+                        SourceCurrencyId = x.CurrencyId,
+                        Rate = x.Rate!.Value
+                    }).ToList(),
                     Note = note
                 })
                 : await SettlementService.ConvertHawalasAsync(new ConvertHawalasToSettlementDto
                 {
                     CorrespondentId = CorrespondentId,
                     HawalaIds = SelectedHawalas.Select(x => x.Id).ToList(),
-                    Rates = rates,
+                    HawalaRates = rateInputs.Select(x => new HawalaSettlementRateDto
+                    {
+                        HawalaId = x.HawalaId!.Value,
+                        SourceCurrencyId = x.CurrencyId,
+                        Rate = x.Rate!.Value
+                    }).ToList(),
                     Note = note
                 });
             await OnConverted.InvokeAsync(result);
@@ -175,6 +242,38 @@
         }
     }
 
+    private static decimal GetSourceTotal(RateGroup group) => group.Items.Sum(x => x.SourceAmount);
+
+    private decimal GetTargetTotal(RateGroup group) => group.Items.Sum(ConvertInput);
+
+    private decimal GetOverallTargetTotal() => rateInputs.Sum(ConvertInput);
+
+    private void ApplyGroupRate(RateGroup group)
+    {
+        foreach (var item in group.Items)
+            item.Rate = group.Rate;
+    }
+
+    private decimal ConvertInput(RateInput item)
+    {
+        if (preview == null || item.Rate.GetValueOrDefault() <= 0 || item.SourceAmount <= 0)
+            return 0;
+
+        var converted = CurrencyQuotationCalculator.ConvertFromAmount(
+            item.CurrencyId,
+            item.CurrencyCode,
+            item.SourceQuotationPriority,
+            item.SourceAmount,
+            preview.TargetCurrencyId,
+            preview.TargetCurrencyCode,
+            preview.TargetQuotationPriority,
+            item.Rate!.Value);
+        return decimal.Round(
+            converted.ToAmount,
+            Math.Clamp(preview.TargetDecimalPlaces, 0, 8),
+            MidpointRounding.AwayFromZero);
+    }
+
     private async Task CloseAsync()
     {
         wasVisible = false;
@@ -183,9 +282,21 @@
 
     private sealed class RateInput
     {
+        public long? HawalaId { get; init; }
+        public long? HawalaNumber { get; init; }
         public long CurrencyId { get; init; }
         public string CurrencyCode { get; init; } = string.Empty;
+        public int SourceQuotationPriority { get; init; }
+        public decimal SourceAmount { get; init; }
         public string Description { get; init; } = string.Empty;
-        public decimal Rate { get; set; }
+        public decimal? Rate { get; set; }
+    }
+
+    private sealed class RateGroup
+    {
+        public long CurrencyId { get; init; }
+        public string CurrencyCode { get; init; } = string.Empty;
+        public List<RateInput> Items { get; init; } = [];
+        public decimal? Rate { get; set; }
     }
 }

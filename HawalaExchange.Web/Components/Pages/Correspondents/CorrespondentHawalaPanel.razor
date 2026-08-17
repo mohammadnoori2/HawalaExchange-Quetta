@@ -87,6 +87,7 @@
                     <th>گیرنده</th>
                     <th>مبلغ</th>
                     <th>کارمزد</th>
+                    <th>نرخ توافقی</th>
                     <th>وضعیت</th>
                     <th>تاریخ</th>
                     <th class="text-center">عملیات</th>
@@ -95,11 +96,11 @@
             <tbody>
                 @if (isLoading)
                 {
-                    <tr><td colspan="9" class="panel-empty"><span class="spinner-border spinner-border-sm text-primary"></span> در حال بارگذاری...</td></tr>
+                    <tr><td colspan="10" class="panel-empty"><span class="spinner-border spinner-border-sm text-primary"></span> در حال بارگذاری...</td></tr>
                 }
                 else if (!hawalas.Any())
                 {
-                    <tr><td colspan="9" class="panel-empty">حواله‌ای در این بخش ثبت نشده است.</td></tr>
+                    <tr><td colspan="10" class="panel-empty">حواله‌ای در این بخش ثبت نشده است.</td></tr>
                 }
                 else
                 {
@@ -122,6 +123,27 @@
                             <td dir="ltr">
                                 @(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "—")
                                 @hawala.CommissionCurrencyCode
+                            </td>
+                            <td class="text-nowrap">
+                                @if (hawala.SettlementRates.Count > 0)
+                                {
+                                    @foreach (var rateInfo in hawala.SettlementRates)
+                                    {
+                                        <div class="d-flex align-items-center gap-1" dir="ltr">
+                                            <span>@AmountValueHelper.Format(rateInfo.ExchangeRate) @rateInfo.SourceCurrencyCode</span>
+                                            @if (hawala.CanEditSettlementRate)
+                                            {
+                                                <button type="button" class="btn btn-link btn-sm p-0" title="تغییر نرخ" @onclick="() => OpenRateEdit(hawala, rateInfo)">
+                                                    <i class="bi bi-pencil-square"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
                             </td>
                             <td><span class="hawala-status @GetStatusClass(hawala.Status)">@hawala.StatusName</span></td>
                             <td><AppDateTime Value="@hawala.CreatedAt" /></td>
@@ -165,6 +187,12 @@
                                CorrespondentId="@CorrespondentId"
                                SelectedHawalas="@SelectedSettlementHawalas"
                                OnConverted="HandleSettlementConvertedAsync" />
+
+<EditHawalaSettlementRateModal IsVisible="@showRateEditModal"
+                               IsVisibleChanged="HandleRateEditVisibility"
+                               Hawala="@rateEditHawala"
+                               RateInfo="@rateEditInfo"
+                               OnUpdated="HandleRateUpdatedAsync" />
 
 <CreateHawalaModal IsVisible="@showHawalaModal"
                    IsVisibleChanged="HandleHawalaModalVisibility"
@@ -355,6 +383,9 @@
     private bool showSettlementModal;
     private readonly HashSet<long> selectedSettlementIds = [];
     private readonly Dictionary<long, HawalaDto> selectedSettlementHawalas = [];
+    private bool showRateEditModal;
+    private HawalaDto? rateEditHawala;
+    private HawalaSettlementRateInfoDto? rateEditInfo;
     private string? loadedKey;
 
     private bool showHawalaModal;
@@ -792,6 +823,30 @@
     }
 
     private void OpenSettlement() => showSettlementModal = true;
+
+    private void OpenRateEdit(HawalaDto hawala, HawalaSettlementRateInfoDto rateInfo)
+    {
+        rateEditHawala = hawala;
+        rateEditInfo = rateInfo;
+        showRateEditModal = true;
+    }
+
+    private Task HandleRateEditVisibility(bool visible)
+    {
+        showRateEditModal = visible;
+        if (!visible)
+        {
+            rateEditHawala = null;
+            rateEditInfo = null;
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleRateUpdatedAsync(HawalaSettlementRateResultDto result)
+    {
+        successMessage = $"نرخ حواله شماره {result.HawalaNumber} از {AmountValueHelper.Format(result.PreviousRate)} به {AmountValueHelper.Format(result.ExchangeRate)} تغییر کرد.";
+        await LoadHawalasAsync();
+    }
 
     private Task HandleSettlementVisibility(bool visible)
     {

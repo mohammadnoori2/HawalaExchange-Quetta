@@ -1,0 +1,99 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject ICorrespondentSettlementService SettlementService
+
+@if (IsVisible && Hawala != null && RateInfo != null)
+{
+    <div class="modal show d-block" tabindex="-1" dir="rtl" style="background:rgba(15,23,42,.55)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title">تغییر نرخ ارز توافقی</h5>
+                        <small class="text-muted">حواله شماره @Hawala.Number · @RateInfo.SourceCurrencyCode به @RateInfo.TargetCurrencyCode</small>
+                    </div>
+                    <button type="button" class="btn-close" disabled="@saving" @onclick="CloseAsync"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(error))
+                    {
+                        <div class="alert alert-danger py-2">@error</div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">نرخ جدید</label>
+                        <input type="number" min="0.00000001" step="any" class="form-control" @bind="rate" />
+                    </div>
+                    <div class="small text-muted">
+                        مبلغ @MoneyFormatHelper.Format(RateInfo.SourceAmount) @RateInfo.SourceCurrencyCode فقط با نرخ جدید دوباره محاسبه می‌شود.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" disabled="@saving" @onclick="CloseAsync">انصراف</button>
+                    <button type="button" class="btn btn-primary" disabled="@saving" @onclick="SaveAsync">
+                        @(saving ? "در حال ثبت..." : "ثبت نرخ جدید")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public HawalaDto? Hawala { get; set; }
+    [Parameter] public HawalaSettlementRateInfoDto? RateInfo { get; set; }
+    [Parameter] public EventCallback<HawalaSettlementRateResultDto> OnUpdated { get; set; }
+
+    private decimal rate;
+    private bool saving;
+    private bool wasVisible;
+    private string error = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible && !wasVisible && RateInfo != null)
+        {
+            rate = RateInfo.ExchangeRate;
+            error = string.Empty;
+        }
+        wasVisible = IsVisible;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (Hawala == null || RateInfo == null || rate <= 0)
+        {
+            error = "نرخ معتبر وارد کنید.";
+            return;
+        }
+
+        try
+        {
+            saving = true;
+            error = string.Empty;
+            var result = await SettlementService.UpdateHawalaRateAsync(new UpdateHawalaSettlementRateDto
+            {
+                HawalaId = Hawala.Id,
+                SourceCurrencyId = RateInfo.SourceCurrencyId,
+                Rate = rate
+            });
+            await OnUpdated.InvokeAsync(result);
+            await CloseAsync();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        wasVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+}

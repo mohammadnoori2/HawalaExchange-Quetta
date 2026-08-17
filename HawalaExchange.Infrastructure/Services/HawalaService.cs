@@ -1134,7 +1134,7 @@
                     AgentCommissionAmount = receivedHawala.AgentCommissionAmount,
                     AgentCommissionCurrencyId = receivedHawala.AgentCommissionCurrencyId,
                     ReferenceNumber = $"AUTO-RCV-{receivedHawala.Id}",
-                    Notes = $"حواله ارسالی خودکار بابت پرداخت حواله دریافتی شماره {receivedHawala.Number}",
+                    Notes = receivedHawala.Notes,
                     CreatedAt = now,
                     CreatedBy = GetCurrentUserId(),
                     PaidAt = now,

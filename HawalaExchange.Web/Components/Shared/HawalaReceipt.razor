@@ -106,7 +106,7 @@
             {
                 <tr><th>آدرس گیرنده:</th><td>@Hawala.ReceiverAddress</td></tr>
             }
-            @if (!string.IsNullOrWhiteSpace(Hawala.Notes))
+            @if (HasUserNote())
             {
                 <tr><th>یادداشت:</th><td>@Hawala.Notes</td></tr>
             }
@@ -312,6 +312,14 @@
     private bool HasCompanyContactInformation() =>
         !string.IsNullOrWhiteSpace(Company.Address) ||
         !string.IsNullOrWhiteSpace(Company.PhoneNumber);
+
+    private bool HasUserNote() =>
+        !string.IsNullOrWhiteSpace(Hawala.Notes) &&
+        !(Hawala.IsSystemGenerated &&
+          Hawala.SourceHawalaId.HasValue &&
+          Hawala.Notes.StartsWith(
+              "حواله ارسالی خودکار بابت پرداخت حواله دریافتی شماره",
+              StringComparison.Ordinal));
 
     private static string GetCurrencyName(string? name, string? code) =>
         !string.IsNullOrWhiteSpace(name) ? name : code ?? string.Empty;

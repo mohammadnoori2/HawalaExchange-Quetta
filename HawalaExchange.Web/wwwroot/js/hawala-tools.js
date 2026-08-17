@@ -530,6 +530,33 @@ window.hawalaTools = {
             font-weight: 600 !important;
         }
 
+        .receipt-company-phone {
+            font-weight: 700 !important;
+        }
+
+        .execution-declaration {
+            margin-top: 3mm !important;
+            padding: 2.5mm !important;
+            border: 1px solid #555 !important;
+            text-align: justify !important;
+            font-size: 10.5px !important;
+            font-weight: 600 !important;
+            line-height: 1.9 !important;
+        }
+
+        .execution-signature {
+            min-height: 30mm !important;
+            padding: 17mm 7mm 0 !important;
+            text-align: center !important;
+            font-size: 10px !important;
+        }
+
+        .execution-signature-line {
+            width: 42mm !important;
+            margin: 0 auto 1.5mm !important;
+            border-top: 1px solid #333 !important;
+        }
+
         .receipt-contact-list {
             display: flex !important;
             flex-wrap: wrap !important;

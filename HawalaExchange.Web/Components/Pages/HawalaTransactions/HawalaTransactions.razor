@@ -456,6 +456,8 @@
                 </div>
 
                 <div class="modal-footer">
+                    <HawalaExecutionReceiptPrint Hawala="payHawala" Payment="payDetails" />
+
                     <button type="button"
                             class="btn-modern btn-light-modern"
                             @onclick="ClosePayModal">
@@ -840,6 +842,7 @@
     private long selectedPaymentAccountId = 0;
     private List<CustomerDto> customers = new();
     private PayHawalaDto payDetails = new();
+    private HawalaDto? payHawala;
 
     private List<AccountDto> paymentAccountsForHawalaReceive =>
         accounts
@@ -1392,6 +1395,7 @@
         payHawalaNumber = hawalaNumber;
         selectedPaymentAccountId = 0;
         var hawala = filteredHawalas.FirstOrDefault(x => x.Id == hawalaId);
+        payHawala = hawala;
         payDetails = CreatePayDetails(hawala);
         validationErrors.Clear();
         successMessage = string.Empty;
@@ -1404,6 +1408,7 @@
         showPayModal = false;
         payHawalaId = 0;
         payHawalaNumber = 0;
+        payHawala = null;
         selectedPaymentAccountId = 0;
         payDetails = new PayHawalaDto();
         StateHasChanged();
@@ -1434,6 +1439,7 @@
             showPayModal = false;
             payHawalaId = 0;
             payHawalaNumber = 0;
+            payHawala = null;
             selectedPaymentAccountId = 0;
 
             await LoadHawalas();

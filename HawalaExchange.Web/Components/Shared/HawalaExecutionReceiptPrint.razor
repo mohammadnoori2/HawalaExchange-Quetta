@@ -1,0 +1,173 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
+@using HawalaExchange.Web.Helpers
+@using Microsoft.JSInterop
+@inject ICompanySettingService CompanySettingService
+@inject IJSRuntime JS
+
+@if (Hawala != null)
+{
+    <button type="button" class="@ButtonClass" disabled="@printing" @onclick="PrintAsync">
+        @if (printing)
+        {
+            <span class="spinner-border spinner-border-sm"></span>
+        }
+        else
+        {
+            <i class="bi bi-printer"></i>
+        }
+        چاپ رسید اجرا
+    </button>
+
+    <div class="position-fixed" style="left:-10000px;top:0;width:80mm" aria-hidden="true">
+        <div id="@printAreaId">
+            <article class="hawala-receipt execution-receipt" dir="rtl">
+                <header class="receipt-brand">
+                    <div class="receipt-brand-copy">
+                        @if (!string.IsNullOrWhiteSpace(company.CompanyName))
+                        {
+                            <h3>@company.CompanyName</h3>
+                        }
+                        <div class="receipt-kind">رسید اجرای حواله</div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(company.LogoPath))
+                    {
+                        <img src="@company.LogoPath" class="receipt-logo" alt="لوگوی صرافی" />
+                    }
+                </header>
+
+                <h4 class="receipt-heading">مشخصات حواله اجراشده</h4>
+
+                <table class="receipt-table">
+                    <tbody>
+                        <tr>
+                            <th>تاریخ اجرا:</th>
+                            <td>
+                                <span>@PersianDateHelper.ToPersianDate(ExecutionTime)</span>
+                                <span class="receipt-time" dir="ltr">@ExecutionTime.ToLocalTime().ToString("HH:mm:ss")</span>
+                            </td>
+                        </tr>
+                        <tr><th>نمبر حواله:</th><td class="receipt-strong">@Hawala.Number</td></tr>
+                        <tr><th>فرستنده:</th><td>@Display(Hawala.SenderName)</td></tr>
+                        <tr><th>گیرنده:</th><td>@ReceiverFullName</td></tr>
+                        <tr>
+                            <th>مبلغ:</th>
+                            <td class="receipt-amount" dir="ltr">
+                                @MoneyFormatHelper.Format(PaymentAmount) @PaymentCurrency
+                            </td>
+                        </tr>
+                        <tr><th>نمایندگی ارسال‌کننده:</th><td>@Display(Hawala.CorrespondentName)</td></tr>
+                    </tbody>
+                </table>
+
+                <section class="execution-declaration">
+                    اینجانب @ReceiverFullName، حواله با مشخصات فوق را از خدمات پولی @Display(company.CompanyName) دریافت کردم.
+                </section>
+
+                <section class="execution-signature">
+                    <div class="execution-signature-line"></div>
+                    <strong>امضاء یا اثر انگشت گیرنده</strong>
+                </section>
+
+                @if (HasCompanyContact)
+                {
+                    <section class="receipt-company-contact">
+                        @if (!string.IsNullOrWhiteSpace(company.Address))
+                        {
+                            <div class="receipt-company-address">آدرس: @company.Address</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(company.PhoneNumber))
+                        {
+                            <div class="receipt-company-phone">شماره تلفون: <span dir="ltr">@company.PhoneNumber</span></div>
+                        }
+                    </section>
+                }
+            </article>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public HawalaDto? Hawala { get; set; }
+    [Parameter, EditorRequired] public PayHawalaDto Payment { get; set; } = new();
+    [Parameter] public string ButtonClass { get; set; } = "btn-modern btn-light-modern";
+
+    private readonly string printAreaId = $"hawala-execution-receipt-{Guid.NewGuid():N}";
+    private CompanySettingDto company = new();
+    private DateTime previewExecutionTime = DateTime.UtcNow;
+    private bool printing;
+    private bool printRequested;
+
+    private DateTime ExecutionTime => Hawala?.PaidAt ?? previewExecutionTime;
+    private decimal PaymentAmount => Hawala?.ToAmount ?? Hawala?.FromAmount ?? 0;
+    private string PaymentCurrency => GetCurrencyName(Hawala?.ToCurrencyName, Hawala?.ToCurrencyCode,
+        Hawala?.FromCurrencyName, Hawala?.FromCurrencyCode);
+    private string ReceiverFullName
+    {
+        get
+        {
+            var receiverName = !string.IsNullOrWhiteSpace(Payment.ReceiverName)
+                ? Payment.ReceiverName.Trim()
+                : Display(Hawala?.ReceiverName);
+            var fatherName = !string.IsNullOrWhiteSpace(Payment.ReceiverFatherName)
+                ? Payment.ReceiverFatherName.Trim()
+                : Hawala?.ReceiverFatherName?.Trim();
+            return string.IsNullOrWhiteSpace(fatherName)
+                ? receiverName
+                : $"{receiverName} ولد {fatherName}";
+        }
+    }
+
+    private bool HasCompanyContact =>
+        !string.IsNullOrWhiteSpace(company.Address) ||
+        !string.IsNullOrWhiteSpace(company.PhoneNumber);
+
+    private async Task PrintAsync()
+    {
+        if (Hawala == null)
+            return;
+
+        try
+        {
+            printing = true;
+            previewExecutionTime = DateTime.UtcNow;
+            company = await CompanySettingService.GetAsync();
+            printRequested = true;
+        }
+        catch
+        {
+            printing = false;
+            throw;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!printRequested)
+            return;
+
+        printRequested = false;
+        try
+        {
+            await JS.InvokeVoidAsync("hawalaTools.printElement", printAreaId, 80);
+        }
+        finally
+        {
+            printing = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string Display(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
+
+    private static string GetCurrencyName(string? toName, string? toCode, string? fromName, string? fromCode)
+    {
+        if (!string.IsNullOrWhiteSpace(toName)) return toName;
+        if (!string.IsNullOrWhiteSpace(toCode)) return toCode;
+        if (!string.IsNullOrWhiteSpace(fromName)) return fromName;
+        return fromCode ?? string.Empty;
+    }
+}

@@ -294,6 +294,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <HawalaExecutionReceiptPrint Hawala="payHawala" Payment="payDetails" ButtonClass="btn btn-light border" />
                     <button class="btn btn-light border" @onclick="ClosePay">انصراف</button>
                     <button class="btn btn-success" disabled="@actionLoading" @onclick="ConfirmPayAsync">تأیید و اجرا</button>
                 </div>
@@ -402,6 +403,7 @@
     private long payHawalaNumber;
     private long selectedPaymentAccountId;
     private PayHawalaDto payDetails = new();
+    private HawalaDto? payHawala;
     private bool showCancelModal;
     private long cancelId;
     private string cancelReason = string.Empty;
@@ -661,6 +663,7 @@
                 .ToList();
             payHawalaId = hawala.Id;
             payHawalaNumber = hawala.Number;
+            payHawala = hawala;
             selectedPaymentAccountId = 0;
             payDetails = new PayHawalaDto
             {
@@ -684,6 +687,7 @@
         showPayModal = false;
         payHawalaId = 0;
         payHawalaNumber = 0;
+        payHawala = null;
         selectedPaymentAccountId = 0;
         payDetails = new PayHawalaDto();
     }

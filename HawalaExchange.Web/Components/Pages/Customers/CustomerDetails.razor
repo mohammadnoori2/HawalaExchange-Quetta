@@ -52,11 +52,13 @@
                              ShowFinancialActions="@(customerAccount != null)"
                              UseActionsMenu="true"
                              ShowTransactionsInActionsMenu="true"
+                             ShowReportsInActionsMenu="true"
                              ActionEntityArchived="@customer.IsArchived"
                              IsVisibleChanged="HandleVisibilityChanged"
                              OnEditRequested="OpenEdit"
                              OnArchiveToggleRequested="OpenArchiveConfirmation"
-                             OnViewTransactions="ViewTransactions">
+                             OnViewTransactions="ViewTransactions"
+                             OnViewReports="ViewReports">
             <ProfileSummary>
                 @if (customerAccount == null)
                 {
@@ -243,6 +245,8 @@
     private void BackToCustomers() => NavigationManager.NavigateTo("/customers");
 
     private void ViewTransactions() => NavigationManager.NavigateTo($"/customers/{CustomerId}/transactions");
+
+    private void ViewReports() => NavigationManager.NavigateTo($"/reports/customer-activities?customerId={CustomerId}");
 
     private Task OpenEdit(long _)
     {

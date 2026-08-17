@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 
 namespace HawalaExchange.Web.Controllers
 {
     [ApiController]
+    [Authorize]
     [Route("api/exports")]
     public class ExportController : ControllerBase
     {

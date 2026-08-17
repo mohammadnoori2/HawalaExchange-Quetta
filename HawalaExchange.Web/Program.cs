@@ -26,6 +26,7 @@ public partial class Program
         // ============================================================
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
+        builder.Services.AddControllers();
 
         // ============================================================
         // 2. Database Context
@@ -145,6 +146,12 @@ public partial class Program
         builder.Services.AddScoped<IPlatformAuditService, PlatformAuditService>();
         builder.Services.AddSingleton<IPlatformMessageSender, SmtpPlatformMessageSender>();
         builder.Services.AddHostedService<SaasAutomationWorker>();
+
+        // Export services (customer activities Excel/PDF)
+        builder.Services.AddScoped<IExportService, ExportService>();
+        builder.Services.AddSingleton(typeof(WkHtmlToPdfDotNet.Contracts.IConverter),
+            new WkHtmlToPdfDotNet.SynchronizedConverter(new WkHtmlToPdfDotNet.PdfTools()));
+
         // ============================================================
         // 8. Email Sender
         // ============================================================
@@ -178,6 +185,7 @@ public partial class Program
 
         // ✅ Map Identity Endpoints
         app.MapAdditionalIdentityEndpoints();
+        app.MapControllers();
 
         app.MapGet("/api/platform/reports/excel", async (
             ISaasReportingService reportingService,

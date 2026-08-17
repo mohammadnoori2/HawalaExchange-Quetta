@@ -16,12 +16,22 @@
     @if (isOpen)
     {
         <div id="@menuId" class="operation-menu account-actions-menu" dir="rtl" role="menu">
-            @if (ShowTransactions)
+            @if (ShowTransactions || ShowReports)
             {
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="TransactionsAsync">
-                    <i class="bi bi-list-ul text-info"></i>
-                    تراکنش‌ها
-                </button>
+                @if (ShowTransactions)
+                {
+                    <button type="button" class="operation-menu-item" role="menuitem" @onclick="TransactionsAsync">
+                        <i class="bi bi-list-ul text-info"></i>
+                        تراکنش‌ها
+                    </button>
+                }
+                @if (ShowReports)
+                {
+                    <button type="button" class="operation-menu-item" role="menuitem" @onclick="ReportsAsync">
+                        <i class="bi bi-clipboard-data text-info"></i>
+                        گزارشات
+                    </button>
+                }
                 <div class="operation-menu-divider"></div>
             }
 
@@ -77,6 +87,8 @@
     [Parameter] public bool CanArchive { get; set; }
     [Parameter] public bool ShowTransactions { get; set; }
     [Parameter] public EventCallback OnViewTransactions { get; set; }
+    [Parameter] public bool ShowReports { get; set; }
+    [Parameter] public EventCallback OnReports { get; set; }
     [Parameter] public EventCallback OnExchange { get; set; }
     [Parameter] public EventCallback OnTransfer { get; set; }
     [Parameter] public EventCallback OnReceiptOrWithdrawal { get; set; }
@@ -138,6 +150,7 @@
     }
 
     private Task TransactionsAsync() => InvokeCallbackAsync(OnViewTransactions);
+    private Task ReportsAsync() => InvokeCallbackAsync(OnReports);
     private Task ExchangeAsync() => InvokeCallbackAsync(OnExchange);
     private Task TransferAsync() => InvokeCallbackAsync(OnTransfer);
     private Task ReceiptOrWithdrawalAsync() => InvokeCallbackAsync(OnReceiptOrWithdrawal);

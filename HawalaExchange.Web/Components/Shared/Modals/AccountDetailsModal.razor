@@ -29,7 +29,9 @@
                                                 CanEdit="@OnEditRequested.HasDelegate"
                                                 CanArchive="@OnArchiveToggleRequested.HasDelegate"
                                                 ShowTransactions="@ShowTransactionsInActionsMenu"
+                                                ShowReports="@ShowReportsInActionsMenu"
                                                 OnViewTransactions="OnViewTransactions"
+                                                OnReports="OnViewReports"
                                                 OnExchange="OpenCreateExchange"
                                                 OnTransfer="OpenCreateTransfer"
                                                 OnReceiptOrWithdrawal="OpenCreateAccountOperation"
@@ -422,6 +424,7 @@
     [Parameter] public bool ShowBackButton { get; set; } = true;
     [Parameter] public bool UseActionsMenu { get; set; }
     [Parameter] public bool ShowTransactionsInActionsMenu { get; set; }
+    [Parameter] public bool ShowReportsInActionsMenu { get; set; }
     [Parameter] public bool? ActionEntityArchived { get; set; }
     [Parameter] public RenderFragment? HeaderActions { get; set; }
     [Parameter] public RenderFragment? ProfileSummary { get; set; }
@@ -429,6 +432,7 @@
     [Parameter] public EventCallback<long> OnEditRequested { get; set; }
     [Parameter] public EventCallback<long> OnArchiveToggleRequested { get; set; }
     [Parameter] public EventCallback OnViewTransactions { get; set; }
+    [Parameter] public EventCallback OnViewReports { get; set; }
 
     private List<string> ValidationErrors { get; set; } = new();
     private string SuccessMessage { get; set; } = string.Empty;

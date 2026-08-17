@@ -52,8 +52,8 @@ namespace HawalaExchange.Infrastructure
             services.AddScoped<IReportService, ReportService>();
             services.AddScoped<IFinancialReportService, FinancialReportService>();
 
-            // PDF converter (DinkToPdf)
-            services.AddSingleton(typeof(DinkToPdf.Contracts.IConverter), new DinkToPdf.SynchronizedConverter(new DinkToPdf.PdfTools()));
+            // PDF converter (Haukcode.WkHtmlToPdfDotNet — native bundled via NuGet)
+            services.AddSingleton(typeof(WkHtmlToPdfDotNet.Contracts.IConverter), new WkHtmlToPdfDotNet.SynchronizedConverter(new WkHtmlToPdfDotNet.PdfTools()));
 
             return services;
         }

@@ -313,6 +313,7 @@ namespace HawalaExchange.Infrastructure.Data
 
             foreach (var entry in ChangeTracker.Entries()
                          .Where(x => x.Entity is ITenantEntity &&
+                                     x.Entity is not ApplicationUser { IsPlatformUser: true } &&
                                      x.Entity is not AuditLog &&
                                      x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
             {
@@ -517,7 +518,7 @@ namespace HawalaExchange.Infrastructure.Data
             var auditLog = AuditLogs.Local.FirstOrDefault(x => x.ProcessId == processId) ??
                            AuditLogs.FirstOrDefault(x => x.ProcessId == processId);
             MergeAuditEntries(auditLog, entries, processId);
-            base.SaveChanges();
+            base.SaveChanges(acceptAllChangesOnSuccess: true);
         }
 
         private async Task SaveAuditEntriesAsync(
@@ -529,7 +530,7 @@ namespace HawalaExchange.Infrastructure.Data
             var auditLog = AuditLogs.Local.FirstOrDefault(x => x.ProcessId == processId) ??
                            await AuditLogs.FirstOrDefaultAsync(x => x.ProcessId == processId, cancellationToken);
             MergeAuditEntries(auditLog, entries, processId);
-            await base.SaveChangesAsync(cancellationToken);
+            await base.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken);
         }
 
         private void MergeAuditEntries(

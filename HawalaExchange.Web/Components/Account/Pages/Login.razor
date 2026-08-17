@@ -248,6 +248,18 @@
             if (result.Succeeded)
             {
                 user!.LastLoginAt = DateTime.UtcNow;
+                if (user.IsPlatformUser)
+                {
+                    DbContext.PlatformAuditLogs.Add(new PlatformAuditLog
+                    {
+                        ActorUserId = user.Id,
+                        Action = "PLATFORM_LOGIN",
+                        EntityName = nameof(ApplicationUser),
+                        EntityId = user.Id,
+                        Details = $"کاربر {user.FullName} وارد پنل مدیریت مرکزی شد.",
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
                 await UserManager.UpdateAsync(user);
                 Logger.LogInformation("User logged in.");
                 isLoading = false;

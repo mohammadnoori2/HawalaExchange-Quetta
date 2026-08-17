@@ -169,7 +169,9 @@
             {
                 var hawala = await _context.Hawalas
                     .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
-                    .Include(h => h.SettlementConversionLinks)
+                    .Include(h => h.SettlementConversionLinks).ThenInclude(x => x.Conversion)
+                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.SourceCurrency)
+                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.Conversion).ThenInclude(x => x.TargetCurrency)
                     .Include(h => h.FromCurrency)
                     .Include(h => h.ToCurrency)
                     .Include(h => h.CommissionCurrency)
@@ -200,7 +202,9 @@
             {
                 var query = _context.Hawalas
                     .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
-                    .Include(h => h.SettlementConversionLinks)
+                    .Include(h => h.SettlementConversionLinks).ThenInclude(x => x.Conversion)
+                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.SourceCurrency)
+                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.Conversion).ThenInclude(x => x.TargetCurrency)
                     .Include(h => h.FromCurrency)
                     .Include(h => h.ToCurrency)
                     .Include(h => h.CommissionCurrency)
@@ -607,7 +611,9 @@
                 var query = _context.Hawalas
                     .AsNoTracking()
                     .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
-                    .Include(h => h.SettlementConversionLinks)
+                    .Include(h => h.SettlementConversionLinks).ThenInclude(x => x.Conversion)
+                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.SourceCurrency)
+                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.Conversion).ThenInclude(x => x.TargetCurrency)
                     .Include(h => h.FromCurrency)
                     .Include(h => h.ToCurrency)
                     .Include(h => h.CommissionCurrency)

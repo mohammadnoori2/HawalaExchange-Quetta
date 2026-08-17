@@ -109,6 +109,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<CorrespondentSettlementConversion> CorrespondentSettlementConversions { get; set; }
         public DbSet<CorrespondentSettlementConversionItem> CorrespondentSettlementConversionItems { get; set; }
         public DbSet<CorrespondentSettlementConversionHawala> CorrespondentSettlementConversionHawalas { get; set; }
+        public DbSet<CorrespondentSettlementConversionHawalaItem> CorrespondentSettlementConversionHawalaItems { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
 
         public DbSet<CapitalInvestment> CapitalInvestments { get; set; }
@@ -1254,6 +1255,7 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.CreatedAt });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.TransactionId });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.HawalaId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.SettlementHawalaItemId });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.TransferId });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.CapitalInvestmentId });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.ExpenseId });
@@ -1275,6 +1277,9 @@ namespace HawalaExchange.Infrastructure.Data
                 .IsUnique();
             modelBuilder.Entity<CorrespondentSettlementConversionHawala>()
                 .HasIndex(x => new { x.TenantId, x.HawalaId })
+                .IsUnique();
+            modelBuilder.Entity<CorrespondentSettlementConversionHawalaItem>()
+                .HasIndex(x => new { x.TenantId, x.HawalaId, x.SourceCurrencyId })
                 .IsUnique();
             modelBuilder.Entity<Hawala>()
                 .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.Number })
@@ -1534,6 +1539,26 @@ namespace HawalaExchange.Infrastructure.Data
                 entity.HasOne(x => x.Hawala)
                     .WithMany(x => x.SettlementConversionLinks)
                     .HasForeignKey(x => x.HawalaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CorrespondentSettlementConversionHawalaItem>(entity =>
+            {
+                entity.HasOne(x => x.Conversion)
+                    .WithMany(x => x.HawalaItems)
+                    .HasForeignKey(x => x.ConversionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.Hawala)
+                    .WithMany(x => x.SettlementConversionItems)
+                    .HasForeignKey(x => x.HawalaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.SourceCurrency)
+                    .WithMany()
+                    .HasForeignKey(x => x.SourceCurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasMany(x => x.LedgerEntries)
+                    .WithOne(x => x.SettlementHawalaItem)
+                    .HasForeignKey(x => x.SettlementHawalaItemId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 

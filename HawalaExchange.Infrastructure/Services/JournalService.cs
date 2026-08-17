@@ -799,6 +799,10 @@ public class JournalService : IJournalService
             .Include(x => x.TargetCurrency)
             .Include(x => x.Items)
                 .ThenInclude(x => x.SourceCurrency)
+            .Include(x => x.HawalaItems)
+                .ThenInclude(x => x.SourceCurrency)
+            .Include(x => x.HawalaItems)
+                .ThenInclude(x => x.Hawala)
             .Include(x => x.Hawalas)
             .Where(x => ids.Contains(x.TransactionId))
             .ToDictionaryAsync(x => x.TransactionId);
@@ -823,7 +827,16 @@ public class JournalService : IJournalService
                 var conversionType = settlement.SourceMode == "Hawalas"
                     ? $"تبدیل {settlement.Hawalas.Count} حواله به ارز توافقی"
                     : "تبدیل مانده حساب نمایندگی به ارز توافقی";
-                var conversionSummary = string.Join("؛ ", settlement.Items.Select(item =>
+                var conversionSummary = settlement.SourceMode == "Hawalas"
+                    ? string.Join("؛ ", settlement.HawalaItems.Select(item =>
+                    {
+                        var sourceAmount = item.SourceTalabKar > 0 ? item.SourceTalabKar : item.SourceBadehKar;
+                        var targetAmount = item.TargetTalabKar > 0 ? item.TargetTalabKar : item.TargetBadehKar;
+                        return $"حواله شماره {item.Hawala.Number}: {AmountValueHelper.Format(sourceAmount)} {item.SourceCurrency.Code} " +
+                               $"با نرخ {AmountValueHelper.Format(item.ExchangeRate)} به " +
+                               $"{AmountValueHelper.Format(targetAmount)} {settlement.TargetCurrency.Code}";
+                    }))
+                    : string.Join("؛ ", settlement.Items.Select(item =>
                 {
                     var sourceAmount = item.SourceTalabKar > 0
                         ? item.SourceTalabKar

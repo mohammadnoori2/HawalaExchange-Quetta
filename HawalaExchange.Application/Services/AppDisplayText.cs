@@ -73,6 +73,7 @@ public static class AppDisplayText
         "CANCEL" => "لغو",
         "CONVERT_HAWALAS_TO_SETTLEMENT" => "تبدیل حواله‌ها به ارز توافقی",
         "CONVERT_BALANCE_TO_SETTLEMENT" => "تبدیل مانده نمایندگی به ارز توافقی",
+        "UPDATE_HAWALA_SETTLEMENT_RATE" => "تغییر نرخ ارز توافقی حواله",
         null or "" => "عملیات مشخص نشده",
         _ => "عملیات مدیریتی"
     };

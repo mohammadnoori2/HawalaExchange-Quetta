@@ -5,6 +5,16 @@ using HawalaExchange.Application.Services;
 
 namespace HawalaExchange.Application.DTOs
 {
+    public class HawalaSettlementRateInfoDto
+    {
+        public long SourceCurrencyId { get; set; }
+        public string SourceCurrencyCode { get; set; } = string.Empty;
+        public decimal SourceAmount { get; set; }
+        public decimal ExchangeRate { get; set; }
+        public decimal TargetAmount { get; set; }
+        public string TargetCurrencyCode { get; set; } = string.Empty;
+    }
+
     public class HawalaDto
     {
         public long Id { get; set; }
@@ -72,8 +82,12 @@ namespace HawalaExchange.Application.DTOs
         public long? SettlementCurrencyId { get; set; }
         public string? SettlementCurrencyCode { get; set; }
         public bool IsSettlementConverted { get; set; }
+        public List<HawalaSettlementRateInfoDto> SettlementRates { get; set; } = [];
+        public bool CanEditSettlementRate { get; set; }
         public long SettlementSourceCurrencyId => HawalaType == "HawalaSend" ? ToCurrencyId : FromCurrencyId;
         public string SettlementSourceCurrencyCode => HawalaType == "HawalaSend" ? ToCurrencyCode : FromCurrencyCode;
+        public decimal? SettlementExchangeRate => SettlementRates.FirstOrDefault(x => x.SourceCurrencyId == SettlementSourceCurrencyId)?.ExchangeRate;
+        public decimal? SettlementTargetAmount => SettlementRates.FirstOrDefault(x => x.SourceCurrencyId == SettlementSourceCurrencyId)?.TargetAmount;
         public string SettlementState => Status == "Cancel" || !SettlementCurrencyId.HasValue
             ? "None"
             : SettlementSourceCurrencyId == SettlementCurrencyId

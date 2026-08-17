@@ -156,5 +156,6 @@ namespace HawalaExchange.Domain.Entities
         [ForeignKey(nameof(CancelledBy))]
         public virtual ApplicationUser? CancelledByUser { get; set; }
         public virtual ICollection<CorrespondentSettlementConversionHawala> SettlementConversionLinks { get; set; } = [];
+        public virtual ICollection<CorrespondentSettlementConversionHawalaItem> SettlementConversionItems { get; set; } = [];
     }
 }

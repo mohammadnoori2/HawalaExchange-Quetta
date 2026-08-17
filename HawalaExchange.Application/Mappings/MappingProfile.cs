@@ -324,7 +324,15 @@ namespace HawalaSystem.Mappings
                .ForMember(dest => dest.PaymentLocationAddress, opt => opt.MapFrom(src => src.PaymentLocation != null ? src.PaymentLocation.Address : null))
                .ForMember(dest => dest.SettlementCurrencyId, opt => opt.MapFrom(src => src.Correspondent != null ? src.Correspondent.SettlementCurrencyId : null))
                .ForMember(dest => dest.SettlementCurrencyCode, opt => opt.MapFrom(src => src.Correspondent != null && src.Correspondent.SettlementCurrency != null ? src.Correspondent.SettlementCurrency.Code : null))
-               .ForMember(dest => dest.IsSettlementConverted, opt => opt.MapFrom(src => src.SettlementConversionLinks.Any()));
+               .ForMember(dest => dest.IsSettlementConverted, opt => opt.MapFrom(src => src.SettlementConversionLinks.Any()))
+               .ForMember(dest => dest.SettlementRates, opt => opt.MapFrom(src => src.SettlementConversionItems))
+               .ForMember(dest => dest.CanEditSettlementRate, opt => opt.MapFrom(src => src.SettlementConversionItems.Any(x => x.Conversion.SourceMode == "Hawalas")));
+
+            CreateMap<CorrespondentSettlementConversionHawalaItem, HawalaSettlementRateInfoDto>()
+               .ForMember(dest => dest.SourceCurrencyCode, opt => opt.MapFrom(src => src.SourceCurrency.Code))
+               .ForMember(dest => dest.SourceAmount, opt => opt.MapFrom(src => src.SourceTalabKar > 0 ? src.SourceTalabKar : src.SourceBadehKar))
+               .ForMember(dest => dest.TargetAmount, opt => opt.MapFrom(src => src.TargetTalabKar > 0 ? src.TargetTalabKar : src.TargetBadehKar))
+               .ForMember(dest => dest.TargetCurrencyCode, opt => opt.MapFrom(src => src.Conversion.TargetCurrency.Code));
 
 
             // CreateHawalaDto -> Hawala

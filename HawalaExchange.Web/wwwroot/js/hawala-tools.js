@@ -52,7 +52,143 @@ function closeHawalaOperationMenuFromBrowser(state) {
     void state.dotNetReference.invokeMethodAsync("CloseFromJs").catch(() => { });
 }
 
+function getActionMenuStorageKey(preferenceKey) {
+    return `hawala:action-menu:${preferenceKey}`;
+}
+
+function getActionMenuItems(menu) {
+    if (!menu) {
+        return [];
+    }
+
+    const usedKeys = new Map();
+    return Array.from(menu.querySelectorAll(".operation-menu-items .operation-menu-item"))
+        .filter(button => !button.classList.contains("operation-menu-configure-button"))
+        .map(button => {
+            const label = (button.textContent || "").replace(/\s+/g, " ").trim();
+            const requestedKey = button.dataset.actionKey || label || "action";
+            const duplicateNumber = usedKeys.get(requestedKey) || 0;
+            usedKeys.set(requestedKey, duplicateNumber + 1);
+            const key = duplicateNumber === 0 ? requestedKey : `${requestedKey}-${duplicateNumber + 1}`;
+            const icon = button.querySelector("i");
+
+            button.dataset.resolvedActionKey = key;
+            return {
+                key,
+                label,
+                iconClass: icon?.className || "bi bi-lightning",
+                button,
+                danger: button.classList.contains("operation-menu-danger")
+            };
+        });
+}
+
+function getSelectedActionKeys(preferenceKey, defaults) {
+    const storedValue = localStorage.getItem(getActionMenuStorageKey(preferenceKey));
+    if (storedValue !== null) {
+        try {
+            const parsed = JSON.parse(storedValue);
+            if (Array.isArray(parsed)) {
+                return new Set(parsed.map(String));
+            }
+        } catch {
+            // A damaged preference is ignored and replaced with defaults.
+        }
+    }
+
+    return new Set((defaults || []).map(String));
+}
+
+function tidyActionMenuDividers(menu) {
+    const children = Array.from(menu.querySelector(".operation-menu-items")?.children || []);
+    children.forEach((child, index) => {
+        if (!child.classList.contains("operation-menu-divider")) {
+            return;
+        }
+
+        const hasVisibleBefore = children.slice(0, index).some(item =>
+            item.classList.contains("operation-menu-item") && !item.classList.contains("operation-menu-promoted"));
+        const hasVisibleAfter = children.slice(index + 1).some(item =>
+            item.classList.contains("operation-menu-item") && !item.classList.contains("operation-menu-promoted"));
+        child.classList.toggle("operation-menu-divider-hidden", !hasVisibleBefore || !hasVisibleAfter);
+    });
+}
+
+function syncOperationMenuQuickActions(menuId, quickHostId, preferenceKey, defaults) {
+    const menu = document.getElementById(menuId);
+    const quickHost = document.getElementById(quickHostId);
+    if (!menu || !quickHost) {
+        return;
+    }
+
+    const selectedKeys = getSelectedActionKeys(preferenceKey, defaults);
+    const actions = getActionMenuItems(menu);
+    quickHost.replaceChildren();
+
+    actions.forEach(action => {
+        const promoted = selectedKeys.has(action.key) || selectedKeys.has(action.label);
+        action.button.classList.toggle("operation-menu-promoted", promoted);
+        if (!promoted) {
+            return;
+        }
+
+        const quickButton = document.createElement("button");
+        quickButton.type = "button";
+        quickButton.className = `operation-quick-action${action.danger ? " operation-quick-action-danger" : ""}`;
+        quickButton.title = action.label;
+        quickButton.setAttribute("aria-label", action.label);
+        quickButton.disabled = action.button.disabled;
+
+        const icon = action.button.querySelector("i");
+        if (icon) {
+            quickButton.appendChild(icon.cloneNode(true));
+        } else {
+            const fallbackIcon = document.createElement("i");
+            fallbackIcon.className = "bi bi-lightning";
+            quickButton.appendChild(fallbackIcon);
+        }
+
+        quickButton.addEventListener("click", event => {
+            event.stopPropagation();
+            if (!action.button.disabled) {
+                action.button.click();
+            }
+        });
+        quickHost.appendChild(quickButton);
+    });
+
+    tidyActionMenuDividers(menu);
+}
+
 window.hawalaTools = {
+    syncOperationMenuQuickActions: function (menuId, quickHostId, preferenceKey, defaults) {
+        syncOperationMenuQuickActions(menuId, quickHostId, preferenceKey, defaults);
+    },
+
+    getOperationMenuOptions: function (menuId, preferenceKey, defaults) {
+        const menu = document.getElementById(menuId);
+        const selectedKeys = getSelectedActionKeys(preferenceKey, defaults);
+        return getActionMenuItems(menu).map(action => ({
+            key: action.key,
+            label: action.label,
+            iconClass: action.iconClass,
+            selected: selectedKeys.has(action.key) || selectedKeys.has(action.label)
+        }));
+    },
+
+    saveOperationMenuPreferences: function (preferenceKey, selectedKeys) {
+        localStorage.setItem(
+            getActionMenuStorageKey(preferenceKey),
+            JSON.stringify(selectedKeys || []));
+
+        document.querySelectorAll(`[data-action-preference-key="${CSS.escape(preferenceKey)}"]`)
+            .forEach(root => syncOperationMenuQuickActions(
+                root.dataset.actionMenuId,
+                root.dataset.actionQuickHostId,
+                preferenceKey,
+                []));
+    },
+
     openOperationMenu: async function (buttonId, menuId, dotNetReference) {
         if (activeHawalaOperationMenu && activeHawalaOperationMenu.menuId !== menuId) {
             const previousMenu = activeHawalaOperationMenu;
@@ -138,6 +274,11 @@ window.hawalaTools = {
 
         cleanupHawalaOperationMenu(activeHawalaOperationMenu);
         activeHawalaOperationMenu = null;
+
+        const menu = document.getElementById(menuId);
+        if (menu) {
+            menu.style.visibility = "hidden";
+        }
     },
 
     copyToClipboard: async function (text) {

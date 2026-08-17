@@ -1,28 +1,76 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
-<div class="operation-dropdown" @onclick:stopPropagation="true">
-    <button id="@buttonId"
-            type="button"
-            class="operation-dot-btn"
-            title="@Title"
-            aria-label="@AriaLabel"
-            aria-haspopup="menu"
-            aria-expanded="@isOpen.ToString().ToLowerInvariant()"
-            @onclick="ToggleAsync">
-        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-    </button>
+<div class="configurable-action-menu" @onclick:stopPropagation="true"
+     data-action-preference-key="@effectivePreferenceKey"
+     data-action-menu-id="@menuId"
+     data-action-quick-host-id="@quickHostId">
+    <div id="@quickHostId" class="operation-quick-actions" aria-label="عملیات بیرون از منو"></div>
 
-    @if (isOpen)
-    {
+    <div class="operation-dropdown">
+        <button id="@buttonId"
+                type="button"
+                class="operation-dot-btn"
+                title="@Title"
+                aria-label="@AriaLabel"
+                aria-haspopup="menu"
+                aria-expanded="@isOpen.ToString().ToLowerInvariant()"
+                @onclick="ToggleAsync">
+            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+        </button>
+
         <div id="@menuId"
-             class="operation-menu @MenuCssClass"
+             class="operation-menu @MenuCssClass @(!isOpen ? "operation-menu-closed" : null)"
              dir="rtl"
-             role="menu"
-             @onclick="CloseMenuAsync">
-            @ChildContent
+             role="menu">
+            @if (isConfiguring)
+            {
+                <div class="operation-menu-settings" @onclick:stopPropagation="true">
+                    <div class="operation-menu-settings-title">
+                        <strong>عملیات این صفحه</strong>
+                        <small>این انتخاب روی تمام ردیف‌های همین صفحه اعمال می‌شود.</small>
+                    </div>
+
+                    @foreach (var option in availableActions)
+                    {
+                        <label class="operation-menu-setting-option">
+                            <input type="checkbox"
+                                   checked="@selectedActionKeys.Contains(option.Key)"
+                                   @onchange="args => SetActionSelection(option.Key, args.Value as bool? == true)" />
+                            <i class="@option.IconClass"></i>
+                            <span>@option.Label</span>
+                        </label>
+                    }
+
+                    @if (availableActions.Count == 0)
+                    {
+                        <div class="text-muted small py-2">در این منو گزینه‌ای وجود ندارد.</div>
+                    }
+
+                    <div class="operation-menu-settings-actions">
+                        <button type="button" class="btn btn-sm btn-primary" @onclick="SaveSettingsAsync">ذخیره</button>
+                        <button type="button" class="btn btn-sm btn-light" @onclick="CancelSettingsAsync">انصراف</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="operation-menu-items" @onclick="CloseMenuAsync">
+                    @ChildContent
+                </div>
+                <div class="operation-menu-divider operation-menu-settings-divider"></div>
+                <button type="button"
+                        class="operation-menu-item operation-menu-configure-button"
+                        role="menuitem"
+                        @onclick:stopPropagation="true"
+                        @onclick="OpenSettingsAsync">
+                    <i class="bi bi-sliders text-primary"></i>
+                    تنظیم عملیات این صفحه
+                </button>
+            }
         </div>
-    }
+    </div>
 </div>
 
 @code {
@@ -38,12 +86,43 @@
     [Parameter]
     public string MenuCssClass { get; set; } = string.Empty;
 
+    [Parameter]
+    public string? PreferenceKey { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string> DefaultQuickActions { get; set; } = Array.Empty<string>();
+
     private readonly string instanceId = Guid.NewGuid().ToString("N");
     private bool isOpen;
     private bool positionAfterRender;
+    private bool refreshQuickActionsAfterRender = true;
+    private bool isConfiguring;
+    private List<ActionMenuOption> availableActions = new();
+    private HashSet<string> selectedActionKeys = new(StringComparer.Ordinal);
     private DotNetObjectReference<AppActionMenu>? dotNetReference;
     private string buttonId => $"app-action-button-{instanceId}";
     private string menuId => $"app-action-menu-{instanceId}";
+    private string quickHostId => $"app-action-quick-{instanceId}";
+    private string effectivePreferenceKey
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(PreferenceKey))
+                return PreferenceKey.Trim();
+
+            var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri);
+            var path = relativePath.Split('?', '#')[0].Trim('/').ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(path))
+                return "home";
+
+            var normalizedSegments = path
+                .Split('/', StringSplitOptions.RemoveEmptyEntries)
+                .Select(segment => long.TryParse(segment, out _) || Guid.TryParse(segment, out _)
+                    ? "{id}"
+                    : segment);
+            return string.Join('/', normalizedSegments);
+        }
+    }
 
     private async Task ToggleAsync()
     {
@@ -55,10 +134,22 @@
 
         isOpen = true;
         positionAfterRender = true;
+        refreshQuickActionsAfterRender = true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender || refreshQuickActionsAfterRender)
+        {
+            refreshQuickActionsAfterRender = false;
+            await JS.InvokeVoidAsync(
+                "hawalaTools.syncOperationMenuQuickActions",
+                menuId,
+                quickHostId,
+                effectivePreferenceKey,
+                DefaultQuickActions);
+        }
+
         if (!isOpen || !positionAfterRender)
             return;
 
@@ -71,6 +162,7 @@
     public Task CloseFromJs() => InvokeAsync(() =>
     {
         isOpen = false;
+        isConfiguring = false;
         positionAfterRender = false;
         StateHasChanged();
     });
@@ -81,8 +173,52 @@
             return;
 
         isOpen = false;
+        isConfiguring = false;
         positionAfterRender = false;
         await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", menuId);
+    }
+
+    private async Task OpenSettingsAsync()
+    {
+        var options = await JS.InvokeAsync<List<ActionMenuOption>>(
+            "hawalaTools.getOperationMenuOptions",
+            menuId,
+            effectivePreferenceKey,
+            DefaultQuickActions);
+
+        availableActions = options;
+        selectedActionKeys = options
+            .Where(x => x.Selected)
+            .Select(x => x.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        isConfiguring = true;
+        positionAfterRender = true;
+    }
+
+    private void SetActionSelection(string key, bool selected)
+    {
+        if (selected)
+            selectedActionKeys.Add(key);
+        else
+            selectedActionKeys.Remove(key);
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        await JS.InvokeVoidAsync(
+            "hawalaTools.saveOperationMenuPreferences",
+            effectivePreferenceKey,
+            selectedActionKeys.ToArray());
+        isConfiguring = false;
+        refreshQuickActionsAfterRender = true;
+        positionAfterRender = true;
+    }
+
+    private Task CancelSettingsAsync()
+    {
+        isConfiguring = false;
+        positionAfterRender = true;
+        return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
@@ -99,5 +235,13 @@
         }
 
         dotNetReference.Dispose();
+    }
+
+    private sealed class ActionMenuOption
+    {
+        public string Key { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string IconClass { get; set; } = "bi bi-lightning";
+        public bool Selected { get; set; }
     }
 }

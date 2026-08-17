@@ -1,92 +1,67 @@
 @using HawalaExchange.Application.DTOs
-@implements IAsyncDisposable
-@inject IJSRuntime JS
 
 <div class="hawala-quick-actions" @onclick:stopPropagation="true">
-    <button type="button"
-            class="hawala-quick-action"
-            title="کاپی معلومات"
-            aria-label="کاپی معلومات حواله @Hawala.Number"
-            @onclick="CopyAsync">
-        <i class="bi bi-clipboard"></i>
-    </button>
-
-    @if (ShowEdit && Hawala.Status != "Cancel")
-    {
-        <button type="button"
-                class="hawala-quick-action hawala-quick-action-edit"
-                title="ویرایش"
-                aria-label="ویرایش حواله @Hawala.Number"
-                @onclick="EditAsync">
-            <i class="bi bi-pencil"></i>
-        </button>
-    }
-
-    @if (ShowDelete)
-    {
-        <button type="button"
-                class="hawala-quick-action hawala-quick-action-delete"
-                title="حذف"
-                aria-label="حذف حواله @Hawala.Number"
-                @onclick="DeleteAsync">
-            <i class="bi bi-trash"></i>
-        </button>
-    }
-
-    <div class="operation-dropdown">
-        <button id="@buttonId"
-                type="button"
-                class="operation-dot-btn"
-                title="سایر عملیات"
-                aria-label="سایر عملیات حواله @Hawala.Number"
-                aria-haspopup="menu"
-                aria-expanded="@isOpen.ToString().ToLowerInvariant()"
-                @onclick="ToggleAsync">
-            <i class="bi bi-three-dots-vertical"></i>
+    <AppActionMenu Title="سایر عملیات"
+                   AriaLabel="@($"سایر عملیات حواله {Hawala.Number}")"
+                   DefaultQuickActions="@defaultQuickActions">
+        <button type="button" class="operation-menu-item" role="menuitem" data-action-key="copy" @onclick="CopyAsync">
+            <i class="bi bi-clipboard text-secondary"></i>
+            کاپی معلومات
         </button>
 
-        @if (isOpen)
+        @if (ShowEdit && Hawala.Status != "Cancel")
         {
-            <div id="@menuId" class="operation-menu" dir="rtl" role="menu">
-            <button type="button" class="operation-menu-item" role="menuitem" @onclick="ViewAsync">
-                <i class="bi bi-eye text-info"></i>
-                مشاهده
+            <button type="button" class="operation-menu-item" role="menuitem" data-action-key="edit" @onclick="EditAsync">
+                <i class="bi bi-pencil text-warning"></i>
+                ویرایش
             </button>
-
-            <button type="button" class="operation-menu-item" role="menuitem" @onclick="ReceiptAsync">
-                <i class="bi bi-receipt text-primary"></i>
-                رسید حواله
-            </button>
-
-            <button type="button" class="operation-menu-item" role="menuitem" @onclick="WhatsAppAsync">
-                <i class="bi bi-whatsapp text-success"></i>
-                ارسال واتساپ
-            </button>
-
-            <button type="button" class="operation-menu-item" role="menuitem" @onclick="TelegramAsync">
-                <i class="bi bi-telegram text-primary"></i>
-                ارسال تلگرام
-            </button>
-
-            @if (ShowPay && Hawala.Status == "Pending" && Hawala.HawalaType == "HawalaReceive")
-            {
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="PayAsync">
-                    <i class="bi bi-check-circle text-success"></i>
-                    @PayButtonText
-                </button>
-            }
-
-            @if (ShowCancel && Hawala.Status != "Cancel")
-            {
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="CancelAsync">
-                    <i class="bi bi-x-circle text-danger"></i>
-                    لغو حواله
-                </button>
-            }
-
-            </div>
         }
-    </div>
+
+        @if (ShowDelete)
+        {
+            <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" data-action-key="delete" @onclick="DeleteAsync">
+                <i class="bi bi-trash"></i>
+                حذف
+            </button>
+        }
+
+        <div class="operation-menu-divider"></div>
+        <button type="button" class="operation-menu-item" role="menuitem" data-action-key="view" @onclick="ViewAsync">
+            <i class="bi bi-eye text-info"></i>
+            مشاهده
+        </button>
+
+        <button type="button" class="operation-menu-item" role="menuitem" data-action-key="receipt" @onclick="ReceiptAsync">
+            <i class="bi bi-receipt text-primary"></i>
+            رسید حواله
+        </button>
+
+        <button type="button" class="operation-menu-item" role="menuitem" data-action-key="whatsapp" @onclick="WhatsAppAsync">
+            <i class="bi bi-whatsapp text-success"></i>
+            ارسال واتساپ
+        </button>
+
+        <button type="button" class="operation-menu-item" role="menuitem" data-action-key="telegram" @onclick="TelegramAsync">
+            <i class="bi bi-telegram text-primary"></i>
+            ارسال تلگرام
+        </button>
+
+        @if (ShowPay && Hawala.Status == "Pending" && Hawala.HawalaType == "HawalaReceive")
+        {
+            <button type="button" class="operation-menu-item" role="menuitem" data-action-key="pay" @onclick="PayAsync">
+                <i class="bi bi-check-circle text-success"></i>
+                @PayButtonText
+            </button>
+        }
+
+        @if (ShowCancel && Hawala.Status != "Cancel")
+        {
+            <button type="button" class="operation-menu-item" role="menuitem" data-action-key="cancel" @onclick="CancelAsync">
+                <i class="bi bi-x-circle text-danger"></i>
+                لغو حواله
+            </button>
+        }
+    </AppActionMenu>
 </div>
 
 @code {
@@ -108,129 +83,50 @@
     [Parameter] public EventCallback<long> OnCancel { get; set; }
     [Parameter] public EventCallback<long> OnDelete { get; set; }
 
-    private readonly string instanceId = Guid.NewGuid().ToString("N");
-    private bool isOpen;
-    private bool positionAfterRender;
-    private DotNetObjectReference<HawalaOperationMenu>? dotNetReference;
-
-    private string buttonId => $"hawala-operation-button-{instanceId}";
-    private string menuId => $"hawala-operation-menu-{instanceId}";
-
-    private async Task ToggleAsync()
-    {
-        if (isOpen)
-        {
-            await CloseMenuAsync();
-            return;
-        }
-
-        isOpen = true;
-        positionAfterRender = true;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!isOpen || !positionAfterRender)
-        {
-            return;
-        }
-
-        positionAfterRender = false;
-        dotNetReference ??= DotNetObjectReference.Create(this);
-        await JS.InvokeVoidAsync("hawalaTools.openOperationMenu", buttonId, menuId, dotNetReference);
-    }
-
-    [JSInvokable]
-    public Task CloseFromJs()
-    {
-        return InvokeAsync(() =>
-        {
-            isOpen = false;
-            positionAfterRender = false;
-            StateHasChanged();
-        });
-    }
-
-    private async Task CloseMenuAsync()
-    {
-        if (!isOpen)
-        {
-            return;
-        }
-
-        isOpen = false;
-        positionAfterRender = false;
-        await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", menuId);
-    }
+    private static readonly IReadOnlyList<string> defaultQuickActions = ["copy", "edit", "delete"];
 
     private async Task ViewAsync()
     {
-        await CloseMenuAsync();
         await OnView.InvokeAsync(Hawala.Id);
     }
 
     private async Task ReceiptAsync()
     {
-        await CloseMenuAsync();
         await OnReceipt.InvokeAsync(Hawala.Id);
     }
 
     private async Task CopyAsync()
     {
-        await CloseMenuAsync();
         await OnCopy.InvokeAsync(Hawala.Id);
     }
 
     private async Task WhatsAppAsync()
     {
-        await CloseMenuAsync();
         await OnWhatsApp.InvokeAsync(Hawala.Id);
     }
 
     private async Task TelegramAsync()
     {
-        await CloseMenuAsync();
         await OnTelegram.InvokeAsync(Hawala.Id);
     }
 
     private async Task EditAsync()
     {
-        await CloseMenuAsync();
         await OnEdit.InvokeAsync(Hawala.Id);
     }
 
     private async Task PayAsync()
     {
-        await CloseMenuAsync();
         await OnPay.InvokeAsync(Hawala);
     }
 
     private async Task CancelAsync()
     {
-        await CloseMenuAsync();
         await OnCancel.InvokeAsync(Hawala.Id);
     }
 
     private async Task DeleteAsync()
     {
-        await CloseMenuAsync();
         await OnDelete.InvokeAsync(Hawala.Id);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (dotNetReference is not null)
-        {
-            try
-            {
-                await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", menuId);
-            }
-            catch (JSDisconnectedException)
-            {
-                // The browser circuit is already closed.
-            }
-
-            dotNetReference.Dispose();
-        }
     }
 }

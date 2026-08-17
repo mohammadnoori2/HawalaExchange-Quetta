@@ -2507,6 +2507,54 @@ body {
     display: inline-block;
 }
 
+.configurable-action-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.operation-quick-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.operation-quick-actions:empty {
+    display: none;
+}
+
+.operation-quick-action {
+    display: inline-flex;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    color: #334155;
+    transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.operation-quick-action:hover {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.operation-quick-action-danger {
+    color: #dc2626;
+}
+
+.operation-quick-action-danger:hover {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
 .operation-dot-btn {
     width: 34px;
     height: 34px;
@@ -2540,6 +2588,71 @@ body {
     z-index: 9999;
     text-align: right;
     visibility: hidden;
+}
+
+.operation-menu-closed {
+    visibility: hidden !important;
+    pointer-events: none;
+}
+
+.operation-menu-promoted,
+.operation-menu-divider-hidden {
+    display: none !important;
+}
+
+.operation-menu-settings-divider {
+    margin-top: 7px;
+}
+
+.operation-menu-configure-button {
+    color: #1d4ed8;
+    font-size: 13px;
+}
+
+.operation-menu-settings {
+    width: 250px;
+}
+
+.operation-menu-settings-title {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 6px 9px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.operation-menu-settings-title small {
+    color: #64748b;
+    font-size: 11px;
+}
+
+.operation-menu-setting-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 6px;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.operation-menu-setting-option input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+.operation-menu-setting-option i {
+    width: 18px;
+    color: #475569;
+    text-align: center;
+}
+
+.operation-menu-settings-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    padding-top: 10px;
 }
 
 .operation-menu-item {

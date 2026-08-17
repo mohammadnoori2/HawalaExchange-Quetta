@@ -20,8 +20,8 @@
         </div>
 
         <PageHeaderStats AriaLabel="آمار روزنامچه">
-            <PageHeaderStat Label="عملیات" Value="@journal.Operations.Count" Icon="bi-receipt" />
-            <PageHeaderStat Label="ثبت‌ها" Value="@journal.Entries.Count" Icon="bi-list-ul" Tone="info" />
+            <PageHeaderStat Label="رسید" Value="@receiptRows.Count" Icon="bi-box-arrow-in-down" Tone="success" />
+            <PageHeaderStat Label="برد" Value="@withdrawalRows.Count" Icon="bi-box-arrow-up" Tone="danger" />
             <PageHeaderStat Label="ارزها" Value="@journal.CurrencySummaries.Count" Icon="bi-coin" Tone="success" />
             <PageHeaderStat Label="بازه" Value="@GetPeriodLabel()" Icon="bi-calendar-date" Tone="warning" />
         </PageHeaderStats>
@@ -282,98 +282,169 @@
         </div>
     </div>
 
-    <div class="table-card">
-        <div class="table-card-header">
-            <div class="table-card-header-right">
-                <span class="badge-modern badge-info">
-                    <i class="bi bi-receipt"></i>
-                    @filteredOperations.Count عملیات
-                </span>
+    <div class="journal-split-grid">
+        <section class="table-card journal-movement-card journal-receipt-card">
+            <div class="table-card-header">
+                <div class="table-card-header-left">
+                    <h6 class="mb-0 text-success">
+                        <i class="bi bi-box-arrow-in-down"></i>
+                        رسید
+                        <small>پول واردشده به صندوق</small>
+                    </h6>
+                </div>
+                <div class="table-card-header-right">
+                    <span class="badge-modern badge-success">@receiptRows.Count مورد</span>
+                </div>
             </div>
-        </div>
-
-        <div class="table-card-body">
-            <div class="table-scroll-wrapper">
-                <GlobalDataGrid class="table-modern table-striped-modern journal-operation-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 50px;">#</th>
-                            <th>تاریخ</th>
-                            <th>شرح روزنامچه</th>
-                            <th>عملیات</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (isLoading)
-                        {
+            <div class="table-card-body">
+                <div class="table-scroll-wrapper">
+                    <GlobalDataGrid class="table-modern table-striped-modern journal-movement-table">
+                        <thead>
                             <tr>
-                                <td colspan="4" class="text-center py-5">
-                                    <div class="spinner-border text-primary" role="status"></div>
-                                    <p class="text-muted mt-2">در حال بارگذاری روزنامچه...</p>
-                                </td>
+                                <th>#</th>
+                                <th>تاریخ</th>
+                                <th>شرح</th>
+                                <th>مبلغ رسید</th>
+                                <th>جزئیات</th>
                             </tr>
-                        }
-                        else if (!pagedOperations.Any())
-                        {
-                            <tr>
-                                <td colspan="4" class="text-center py-5">
-                                    <div class="empty-state">
-                                        <i class="bi bi-inbox"></i>
-                                        <span class="fs-5 text-muted">برای فیلترهای انتخاب‌شده عملیاتی یافت نشد</span>
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                        else
-                        {
-                            var rowIndex = (currentPage - 1) *
-                                (pageSize == 0 ? filteredOperations.Count : pageSize) + 1;
-
-                            @foreach (var operation in pagedOperations)
+                        </thead>
+                        <tbody>
+                            @if (isLoading)
                             {
-                                <tr>
-                                    <td><span class="fw-bold text-muted">@rowIndex</span></td>
-                                    <td class="journal-row-date"><AppDateTime Value="@operation.CreatedAt" ShowSeconds="true" /></td>
-                                    <td class="journal-sentence">
-                                        <span class="badge-modern @GetSourceBadge(operation.SourceType)">
-                                            @GetSourceTypeName(operation.SourceType)
-                                        </span>
-                                        <span>@operation.SummarySentence</span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-outline-primary journal-details-button"
-                                                @onclick="() => ShowDetails(operation)">
-                                            <i class="bi bi-eye"></i>
-                                            جزئیات
-                                        </button>
-                                    </td>
-                                </tr>
-                                rowIndex++;
+                                <tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-success"></div></td></tr>
                             }
-                        }
-                    </tbody>
-                </GlobalDataGrid>
+                            else if (!pagedReceiptRows.Any())
+                            {
+                                <tr><td colspan="5" class="text-center py-5 text-muted">پولی به صندوق وارد نشده است.</td></tr>
+                            }
+                            else
+                            {
+                                var receiptIndex = GetFirstRowNumber(receiptCurrentPage);
+                                @foreach (var row in pagedReceiptRows)
+                                {
+                                    <tr>
+                                        <td class="text-muted fw-bold">@receiptIndex</td>
+                                        <td class="journal-row-date"><AppDateTime Value="@row.Operation.CreatedAt" ShowSeconds="true" /></td>
+                                        <td class="journal-sentence">
+                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetSourceTypeName(row.Operation.SourceType)</span>
+                                            <span>@row.Operation.SummarySentence</span>
+                                            <small class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</small>
+                                        </td>
+                                        <td class="journal-movement-amount">
+                                            @foreach (var amount in row.Amounts)
+                                            {
+                                                <span dir="ltr"><strong>@MoneyFormatHelper.Format(amount.Amount)</strong> @amount.CurrencyCode</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary journal-icon-button" title="مشاهده جزئیات" @onclick="() => ShowDetails(row.Operation)">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    receiptIndex++;
+                                }
+                            }
+                        </tbody>
+                    </GlobalDataGrid>
+                </div>
             </div>
-        </div>
-
-        <div class="table-card-footer">
-            <div class="table-card-footer-left">
+            <div class="table-card-footer journal-movement-footer">
                 <span class="text-muted small">
-                    نمایش <strong>@pagedOperations.Count</strong> از <strong>@filteredOperations.Count</strong> عملیات
+                    نمایش <strong>@pagedReceiptRows.Count</strong> از <strong>@receiptRows.Count</strong>
                 </span>
-                <CompactPagination CurrentPage="currentPage"
-                                   TotalPages="totalPages"
-                                   PageChanged="GoToPage" />
+                <CompactPagination CurrentPage="receiptCurrentPage"
+                                   TotalPages="receiptTotalPages"
+                                   PageChanged="GoToReceiptPage" />
             </div>
-            <div class="table-card-footer-right">
-                <span class="badge-modern badge-info">
-                    <i class="bi bi-calendar-check"></i>
-                    @GetPeriodLabel()
+        </section>
+
+        <section class="table-card journal-movement-card journal-withdrawal-card">
+            <div class="table-card-header">
+                <div class="table-card-header-left">
+                    <h6 class="mb-0 text-danger">
+                        <i class="bi bi-box-arrow-up"></i>
+                        برد
+                        <small>پول برداشته‌شده از صندوق</small>
+                    </h6>
+                </div>
+                <div class="table-card-header-right">
+                    <span class="badge-modern badge-danger">@withdrawalRows.Count مورد</span>
+                </div>
+            </div>
+            <div class="table-card-body">
+                <div class="table-scroll-wrapper">
+                    <GlobalDataGrid class="table-modern table-striped-modern journal-movement-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>تاریخ</th>
+                                <th>شرح</th>
+                                <th>مبلغ برد</th>
+                                <th>جزئیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (isLoading)
+                            {
+                                <tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-danger"></div></td></tr>
+                            }
+                            else if (!pagedWithdrawalRows.Any())
+                            {
+                                <tr><td colspan="5" class="text-center py-5 text-muted">پولی از صندوق برداشته نشده است.</td></tr>
+                            }
+                            else
+                            {
+                                var withdrawalIndex = GetFirstRowNumber(withdrawalCurrentPage);
+                                @foreach (var row in pagedWithdrawalRows)
+                                {
+                                    <tr>
+                                        <td class="text-muted fw-bold">@withdrawalIndex</td>
+                                        <td class="journal-row-date"><AppDateTime Value="@row.Operation.CreatedAt" ShowSeconds="true" /></td>
+                                        <td class="journal-sentence">
+                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetSourceTypeName(row.Operation.SourceType)</span>
+                                            <span>@row.Operation.SummarySentence</span>
+                                            <small class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</small>
+                                        </td>
+                                        <td class="journal-movement-amount">
+                                            @foreach (var amount in row.Amounts)
+                                            {
+                                                <span dir="ltr"><strong>@MoneyFormatHelper.Format(amount.Amount)</strong> @amount.CurrencyCode</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-primary journal-icon-button" title="مشاهده جزئیات" @onclick="() => ShowDetails(row.Operation)">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    withdrawalIndex++;
+                                }
+                            }
+                        </tbody>
+                    </GlobalDataGrid>
+                </div>
+            </div>
+            <div class="table-card-footer journal-movement-footer">
+                <span class="text-muted small">
+                    نمایش <strong>@pagedWithdrawalRows.Count</strong> از <strong>@withdrawalRows.Count</strong>
                 </span>
+                <CompactPagination CurrentPage="withdrawalCurrentPage"
+                                   TotalPages="withdrawalTotalPages"
+                                   PageChanged="GoToWithdrawalPage" />
             </div>
-            <PageSizeSelector @bind-Value="pageSize"
-                              @bind-CurrentPage="currentPage" />
-        </div>
+        </section>
+    </div>
+
+    <div class="journal-split-controls">
+        <span class="badge-modern badge-info">
+            <i class="bi bi-calendar-check"></i>
+            @GetPeriodLabel()
+        </span>
+        <PageSizeSelector @bind-Value="pageSize"
+                          @bind-CurrentPage="receiptCurrentPage"
+                          Changed="ResetMovementPages"
+                          PersistenceKey="daily-journal-movements" />
     </div>
 </div>
 
@@ -504,8 +575,11 @@
     private List<string> accountNames = new();
     private List<string> currencyCodes = new();
     private List<CashDailyBalanceDto> cashDailyBalances = new();
+    private List<CashJournalRow> receiptRows = new();
+    private List<CashJournalRow> withdrawalRows = new();
     private int pageSize = 20;
-    private int currentPage = 1;
+    private int receiptCurrentPage = 1;
+    private int withdrawalCurrentPage = 1;
     private bool isCashLoading;
     private string successMessage = string.Empty;
 
@@ -570,27 +644,10 @@
         }
     }
 
-    private List<JournalOperationDto> pagedOperations
-    {
-        get
-        {
-            var sorted = filteredOperations
-                .OrderByDescending(x => x.CreatedAt)
-                .ThenByDescending(x => x.SourceId)
-                .ToList();
-            if (pageSize == 0)
-            {
-                currentPage = 1;
-                return sorted;
-            }
-
-            return sorted.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
-        }
-    }
-
-    private int totalPages => pageSize == 0
-        ? 1
-        : (int)Math.Ceiling((double)filteredOperations.Count / pageSize);
+    private List<CashJournalRow> pagedReceiptRows => GetPage(receiptRows, receiptCurrentPage);
+    private List<CashJournalRow> pagedWithdrawalRows => GetPage(withdrawalRows, withdrawalCurrentPage);
+    private int receiptTotalPages => GetTotalPages(receiptRows.Count);
+    private int withdrawalTotalPages => GetTotalPages(withdrawalRows.Count);
 
     protected override Task OnInitializedAsync() => LoadJournal();
 
@@ -766,7 +823,9 @@
         }
 
         filteredOperations = query.ToList();
-        currentPage = 1;
+        receiptRows = BuildCashRows(filteredOperations, isReceipt: true);
+        withdrawalRows = BuildCashRows(filteredOperations, isReceipt: false);
+        ResetMovementPages();
     }
 
     private static bool Contains(string? value, string term) =>
@@ -790,10 +849,74 @@
         await LoadJournal();
     }
 
-    private void GoToPage(int page)
+    private void GoToReceiptPage(int page)
     {
-        if (page >= 1 && page <= totalPages)
-            currentPage = page;
+        if (page >= 1 && page <= receiptTotalPages)
+            receiptCurrentPage = page;
+    }
+
+    private void GoToWithdrawalPage(int page)
+    {
+        if (page >= 1 && page <= withdrawalTotalPages)
+            withdrawalCurrentPage = page;
+    }
+
+    private void ResetMovementPages()
+    {
+        receiptCurrentPage = 1;
+        withdrawalCurrentPage = 1;
+    }
+
+    private int GetFirstRowNumber(int page) => pageSize == 0 ? 1 : ((page - 1) * pageSize) + 1;
+
+    private int GetTotalPages(int count) => pageSize == 0
+        ? 1
+        : Math.Max(1, (int)Math.Ceiling((double)count / pageSize));
+
+    private List<CashJournalRow> GetPage(List<CashJournalRow> rows, int page)
+    {
+        if (pageSize == 0)
+            return rows;
+
+        return rows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private static List<CashJournalRow> BuildCashRows(
+        IEnumerable<JournalOperationDto> operations,
+        bool isReceipt)
+    {
+        var rows = new List<CashJournalRow>();
+        foreach (var operation in operations
+                     .OrderByDescending(x => x.CreatedAt)
+                     .ThenByDescending(x => x.SourceId))
+        {
+            var cashEntries = operation.LedgerEntries
+                .Where(x => x.IsCashAccount && (isReceipt ? x.BadehKar > 0 : x.TalabKar > 0))
+                .ToList();
+            if (cashEntries.Count == 0)
+                continue;
+
+            rows.Add(new CashJournalRow
+            {
+                Operation = operation,
+                AccountNames = cashEntries
+                    .Select(x => x.AccountName)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct()
+                    .ToList(),
+                Amounts = cashEntries
+                    .GroupBy(x => x.CurrencyCode)
+                    .Select(group => new CashJournalAmount
+                    {
+                        CurrencyCode = group.Key,
+                        Amount = group.Sum(x => isReceipt ? x.BadehKar : x.TalabKar)
+                    })
+                    .OrderBy(x => x.CurrencyCode)
+                    .ToList()
+            });
+        }
+
+        return rows;
     }
 
     private void ShowDetails(JournalOperationDto operation) => selectedOperation = operation;
@@ -822,4 +945,17 @@
 
     private static string GetSourceTypeName(string sourceType) =>
         sourceType == "واریز / برداشت / پرداخت" ? "رسید / برد" : sourceType;
+
+    private sealed class CashJournalRow
+    {
+        public JournalOperationDto Operation { get; init; } = new();
+        public List<string> AccountNames { get; init; } = new();
+        public List<CashJournalAmount> Amounts { get; init; } = new();
+    }
+
+    private sealed class CashJournalAmount
+    {
+        public string CurrencyCode { get; init; } = string.Empty;
+        public decimal Amount { get; init; }
+    }
 }

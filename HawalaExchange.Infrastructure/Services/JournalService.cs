@@ -501,6 +501,10 @@ public class JournalService : IJournalService
         AccountId = entry.AccountId,
         AccountCode = entry.Account?.AccountCode ?? string.Empty,
         AccountName = entry.Account?.AccountName ?? string.Empty,
+        IsCashAccount = string.Equals(
+            entry.Account?.AccountType,
+            "Cash",
+            StringComparison.OrdinalIgnoreCase),
         CurrencyId = entry.CurrencyId,
         CurrencyCode = entry.Currency?.Code ?? string.Empty,
         TalabKar = entry.TalabKar,

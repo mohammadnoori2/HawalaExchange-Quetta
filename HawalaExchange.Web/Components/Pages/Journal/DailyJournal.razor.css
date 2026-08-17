@@ -6,6 +6,110 @@
     min-width: 920px;
 }
 
+.journal-split-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    align-items: start;
+}
+
+.journal-movement-card {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.journal-movement-card .table-card-header h6 {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+}
+
+.journal-movement-card .table-card-header h6 small {
+    color: #64748b;
+    font-size: .72rem;
+    font-weight: 400;
+}
+
+.journal-receipt-card {
+    border-top: 3px solid #16a34a;
+}
+
+.journal-withdrawal-card {
+    border-top: 3px solid #dc2626;
+}
+
+.journal-movement-table {
+    min-width: 680px;
+}
+
+.journal-movement-table th:first-child,
+.journal-movement-table td:first-child {
+    width: 42px;
+}
+
+.journal-movement-table th:nth-child(2),
+.journal-movement-table td:nth-child(2) {
+    width: 132px;
+}
+
+.journal-movement-table th:nth-child(4),
+.journal-movement-table td:nth-child(4) {
+    width: 135px;
+}
+
+.journal-movement-table th:last-child,
+.journal-movement-table td:last-child {
+    width: 58px;
+    text-align: center;
+}
+
+.journal-cash-accounts {
+    display: block;
+    margin-top: .3rem;
+    color: #64748b;
+}
+
+.journal-movement-amount {
+    white-space: nowrap;
+}
+
+.journal-movement-amount span {
+    display: block;
+    padding: .15rem 0;
+}
+
+.journal-receipt-card .journal-movement-amount {
+    color: #15803d;
+}
+
+.journal-withdrawal-card .journal-movement-amount {
+    color: #b91c1c;
+}
+
+.journal-icon-button {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+}
+
+.journal-movement-footer {
+    min-height: 58px;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+
+.journal-split-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: .75rem;
+    padding: .6rem .85rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+}
+
 .journal-sentence {
     line-height: 2;
 }
@@ -202,6 +306,10 @@
 }
 
 @media (max-width: 800px) {
+    .journal-split-grid {
+        grid-template-columns: 1fr;
+    }
+
     .journal-overview-grid,
     .journal-source-details {
         grid-template-columns: 1fr 1fr;
@@ -223,6 +331,11 @@
 }
 
 @media (max-width: 520px) {
+    .journal-split-controls {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
     .journal-overview-grid,
     .journal-source-details {
         grid-template-columns: 1fr;

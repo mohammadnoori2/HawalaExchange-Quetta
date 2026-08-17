@@ -131,6 +131,9 @@ public class JournalEntryDto
 
     public string AccountName { get; set; } = string.Empty;
 
+    /// <summary>مشخص می‌کند که ثبت حسابداری مستقیماً مربوط به یک حساب صندوق است.</summary>
+    public bool IsCashAccount { get; set; }
+
     public long CurrencyId { get; set; }
 
     public string CurrencyCode { get; set; } = string.Empty;

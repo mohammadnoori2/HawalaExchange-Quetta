@@ -1,0 +1,68 @@
+@implements IDisposable
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject ICashBalanceAlertService AlertService
+
+@if (alerts.Count > 0)
+{
+    <section class="cash-alert-banner" dir="rtl" aria-live="polite">
+        <div class="cash-alert-heading">
+            <span class="cash-alert-icon"><i class="bi bi-exclamation-triangle-fill"></i></span>
+            <div>
+                <strong>هشدار کمبود موجودی صندوق</strong>
+                <small>@alerts.Count مورد نیاز به توجه دارد</small>
+            </div>
+        </div>
+        <div class="cash-alert-items">
+            @foreach (var alert in alerts.Take(3))
+            {
+                <div class="cash-alert-item">@alert.Message</div>
+            }
+            @if (alerts.Count > 3)
+            {
+                <div class="cash-alert-more">و @(alerts.Count - 3) هشدار دیگر</div>
+            }
+        </div>
+        <AuthorizeView Roles="Admin,Manager">
+            <a class="cash-alert-link" href="/cash-balance-alerts">مشاهده و تنظیم</a>
+        </AuthorizeView>
+    </section>
+}
+
+@code {
+    private List<CashBalanceAlertDto> alerts = [];
+    private bool loading;
+    private bool disposed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AlertService.AlertsChanged += HandleAlertsChanged;
+        await LoadAlertsAsync();
+    }
+
+    private void HandleAlertsChanged() => _ = InvokeAsync(async () =>
+    {
+        await LoadAlertsAsync();
+        StateHasChanged();
+    });
+
+    private async Task LoadAlertsAsync()
+    {
+        if (loading || disposed) return;
+        try
+        {
+            loading = true;
+            alerts = (await AlertService.GetActiveAlertsAsync()).ToList();
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+        AlertService.AlertsChanged -= HandleAlertsChanged;
+    }
+}

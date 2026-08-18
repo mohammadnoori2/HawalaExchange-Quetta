@@ -9,6 +9,7 @@
 @inject ICompanySettingService CompanySettingService
 @inject IFinancialReportService FinancialReportService
 @inject IJournalService JournalService
+@inject ICashBalanceAlertService CashBalanceAlertService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
@@ -29,6 +30,7 @@
             <PageHeaderStat Label="حواله" Value="@(dashboard?.HawalaCount ?? 0)" Icon="bi-send" />
             <PageHeaderStat Label="تبدیل پول" Value="@(dashboard?.ExchangeCount ?? 0)" Icon="bi-currency-exchange" Tone="info" />
             <PageHeaderStat Label="مفاد خالص" Value="@($"{MoneyFormatHelper.Format(NetProfit)} {selectedCurrency}")" Icon="bi-graph-up-arrow" Tone="success" />
+            <PageHeaderStat Label="هشدار صندوق" Value="@cashBalanceAlerts.Count" Icon="bi-exclamation-triangle" Tone="danger" />
         </PageHeaderStats>
         <div class="page-actions quick-links">
             <button class="quick-link-btn quick-link-hawala" @onclick="OpenHawalaModal">ثبت حواله</button>
@@ -320,6 +322,7 @@
     private DashboardSummaryDto? dashboard;
     private List<DashboardLiquidityDto> currentLiquidityItems = new();
     private List<CurrentCashBalanceDto> currentCashBalances = new();
+    private List<CashBalanceAlertDto> cashBalanceAlerts = new();
 
     private decimal NetProfit => dashboard?.NetProfit ?? 0;
     private IReadOnlyList<DashboardDebtorDto> CurrentCounterpartyItems =>
@@ -384,6 +387,7 @@
                 endDate,
                 currency.Id);
             currentCashBalances = (await JournalService.GetCurrentCashBalancesAsync()).ToList();
+            cashBalanceAlerts = (await CashBalanceAlertService.GetActiveAlertsAsync()).ToList();
             UpdateLiquidityItems();
             chartsRendered = false;
         }
@@ -393,6 +397,7 @@
             dashboard = null;
             currentLiquidityItems.Clear();
             currentCashBalances.Clear();
+            cashBalanceAlerts.Clear();
         }
         finally
         {

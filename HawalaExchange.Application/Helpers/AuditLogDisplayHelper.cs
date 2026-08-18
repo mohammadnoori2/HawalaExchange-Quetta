@@ -28,6 +28,9 @@ public static class AuditLogDisplayHelper
             ["AccountMoneyOperations"] = "رسید یا برد",
             ["MoneyExchangeOperations"] = "تبادل ارز",
             ["AccountBadehkarLimits"] = "سقف بدهکاری",
+            ["CashBalanceAlertSettings"] = "هشدار موجودی صندوق",
+            ["CashBalanceAlertRecipients"] = "دریافت‌کننده هشدار موجودی صندوق",
+            ["CashBalanceAlerts"] = "هشدار کمبود موجودی صندوق",
             ["CompanySettings"] = "تنظیمات شرکت",
             ["CorrespondentSettlementConversions"] = "تبدیل مانده نمایندگی",
             ["CorrespondentSettlementConversionItems"] = "جزئیات تبدیل مانده نمایندگی",
@@ -90,6 +93,11 @@ public static class AuditLogDisplayHelper
             ["ContentType"] = "نوع فایل", ["FileSizeBytes"] = "اندازه فایل",
             ["UploadedAt"] = "زمان بارگذاری", ["EntityType"] = "بخش مرتبط", ["EntityId"] = "شماره بخش مرتبط",
             ["BadehkarLimit"] = "سقف بدهکاری", ["LocalUserName"] = "نام کاربری",
+            ["MinimumBalance"] = "حداقل موجودی", ["CurrentBalance"] = "موجودی فعلی",
+            ["NotifyAllUsers"] = "نمایش به همه کاربران", ["ShowInApp"] = "نمایش داخل برنامه",
+            ["SettingId"] = "تنظیم هشدار", ["UserId"] = "دریافت‌کننده هشدار",
+            ["TriggeredAt"] = "زمان شروع هشدار", ["LastCheckedAt"] = "آخرین بررسی",
+            ["ResolvedAt"] = "زمان برطرف‌شدن هشدار",
             ["IsPlatformUser"] = "کاربر مدیریت مرکزی", ["LastLoginAt"] = "آخرین ورود",
             ["ReferenceType"] = "نوع شخص مرتبط", ["ReferenceId"] = "شخص مرتبط",
             ["CompanyName"] = "نام شرکت", ["LogoPath"] = "نشان شرکت",
@@ -237,6 +245,7 @@ public static class AuditLogDisplayHelper
             "MoneyExchangeOperations" => $"{AmountWithCurrency(V("FromAmount"), V("FromCurrencyId"))} به {AmountWithCurrency(V("ToAmount"), V("ToCurrencyId"))} تبدیل شد.",
             "ExchangeRates" => $"نرخ {V("FromCurrencyId") ?? "ارز اول"} به {V("ToCurrencyId") ?? "ارز دوم"} با نرخ {V("Rate") ?? "نامشخص"} ثبت شد.",
             "AccountBadehkarLimits" => $"سقف بدهکاری حساب {V("AccountId") ?? "نامشخص"} به مبلغ {AmountWithCurrency(V("BadehkarLimit"), V("CurrencyId"))} تعیین شد.",
+            "CashBalanceAlertSettings" => $"هشدار موجودی صندوق {V("AccountId") ?? "نامشخص"} برای ارز {V("CurrencyId") ?? "نامشخص"} روی حداقل {V("MinimumBalance") ?? "نامشخص"} تنظیم شد.",
             "Documents" => $"سند {V("FileName") ?? recordName.Trim('«', '»')} بارگذاری شد.",
             "Transactions" => $"{V("TransactionType") ?? "عملیات مالی"} با شماره {V("TransactionNo") ?? log.RecordId.ToString(CultureInfo.InvariantCulture)} ثبت شد.",
             "CashDailyBalances" => $"مانده آغاز روز حساب {V("AccountId") ?? "نامشخص"} به مبلغ {AmountWithCurrency(V("OpeningBalance"), V("CurrencyId"))} ثبت شد.",
@@ -314,7 +323,8 @@ public static class AuditLogDisplayHelper
             "CommissionAmount" => "CommissionCurrencyId",
             "AgentCommissionAmount" => "AgentCommissionCurrencyId",
             "ProfitCurrencyAmount" => "ProfitCurrencyId",
-            "Amount" or "BadehkarLimit" or "OpeningBalance" or "ClosingBalance" => "CurrencyId",
+            "Amount" or "BadehkarLimit" or "MinimumBalance" or "CurrentBalance" or
+                "OpeningBalance" or "ClosingBalance" => "CurrencyId",
             _ => null
         };
         if (currencyProperty == null) return formatted;

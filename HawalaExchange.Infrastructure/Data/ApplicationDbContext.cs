@@ -29,6 +29,7 @@ namespace HawalaExchange.Infrastructure.Data
 
         public long CurrentTenantId => tenantOverride ?? _currentTenant.TenantId;
         public long CurrentUserId => _currentTenant.UserId;
+        public event Action? CashBalanceAlertsChanged;
 
         public void PrepareTenantEntity(ITenantEntity entity)
         {
@@ -103,6 +104,9 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<ExchangeRate> ExchangeRates { get; set; }
         public DbSet<Expense> Expenses { get; set; }
         public DbSet<AccountBadehkarLimit> AccountBadehkarLimits { get; set; }
+        public DbSet<CashBalanceAlertSetting> CashBalanceAlertSettings { get; set; }
+        public DbSet<CashBalanceAlertRecipient> CashBalanceAlertRecipients { get; set; }
+        public DbSet<CashBalanceAlert> CashBalanceAlerts { get; set; }
         public DbSet<Document> Documents { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Hawala> Hawalas { get; set; }
@@ -256,20 +260,23 @@ namespace HawalaExchange.Infrastructure.Data
 
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
+            var cashAlertTargets = CaptureCashBalanceAlertTargets();
             AssignAndValidateTenantIds();
             ValidateSubscriptionWriteAccess();
             ValidateAccountDebtLimits();
             var auditEntries = CaptureAuditEntries();
             EnrichAuditEntries(auditEntries);
             var processId = GetCurrentAuditProcessId();
-            using var transaction = auditEntries.Count > 0 && Database.IsRelational() && Database.CurrentTransaction == null
+            using var transaction = (auditEntries.Count > 0 || cashAlertTargets.Count > 0) && Database.IsRelational() && Database.CurrentTransaction == null
                 ? Database.BeginTransaction()
                 : null;
             try
             {
                 var result = base.SaveChanges(acceptAllChangesOnSuccess);
                 SaveAuditEntries(auditEntries, processId);
+                RefreshCashBalanceAlerts(cashAlertTargets);
                 transaction?.Commit();
+                if (cashAlertTargets.Count > 0) CashBalanceAlertsChanged?.Invoke();
                 return result;
             }
             catch
@@ -283,20 +290,23 @@ namespace HawalaExchange.Infrastructure.Data
             bool acceptAllChangesOnSuccess,
             CancellationToken cancellationToken = default)
         {
+            var cashAlertTargets = CaptureCashBalanceAlertTargets();
             AssignAndValidateTenantIds();
             await ValidateSubscriptionWriteAccessAsync(cancellationToken);
             await ValidateAccountDebtLimitsAsync(cancellationToken);
             var auditEntries = CaptureAuditEntries();
             await EnrichAuditEntriesAsync(auditEntries, cancellationToken);
             var processId = GetCurrentAuditProcessId();
-            await using var transaction = auditEntries.Count > 0 && Database.IsRelational() && Database.CurrentTransaction == null
+            await using var transaction = (auditEntries.Count > 0 || cashAlertTargets.Count > 0) && Database.IsRelational() && Database.CurrentTransaction == null
                 ? await Database.BeginTransactionAsync(cancellationToken)
                 : null;
             try
             {
                 var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
                 await SaveAuditEntriesAsync(auditEntries, processId, cancellationToken);
+                await RefreshCashBalanceAlertsAsync(cashAlertTargets, cancellationToken);
                 if (transaction != null) await transaction.CommitAsync(cancellationToken);
+                if (cashAlertTargets.Count > 0) CashBalanceAlertsChanged?.Invoke();
                 return result;
             }
             catch
@@ -304,6 +314,168 @@ namespace HawalaExchange.Infrastructure.Data
                 if (transaction != null) await transaction.RollbackAsync(cancellationToken);
                 throw;
             }
+        }
+
+        private HashSet<(long AccountId, long CurrencyId)> CaptureCashBalanceAlertTargets()
+        {
+            ChangeTracker.DetectChanges();
+            var targets = new HashSet<(long AccountId, long CurrencyId)>();
+
+            foreach (var entry in ChangeTracker.Entries<LedgerEntry>()
+                         .Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            {
+                if (entry.State is EntityState.Modified or EntityState.Deleted)
+                    targets.Add((entry.OriginalValues.GetValue<long>(nameof(LedgerEntry.AccountId)),
+                        entry.OriginalValues.GetValue<long>(nameof(LedgerEntry.CurrencyId))));
+                if (entry.State is EntityState.Added or EntityState.Modified)
+                    targets.Add((entry.CurrentValues.GetValue<long>(nameof(LedgerEntry.AccountId)),
+                        entry.CurrentValues.GetValue<long>(nameof(LedgerEntry.CurrencyId))));
+            }
+
+            foreach (var entry in ChangeTracker.Entries<CashBalanceAlertSetting>()
+                         .Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            {
+                var values = entry.State == EntityState.Deleted ? entry.OriginalValues : entry.CurrentValues;
+                targets.Add((values.GetValue<long>(nameof(CashBalanceAlertSetting.AccountId)),
+                    values.GetValue<long>(nameof(CashBalanceAlertSetting.CurrencyId))));
+            }
+
+            var changedAccountIds = ChangeTracker.Entries<Account>()
+                .Where(x => x.State is EntityState.Modified or EntityState.Deleted)
+                .Select(x => x.Entity.Id)
+                .Where(x => x > 0)
+                .Distinct()
+                .ToArray();
+            var changedCurrencyIds = ChangeTracker.Entries<Currency>()
+                .Where(x => x.State is EntityState.Modified or EntityState.Deleted)
+                .Select(x => x.Entity.Id)
+                .Where(x => x > 0)
+                .Distinct()
+                .ToArray();
+
+            if (changedAccountIds.Length > 0 || changedCurrencyIds.Length > 0)
+            {
+                var configuredTargets = CashBalanceAlertSettings.AsNoTracking()
+                    .Where(x => changedAccountIds.Contains(x.AccountId) || changedCurrencyIds.Contains(x.CurrencyId))
+                    .Select(x => new { x.AccountId, x.CurrencyId })
+                    .ToList();
+                foreach (var target in configuredTargets)
+                    targets.Add((target.AccountId, target.CurrencyId));
+            }
+
+            targets.RemoveWhere(x => x.AccountId <= 0 || x.CurrencyId <= 0);
+            return targets;
+        }
+
+        private void RefreshCashBalanceAlerts(IReadOnlySet<(long AccountId, long CurrencyId)> targets)
+        {
+            if (targets.Count == 0) return;
+            var accountIds = targets.Select(x => x.AccountId).Distinct().ToArray();
+            var currencyIds = targets.Select(x => x.CurrencyId).Distinct().ToArray();
+            var settings = CashBalanceAlertSettings
+                .Include(x => x.Account)
+                .Include(x => x.Currency)
+                .Where(x => accountIds.Contains(x.AccountId) && currencyIds.Contains(x.CurrencyId))
+                .ToList()
+                .Where(x => targets.Contains((x.AccountId, x.CurrencyId)))
+                .ToList();
+            if (settings.Count == 0) return;
+
+            var balances = LedgerEntries.AsNoTracking()
+                .Where(x => accountIds.Contains(x.AccountId) && currencyIds.Contains(x.CurrencyId))
+                .GroupBy(x => new { x.AccountId, x.CurrencyId })
+                .Select(group => new
+                {
+                    group.Key.AccountId,
+                    group.Key.CurrencyId,
+                    Balance = group.Sum(x => x.BadehKar - x.TalabKar)
+                })
+                .ToDictionary(x => (x.AccountId, x.CurrencyId), x => x.Balance);
+            if (UpdateCashBalanceAlertStates(settings, balances))
+                base.SaveChanges(acceptAllChangesOnSuccess: true);
+        }
+
+        private async Task RefreshCashBalanceAlertsAsync(
+            IReadOnlySet<(long AccountId, long CurrencyId)> targets,
+            CancellationToken cancellationToken)
+        {
+            if (targets.Count == 0) return;
+            var accountIds = targets.Select(x => x.AccountId).Distinct().ToArray();
+            var currencyIds = targets.Select(x => x.CurrencyId).Distinct().ToArray();
+            var settings = (await CashBalanceAlertSettings
+                    .Include(x => x.Account)
+                    .Include(x => x.Currency)
+                    .Where(x => accountIds.Contains(x.AccountId) && currencyIds.Contains(x.CurrencyId))
+                    .ToListAsync(cancellationToken))
+                .Where(x => targets.Contains((x.AccountId, x.CurrencyId)))
+                .ToList();
+            if (settings.Count == 0) return;
+
+            var balances = await LedgerEntries.AsNoTracking()
+                .Where(x => accountIds.Contains(x.AccountId) && currencyIds.Contains(x.CurrencyId))
+                .GroupBy(x => new { x.AccountId, x.CurrencyId })
+                .Select(group => new
+                {
+                    group.Key.AccountId,
+                    group.Key.CurrencyId,
+                    Balance = group.Sum(x => x.BadehKar - x.TalabKar)
+                })
+                .ToDictionaryAsync(x => (x.AccountId, x.CurrencyId), x => x.Balance, cancellationToken);
+            if (UpdateCashBalanceAlertStates(settings, balances))
+                await base.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken);
+        }
+
+        private bool UpdateCashBalanceAlertStates(
+            IReadOnlyCollection<CashBalanceAlertSetting> settings,
+            IReadOnlyDictionary<(long AccountId, long CurrencyId), decimal> balances)
+        {
+            var now = DateTime.UtcNow;
+            var settingIds = settings.Select(x => x.Id).ToArray();
+            var activeAlerts = CashBalanceAlerts
+                .Where(x => settingIds.Contains(x.SettingId) && x.IsActive)
+                .ToList()
+                .ToDictionary(x => x.SettingId);
+
+            foreach (var setting in settings)
+            {
+                var balance = balances.GetValueOrDefault((setting.AccountId, setting.CurrencyId));
+                var shouldAlert = setting.IsActive && setting.ShowInApp &&
+                                  !setting.Account.IsArchived && setting.Currency.IsActive &&
+                                  balance < setting.MinimumBalance;
+                if (shouldAlert)
+                {
+                    if (!activeAlerts.TryGetValue(setting.Id, out var alert))
+                    {
+                        CashBalanceAlerts.Add(new CashBalanceAlert
+                        {
+                            TenantId = setting.TenantId,
+                            SettingId = setting.Id,
+                            CurrentBalance = balance,
+                            MinimumBalance = setting.MinimumBalance,
+                            IsActive = true,
+                            TriggeredAt = now,
+                            LastCheckedAt = now
+                        });
+                    }
+                    else
+                    {
+                        alert.CurrentBalance = balance;
+                        alert.MinimumBalance = setting.MinimumBalance;
+                        alert.LastCheckedAt = now;
+                    }
+                }
+                else if (activeAlerts.TryGetValue(setting.Id, out var alert))
+                {
+                    alert.CurrentBalance = balance;
+                    alert.MinimumBalance = setting.MinimumBalance;
+                    alert.IsActive = false;
+                    alert.LastCheckedAt = now;
+                    alert.ResolvedAt = now;
+                }
+            }
+
+            return ChangeTracker.Entries<CashBalanceAlert>().Any(x =>
+                x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
         }
 
         private List<PendingAuditEntry> CaptureAuditEntries()
@@ -612,9 +784,10 @@ namespace HawalaExchange.Infrastructure.Data
             "Hawalas" => 0,
             "MoneyExchangeOperations" or "AccountMoneyOperations" or "Transfers" or
                 "CapitalInvestments" or "Expenses" or "CorrespondentSettlementConversions" => 1,
-            "Customers" or "Correspondents" or "Accounts" or "Branches" or "Users" => 2,
+            "Customers" or "Correspondents" or "Accounts" or "Branches" or "Users" or
+                "CashBalanceAlertSettings" => 2,
             "Transactions" => 3,
-            "LedgerEntries" or "TransactionDetails" => 10,
+            "LedgerEntries" or "TransactionDetails" or "CashBalanceAlertRecipients" => 10,
             _ => 5
         };
 
@@ -1252,6 +1425,18 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Transaction>().HasIndex(x => new { x.TenantId, x.TransactionNo }).IsUnique();
             modelBuilder.Entity<Transaction>().HasIndex(x => new { x.TenantId, x.CreatedAt, x.Status });
             modelBuilder.Entity<AccountBadehkarLimit>().HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId }).IsUnique();
+            modelBuilder.Entity<CashBalanceAlertSetting>()
+                .HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId })
+                .IsUnique();
+            modelBuilder.Entity<CashBalanceAlertRecipient>()
+                .HasIndex(x => new { x.TenantId, x.SettingId, x.UserId })
+                .IsUnique();
+            modelBuilder.Entity<CashBalanceAlert>()
+                .HasIndex(x => new { x.TenantId, x.SettingId, x.IsActive })
+                .IsUnique()
+                .HasFilter("[IsActive] = 1");
+            modelBuilder.Entity<CashBalanceAlert>()
+                .HasIndex(x => new { x.TenantId, x.TriggeredAt });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.CreatedAt });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.TransactionId });
@@ -1316,6 +1501,10 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Customer>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<Correspondent>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.IsActive).HasDefaultValue(true);
+            modelBuilder.Entity<CashBalanceAlertSetting>().Property(x => x.IsActive).HasDefaultValue(true);
+            modelBuilder.Entity<CashBalanceAlertSetting>().Property(x => x.NotifyAllUsers).HasDefaultValue(true);
+            modelBuilder.Entity<CashBalanceAlertSetting>().Property(x => x.ShowInApp).HasDefaultValue(true);
+            modelBuilder.Entity<CashBalanceAlert>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.OperationType).HasDefaultValue("Treasury");
             modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ProfitStatus).HasDefaultValue("NotCalculated");
             modelBuilder.Entity<CashDailyBalance>().Property(x => x.IsClosed).HasDefaultValue(false);
@@ -1349,6 +1538,9 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<ExchangeRate>().Property(x => x.SellRate).HasPrecision(18, 8);
             modelBuilder.Entity<Expense>().Property(x => x.Amount).HasPrecision(18, 4);
             modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.BadehkarLimit).HasPrecision(18, 4);
+            modelBuilder.Entity<CashBalanceAlertSetting>().Property(x => x.MinimumBalance).HasPrecision(18, 4);
+            modelBuilder.Entity<CashBalanceAlert>().Property(x => x.CurrentBalance).HasPrecision(18, 4);
+            modelBuilder.Entity<CashBalanceAlert>().Property(x => x.MinimumBalance).HasPrecision(18, 4);
             modelBuilder.Entity<CapitalInvestment>().Property(x => x.Amount).HasPrecision(18, 4);
             modelBuilder.Entity<CapitalInvestment>().Property(x => x.ProfitCurrencyAmount).HasPrecision(18, 4);
             modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.FromAmount).HasPrecision(18, 4);
@@ -1962,6 +2154,40 @@ namespace HawalaExchange.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(x => x.CurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CashBalanceAlertSetting>(entity =>
+            {
+                entity.HasOne(x => x.Account)
+                    .WithMany()
+                    .HasForeignKey(x => x.AccountId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Currency)
+                    .WithMany()
+                    .HasForeignKey(x => x.CurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.CreatedBy)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CashBalanceAlertRecipient>(entity =>
+            {
+                entity.HasOne(x => x.Setting)
+                    .WithMany(x => x.Recipients)
+                    .HasForeignKey(x => x.SettingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.User)
+                    .WithMany()
+                    .HasForeignKey(x => x.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CashBalanceAlert>()
+                .HasOne(x => x.Setting)
+                .WithMany(x => x.Alerts)
+                .HasForeignKey(x => x.SettingId)
+                .OnDelete(DeleteBehavior.Cascade);
 
         }
 

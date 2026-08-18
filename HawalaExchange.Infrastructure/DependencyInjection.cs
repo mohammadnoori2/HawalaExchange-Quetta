@@ -31,6 +31,7 @@ namespace HawalaExchange.Infrastructure
             services.AddScoped<ICorrespondentService, CorrespondentService>();
             services.AddScoped<ICurrencyService, CurrencyService>();
             services.AddScoped<IAccountService, AccountService>();
+            services.AddScoped<ICashBalanceAlertService, CashBalanceAlertService>();
 
             // ✅ Fixed: Correct name (singular, not plural)
             services.AddScoped<IExchangeRateService, ExchangeRateService>();

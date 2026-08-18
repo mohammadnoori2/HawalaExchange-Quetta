@@ -1,0 +1,385 @@
+@page "/cash-balance-alerts"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@inject ICashBalanceAlertService AlertService
+@inject IAccountService AccountService
+@inject ICurrencyService CurrencyService
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Manager")]
+
+<PageTitle>هشدار موجودی صندوق</PageTitle>
+
+<div class="page-wrapper" dir="rtl">
+    <AppPageHeader Title="هشدار موجودی صندوق"
+                   Subtitle="تعیین حداقل موجودی برای هر صندوق و هر ارز"
+                   Icon="bi-bell">
+        <Stats>
+            <PageHeaderStats AriaLabel="آمار هشدار موجودی صندوق">
+                <PageHeaderStat Label="کل تنظیمات" Value="@settings.Count" Icon="bi-sliders" />
+                <PageHeaderStat Label="فعال" Value="@settings.Count(x => x.IsActive)" Icon="bi-check-circle" Tone="success" />
+                <PageHeaderStat Label="کمتر از حد" Value="@settings.Count(x => x.IsBelowMinimum)" Icon="bi-exclamation-triangle" Tone="danger" />
+            </PageHeaderStats>
+        </Stats>
+        <Actions>
+            <button type="button" class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreate">
+                <i class="bi bi-plus-circle"></i> تنظیم جدید
+            </button>
+        </Actions>
+    </AppPageHeader>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="alert @(isError ? "alert-danger" : "alert-success") mt-3">@message</div>
+    }
+
+    <CompactFilterBar AriaLabel="جستجو و فیلتر هشدار موجودی"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(search) || !string.IsNullOrWhiteSpace(statusFilter))"
+                      Reset="ClearFilters">
+        <SearchContent>
+            <input class="form-control" placeholder="جستجو با نام صندوق یا ارز..."
+                   @bind="search" @bind:event="oninput" />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" @bind="statusFilter" @bind:event="oninput">
+                <option value="">همه وضعیت‌ها</option>
+                <option value="warning">کمتر از حد</option>
+                <option value="active">فعال</option>
+                <option value="inactive">غیرفعال</option>
+            </select>
+        </QuickFilters>
+    </CompactFilterBar>
+
+    <div class="table-card">
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <GlobalDataGrid class="table-modern table-striped-modern">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>صندوق</th>
+                            <th>ارز</th>
+                            <th>حداقل موجودی</th>
+                            <th>موجودی فعلی</th>
+                            <th>دریافت‌کنندگان</th>
+                            <th>وضعیت</th>
+                            <th>آخرین تغییر</th>
+                            <th class="text-center">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading)
+                        {
+                            <tr><td colspan="9" class="text-center py-5">در حال بارگذاری...</td></tr>
+                        }
+                        else if (!PagedSettings.Any())
+                        {
+                            <tr><td colspan="9" class="text-center py-5 text-muted">هیچ تنظیمی پیدا نشد.</td></tr>
+                        }
+                        else
+                        {
+                            var number = (currentPage - 1) * EffectivePageSize + 1;
+                            @foreach (var item in PagedSettings)
+                            {
+                                <tr class="@(item.IsBelowMinimum ? "table-danger" : null)">
+                                    <td>@number</td>
+                                    <td class="fw-semibold">@item.AccountName</td>
+                                    <td><span class="badge-modern badge-info">@item.CurrencyCode</span></td>
+                                    <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(item.MinimumBalance)</td>
+                                    <td dir="ltr" class="fw-bold @(item.IsBelowMinimum ? "text-danger" : "text-success")">
+                                        @MoneyFormatHelper.Format(item.CurrentBalance)
+                                    </td>
+                                    <td>
+                                        @(item.NotifyAllUsers
+                                            ? "همه کاربران"
+                                            : item.RecipientNames.Count > 0
+                                                ? string.Join("، ", item.RecipientNames)
+                                                : "-")
+                                    </td>
+                                    <td>
+                                        @if (item.IsBelowMinimum)
+                                        {
+                                            <span class="badge-modern badge-archived"><i class="bi bi-exclamation-triangle"></i> کمتر از حد</span>
+                                        }
+                                        else if (item.IsActive)
+                                        {
+                                            <span class="badge-modern badge-active">فعال</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge-modern badge-archived">غیرفعال</span>
+                                        }
+                                    </td>
+                                    <td><AppDateTime Value="@item.UpdatedAt" /></td>
+                                    <td class="text-center operation-cell">
+                                        <AppActionMenu AriaLabel="@($"عملیات هشدار {item.AccountName} {item.CurrencyCode}")">
+                                            <button type="button" class="operation-menu-item" @onclick="() => OpenEdit(item)">
+                                                <i class="bi bi-pencil text-primary"></i> ویرایش
+                                            </button>
+                                            <button type="button" class="operation-menu-item" @onclick="() => ToggleActive(item)">
+                                                <i class="bi @(item.IsActive ? "bi-pause-circle" : "bi-play-circle")"></i>
+                                                @(item.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")
+                                            </button>
+                                        </AppActionMenu>
+                                    </td>
+                                </tr>
+                                number++;
+                            }
+                        }
+                    </tbody>
+                </GlobalDataGrid>
+            </div>
+        </div>
+        <div class="table-card-footer">
+            <div class="table-card-footer-left">
+                <span class="text-muted small">نمایش <strong>@PagedSettings.Count</strong> از <strong>@FilteredSettings.Count</strong> مورد</span>
+                <CompactPagination CurrentPage="currentPage" TotalPages="TotalPages" PageChanged="GoToPage" />
+            </div>
+            <PageSizeSelector @bind-Value="pageSize" @bind-CurrentPage="currentPage"
+                              PersistenceKey="cash-balance-alerts"
+                              AriaLabel="تعداد تنظیمات هشدار در هر صفحه" />
+        </div>
+    </div>
+</div>
+
+@if (showModal)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color:rgba(0,0,0,.5)" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white"><i class="bi bi-bell me-2"></i>@(editingId.HasValue ? "ویرایش هشدار" : "تنظیم هشدار جدید")</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(modalError))
+                    {
+                        <div class="alert alert-danger">@modalError</div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">صندوق <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="form.AccountId" disabled="@editingId.HasValue">
+                                <option value="0">انتخاب صندوق</option>
+                                @foreach (var account in cashAccounts)
+                                {
+                                    <option value="@account.Id">@account.AccountName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="form.CurrencyId" disabled="@editingId.HasValue">
+                                <option value="0">انتخاب ارز</option>
+                                @foreach (var currency in currencies)
+                                {
+                                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">حداقل موجودی <span class="text-danger">*</span></label>
+                            <MoneyInput class="form-control" @bind-Value="form.MinimumBalance" placeholder="مثلاً 80000" />
+                            <small class="text-muted">اگر موجودی صندوق از این مبلغ کمتر شود، هشدار نمایش داده می‌شود.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="alert-active" @bind="form.IsActive" />
+                                <label class="form-check-label" for="alert-active">هشدار فعال باشد</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="alert-in-app" @bind="form.ShowInApp" />
+                                <label class="form-check-label" for="alert-in-app">داخل برنامه نمایش داده شود</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="notify-all" @bind="form.NotifyAllUsers" />
+                                <label class="form-check-label fw-bold" for="notify-all">به همه کاربران این صرافی نشان داده شود</label>
+                            </div>
+                        </div>
+                        @if (!form.NotifyAllUsers)
+                        {
+                            <div class="col-12">
+                                <label class="form-label fw-bold">دریافت‌کنندگان هشدار</label>
+                                <div class="border rounded p-3 d-flex flex-wrap gap-3">
+                                    @foreach (var user in users)
+                                    {
+                                        <label class="form-check d-flex align-items-center gap-2 m-0">
+                                            <input class="form-check-input m-0" type="checkbox"
+                                                   checked="@form.RecipientUserIds.Contains(user.Id)"
+                                                   @onchange="args => SetRecipient(user.Id, args.Value as bool? == true)" />
+                                            <span>@user.FullName <small class="text-muted">(@user.UserName)</small></span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" @onclick="CloseModal">انصراف</button>
+                    <button type="button" class="btn btn-primary" disabled="@isSaving" @onclick="Save">
+                        @(isSaving ? "در حال ذخیره..." : "ذخیره")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<CashBalanceAlertSettingDto> settings = [];
+    private List<AccountDto> cashAccounts = [];
+    private List<CurrencyDto> currencies = [];
+    private List<CashBalanceAlertUserDto> users = [];
+    private SaveCashBalanceAlertSettingDto form = new();
+    private long? editingId;
+    private bool showModal;
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool isError;
+    private string? message;
+    private string? modalError;
+    private string search = string.Empty;
+    private string statusFilter = string.Empty;
+    private int pageSize = 20;
+    private int currentPage = 1;
+
+    private List<CashBalanceAlertSettingDto> FilteredSettings => settings.Where(x =>
+            (string.IsNullOrWhiteSpace(search) ||
+             x.AccountName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+             x.CurrencyCode.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
+            (statusFilter switch
+            {
+                "warning" => x.IsBelowMinimum,
+                "active" => x.IsActive && !x.IsBelowMinimum,
+                "inactive" => !x.IsActive,
+                _ => true
+            }))
+        .ToList();
+    private int EffectivePageSize => pageSize == 0 ? Math.Max(FilteredSettings.Count, 1) : pageSize;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredSettings.Count / (double)EffectivePageSize));
+    private List<CashBalanceAlertSettingDto> PagedSettings => FilteredSettings
+        .Skip((Math.Min(currentPage, TotalPages) - 1) * EffectivePageSize)
+        .Take(EffectivePageSize)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReferenceData();
+        await LoadSettings();
+    }
+
+    private async Task LoadReferenceData()
+    {
+        cashAccounts = (await AccountService.GetAllAsync())
+            .Where(x => x.AccountType == "Cash" && !x.IsArchived)
+            .OrderBy(x => x.AccountName)
+            .ToList();
+        currencies = (await CurrencyService.GetAllAsync())
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.Code)
+            .ToList();
+        users = (await AlertService.GetRecipientUsersAsync()).ToList();
+    }
+
+    private async Task LoadSettings()
+    {
+        isLoading = true;
+        settings = (await AlertService.GetSettingsAsync()).ToList();
+        currentPage = Math.Min(currentPage, TotalPages);
+        isLoading = false;
+    }
+
+    private void OpenCreate()
+    {
+        editingId = null;
+        form = new SaveCashBalanceAlertSettingDto();
+        modalError = null;
+        showModal = true;
+    }
+
+    private void OpenEdit(CashBalanceAlertSettingDto item)
+    {
+        editingId = item.Id;
+        form = new SaveCashBalanceAlertSettingDto
+        {
+            AccountId = item.AccountId,
+            CurrencyId = item.CurrencyId,
+            MinimumBalance = item.MinimumBalance,
+            IsActive = item.IsActive,
+            NotifyAllUsers = item.NotifyAllUsers,
+            ShowInApp = item.ShowInApp,
+            RecipientUserIds = [.. item.RecipientUserIds]
+        };
+        modalError = null;
+        showModal = true;
+    }
+
+    private void CloseModal() => showModal = false;
+
+    private async Task Save()
+    {
+        try
+        {
+            isSaving = true;
+            modalError = null;
+            if (form.AccountId <= 0 || form.CurrencyId <= 0)
+                throw new InvalidOperationException("صندوق و ارز را انتخاب کنید.");
+            if (editingId.HasValue)
+                await AlertService.UpdateAsync(editingId.Value, form);
+            else
+                await AlertService.CreateAsync(form);
+            showModal = false;
+            message = "تنظیم هشدار موجودی با موفقیت ذخیره شد.";
+            isError = false;
+            await LoadSettings();
+        }
+        catch (Exception ex)
+        {
+            modalError = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ToggleActive(CashBalanceAlertSettingDto item)
+    {
+        try
+        {
+            await AlertService.SetActiveAsync(item.Id, !item.IsActive);
+            message = item.IsActive ? "هشدار غیرفعال شد." : "هشدار فعال شد.";
+            isError = false;
+            await LoadSettings();
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            isError = true;
+        }
+    }
+
+    private void SetRecipient(long userId, bool selected)
+    {
+        if (selected && !form.RecipientUserIds.Contains(userId)) form.RecipientUserIds.Add(userId);
+        if (!selected) form.RecipientUserIds.Remove(userId);
+    }
+
+    private Task GoToPage(int page)
+    {
+        currentPage = Math.Clamp(page, 1, TotalPages);
+        return Task.CompletedTask;
+    }
+
+    private void ClearFilters()
+    {
+        search = string.Empty;
+        statusFilter = string.Empty;
+        currentPage = 1;
+    }
+}

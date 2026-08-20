@@ -540,12 +540,20 @@ namespace HawalaExchange.Infrastructure.Data
                     },
                     entry.Metadata.GetTableName() ?? entry.Metadata.ClrType.Name,
                     ((ITenantEntity)entry.Entity).TenantId,
-                    CurrentUserId > 0 ? CurrentUserId : null,
+                    GetTenantAuditUserId(((ITenantEntity)entry.Entity).TenantId),
                     oldValues,
                     newValues));
             }
 
             return entries;
+        }
+
+        private long? GetTenantAuditUserId(long tenantId)
+        {
+            var userId = CurrentUserId;
+            return userId > 0 && _currentTenant.TenantId == tenantId
+                ? userId
+                : null;
         }
 
         public Guid GetCurrentAuditProcessId()

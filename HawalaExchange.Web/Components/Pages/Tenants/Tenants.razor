@@ -155,6 +155,7 @@
                                 <label class="form-label" for="tenant-admin-password">رمز عبور مدیر</label>
                                 <input id="tenant-admin-password" type="password" class="form-control" autocomplete="new-password" @bind="createModel.AdminPassword" @bind:event="oninput" />
                                 <ValidationMessage For="@(() => createModel.AdminPassword)" />
+                                <div class="form-text">حداقل ۶ نویسه و شامل حرف بزرگ، حرف کوچک و عدد باشد.</div>
                             </div>
                             <div class="col-12"><hr /><h6>اشتراک اولیه</h6></div>
                             <div class="col-md-6">
@@ -179,10 +180,22 @@
                             <div class="col-md-6"><label class="form-label">تاریخ شروع</label><InputDate class="form-control" @bind-Value="createModel.SubscriptionStartAt" /></div>
                             <div class="col-md-6"><label class="form-label">تاریخ پایان</label><InputDate class="form-control" @bind-Value="createModel.SubscriptionEndAt" /></div>
                             <div class="col-md-6"><label class="form-label">مبلغ توافق‌شده</label><InputNumber class="form-control" @bind-Value="createModel.AgreedPrice" /></div>
-                            <div class="col-md-3"><label class="form-label">ارز</label><InputText class="form-control" @bind-Value="createModel.SubscriptionCurrencyCode" /></div>
+                            <div class="col-md-3">
+                                <label class="form-label">ارز</label>
+                                <InputSelect class="form-select" @bind-Value="createModel.SubscriptionCurrencyCode">
+                                    @foreach (var currency in SubscriptionCurrencies)
+                                    {
+                                        <option value="@currency.Code">@currency.Name (@currency.Code)</option>
+                                    }
+                                </InputSelect>
+                            </div>
                             <div class="col-md-3 form-check form-switch mt-5"><InputCheckbox class="form-check-input" @bind-Value="createModel.AutoRenew" /><label class="form-check-label">تمدید خودکار</label></div>
                         </div>
                     </div>
+                    @if (!string.IsNullOrWhiteSpace(createError))
+                    {
+                        <div class="alert alert-danger mx-3 mb-0" role="alert" aria-live="assertive">@createError</div>
+                    }
                     <div class="modal-footer">
                         <button type="button" class="btn-modern btn-light-modern" @onclick="CloseCreate">انصراف</button>
                         <button type="button" class="btn-modern btn-primary-modern" disabled="@isSaving" @onclick="CreateAsync">
@@ -231,7 +244,15 @@
                             <div class="col-md-6"><label class="form-label">پایان دوره مهلت</label><InputDate class="form-control" @bind-Value="subscriptionModel.GracePeriodEndAt" /></div>
                             <div class="col-md-6"><label class="form-label">دوره پرداخت</label><InputSelect class="form-select" @bind-Value="subscriptionModel.BillingCycle"><option value="@BillingCycle.Monthly">ماهانه</option><option value="@BillingCycle.Quarterly">سه‌ماهه</option><option value="@BillingCycle.SemiAnnual">شش‌ماهه</option><option value="@BillingCycle.Annual">سالانه</option></InputSelect></div>
                             <div class="col-md-4"><label class="form-label">مبلغ</label><InputNumber class="form-control" @bind-Value="subscriptionModel.AgreedPrice" /></div>
-                            <div class="col-md-4"><label class="form-label">ارز</label><InputText class="form-control" @bind-Value="subscriptionModel.CurrencyCode" /></div>
+                            <div class="col-md-4">
+                                <label class="form-label">ارز</label>
+                                <InputSelect class="form-select" @bind-Value="subscriptionModel.CurrencyCode">
+                                    @foreach (var currency in SubscriptionCurrencies)
+                                    {
+                                        <option value="@currency.Code">@currency.Name (@currency.Code)</option>
+                                    }
+                                </InputSelect>
+                            </div>
                             <div class="col-md-4 form-check form-switch mt-5"><InputCheckbox class="form-check-input" @bind-Value="subscriptionModel.AutoRenew" /><label class="form-check-label">تمدید خودکار</label></div>
                             <div class="col-12"><label class="form-label">دلیل تعلیق/یادداشت</label><InputTextArea class="form-control" @bind-Value="subscriptionModel.SuspensionReason" /></div>
                         </div>
@@ -266,6 +287,17 @@
     private bool showEdit;
     private bool isError;
     private string? message;
+    private string? createError;
+
+    private static readonly (string Code, string Name)[] SubscriptionCurrencies =
+    [
+        ("AFN", "افغانی"),
+        ("USD", "دالر امریکا"),
+        ("EUR", "یورو"),
+        ("AED", "درهم امارات"),
+        ("IRR", "ریال ایران"),
+        ("PKR", "روپیه پاکستان")
+    ];
 
     private IEnumerable<TenantDto> FilteredTenants
     {
@@ -314,6 +346,7 @@
         };
         createEditContext = new EditContext(createModel);
         message = null;
+        createError = null;
         showCreate = true;
     }
 
@@ -375,6 +408,7 @@
 
     private async Task CreateAsync()
     {
+        createError = null;
         if (!createEditContext.Validate()) return;
 
         try
@@ -388,8 +422,7 @@
         }
         catch (Exception ex)
         {
-            message = ex.Message;
-            isError = true;
+            createError = ex.Message;
         }
         finally
         {

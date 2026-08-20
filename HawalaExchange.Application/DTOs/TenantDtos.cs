@@ -33,7 +33,10 @@ public sealed class CreateTenantDto
     [Required, StringLength(200)]
     public string AdminFullName { get; set; } = string.Empty;
 
-    [Required, StringLength(100, MinimumLength = 6)]
+    [Required(ErrorMessage = "رمز عبور مدیر الزامی است.")]
+    [StringLength(100, MinimumLength = 6, ErrorMessage = "رمز عبور باید حداقل ۶ نویسه باشد.")]
+    [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$",
+        ErrorMessage = "رمز عبور باید شامل حرف بزرگ، حرف کوچک و عدد باشد.")]
     public string AdminPassword { get; set; } = string.Empty;
 
     [Range(1, long.MaxValue)] public long PlanId { get; set; }

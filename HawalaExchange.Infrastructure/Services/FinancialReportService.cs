@@ -192,7 +192,8 @@ public class FinancialReportService : IFinancialReportService
             entries.Where(x => x.CreatedAt >= yearStart),
             reporting,
             result.Header.Warnings);
-        var capital = CreditBalance(balances, "Equity");
+        var capital = CreditBalance(balances, "Equity") +
+                      CalculateHistoricalCapitalAdjustment(reporting, result.Header.Warnings);
 
         result.TotalAssets =
             cash +
@@ -569,6 +570,12 @@ public class FinancialReportService : IFinancialReportService
                         x.ExchangeRate > 0)
             .OrderByDescending(x => x.ExchangeDate)
             .ToListAsync();
+        var capitalInvestments = await _context.CapitalInvestments
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted && x.InvestmentDate < endExclusive)
+            .OrderBy(x => x.InvestmentDate)
+            .ThenBy(x => x.Id)
+            .ToListAsync();
 
         return new ReportingContext(
             setting?.CompanyName ?? "نام شرکت",
@@ -576,7 +583,8 @@ public class FinancialReportService : IFinancialReportService
             currency,
             currencies,
             rates,
-            operations);
+            operations,
+            capitalInvestments);
     }
 
     private async Task<List<LedgerEntry>> GetLedgerEntriesAsync(DateTime endExclusive)
@@ -651,6 +659,35 @@ public class FinancialReportService : IFinancialReportService
         }
 
         return total;
+    }
+
+    private static decimal CalculateHistoricalCapitalAdjustment(
+        ReportingContext reporting,
+        ICollection<string> warnings)
+    {
+        decimal adjustment = 0;
+        foreach (var investment in reporting.CapitalInvestments)
+        {
+            var currentValue = reporting.TryConvert(investment.Amount, investment.CurrencyId);
+            var historicalValue = investment.ProfitCurrencyId.HasValue &&
+                                  investment.ProfitCurrencyAmount.HasValue
+                ? reporting.TryConvertAt(
+                    investment.ProfitCurrencyAmount.Value,
+                    investment.ProfitCurrencyId.Value,
+                    investment.InvestmentDate)
+                : null;
+
+            if (!currentValue.HasValue || !historicalValue.HasValue)
+            {
+                warnings.Add(
+                    $"ارزش تاریخی سرمایه شماره {investment.Id} قابل تبدیل به {reporting.Currency.Code} نیست؛ سرمایه با نرخ جاری نمایش داده شد.");
+                continue;
+            }
+
+            adjustment += historicalValue.Value - currentValue.Value;
+        }
+
+        return adjustment;
     }
 
     private static decimal SumByCode(
@@ -820,7 +857,8 @@ public class FinancialReportService : IFinancialReportService
             Currency currency,
             IReadOnlyCollection<Currency> currencies,
             IReadOnlyCollection<ExchangeRate> rates,
-            IReadOnlyCollection<MoneyExchangeOperation> operations)
+            IReadOnlyCollection<MoneyExchangeOperation> operations,
+            IReadOnlyCollection<CapitalInvestment> capitalInvestments)
         {
             CompanyName = companyName;
             LogoPath = logoPath;
@@ -828,21 +866,34 @@ public class FinancialReportService : IFinancialReportService
             _currencies = currencies;
             _rates = rates;
             _operations = operations;
+            CapitalInvestments = capitalInvestments;
         }
 
         public string CompanyName { get; }
         public string? LogoPath { get; }
         public Currency Currency { get; }
+        public IReadOnlyCollection<CapitalInvestment> CapitalInvestments { get; }
 
         public decimal? TryConvert(decimal amount, long sourceCurrencyId)
+        {
+            return TryConvert(amount, sourceCurrencyId, null);
+        }
+
+        public decimal? TryConvertAt(decimal amount, long sourceCurrencyId, DateTime asOf)
+        {
+            return TryConvert(amount, sourceCurrencyId, asOf);
+        }
+
+        private decimal? TryConvert(decimal amount, long sourceCurrencyId, DateTime? asOf)
         {
             if (sourceCurrencyId == Currency.Id)
                 return amount;
 
             var direct = _rates
                 .Where(x => x.FromCurrencyId == sourceCurrencyId &&
-                            x.ToCurrencyId == Currency.Id &&
-                            x.SellRate > 0)
+                             x.ToCurrencyId == Currency.Id &&
+                             x.SellRate > 0 &&
+                             (!asOf.HasValue || x.EffectiveDate <= asOf.Value))
                 .OrderByDescending(x => x.EffectiveDate)
                 .FirstOrDefault();
             if (direct != null)
@@ -850,8 +901,9 @@ public class FinancialReportService : IFinancialReportService
 
             var reverse = _rates
                 .Where(x => x.FromCurrencyId == Currency.Id &&
-                            x.ToCurrencyId == sourceCurrencyId &&
-                            x.BuyRate > 0)
+                             x.ToCurrencyId == sourceCurrencyId &&
+                             x.BuyRate > 0 &&
+                             (!asOf.HasValue || x.EffectiveDate <= asOf.Value))
                 .OrderByDescending(x => x.EffectiveDate)
                 .FirstOrDefault();
             if (reverse != null)
@@ -862,14 +914,15 @@ public class FinancialReportService : IFinancialReportService
                 return null;
 
             var operation = _operations.FirstOrDefault(x =>
-                (x.RateBaseCurrencyId == sourceCurrencyId &&
-                 x.RateQuoteCurrencyId == Currency.Id) ||
-                (x.RateBaseCurrencyId == Currency.Id &&
-                 x.RateQuoteCurrencyId == sourceCurrencyId) ||
-                (x.FromCurrencyId == sourceCurrencyId &&
-                 x.ToCurrencyId == Currency.Id) ||
-                (x.FromCurrencyId == Currency.Id &&
-                 x.ToCurrencyId == sourceCurrencyId));
+                (!asOf.HasValue || x.ExchangeDate <= asOf.Value) &&
+                ((x.RateBaseCurrencyId == sourceCurrencyId &&
+                  x.RateQuoteCurrencyId == Currency.Id) ||
+                 (x.RateBaseCurrencyId == Currency.Id &&
+                  x.RateQuoteCurrencyId == sourceCurrencyId) ||
+                 (x.FromCurrencyId == sourceCurrencyId &&
+                  x.ToCurrencyId == Currency.Id) ||
+                 (x.FromCurrencyId == Currency.Id &&
+                  x.ToCurrencyId == sourceCurrencyId)));
             if (operation == null)
                 return null;
 

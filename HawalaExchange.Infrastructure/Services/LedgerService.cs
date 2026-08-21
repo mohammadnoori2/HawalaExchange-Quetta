@@ -95,7 +95,9 @@ namespace HawalaExchange.Application.Services
                     CurrencyId = g.Key,
                     CurrencyCode = g.First().Currency?.Code ?? "N/A",
                     Balance = g.Sum(e => e.TalabKar - e.BadehKar)
-                });
+                })
+                .Where(x => x.Balance != 0m)
+                .OrderBy(x => x.CurrencyCode);
         }
 
         public async Task<IEnumerable<LedgerEntryDto>> GetCustomerLedgerAsync(long customerId)

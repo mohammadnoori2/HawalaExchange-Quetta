@@ -13,20 +13,47 @@ public sealed class TenantAdministrationService(
 {
     public async Task<IReadOnlyList<TenantDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await context.Tenants
+        var tenants = await context.Tenants
             .AsNoTracking()
             .OrderBy(x => x.Name)
-            .Select(x => new TenantDto
+            .Select(x => new
             {
-                Id = x.Id,
-                Name = x.Name,
-                IsActive = x.IsActive,
-                IsArchived = x.IsArchived,
-                CreatedAt = x.CreatedAt,
+                Tenant = x,
                 UserCount = context.Users.IgnoreQueryFilters().Count(u => u.TenantId == x.Id && !u.IsPlatformUser),
                 BranchCount = context.Branches.IgnoreQueryFilters().Count(b => b.TenantId == x.Id)
             })
             .ToListAsync(cancellationToken);
+
+        var tenantIds = tenants.Select(x => x.Tenant.Id).ToArray();
+        var admins = await (
+                from user in context.Users.IgnoreQueryFilters().AsNoTracking()
+                join userRole in context.Set<IdentityUserRole<long>>() on user.Id equals userRole.UserId
+                join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
+                where tenantIds.Contains(user.TenantId) && !user.IsPlatformUser && role.NormalizedName == "ADMIN"
+                orderby user.CreatedAt, user.Id
+                select user)
+            .ToListAsync(cancellationToken);
+        var adminByTenant = admins
+            .GroupBy(x => x.TenantId)
+            .ToDictionary(x => x.Key, x => x.First());
+        var tenantsWithoutAdminRole = tenantIds.Except(adminByTenant.Keys).ToArray();
+        if (tenantsWithoutAdminRole.Length > 0)
+        {
+            var fallbackAdmins = await context.Users.IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(x => tenantsWithoutAdminRole.Contains(x.TenantId) && !x.IsPlatformUser)
+                .OrderBy(x => x.CreatedAt)
+                .ThenBy(x => x.Id)
+                .ToListAsync(cancellationToken);
+            foreach (var fallback in fallbackAdmins.GroupBy(x => x.TenantId).Select(x => x.First()))
+                adminByTenant[fallback.TenantId] = fallback;
+        }
+
+        return tenants.Select(x =>
+        {
+            adminByTenant.TryGetValue(x.Tenant.Id, out var admin);
+            return MapTenant(x.Tenant, admin, x.UserCount, x.BranchCount);
+        }).ToList();
     }
 
     public async Task<TenantDto> CreateAsync(
@@ -67,6 +94,7 @@ public sealed class TenantAdministrationService(
         context.Tenants.Add(tenant);
         await context.SaveChangesAsync(cancellationToken);
 
+        ApplicationUser? createdAdmin = null;
         using (context.UseTenantScope(tenant.Id))
         {
             var branch = new Branch
@@ -97,6 +125,7 @@ public sealed class TenantAdministrationService(
             var result = await userManager.CreateAsync(user, dto.AdminPassword);
             if (!result.Succeeded)
                 throw new InvalidOperationException(string.Join("؛ ", result.Errors.Select(x => x.Description)));
+            createdAdmin = user;
 
             result = await userManager.AddToRoleAsync(user, "Admin");
             if (!result.Succeeded)
@@ -138,6 +167,14 @@ public sealed class TenantAdministrationService(
         {
             Id = tenant.Id,
             Name = tenant.Name,
+            LegalName = tenant.LegalName,
+            ContactName = tenant.ContactName,
+            ContactEmail = tenant.ContactEmail,
+            ContactPhone = tenant.ContactPhone,
+            AdminUserId = createdAdmin!.Id,
+            AdminFullName = createdAdmin.FullName,
+            AdminUserName = createdAdmin.LocalUserName,
+            AdminEmail = createdAdmin.Email ?? string.Empty,
             IsActive = tenant.IsActive,
             IsArchived = tenant.IsArchived,
             UserCount = 1,
@@ -157,20 +194,62 @@ public sealed class TenantAdministrationService(
         if (!dto.IsActive && id == context.CurrentTenantId)
             throw new InvalidOperationException("صرافی‌ای را که اکنون با آن وارد شده‌اید نمی‌توانید غیرفعال کنید.");
 
-        tenant.Name = dto.Name.Trim();
-        tenant.IsActive = dto.IsActive;
-        await context.SaveChangesAsync(cancellationToken);
+        var admin = await context.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == dto.AdminUserId && x.TenantId == id && !x.IsPlatformUser, cancellationToken)
+            ?? throw new InvalidOperationException("مدیر صرافی معتبر نیست.");
+        var localUserName = dto.AdminUserName.Trim();
+        var email = dto.AdminEmail.Trim();
+        var normalizedEmail = userManager.NormalizeEmail(email);
+        if (await context.Users.IgnoreQueryFilters().AnyAsync(
+                x => x.Id != admin.Id && x.LocalUserName == localUserName, cancellationToken))
+            throw new InvalidOperationException("این نام کاربری قبلاً در سیستم ثبت شده است.");
+        if (await context.Users.IgnoreQueryFilters().AnyAsync(
+                x => x.Id != admin.Id && x.NormalizedEmail == normalizedEmail, cancellationToken))
+            throw new InvalidOperationException("این ایمیل قبلاً در سیستم ثبت شده است.");
 
-        return new TenantDto
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        using var tenantScope = context.UseTenantScope(id);
+        using var subscriptionBypass = context.BypassSubscriptionEnforcement();
+        tenant.Name = dto.Name.Trim();
+        tenant.LegalName = NullIfWhiteSpace(dto.LegalName);
+        tenant.ContactName = NullIfWhiteSpace(dto.ContactName);
+        tenant.ContactEmail = NullIfWhiteSpace(dto.ContactEmail);
+        tenant.ContactPhone = NullIfWhiteSpace(dto.ContactPhone);
+        tenant.IsActive = dto.IsActive;
+
+        admin.FullName = dto.AdminFullName.Trim();
+        admin.LocalUserName = localUserName;
+        admin.UserName = $"{tenant.Id}:{localUserName}";
+        admin.NormalizedUserName = userManager.NormalizeName(admin.UserName);
+        admin.Email = email;
+        admin.NormalizedEmail = normalizedEmail;
+
+        if (!string.IsNullOrWhiteSpace(dto.NewAdminPassword))
         {
-            Id = tenant.Id,
-            Name = tenant.Name,
-            IsActive = tenant.IsActive,
-            IsArchived = tenant.IsArchived,
-            UserCount = await context.Users.IgnoreQueryFilters().CountAsync(x => x.TenantId == id && !x.IsPlatformUser, cancellationToken),
-            BranchCount = await context.Branches.IgnoreQueryFilters().CountAsync(x => x.TenantId == id, cancellationToken),
-            CreatedAt = tenant.CreatedAt
-        };
+            var token = await userManager.GeneratePasswordResetTokenAsync(admin);
+            var passwordResult = await userManager.ResetPasswordAsync(admin, token, dto.NewAdminPassword);
+            if (!passwordResult.Succeeded)
+                throw new InvalidOperationException(string.Join("؛ ", passwordResult.Errors.Select(x => x.Description)));
+        }
+
+        context.PlatformAuditLogs.Add(new PlatformAuditLog
+        {
+            ActorUserId = context.CurrentUserId > 0 ? context.CurrentUserId : null,
+            TenantId = tenant.Id,
+            Action = "UPDATE_TENANT",
+            EntityName = nameof(Tenant),
+            EntityId = tenant.Id,
+            Details = $"مشخصات صرافی {tenant.Name} و مدیر آن ویرایش شد.",
+            CreatedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return MapTenant(
+            tenant,
+            admin,
+            await context.Users.IgnoreQueryFilters().CountAsync(x => x.TenantId == id && !x.IsPlatformUser, cancellationToken),
+            await context.Branches.IgnoreQueryFilters().CountAsync(x => x.TenantId == id, cancellationToken));
     }
 
     public async Task ArchiveAsync(long id, CancellationToken cancellationToken = default)
@@ -243,4 +322,26 @@ public sealed class TenantAdministrationService(
         AccountType = type,
         CreatedAt = DateTime.UtcNow
     };
+
+    private static TenantDto MapTenant(Tenant tenant, ApplicationUser? admin, int userCount, int branchCount) => new()
+    {
+        Id = tenant.Id,
+        Name = tenant.Name,
+        LegalName = tenant.LegalName,
+        ContactName = tenant.ContactName,
+        ContactEmail = tenant.ContactEmail,
+        ContactPhone = tenant.ContactPhone,
+        AdminUserId = admin?.Id,
+        AdminFullName = admin?.FullName ?? string.Empty,
+        AdminUserName = admin?.LocalUserName ?? string.Empty,
+        AdminEmail = admin?.Email ?? string.Empty,
+        IsActive = tenant.IsActive,
+        IsArchived = tenant.IsArchived,
+        UserCount = userCount,
+        BranchCount = branchCount,
+        CreatedAt = tenant.CreatedAt
+    };
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

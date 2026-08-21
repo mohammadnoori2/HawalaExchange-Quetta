@@ -35,6 +35,14 @@ public sealed class SaasTenantDto
     public SubscriptionStatus? SubscriptionStatus { get; set; }
     public DateTime? SubscriptionStartAt { get; set; }
     public DateTime? SubscriptionEndAt { get; set; }
+    public DateTime? TrialEndAt { get; set; }
+    public DateTime? GracePeriodEndAt { get; set; }
+    public BillingCycle? BillingCycle { get; set; }
+    public bool AutoRenew { get; set; }
+    public decimal AgreedPrice { get; set; }
+    public string? CurrencyCode { get; set; }
+    public string? AdministrativeNote { get; set; }
+    public string? SuspensionReason { get; set; }
     public int? RemainingDays { get; set; }
 }
 

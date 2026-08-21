@@ -1,0 +1,24 @@
+.tenant-management-modal .modal-content {
+    max-height: calc(100dvh - 2rem);
+}
+
+.tenant-management-modal ::deep .tenant-modal-form {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.tenant-management-modal ::deep .tenant-modal-form > .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+@media (max-width: 575.98px) {
+    .tenant-management-modal .modal-content {
+        max-height: calc(100dvh - 1rem);
+    }
+}

@@ -7,6 +7,14 @@ public sealed class TenantDto
 {
     public long Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? LegalName { get; set; }
+    public string? ContactName { get; set; }
+    public string? ContactEmail { get; set; }
+    public string? ContactPhone { get; set; }
+    public long? AdminUserId { get; set; }
+    public string AdminFullName { get; set; } = string.Empty;
+    public string AdminUserName { get; set; } = string.Empty;
+    public string AdminEmail { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public bool IsArchived { get; set; }
     public int UserCount { get; set; }
@@ -52,6 +60,28 @@ public sealed class UpdateTenantDto
 {
     [Required, StringLength(200)]
     public string Name { get; set; } = string.Empty;
+
+    [StringLength(200)] public string? LegalName { get; set; }
+    [StringLength(200)] public string? ContactName { get; set; }
+    [EmailAddress, StringLength(256)] public string? ContactEmail { get; set; }
+    [StringLength(50)] public string? ContactPhone { get; set; }
+
+    [Range(1, long.MaxValue)]
+    public long AdminUserId { get; set; }
+
+    [Required, StringLength(200)]
+    public string AdminFullName { get; set; } = string.Empty;
+
+    [Required, StringLength(100)]
+    public string AdminUserName { get; set; } = string.Empty;
+
+    [Required, EmailAddress]
+    public string AdminEmail { get; set; } = string.Empty;
+
+    [StringLength(100)]
+    [RegularExpression(@"^$|^(?=.{6,})(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$",
+        ErrorMessage = "رمز عبور باید حداقل ۶ نویسه و شامل حرف بزرگ، حرف کوچک و عدد باشد.")]
+    public string? NewAdminPassword { get; set; }
 
     public bool IsActive { get; set; }
 }

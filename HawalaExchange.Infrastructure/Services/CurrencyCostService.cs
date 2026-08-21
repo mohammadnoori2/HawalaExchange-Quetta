@@ -26,10 +26,18 @@ public sealed class CurrencyCostService : ICurrencyCostService
         var exchanges = await _context.MoneyExchangeOperations
             .Where(x => !x.IsDeleted && x.ProfitCurrencyId != null)
             .ToListAsync(cancellationToken);
+        var transfers = await _context.Transfers
+            .Include(x => x.FromAccount)
+            .Include(x => x.ToAccount)
+            .Include(x => x.LedgerEntries)
+            .Where(x => x.ProfitCurrencyId != null)
+            .ToListAsync(cancellationToken);
 
         var positions = new Dictionary<(long CurrencyId, long ProfitCurrencyId), Position>();
-        var events = capitals.Select(x => new CostEvent(x.InvestmentDate, x.CreatedAt, x.Id, x, null))
-            .Concat(exchanges.Select(x => new CostEvent(x.ExchangeDate, x.CreatedAt, x.Id, null, x)))
+        var events = capitals.Select(x => new CostEvent(x.InvestmentDate, x.CreatedAt, x.Id, x, null, null))
+            .Concat(transfers.Select(x => new CostEvent(
+                TransferEffectiveDate(x), TransferEffectiveDate(x), x.Id, null, x, null)))
+            .Concat(exchanges.Select(x => new CostEvent(x.ExchangeDate, x.CreatedAt, x.Id, null, null, x)))
             .OrderBy(x => x.EffectiveDate).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id);
 
         foreach (var item in events)
@@ -37,6 +45,12 @@ public sealed class CurrencyCostService : ICurrencyCostService
             if (item.Capital is not null)
             {
                 ApplyCapital(item.Capital, positions);
+                continue;
+            }
+
+            if (item.Transfer is not null)
+            {
+                ApplyTransfer(item.Transfer, positions);
                 continue;
             }
 
@@ -60,14 +74,23 @@ public sealed class CurrencyCostService : ICurrencyCostService
         var capitals = await _context.CapitalInvestments.AsNoTracking()
             .Where(x => !x.IsDeleted && x.ProfitCurrencyId != null && x.ProfitCurrencyAmount != null)
             .ToListAsync(cancellationToken);
+        var transfers = await _context.Transfers.AsNoTracking()
+            .Include(x => x.FromAccount)
+            .Include(x => x.ToAccount)
+            .Include(x => x.LedgerEntries)
+            .Where(x => x.ProfitCurrencyId != null)
+            .ToListAsync(cancellationToken);
 
         var positions = new Dictionary<(long CurrencyId, long ProfitCurrencyId), Position>();
-        var events = capitals.Select(x => new CostEvent(x.InvestmentDate, x.CreatedAt, x.Id, x, null))
-            .Concat(operations.Select(x => new CostEvent(x.ExchangeDate, x.CreatedAt, x.Id, null, x)))
+        var events = capitals.Select(x => new CostEvent(x.InvestmentDate, x.CreatedAt, x.Id, x, null, null))
+            .Concat(transfers.Select(x => new CostEvent(
+                TransferEffectiveDate(x), TransferEffectiveDate(x), x.Id, null, x, null)))
+            .Concat(operations.Select(x => new CostEvent(x.ExchangeDate, x.CreatedAt, x.Id, null, null, x)))
             .OrderBy(x => x.EffectiveDate).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id);
         foreach (var item in events)
         {
             if (item.Capital is not null) ApplyCapital(item.Capital, positions);
+            else if (item.Transfer is not null) ApplyTransfer(item.Transfer, positions);
             else if (item.Exchange!.OperationType == "Customer")
                 ApplyCustomer(item.Exchange, positions, updateOperation: false);
             else
@@ -118,6 +141,38 @@ public sealed class CurrencyCostService : ICurrencyCostService
         Buy(Get(positions, capital.CurrencyId, profitCurrencyId), capital.Amount,
             capital.ProfitCurrencyAmount!.Value);
     }
+
+    private static void ApplyTransfer(
+        Transfer transfer,
+        IDictionary<(long, long), Position> positions)
+    {
+        var profitCurrencyId = transfer.ProfitCurrencyId!.Value;
+        if (transfer.CurrencyId == profitCurrencyId) return;
+
+        var fromCorrespondent = IsCorrespondent(transfer.FromAccount);
+        var toCorrespondent = IsCorrespondent(transfer.ToAccount);
+        if (fromCorrespondent == toCorrespondent) return;
+
+        var position = Get(positions, transfer.CurrencyId, profitCurrencyId);
+        if (fromCorrespondent)
+        {
+            if (transfer.ProfitCurrencyAmount is > 0)
+                Buy(position, transfer.Amount, transfer.ProfitCurrencyAmount.Value);
+            return;
+        }
+
+        // Currency sent out of the office leaves inventory at the existing moving-average cost.
+        RemoveAtCost(position, transfer.Amount);
+    }
+
+    private static bool IsCorrespondent(Account? account) =>
+        account?.CorrespondentId.HasValue == true ||
+        string.Equals(account?.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase);
+
+    private static DateTime TransferEffectiveDate(Transfer transfer) =>
+        transfer.LedgerEntries is { Count: > 0 }
+            ? transfer.LedgerEntries.Min(x => x.CreatedAt)
+            : DateTime.MinValue;
 
     private static void ApplyExchange(
         MoneyExchangeOperation exchange,
@@ -385,7 +440,7 @@ public sealed class CurrencyCostService : ICurrencyCostService
 
     private sealed record CostEvent(
         DateTime EffectiveDate, DateTime CreatedAt, long Id,
-        CapitalInvestment? Capital, MoneyExchangeOperation? Exchange);
+        CapitalInvestment? Capital, Transfer? Transfer, MoneyExchangeOperation? Exchange);
     private sealed record BuyResult(
         decimal CoverCost, decimal CoverProceeds, decimal RemainingCost, decimal Profit);
     private sealed record SaleResult(

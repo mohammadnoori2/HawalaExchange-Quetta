@@ -4,6 +4,7 @@
 @inject ITransferService TransferService
 @inject IAccountService AccountService
 @inject ICurrencyService CurrencyService
+@inject ICompanySettingService CompanySettingService
 
 @if (IsVisible)
 {
@@ -71,6 +72,24 @@
                                             @bind-Value="CurrentTransfer.Amount"
                                             placeholder="مبلغ انتقال" />
                             </div>
+                            @if (RequiresCostBasis)
+                            {
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">
+                                        ارزش انتقالی در @DefaultProfitCurrencyCode <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="number" min="0" step="0.0001" class="form-control" dir="ltr"
+                                           @bind="CurrentTransfer.ProfitCurrencyAmount"
+                                           placeholder="بهای تمام‌شده مجموع ارز انتقالی" />
+                                    <div class="form-text">
+                                        بهای تاریخی این ارز را وارد کنید؛ انتقال به صندوق به خودی خود مفاد ایجاد نمی‌کند.
+                                        @if (TransferCostRate is > 0)
+                                        {
+                                            <span> نرخ بهای واحد: @MoneyFormatHelper.Format(TransferCostRate.Value) @DefaultProfitCurrencyCode</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">روش انتقال <span class="text-danger">*</span></label>
                                 <select class="form-select" @bind="CurrentTransfer.TransferMethod">
@@ -133,6 +152,25 @@
     private bool IsLoading;
     private bool IsDataLoading = true;
     private bool wasVisible;
+    private long? DefaultProfitCurrencyId;
+    private string DefaultProfitCurrencyCode = string.Empty;
+
+    private bool RequiresCostBasis
+    {
+        get
+        {
+            var from = Accounts.FirstOrDefault(x => x.Id == CurrentTransfer.FromAccountId);
+            var to = Accounts.FirstOrDefault(x => x.Id == CurrentTransfer.ToAccountId);
+            return IsCorrespondent(from) && !IsCorrespondent(to) &&
+                   DefaultProfitCurrencyId.HasValue &&
+                   CurrentTransfer.CurrencyId > 0 &&
+                   CurrentTransfer.CurrencyId != DefaultProfitCurrencyId.Value;
+        }
+    }
+
+    private decimal? TransferCostRate => CurrentTransfer.Amount > 0 && CurrentTransfer.ProfitCurrencyAmount is > 0
+        ? CurrentTransfer.ProfitCurrencyAmount.Value / CurrentTransfer.Amount
+        : null;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -157,6 +195,8 @@
                 ToAccountId = EditData.ToAccountId,
                 CurrencyId = EditData.CurrencyId,
                 Amount = EditData.Amount,
+                ProfitCurrencyId = EditData.ProfitCurrencyId ?? DefaultProfitCurrencyId,
+                ProfitCurrencyAmount = EditData.ProfitCurrencyAmount,
                 TransferMethod = EditData.TransferMethod,
                 ReferenceNumber = EditData.ReferenceNumber,
                 Remarks = EditData.Remarks
@@ -167,6 +207,7 @@
             CurrentTransfer = new CreateTransferDto
             {
                 FromAccountId = InitialAccountId ?? 0,
+                ProfitCurrencyId = DefaultProfitCurrencyId,
                 TransferMethod = "Cash"
             };
         }
@@ -184,6 +225,9 @@
             Currencies = (await CurrencyService.GetActiveCurrenciesAsync())
                 .OrderBy(x => x.Code)
                 .ToList();
+            var setting = await CompanySettingService.GetAsync();
+            DefaultProfitCurrencyId = setting.DefaultProfitCurrencyId;
+            DefaultProfitCurrencyCode = setting.DefaultProfitCurrencyCode;
         }
         catch (Exception ex)
         {
@@ -213,6 +257,8 @@
                     ToAccountId = CurrentTransfer.ToAccountId,
                     CurrencyId = CurrentTransfer.CurrencyId,
                     Amount = CurrentTransfer.Amount,
+                    ProfitCurrencyId = CurrentTransfer.ProfitCurrencyId ?? DefaultProfitCurrencyId,
+                    ProfitCurrencyAmount = RequiresCostBasis ? CurrentTransfer.ProfitCurrencyAmount : null,
                     TransferMethod = CurrentTransfer.TransferMethod,
                     ReferenceNumber = CurrentTransfer.ReferenceNumber,
                     Remarks = CurrentTransfer.Remarks
@@ -249,9 +295,15 @@
             ValidationErrors.Add("انتخاب ارز الزامی است.");
         if (CurrentTransfer.Amount <= 0)
             ValidationErrors.Add("مبلغ باید بزرگتر از صفر باشد.");
+        if (RequiresCostBasis && CurrentTransfer.ProfitCurrencyAmount is not > 0)
+            ValidationErrors.Add($"ارزش انتقالی در {DefaultProfitCurrencyCode} الزامی است.");
         if (string.IsNullOrWhiteSpace(CurrentTransfer.TransferMethod))
             ValidationErrors.Add("انتخاب روش انتقال الزامی است.");
     }
+
+    private static bool IsCorrespondent(AccountDto? account) =>
+        account != null && (string.Equals(account.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(account.ReferenceType, "Correspondent", StringComparison.OrdinalIgnoreCase));
 
     private async Task CloseAsync()
     {

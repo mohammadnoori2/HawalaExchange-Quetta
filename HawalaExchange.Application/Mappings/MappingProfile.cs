@@ -96,7 +96,9 @@ namespace HawalaSystem.Mappings
             CreateMap<Transfer, TransferDto>()
                 .ForMember(dest => dest.FromAccountName, opt => opt.MapFrom(src => src.FromAccount.AccountName))
                 .ForMember(dest => dest.ToAccountName, opt => opt.MapFrom(src => src.ToAccount.AccountName))
-                .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code));
+                .ForMember(dest => dest.CurrencyCode, opt => opt.MapFrom(src => src.Currency.Code))
+                .ForMember(dest => dest.ProfitCurrencyCode,
+                    opt => opt.MapFrom(src => src.ProfitCurrency != null ? src.ProfitCurrency.Code : null));
             CreateMap<CreateTransferDto, Transfer>();
             CreateMap<UpdateTransferDto, Transfer>();
 

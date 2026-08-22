@@ -55,7 +55,15 @@ public sealed class SaasAdministrationService(ApplicationDbContext context) : IS
                         PlanName = s.Plan.Name,
                         s.Status,
                         s.StartAt,
-                        s.EndAt
+                        s.EndAt,
+                        s.TrialEndAt,
+                        s.GracePeriodEndAt,
+                        s.BillingCycle,
+                        s.AutoRenew,
+                        s.AgreedPrice,
+                        s.CurrencyCode,
+                        s.AdministrativeNote,
+                        s.SuspensionReason
                     })
                     .FirstOrDefault()
             })
@@ -81,6 +89,14 @@ public sealed class SaasAdministrationService(ApplicationDbContext context) : IS
             SubscriptionStatus = x.Subscription?.Status,
             SubscriptionStartAt = x.Subscription?.StartAt,
             SubscriptionEndAt = x.Subscription?.EndAt,
+            TrialEndAt = x.Subscription?.TrialEndAt,
+            GracePeriodEndAt = x.Subscription?.GracePeriodEndAt,
+            BillingCycle = x.Subscription?.BillingCycle,
+            AutoRenew = x.Subscription?.AutoRenew ?? false,
+            AgreedPrice = x.Subscription?.AgreedPrice ?? 0,
+            CurrencyCode = x.Subscription?.CurrencyCode,
+            AdministrativeNote = x.Subscription?.AdministrativeNote,
+            SuspensionReason = x.Subscription?.SuspensionReason,
             RemainingDays = x.Subscription is null
                 ? null
                 : Math.Max(0, (int)Math.Ceiling((x.Subscription.EndAt - now).TotalDays))
@@ -169,6 +185,8 @@ public sealed class SaasAdministrationService(ApplicationDbContext context) : IS
             throw new InvalidOperationException("پلن انتخاب‌شده معتبر یا فعال نیست.");
 
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        using var tenantScope = context.UseTenantScope(tenantId);
+        using var subscriptionBypass = context.BypassSubscriptionEnforcement();
         var currentSubscriptions = await context.TenantSubscriptions
             .Where(x => x.TenantId == tenantId &&
                 (x.Status == SubscriptionStatus.Active ||

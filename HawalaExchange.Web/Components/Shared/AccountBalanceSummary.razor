@@ -1,0 +1,73 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Helpers
+@inject IAccountService AccountService
+
+<div class="account-balance-summary" aria-live="polite">
+    @if (isLoading)
+    {
+        <small class="text-muted"><span class="spinner-border spinner-border-sm"></span> موجودی...</small>
+    }
+    else if (balances.Any())
+    {
+        @foreach (var balance in balances)
+        {
+            <span class="account-balance-summary-chip @(balance.Balance < 0 ? "negative" : "positive")" dir="ltr">
+                @MoneyFormatHelper.Format(balance.Balance) @balance.CurrencyCode
+            </span>
+        }
+    }
+    else if (AccountId > 0)
+    {
+        <small class="text-muted">موجودی غیرصفر ندارد</small>
+    }
+</div>
+
+@code {
+    [Parameter] public long AccountId { get; set; }
+
+    private List<BalanceDto> balances = [];
+    private long loadedAccountId;
+    private bool isLoading;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AccountId <= 0)
+        {
+            loadedAccountId = 0;
+            balances.Clear();
+            isLoading = false;
+            return;
+        }
+
+        if (loadedAccountId == AccountId)
+            return;
+
+        var requestedAccountId = AccountId;
+        isLoading = true;
+        balances.Clear();
+
+        try
+        {
+            var result = await AccountService.GetAllAccountBalancesAsync(requestedAccountId);
+            if (AccountId != requestedAccountId)
+                return;
+
+            balances = result
+                .Where(x => x.Balance != 0m)
+                .OrderBy(x => x.CurrencyCode)
+                .ToList();
+            loadedAccountId = requestedAccountId;
+        }
+        catch
+        {
+            if (AccountId == requestedAccountId)
+                loadedAccountId = requestedAccountId;
+        }
+        finally
+        {
+            if (AccountId == requestedAccountId)
+                isLoading = false;
+        }
+    }
+}

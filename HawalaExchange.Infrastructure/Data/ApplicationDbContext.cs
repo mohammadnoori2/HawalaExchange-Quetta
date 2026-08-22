@@ -1542,6 +1542,7 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<TransactionDetail>().Property(x => x.CommissionAmount).HasPrecision(18, 4);
             modelBuilder.Entity<TransactionDetail>().Property(x => x.AgentCommissionAmount).HasPrecision(18, 4);
             modelBuilder.Entity<Transfer>().Property(x => x.Amount).HasPrecision(18, 4);
+            modelBuilder.Entity<Transfer>().Property(x => x.ProfitCurrencyAmount).HasPrecision(18, 4);
             modelBuilder.Entity<ExchangeRate>().Property(x => x.BuyRate).HasPrecision(18, 8);
             modelBuilder.Entity<ExchangeRate>().Property(x => x.SellRate).HasPrecision(18, 8);
             modelBuilder.Entity<Expense>().Property(x => x.Amount).HasPrecision(18, 4);
@@ -1909,6 +1910,12 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasOne(t => t.Currency)
                 .WithMany(c => c.Transfers)
                 .HasForeignKey(t => t.CurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Transfer>()
+                .HasOne(t => t.ProfitCurrency)
+                .WithMany()
+                .HasForeignKey(t => t.ProfitCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Expense relationships...

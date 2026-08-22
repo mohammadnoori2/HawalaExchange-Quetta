@@ -114,13 +114,13 @@
 @if (showCreate)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable tenant-management-modal">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">ایجاد صرافی مستقل</h5>
                     <button type="button" class="btn-close" @onclick="CloseCreate"></button>
                 </div>
-                <EditForm EditContext="createEditContext" FormName="create-tenant">
+                <EditForm EditContext="createEditContext" FormName="create-tenant" class="tenant-modal-form">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
                         <ValidationSummary class="text-danger" />
@@ -128,11 +128,12 @@
                             نام کاربری و ایمیل مدیر باید در کل سیستم یکتا باشند.
                         </div>
                         <div class="row g-3">
-                            <div class="col-12">
+                            <div class="col-md-6">
                                 <label class="form-label" for="tenant-name">نام صرافی</label>
                                 <input id="tenant-name" class="form-control" @bind="createModel.Name" @bind:event="oninput" />
                                 <ValidationMessage For="@(() => createModel.Name)" />
                             </div>
+                            <div class="col-md-6"><label class="form-label">نام قانونی</label><input class="form-control" @bind="createModel.LegalName" @bind:event="oninput" /></div>
                             <div class="col-md-6"><label class="form-label">نام مسئول تماس</label><input class="form-control" @bind="createModel.ContactName" @bind:event="oninput" /></div>
                             <div class="col-md-6"><label class="form-label">شماره تماس</label><input class="form-control" @bind="createModel.ContactPhone" @bind:event="oninput" /></div>
                             <div class="col-12"><label class="form-label">ایمیل تماس</label><input type="email" class="form-control" @bind="createModel.ContactEmail" @bind:event="oninput" /></div>
@@ -153,7 +154,13 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="tenant-admin-password">رمز عبور مدیر</label>
-                                <input id="tenant-admin-password" type="password" class="form-control" autocomplete="new-password" @bind="createModel.AdminPassword" @bind:event="oninput" />
+                                <div class="input-group" dir="ltr">
+                                    <input id="tenant-admin-password" type="@(showCreatePassword ? "text" : "password")" class="form-control" autocomplete="new-password" @bind="createModel.AdminPassword" @bind:event="oninput" />
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="() => showCreatePassword = !showCreatePassword"
+                                            aria-label="@(showCreatePassword ? "پنهان‌کردن رمز" : "نمایش رمز")">
+                                        <i class="bi @(showCreatePassword ? "bi-eye-slash" : "bi-eye")"></i>
+                                    </button>
+                                </div>
                                 <ValidationMessage For="@(() => createModel.AdminPassword)" />
                                 <div class="form-text">حداقل ۶ نویسه و شامل حرف بزرگ، حرف کوچک و عدد باشد.</div>
                             </div>
@@ -211,22 +218,29 @@
 @if (showEdit)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable tenant-management-modal">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">مدیریت صرافی</h5>
                     <button type="button" class="btn-close" @onclick="CloseEdit"></button>
                 </div>
-                <EditForm EditContext="updateEditContext" FormName="update-tenant">
+                <EditForm EditContext="updateEditContext" FormName="update-tenant" class="tenant-modal-form">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
                         <ValidationSummary class="text-danger" />
-                        <div class="mb-3">
-                            <label class="form-label" for="edit-tenant-name">نام صرافی</label>
-                            <input id="edit-tenant-name" class="form-control" @bind="updateModel.Name" @bind:event="oninput" />
-                            <ValidationMessage For="@(() => updateModel.Name)" />
+                        <h6 class="mb-3">مشخصات صرافی</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="edit-tenant-name">نام صرافی</label>
+                                <input id="edit-tenant-name" class="form-control" @bind="updateModel.Name" @bind:event="oninput" />
+                                <ValidationMessage For="@(() => updateModel.Name)" />
+                            </div>
+                            <div class="col-md-6"><label class="form-label">نام قانونی</label><input class="form-control" @bind="updateModel.LegalName" @bind:event="oninput" /></div>
+                            <div class="col-md-6"><label class="form-label">نام مسئول تماس</label><input class="form-control" @bind="updateModel.ContactName" @bind:event="oninput" /></div>
+                            <div class="col-md-6"><label class="form-label">شماره تماس</label><input class="form-control" @bind="updateModel.ContactPhone" @bind:event="oninput" /></div>
+                            <div class="col-12"><label class="form-label">ایمیل تماس</label><input type="email" class="form-control" @bind="updateModel.ContactEmail" @bind:event="oninput" /></div>
                         </div>
-                        <div class="form-check form-switch">
+                        <div class="form-check form-switch mt-3">
                             <InputCheckbox id="edit-tenant-active" class="form-check-input" @bind-Value="updateModel.IsActive" disabled="@(editingTenantId == CurrentTenant.TenantId)" />
                             <label class="form-check-label" for="edit-tenant-active">صرافی فعال باشد</label>
                         </div>
@@ -235,12 +249,31 @@
                             <div class="form-text">برای جلوگیری از قطع دسترسی، صرافی جاری قابل غیرفعال‌سازی نیست.</div>
                         }
                         <hr />
+                        <h6 class="mb-3">مشخصات مدیر صرافی</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label">نام مدیر</label><input class="form-control" @bind="updateModel.AdminFullName" @bind:event="oninput" /></div>
+                            <div class="col-md-6"><label class="form-label">نام کاربری مدیر</label><input class="form-control" autocomplete="off" @bind="updateModel.AdminUserName" @bind:event="oninput" /></div>
+                            <div class="col-md-6"><label class="form-label">ایمیل مدیر</label><input type="email" class="form-control" @bind="updateModel.AdminEmail" @bind:event="oninput" /></div>
+                            <div class="col-md-6">
+                                <label class="form-label">رمز عبور جدید مدیر</label>
+                                <div class="input-group" dir="ltr">
+                                    <input type="@(showEditPassword ? "text" : "password")" class="form-control" autocomplete="new-password" @bind="updateModel.NewAdminPassword" @bind:event="oninput" placeholder="برای عدم تغییر خالی بگذارید" />
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="() => showEditPassword = !showEditPassword"
+                                            aria-label="@(showEditPassword ? "پنهان‌کردن رمز" : "نمایش رمز")">
+                                        <i class="bi @(showEditPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                                    </button>
+                                </div>
+                                <ValidationMessage For="@(() => updateModel.NewAdminPassword)" />
+                            </div>
+                        </div>
+                        <hr />
                         <h6 class="mb-3">مدیریت اشتراک</h6>
                         <div class="row g-3">
                             <div class="col-md-6"><label class="form-label">پلن</label><InputSelect class="form-select" @bind-Value="subscriptionModel.PlanId">@foreach (var plan in plans) { <option value="@plan.Id">@plan.Name</option> }</InputSelect></div>
                             <div class="col-md-6"><label class="form-label">وضعیت</label><InputSelect class="form-select" @bind-Value="subscriptionModel.Status"><option value="@SubscriptionStatus.Active">فعال</option><option value="@SubscriptionStatus.Trial">آزمایشی</option><option value="@SubscriptionStatus.Suspended">تعلیق‌شده</option><option value="@SubscriptionStatus.Cancelled">لغوشده</option><option value="@SubscriptionStatus.Expired">منقضی</option></InputSelect></div>
                             <div class="col-md-6"><label class="form-label">شروع</label><InputDate class="form-control" @bind-Value="subscriptionModel.StartAt" /></div>
                             <div class="col-md-6"><label class="form-label">پایان/تمدید تا</label><InputDate class="form-control" @bind-Value="subscriptionModel.EndAt" /></div>
+                            <div class="col-md-6"><label class="form-label">پایان دوره آزمایشی</label><InputDate class="form-control" @bind-Value="subscriptionModel.TrialEndAt" /></div>
                             <div class="col-md-6"><label class="form-label">پایان دوره مهلت</label><InputDate class="form-control" @bind-Value="subscriptionModel.GracePeriodEndAt" /></div>
                             <div class="col-md-6"><label class="form-label">دوره پرداخت</label><InputSelect class="form-select" @bind-Value="subscriptionModel.BillingCycle"><option value="@BillingCycle.Monthly">ماهانه</option><option value="@BillingCycle.Quarterly">سه‌ماهه</option><option value="@BillingCycle.SemiAnnual">شش‌ماهه</option><option value="@BillingCycle.Annual">سالانه</option></InputSelect></div>
                             <div class="col-md-4"><label class="form-label">مبلغ</label><InputNumber class="form-control" @bind-Value="subscriptionModel.AgreedPrice" /></div>
@@ -254,7 +287,8 @@
                                 </InputSelect>
                             </div>
                             <div class="col-md-4 form-check form-switch mt-5"><InputCheckbox class="form-check-input" @bind-Value="subscriptionModel.AutoRenew" /><label class="form-check-label">تمدید خودکار</label></div>
-                            <div class="col-12"><label class="form-label">دلیل تعلیق/یادداشت</label><InputTextArea class="form-control" @bind-Value="subscriptionModel.SuspensionReason" /></div>
+                            <div class="col-12"><label class="form-label">یادداشت مدیریتی</label><InputTextArea class="form-control" @bind-Value="subscriptionModel.AdministrativeNote" /></div>
+                            <div class="col-12"><label class="form-label">دلیل تعلیق</label><InputTextArea class="form-control" @bind-Value="subscriptionModel.SuspensionReason" /></div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -285,6 +319,8 @@
     private bool showArchived;
     private bool showCreate;
     private bool showEdit;
+    private bool showCreatePassword;
+    private bool showEditPassword;
     private bool isError;
     private string? message;
     private string? createError;
@@ -345,6 +381,7 @@
             SubscriptionCurrencyCode = plans.FirstOrDefault(x => x.IsActive)?.CurrencyCode ?? "USD"
         };
         createEditContext = new EditContext(createModel);
+        showCreatePassword = false;
         message = null;
         createError = null;
         showCreate = true;
@@ -355,20 +392,38 @@
     private void OpenEdit(TenantDto tenant)
     {
         editingTenantId = tenant.Id;
-        updateModel = new UpdateTenantDto { Name = tenant.Name, IsActive = tenant.IsActive };
+        updateModel = new UpdateTenantDto
+        {
+            Name = tenant.Name,
+            LegalName = tenant.LegalName,
+            ContactName = tenant.ContactName,
+            ContactEmail = tenant.ContactEmail,
+            ContactPhone = tenant.ContactPhone,
+            AdminUserId = tenant.AdminUserId ?? 0,
+            AdminFullName = tenant.AdminFullName,
+            AdminUserName = tenant.AdminUserName,
+            AdminEmail = tenant.AdminEmail,
+            IsActive = tenant.IsActive
+        };
         var subscription = saasTenants.FirstOrDefault(x => x.Id == tenant.Id);
         var start = subscription?.SubscriptionStartAt ?? DateTime.UtcNow.Date;
         subscriptionModel = new ChangeSubscriptionDto
         {
             PlanId = subscription?.PlanId ?? plans.FirstOrDefault()?.Id ?? 0,
             Status = subscription?.SubscriptionStatus ?? SubscriptionStatus.Active,
-            BillingCycle = BillingCycle.Monthly,
+            BillingCycle = subscription?.BillingCycle ?? BillingCycle.Monthly,
             StartAt = start,
             EndAt = subscription?.SubscriptionEndAt ?? start.AddMonths(1),
-            GracePeriodEndAt = subscription?.SubscriptionEndAt?.AddDays(7),
-            CurrencyCode = plans.FirstOrDefault(x => x.Id == subscription?.PlanId)?.CurrencyCode ?? "USD"
+            TrialEndAt = subscription?.TrialEndAt,
+            GracePeriodEndAt = subscription?.GracePeriodEndAt,
+            AutoRenew = subscription?.AutoRenew ?? false,
+            AgreedPrice = subscription?.AgreedPrice ?? 0,
+            CurrencyCode = subscription?.CurrencyCode ?? plans.FirstOrDefault(x => x.Id == subscription?.PlanId)?.CurrencyCode ?? "USD",
+            AdministrativeNote = subscription?.AdministrativeNote,
+            SuspensionReason = subscription?.SuspensionReason
         };
         updateEditContext = new EditContext(updateModel);
+        showEditPassword = false;
         message = null;
         showEdit = true;
     }

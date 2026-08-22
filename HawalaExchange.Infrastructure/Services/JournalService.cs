@@ -759,6 +759,7 @@ public class JournalService : IJournalService
             .Include(x => x.FromAccount)
             .Include(x => x.ToAccount)
             .Include(x => x.Currency)
+            .Include(x => x.ProfitCurrency)
             .Where(x => ids.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id);
 
@@ -774,6 +775,8 @@ public class JournalService : IJournalService
             Add(operation, "از حساب", source.FromAccount?.AccountName);
             Add(operation, "به حساب", source.ToAccount?.AccountName);
             Add(operation, "مبلغ انتقال", Money(source.Amount, source.Currency?.Code));
+            if (source.ProfitCurrencyAmount is > 0)
+                Add(operation, "ارزش انتقالی", Money(source.ProfitCurrencyAmount.Value, source.ProfitCurrency?.Code));
             Add(operation, "روش انتقال", AppDisplayText.TransferMethod(source.TransferMethod));
             Add(operation, "شماره مرجع", source.ReferenceNumber);
             Add(operation, "ملاحظات", source.Remarks);

@@ -11,6 +11,7 @@ namespace HawalaExchange.Application.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ILedgerService _ledgerService;
+        private readonly ICurrencyCostService _currencyCostService;
         private readonly IMapper _mapper;
 
         private static readonly HashSet<string> ValidTransferMethods = new()
@@ -18,47 +19,33 @@ namespace HawalaExchange.Application.Services
             "Cash", "Bank", "Hawala"
         };
 
-        public TransferService(ApplicationDbContext context, ILedgerService ledgerService, IMapper mapper)
+        public TransferService(
+            ApplicationDbContext context,
+            ILedgerService ledgerService,
+            ICurrencyCostService currencyCostService,
+            IMapper mapper)
         {
             _context = context;
             _ledgerService = ledgerService;
+            _currencyCostService = currencyCostService;
             _mapper = mapper;
         }
 
         public async Task<TransferDto> CreateTransferAsync(CreateTransferDto createDto)
         {
-            if (createDto.FromAccountId == 0)
-                throw new InvalidOperationException("شناسه حساب مبدأ معتبر نیست.");
-
-            if (createDto.ToAccountId == 0)
-                throw new InvalidOperationException("شناسه حساب مقصد معتبر نیست.");
-
-            if (createDto.CurrencyId == 0)
-                throw new InvalidOperationException("شناسه ارز معتبر نیست.");
-
-            if (createDto.FromAccountId == createDto.ToAccountId)
-                throw new InvalidOperationException("حساب مبدأ و مقصد نمی‌توانند یکسان باشند.");
-
-            if (createDto.Amount <= 0)
-                throw new InvalidOperationException("مبلغ انتقال باید بزرگتر از صفر باشد.");
-
-            if (string.IsNullOrWhiteSpace(createDto.TransferMethod))
-                throw new InvalidOperationException("روش انتقال الزامی است.");
-
-            if (!ValidTransferMethods.Contains(createDto.TransferMethod))
-                throw new InvalidOperationException($"روش انتقال نامعتبر است. مقادیر مجاز: {string.Join(", ", ValidTransferMethods)}");
-
-            var fromAccountExists = await _context.Accounts.AnyAsync(a => a.Id == createDto.FromAccountId);
-            if (!fromAccountExists)
-                throw new InvalidOperationException($"حساب مبدأ با شناسه {createDto.FromAccountId} وجود ندارد.");
-
-            var toAccountExists = await _context.Accounts.AnyAsync(a => a.Id == createDto.ToAccountId);
-            if (!toAccountExists)
-                throw new InvalidOperationException($"حساب مقصد با شناسه {createDto.ToAccountId} وجود ندارد.");
-
-            var currencyExists = await _context.Currencies.AnyAsync(c => c.Id == createDto.CurrencyId);
-            if (!currencyExists)
-                throw new InvalidOperationException($"ارز با شناسه {createDto.CurrencyId} وجود ندارد.");
+            await ValidateTransferAsync(
+                createDto.FromAccountId,
+                createDto.ToAccountId,
+                createDto.CurrencyId,
+                createDto.Amount,
+                createDto.TransferMethod);
+            (createDto.ProfitCurrencyId, createDto.ProfitCurrencyAmount) =
+                await ResolveCostBasisAsync(
+                    createDto.FromAccountId,
+                    createDto.ToAccountId,
+                    createDto.CurrencyId,
+                    createDto.ProfitCurrencyId,
+                    createDto.ProfitCurrencyAmount);
 
             using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -68,26 +55,8 @@ namespace HawalaExchange.Application.Services
                 await _context.Transfers.AddAsync(transfer);
                 await _context.SaveChangesAsync();
 
-                // ✅ ثبت ورودی‌های دفتر کل با TransactionId صحیح
-                await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
-                {
-                    TransferId = transfer.Id,
-                    AccountId = transfer.FromAccountId,
-                    CurrencyId = transfer.CurrencyId,
-                    TalabKar = transfer.Amount,
-                    BadehKar = 0,
-                    Description = $"انتقال به حساب {transfer.ToAccountId}"
-                });
-
-                await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
-                {
-                    TransferId = transfer.Id,
-                    AccountId = transfer.ToAccountId,
-                    CurrencyId = transfer.CurrencyId,
-                    TalabKar = 0,
-                    BadehKar = transfer.Amount,
-                    Description = $"انتقال از حساب {transfer.FromAccountId}"
-                });
+                await CreateTransferLedgerEntriesAsync(transfer);
+                await _currencyCostService.RebuildAsync();
 
                 await transaction.CommitAsync();
 
@@ -114,6 +83,13 @@ namespace HawalaExchange.Application.Services
                 updateDto.CurrencyId,
                 updateDto.Amount,
                 updateDto.TransferMethod);
+            (updateDto.ProfitCurrencyId, updateDto.ProfitCurrencyAmount) =
+                await ResolveCostBasisAsync(
+                    updateDto.FromAccountId,
+                    updateDto.ToAccountId,
+                    updateDto.CurrencyId,
+                    updateDto.ProfitCurrencyId,
+                    updateDto.ProfitCurrencyAmount);
 
             using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -134,6 +110,7 @@ namespace HawalaExchange.Application.Services
                 await _context.SaveChangesAsync();
 
                 await CreateTransferLedgerEntriesAsync(transfer);
+                await _currencyCostService.RebuildAsync();
                 await transaction.CommitAsync();
 
                 return await GetTransferByIdAsync(id)
@@ -165,6 +142,7 @@ namespace HawalaExchange.Application.Services
 
                 _context.Transfers.Remove(transfer);
                 await _context.SaveChangesAsync();
+                await _currencyCostService.RebuildAsync();
                 await transaction.CommitAsync();
             }
             catch
@@ -225,6 +203,53 @@ namespace HawalaExchange.Application.Services
                 throw new InvalidOperationException("ارز انتخاب‌شده وجود ندارد.");
         }
 
+        private async Task<(long? ProfitCurrencyId, decimal? ProfitCurrencyAmount)> ResolveCostBasisAsync(
+            long fromAccountId,
+            long toAccountId,
+            long currencyId,
+            long? submittedProfitCurrencyId,
+            decimal? submittedProfitCurrencyAmount)
+        {
+            var accounts = await _context.Accounts
+                .Where(x => x.Id == fromAccountId || x.Id == toAccountId)
+                .Select(x => new { x.Id, x.AccountType, x.CorrespondentId })
+                .ToListAsync();
+            var from = accounts.Single(x => x.Id == fromAccountId);
+            var to = accounts.Single(x => x.Id == toAccountId);
+            var fromCorrespondent = from.CorrespondentId.HasValue ||
+                                    string.Equals(from.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase);
+            var toCorrespondent = to.CorrespondentId.HasValue ||
+                                  string.Equals(to.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase);
+
+            // Transfers inside the office (or between two correspondents) only move the location
+            // of money and must never create a new currency-cost lot.
+            if (fromCorrespondent == toCorrespondent)
+                return (null, null);
+
+            var profitCurrencyId = submittedProfitCurrencyId ?? await _context.CompanySettings
+                .AsNoTracking()
+                .Select(x => x.DefaultProfitCurrencyId)
+                .FirstOrDefaultAsync();
+            if (!profitCurrencyId.HasValue)
+                throw new InvalidOperationException("ابتدا ارز اصلی محاسبه مفاد و ضرر را در تنظیمات شرکت تعیین کنید.");
+            if (!await _context.Currencies.AnyAsync(x => x.Id == profitCurrencyId.Value && x.IsActive))
+                throw new InvalidOperationException("ارز اصلی محاسبه مفاد و ضرر معتبر نیست.");
+
+            // Moving the reporting currency itself requires no separate carrying-value lot.
+            if (currencyId == profitCurrencyId.Value)
+                return (profitCurrencyId, null);
+
+            if (fromCorrespondent)
+            {
+                if (!submittedProfitCurrencyAmount.HasValue || submittedProfitCurrencyAmount.Value <= 0)
+                    throw new InvalidOperationException("برای انتقال ارز از نمایندگی، ارزش انتقالی در ارز مفاد الزامی است.");
+                return (profitCurrencyId, submittedProfitCurrencyAmount.Value);
+            }
+
+            // An outbound transfer removes inventory at its current moving-average cost.
+            return (profitCurrencyId, null);
+        }
+
         public async Task<IEnumerable<TransferDto>> GetTransfersByAccountAsync(long accountId)
         {
             var transfers = await _context.Transfers
@@ -232,6 +257,7 @@ namespace HawalaExchange.Application.Services
                 .Include(t => t.FromAccount)
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)
+                .Include(t => t.ProfitCurrency)
                 .OrderByDescending(t => t.Id)
                 .ToListAsync();
 
@@ -245,6 +271,7 @@ namespace HawalaExchange.Application.Services
                 .Include(t => t.FromAccount)
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)
+                .Include(t => t.ProfitCurrency)
                 .OrderByDescending(t => t.Id)
                 .ToListAsync();
 
@@ -257,6 +284,7 @@ namespace HawalaExchange.Application.Services
                 .Include(t => t.FromAccount)
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)
+                .Include(t => t.ProfitCurrency)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             return transfer == null ? null : _mapper.Map<TransferDto>(transfer);
@@ -268,6 +296,7 @@ namespace HawalaExchange.Application.Services
                 .Include(t => t.FromAccount)
                 .Include(t => t.ToAccount)
                 .Include(t => t.Currency)
+                .Include(t => t.ProfitCurrency)
                 .OrderByDescending(t => t.Id)
                 .ToListAsync();
 

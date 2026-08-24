@@ -35,4 +35,11 @@ namespace HawalaExchange.Application.DTOs
         public decimal BadehkarLimit { get; set; }
         public bool IsActive { get; set; }
     }
+
+    public class DebtLimitInputDto
+    {
+        public long CurrencyId { get; set; }
+        public decimal BadehkarLimit { get; set; }
+        public bool IsEnabled { get; set; }
+    }
 }

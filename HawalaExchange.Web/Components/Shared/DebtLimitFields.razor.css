@@ -1,0 +1,133 @@
+.debt-limit-fields {
+    margin-top: .75rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.debt-limit-heading,
+.currency-identity,
+.unlimited-description {
+    display: flex;
+    align-items: center;
+}
+
+.debt-limit-heading {
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .65rem;
+}
+
+.debt-limit-heading h6 {
+    margin: 0 0 .15rem;
+    font-weight: 700;
+}
+
+.debt-limit-add-button {
+    min-height: 38px;
+    white-space: nowrap;
+}
+
+.debt-limit-empty {
+    font-size: .8rem;
+}
+
+.debt-limit-list {
+    margin-top: .6rem;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.debt-limit-item {
+    display: grid;
+    grid-template-columns: minmax(7rem, .7fr) minmax(12rem, 1fr) minmax(12rem, 1.2fr) 2.25rem;
+    align-items: center;
+    gap: .65rem;
+    padding: .65rem 0;
+    border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.currency-identity {
+    gap: .45rem;
+}
+
+.currency-code {
+    font-weight: 700;
+    color: var(--primary-color, #2563eb);
+}
+
+.currency-name {
+    color: var(--text-muted, #6b7280);
+    font-size: .8rem;
+}
+
+.limit-mode {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: .15rem;
+    border-radius: .5rem;
+    background: var(--light-bg, #f3f4f6);
+}
+
+.mode-button {
+    padding: .4rem .55rem;
+    border: 0;
+    border-radius: .4rem;
+    color: var(--text-muted, #6b7280);
+    background: transparent;
+    font-size: .8rem;
+    font-weight: 600;
+}
+
+.mode-button.active {
+    color: #fff;
+}
+
+.mode-button.active.limited {
+    background: var(--bs-warning, #f59e0b);
+}
+
+.mode-button.active.unlimited {
+    background: var(--bs-success, #198754);
+}
+
+.limit-amount .form-label {
+    margin-bottom: .15rem;
+}
+
+.unlimited-description {
+    min-height: 38px;
+    color: var(--bs-success, #198754);
+    font-size: .82rem;
+}
+
+.remove-limit-button {
+    width: 2.2rem;
+    height: 2.2rem;
+}
+
+@media (max-width: 991.98px) {
+    .debt-limit-item {
+        grid-template-columns: 1fr 1.5fr 2.25rem;
+    }
+
+    .limit-amount {
+        grid-column: 1 / 3;
+        grid-row: 2;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .debt-limit-item {
+        grid-template-columns: 1fr 2.25rem;
+    }
+
+    .currency-identity,
+    .limit-mode,
+    .limit-amount {
+        grid-column: 1 / 2;
+    }
+
+    .remove-limit-button {
+        grid-column: 2;
+        grid-row: 1;
+    }
+}

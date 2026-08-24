@@ -35,6 +35,7 @@ namespace HawalaExchange.Application.DTOs
 
         public bool HasInitialBalance { get; set; } = false;
         public List<InitialBalanceDto>? InitialBalances { get; set; }
+        public List<DebtLimitInputDto> DebtLimits { get; set; } = new();
     }
 
 

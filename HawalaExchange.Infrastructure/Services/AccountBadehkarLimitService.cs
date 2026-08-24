@@ -153,6 +153,66 @@ public class AccountBadehkarLimitService
         return (await GetByIdAsync(id))!;
     }
 
+    public async Task SetForAccountAsync(
+        long accountId,
+        IEnumerable<DebtLimitInputDto> limits)
+    {
+        var inputs = limits
+            .GroupBy(x => x.CurrencyId)
+            .Select(x => x.Last())
+            .ToList();
+
+        var account = await _context.Accounts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == accountId && !x.IsArchived)
+            ?? throw new InvalidOperationException("حساب مشتری یا نمایندگی یافت نشد.");
+        if (!IsEligibleAccount(account))
+            throw new InvalidOperationException("سقف بدهکاری فقط برای حساب مشتری یا نمایندگی قابل تعریف است.");
+
+        if (inputs.Any(x => x.CurrencyId <= 0 || x.BadehkarLimit < 0))
+            throw new InvalidOperationException("ارز و مبلغ سقف بدهکاری معتبر نیست.");
+
+        var currencyIds = inputs.Select(x => x.CurrencyId).Distinct().ToList();
+        var validCurrencyIds = await _context.Currencies
+            .AsNoTracking()
+            .Where(x => currencyIds.Contains(x.Id) && x.IsActive)
+            .Select(x => x.Id)
+            .ToListAsync();
+        if (validCurrencyIds.Count != currencyIds.Count)
+            throw new InvalidOperationException("یکی از ارزهای سقف بدهکاری معتبر یا فعال نیست.");
+
+        var existing = await _dbSet.Where(x => x.AccountId == accountId).ToListAsync();
+        var inputByCurrency = inputs.ToDictionary(x => x.CurrencyId);
+        foreach (var entity in existing)
+        {
+            if (inputByCurrency.TryGetValue(entity.CurrencyId, out var input))
+            {
+                entity.BadehkarLimit = input.BadehkarLimit;
+                entity.IsActive = input.IsEnabled;
+            }
+            else
+            {
+                entity.IsActive = false;
+            }
+        }
+
+        var existingCurrencyIds = existing.Select(x => x.CurrencyId).ToHashSet();
+        foreach (var input in inputs.Where(x => x.IsEnabled && !existingCurrencyIds.Contains(x.CurrencyId)))
+        {
+            _dbSet.Add(new AccountBadehkarLimit
+            {
+                AccountId = accountId,
+                CurrencyId = input.CurrencyId,
+                BadehkarLimit = input.BadehkarLimit,
+                IsActive = true,
+                CreatedBy = _context.RequireCurrentUserId(),
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
     private async Task ValidateTargetAsync(
         long accountId,
         long currencyId,

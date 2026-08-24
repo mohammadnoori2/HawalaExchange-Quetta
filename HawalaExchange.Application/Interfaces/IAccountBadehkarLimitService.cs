@@ -11,5 +11,6 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<IEnumerable<AccountBadehkarLimitDto>> GetActiveLimitsAsync();
         Task<AccountBadehkarLimitDto> ActivateAsync(long id);
         Task<AccountBadehkarLimitDto> DeactivateAsync(long id);
+        Task SetForAccountAsync(long accountId, IEnumerable<DebtLimitInputDto> limits);
     }
 }

@@ -13,6 +13,7 @@ namespace HawalaExchange.Application.Services
         private readonly IAccountService _accountService;
         private readonly ILedgerService _ledgerService;
         private readonly IAuditLogService _auditLogService;
+        private readonly IAccountBadehkarLimitService _debtLimitService;
         private readonly ILogger<CustomerService> _logger;
 
         public CustomerService(
@@ -21,12 +22,14 @@ namespace HawalaExchange.Application.Services
             IAccountService accountService,
             ILedgerService ledgerService,
             IAuditLogService auditLogService,
+            IAccountBadehkarLimitService debtLimitService,
             ILogger<CustomerService> logger)
             : base(context, mapper)
         {
             _accountService = accountService;
             _ledgerService = ledgerService;
             _auditLogService = auditLogService;
+            _debtLimitService = debtLimitService;
             _logger = logger;
         }
 
@@ -119,6 +122,13 @@ namespace HawalaExchange.Application.Services
                 if (createDto.OpenAccount)
                 {
                     accountDto = await CreateCustomerAccountAsync(customerDto.Id, customerDto.FullName);
+                }
+
+                if (createDto.DebtLimits.Any(x => x.IsEnabled))
+                {
+                    if (accountDto == null)
+                        throw new InvalidOperationException("برای تعیین سقف بدهکاری، گزینه افتتاح حساب را انتخاب کنید.");
+                    await _debtLimitService.SetForAccountAsync(accountDto.Id, createDto.DebtLimits);
                 }
 
                 // ۳. ثبت موجودی اولیه (در صورت وجود)

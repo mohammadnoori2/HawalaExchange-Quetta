@@ -1693,6 +1693,12 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureRelationships(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<PaymentLocation>()
+                .HasOne(x => x.Correspondent)
+                .WithMany(x => x.PaymentLocations)
+                .HasForeignKey(x => x.CorrespondentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<Correspondent>()
                 .HasOne(x => x.SettlementCurrency)
                 .WithMany()

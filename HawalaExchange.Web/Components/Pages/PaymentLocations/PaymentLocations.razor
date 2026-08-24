@@ -2,6 +2,7 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @inject IPaymentLocationService PaymentLocationService
+@inject ICorrespondentService CorrespondentService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
@@ -69,6 +70,7 @@
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
+                            <th style="min-width:150px;">نمایندگی</th>
                             <th style="min-width:250px;">آدرس</th>
                             <th style="min-width:120px;">تلفن</th>
                             <th style="min-width:120px;">مسئول</th>
@@ -85,12 +87,12 @@
                     <tbody>
                         @if (isLoading)
                         {
-                            <tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+                            <tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
                         }
                         else if (!pagedLocations.Any())
                         {
                             <tr>
-                                <td colspan="7" class="text-center py-5">
+                                <td colspan="8" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ محل پرداختی یافت نشد</span>
@@ -107,6 +109,7 @@
                                 <tr>
                                     <td>@rowIndex</td>
                                     <td><span class="fw-bold">@location.Name</span></td>
+                                    <td>@(location.CorrespondentName ?? "تخصیص‌نیافته")</td>
                                     <td>@location.Address</td>
                                     <td>@location.Phone</td>
                                     <td>@location.ContactPerson</td>
@@ -185,6 +188,18 @@
 
                     <div class="row">
                         <div class="col-12 mb-3">
+                            <label class="form-label fw-bold">نمایندگی <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="currentLocation.CorrespondentId">
+                                <option value="">انتخاب نمایندگی</option>
+                                @foreach (var correspondent in availableCorrespondents)
+                                {
+                                    <option value="@correspondent.Id">@correspondent.Name (@correspondent.Code)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12 mb-3">
                             <label class="form-label fw-bold">نام محل <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" @bind="currentLocation.Name" placeholder="مثال: دفتر مرکزی" />
                         </div>
@@ -261,6 +276,7 @@
 @code {
     private List<PaymentLocationDto> paymentLocations = new();
     private List<PaymentLocationDto> filteredLocations = new();
+    private List<CorrespondentDto> correspondents = new();
     private string _searchTerm = "";
     private string statusFilter = string.Empty;
     private int pageSize = 10;
@@ -309,9 +325,12 @@
     private List<string> validationErrors = new();
     private string successMessage = "";
     private CreatePaymentLocationDto currentLocation = new();
+    private IEnumerable<CorrespondentDto> availableCorrespondents =>
+        correspondents.Where(x => !x.IsArchived || x.Id == currentLocation.CorrespondentId);
 
     protected override async Task OnInitializedAsync()
     {
+        correspondents = (await CorrespondentService.GetAllAsync()).ToList();
         await LoadLocations();
     }
 
@@ -340,6 +359,7 @@
             var term = _searchTerm.Trim();
             query = query.Where(location =>
                 location.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (location.CorrespondentName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 location.Address.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 (location.Phone?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (location.ContactPerson?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
@@ -408,6 +428,7 @@
             {
                 currentLocation = new CreatePaymentLocationDto
                 {
+                    CorrespondentId = location.CorrespondentId,
                     Name = location.Name,
                     Address = location.Address,
                     Phone = location.Phone,
@@ -444,6 +465,8 @@
             validationErrors.Add("نام محل الزامی است.");
         if (string.IsNullOrWhiteSpace(currentLocation.Address))
             validationErrors.Add("آدرس الزامی است.");
+        if (!currentLocation.CorrespondentId.HasValue)
+            validationErrors.Add("انتخاب نمایندگی الزامی است.");
 
         if (validationErrors.Any())
         {
@@ -460,6 +483,7 @@
             {
                 var updateDto = new UpdatePaymentLocationDto
                 {
+                    CorrespondentId = currentLocation.CorrespondentId,
                     Name = currentLocation.Name,
                     Address = currentLocation.Address,
                     Phone = currentLocation.Phone,

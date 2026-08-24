@@ -351,7 +351,8 @@ namespace HawalaSystem.Mappings
 
             // در MappingProfile.cs
             CreateMap<PaymentLocation, PaymentLocationDto>()
-                .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser != null ? src.CreatedByUser.FullName : null));
+                .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser != null ? src.CreatedByUser.FullName : null))
+                .ForMember(dest => dest.CorrespondentName, opt => opt.MapFrom(src => src.Correspondent != null ? src.Correspondent.Name : null));
 
             CreateMap<CreatePaymentLocationDto, PaymentLocation>();
             CreateMap<UpdatePaymentLocationDto, PaymentLocation>();

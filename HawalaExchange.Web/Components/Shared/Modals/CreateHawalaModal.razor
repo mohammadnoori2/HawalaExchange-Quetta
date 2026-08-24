@@ -85,10 +85,7 @@
                                         <label class="form-label fw-bold"> نماینده <span class="text-danger">*</span></label>
                                         <select class="form-select"
                                                 value="@CurrentHawala.CorrespondentId"
-                                                @onchange="(ChangeEventArgs e) => {
-                                                CurrentHawala.CorrespondentId = long.TryParse(e.Value?.ToString(), out long id) ? id : null;
-                                                OnCorrespondentChanged(e);
-                                            }">
+                                                @onchange="OnCorrespondentChanged">
                                         <option value="">انتخاب نماینده</option>
                                         @if (CorrespondentsList != null && CorrespondentsList.Any())
                                         {
@@ -108,8 +105,14 @@
                                             <span class="text-danger">*</span>
                                         }
                                     </label>
-                                    <select class="form-select" @bind="CurrentHawala.PaymentLocationId">
-                                        <option value="">انتخاب محل پرداخت</option>
+                                    <select class="form-select"
+                                            @bind="CurrentHawala.PaymentLocationId"
+                                            disabled="@(!CurrentHawala.CorrespondentId.HasValue || isPaymentLocationsLoading)">
+                                        <option value="">
+                                            @(CurrentHawala.CorrespondentId.HasValue
+                                                ? "انتخاب محل پرداخت"
+                                                : "ابتدا نمایندگی را انتخاب کنید")
+                                        </option>
                                         @if (PaymentLocationsList != null && PaymentLocationsList.Any())
                                         {
                                             @foreach (var location in PaymentLocationsList)
@@ -855,6 +858,8 @@
     private string SuccessMessage { get; set; } = string.Empty;
     private bool IsLoading { get; set; } = false;
     private bool isDataLoading { get; set; } = true;
+    private bool isPaymentLocationsLoading;
+    private int paymentLocationLoadVersion;
     private long AfnCurrencyId { get; set; } = 0;
     private string CalculationMode { get; set; } = "RateToAmount";
     private string ConversionRateMeaning { get; set; } = "پس از انتخاب ارزها و ورود نرخ نمایش داده می‌شود.";
@@ -987,6 +992,7 @@
 
         ValidationErrors.Clear();
         SuccessMessage = string.Empty;
+        await LoadPaymentLocationsForCurrentCorrespondentAsync(IsEditMode);
         StateHasChanged();
 
         // دریافت شماره پیشنهادی
@@ -1011,7 +1017,6 @@
                 .ToList();
             CurrenciesList = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
             AccountsList = (await AccountService.GetAllAsync()).Where(a => !a.IsArchived).ToList();
-            PaymentLocationsList = (await PaymentLocationService.GetActiveAsync()).ToList();
             companySetting = await CompanySettingService.GetAsync();
 
             var afn = CurrenciesList.FirstOrDefault(x => x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
@@ -1641,6 +1646,11 @@
         }
         if (CurrentHawala.Number <= 0)
             ValidationErrors.Add("نمبر حواله الزامی است");
+        if (CurrentHawala.PaymentLocationId.HasValue &&
+            !PaymentLocationsList.Any(x => x.Id == CurrentHawala.PaymentLocationId.Value))
+        {
+            ValidationErrors.Add("محل پرداخت انتخاب‌شده متعلق به نمایندگی انتخاب‌شده نیست.");
+        }
 
         // اگر ارزها یکسان هستند
         if (AreCurrenciesSame())
@@ -1801,8 +1811,70 @@
 
     private async Task OnCorrespondentChanged(ChangeEventArgs e)
     {
+        CurrentHawala.CorrespondentId =
+            long.TryParse(e.Value?.ToString(), out var correspondentId)
+                ? correspondentId
+                : null;
+        CurrentHawala.PaymentLocationId = null;
+        await LoadPaymentLocationsForCurrentCorrespondentAsync();
         await GetSuggestedNumber();
         StateHasChanged();
+    }
+
+    private async Task LoadPaymentLocationsForCurrentCorrespondentAsync(bool includeCurrentLocation = false)
+    {
+        var loadVersion = ++paymentLocationLoadVersion;
+        PaymentLocationsList = new List<PaymentLocationDto>();
+
+        if (!CurrentHawala.CorrespondentId.HasValue)
+        {
+            isPaymentLocationsLoading = false;
+            return;
+        }
+
+        var correspondentId = CurrentHawala.CorrespondentId.Value;
+
+        try
+        {
+            isPaymentLocationsLoading = true;
+            var locations = await PaymentLocationService.GetByCorrespondentAsync(
+                correspondentId);
+
+            if (loadVersion != paymentLocationLoadVersion)
+                return;
+
+            PaymentLocationsList = locations.ToList();
+
+            if (includeCurrentLocation &&
+                CurrentHawala.PaymentLocationId.HasValue &&
+                !PaymentLocationsList.Any(x => x.Id == CurrentHawala.PaymentLocationId.Value))
+            {
+                var currentLocation = await PaymentLocationService.GetByIdAsync(
+                    CurrentHawala.PaymentLocationId.Value);
+
+                if (loadVersion != paymentLocationLoadVersion)
+                    return;
+
+                if (currentLocation?.CorrespondentId == correspondentId)
+                    PaymentLocationsList.Add(currentLocation);
+            }
+
+            if (CurrentHawala.PaymentLocationId.HasValue &&
+                !PaymentLocationsList.Any(x => x.Id == CurrentHawala.PaymentLocationId.Value))
+            {
+                CurrentHawala.PaymentLocationId = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            CurrentHawala.PaymentLocationId = null;
+            ValidationErrors.Add($"خطا در بارگذاری محل‌های پرداخت: {ex.Message}");
+        }
+        finally
+        {
+            if (loadVersion == paymentLocationLoadVersion)
+                isPaymentLocationsLoading = false;
+        }
     }
 
     private void OnCalculationModeChanged(ChangeEventArgs e)

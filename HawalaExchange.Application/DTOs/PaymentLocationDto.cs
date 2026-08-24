@@ -5,6 +5,8 @@ namespace HawalaExchange.Application.DTOs
     public class PaymentLocationDto
     {
         public long Id { get; set; }
+        public long? CorrespondentId { get; set; }
+        public string? CorrespondentName { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
         public string? Phone { get; set; }
@@ -17,6 +19,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class CreatePaymentLocationDto
     {
+        public long? CorrespondentId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
         public string? Phone { get; set; }
@@ -26,6 +29,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class UpdatePaymentLocationDto
     {
+        public long? CorrespondentId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Address { get; set; } = string.Empty;
         public string? Phone { get; set; }

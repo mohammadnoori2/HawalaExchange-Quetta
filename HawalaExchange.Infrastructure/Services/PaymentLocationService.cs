@@ -27,6 +27,7 @@ namespace HawalaExchange.Application.Services
         {
             var entities = await _context.PaymentLocations
                 .Include(p => p.CreatedByUser)
+                .Include(p => p.Correspondent)
                 .OrderBy(p => p.Name)
                 .ToListAsync();
 
@@ -37,6 +38,29 @@ namespace HawalaExchange.Application.Services
         {
             var entities = await _context.PaymentLocations
                 .Where(p => p.IsActive)
+                .Include(p => p.Correspondent)
+                .OrderBy(p => p.Name)
+                .ToListAsync();
+
+            return _mapper.Map<IEnumerable<PaymentLocationDto>>(entities);
+        }
+
+        public async Task<IEnumerable<PaymentLocationDto>> GetByCorrespondentAsync(
+            long correspondentId,
+            bool includeInactive = false)
+        {
+            if (correspondentId <= 0)
+                return [];
+
+            var query = _context.PaymentLocations
+                .AsNoTracking()
+                .Where(p => p.CorrespondentId == correspondentId);
+
+            if (!includeInactive)
+                query = query.Where(p => p.IsActive);
+
+            var entities = await query
+                .Include(p => p.Correspondent)
                 .OrderBy(p => p.Name)
                 .ToListAsync();
 
@@ -47,6 +71,7 @@ namespace HawalaExchange.Application.Services
         {
             var entity = await _context.PaymentLocations
                 .Include(p => p.CreatedByUser)
+                .Include(p => p.Correspondent)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             return entity == null ? null : _mapper.Map<PaymentLocationDto>(entity);
@@ -54,6 +79,8 @@ namespace HawalaExchange.Application.Services
 
         public async Task<PaymentLocationDto> CreateAsync(CreatePaymentLocationDto dto)
         {
+            await EnsureValidCorrespondentAsync(dto.CorrespondentId);
+
             var entity = _mapper.Map<PaymentLocation>(dto);
             entity.CreatedAt = DateTime.UtcNow;
             entity.CreatedBy = GetCurrentUserId();
@@ -75,6 +102,8 @@ namespace HawalaExchange.Application.Services
 
         public async Task<PaymentLocationDto> UpdateAsync(long id, UpdatePaymentLocationDto dto)
         {
+            await EnsureValidCorrespondentAsync(dto.CorrespondentId);
+
             var entity = await _context.PaymentLocations.FindAsync(id);
             if (entity == null)
                 throw new KeyNotFoundException($"آدرس با شناسه {id} یافت نشد.");
@@ -146,5 +175,18 @@ namespace HawalaExchange.Application.Services
         }
 
         private long GetCurrentUserId() => _context.RequireCurrentUserId();
+
+        private async Task EnsureValidCorrespondentAsync(long? correspondentId)
+        {
+            if (!correspondentId.HasValue || correspondentId.Value <= 0)
+                throw new InvalidOperationException("انتخاب نمایندگی برای محل پرداخت الزامی است.");
+
+            var exists = await _context.Correspondents
+                .AsNoTracking()
+                .AnyAsync(c => c.Id == correspondentId.Value && !c.IsArchived);
+
+            if (!exists)
+                throw new InvalidOperationException("نمایندگی انتخاب‌شده معتبر یا فعال نیست.");
+        }
     }
 }

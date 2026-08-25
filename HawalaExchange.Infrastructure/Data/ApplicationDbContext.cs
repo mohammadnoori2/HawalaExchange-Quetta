@@ -127,6 +127,122 @@ namespace HawalaExchange.Infrastructure.Data
         public const string PendingHawalaAccountCode = "2102";
 
         /// <summary>
+        /// Applies small, idempotent schema repairs that must also work when migration
+        /// files are unavailable. Keep the EF model configuration as the source of
+        /// truth; this method only creates application objects that an existing
+        /// database cannot receive through EnsureCreated.
+        /// </summary>
+        public async Task EnsureApplicationSchemaAsync(CancellationToken cancellationToken = default)
+        {
+            if (!Database.IsSqlServer())
+                return;
+
+            await Database.ExecuteSqlRawAsync(
+                """
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlertSettings]', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [dbo].[CashBalanceAlertSettings]
+                    (
+                        [Id] bigint IDENTITY(1,1) NOT NULL,
+                        [TenantId] bigint NOT NULL,
+                        [AccountId] bigint NOT NULL,
+                        [CurrencyId] bigint NOT NULL,
+                        [MinimumBalance] decimal(18,4) NOT NULL,
+                        [IsActive] bit NOT NULL CONSTRAINT [DF_CashBalanceAlertSettings_IsActive] DEFAULT (1),
+                        [NotifyAllUsers] bit NOT NULL CONSTRAINT [DF_CashBalanceAlertSettings_NotifyAllUsers] DEFAULT (1),
+                        [ShowInApp] bit NOT NULL CONSTRAINT [DF_CashBalanceAlertSettings_ShowInApp] DEFAULT (1),
+                        [CreatedBy] bigint NOT NULL,
+                        [CreatedAt] datetime2 NOT NULL,
+                        [UpdatedAt] datetime2 NOT NULL,
+                        [RowVersion] rowversion NOT NULL,
+                        CONSTRAINT [PK_CashBalanceAlertSettings] PRIMARY KEY ([Id]),
+                        CONSTRAINT [AK_CashBalanceAlertSettings_TenantId_Id] UNIQUE ([TenantId], [Id]),
+                        CONSTRAINT [FK_CashBalanceAlertSettings_Accounts_TenantId_AccountId]
+                            FOREIGN KEY ([TenantId], [AccountId]) REFERENCES [dbo].[Accounts] ([TenantId], [Id]),
+                        CONSTRAINT [FK_CashBalanceAlertSettings_Currencies_TenantId_CurrencyId]
+                            FOREIGN KEY ([TenantId], [CurrencyId]) REFERENCES [dbo].[Currencies] ([TenantId], [Id]),
+                        CONSTRAINT [FK_CashBalanceAlertSettings_Users_TenantId_CreatedBy]
+                            FOREIGN KEY ([TenantId], [CreatedBy]) REFERENCES [dbo].[Users] ([TenantId], [Id])
+                    );
+                END;
+
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlertSettings]', N'U') IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_CashBalanceAlertSettings_TenantId_AccountId_CurrencyId' AND [object_id] = OBJECT_ID(N'[dbo].[CashBalanceAlertSettings]'))
+                    CREATE UNIQUE INDEX [IX_CashBalanceAlertSettings_TenantId_AccountId_CurrencyId]
+                        ON [dbo].[CashBalanceAlertSettings] ([TenantId], [AccountId], [CurrencyId]);
+
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlertSettings]', N'U') IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_CashBalanceAlertSettings_TenantId_CreatedBy' AND [object_id] = OBJECT_ID(N'[dbo].[CashBalanceAlertSettings]'))
+                    CREATE INDEX [IX_CashBalanceAlertSettings_TenantId_CreatedBy]
+                        ON [dbo].[CashBalanceAlertSettings] ([TenantId], [CreatedBy]);
+
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlertSettings]', N'U') IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_CashBalanceAlertSettings_TenantId_CurrencyId' AND [object_id] = OBJECT_ID(N'[dbo].[CashBalanceAlertSettings]'))
+                    CREATE INDEX [IX_CashBalanceAlertSettings_TenantId_CurrencyId]
+                        ON [dbo].[CashBalanceAlertSettings] ([TenantId], [CurrencyId]);
+
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlertRecipients]', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [dbo].[CashBalanceAlertRecipients]
+                    (
+                        [Id] bigint IDENTITY(1,1) NOT NULL,
+                        [TenantId] bigint NOT NULL,
+                        [SettingId] bigint NOT NULL,
+                        [UserId] bigint NOT NULL,
+                        CONSTRAINT [PK_CashBalanceAlertRecipients] PRIMARY KEY ([Id]),
+                        CONSTRAINT [AK_CashBalanceAlertRecipients_TenantId_Id] UNIQUE ([TenantId], [Id]),
+                        CONSTRAINT [FK_CashBalanceAlertRecipients_CashBalanceAlertSettings_TenantId_SettingId]
+                            FOREIGN KEY ([TenantId], [SettingId]) REFERENCES [dbo].[CashBalanceAlertSettings] ([TenantId], [Id]) ON DELETE CASCADE,
+                        CONSTRAINT [FK_CashBalanceAlertRecipients_Users_TenantId_UserId]
+                            FOREIGN KEY ([TenantId], [UserId]) REFERENCES [dbo].[Users] ([TenantId], [Id])
+                    );
+                END;
+
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlertRecipients]', N'U') IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_CashBalanceAlertRecipients_TenantId_SettingId_UserId' AND [object_id] = OBJECT_ID(N'[dbo].[CashBalanceAlertRecipients]'))
+                    CREATE UNIQUE INDEX [IX_CashBalanceAlertRecipients_TenantId_SettingId_UserId]
+                        ON [dbo].[CashBalanceAlertRecipients] ([TenantId], [SettingId], [UserId]);
+
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlertRecipients]', N'U') IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_CashBalanceAlertRecipients_TenantId_UserId' AND [object_id] = OBJECT_ID(N'[dbo].[CashBalanceAlertRecipients]'))
+                    CREATE INDEX [IX_CashBalanceAlertRecipients_TenantId_UserId]
+                        ON [dbo].[CashBalanceAlertRecipients] ([TenantId], [UserId]);
+
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlerts]', N'U') IS NULL
+                BEGIN
+                    CREATE TABLE [dbo].[CashBalanceAlerts]
+                    (
+                        [Id] bigint IDENTITY(1,1) NOT NULL,
+                        [TenantId] bigint NOT NULL,
+                        [SettingId] bigint NOT NULL,
+                        [CurrentBalance] decimal(18,4) NOT NULL,
+                        [MinimumBalance] decimal(18,4) NOT NULL,
+                        [IsActive] bit NOT NULL CONSTRAINT [DF_CashBalanceAlerts_IsActive] DEFAULT (1),
+                        [TriggeredAt] datetime2 NOT NULL,
+                        [LastCheckedAt] datetime2 NOT NULL,
+                        [ResolvedAt] datetime2 NULL,
+                        CONSTRAINT [PK_CashBalanceAlerts] PRIMARY KEY ([Id]),
+                        CONSTRAINT [AK_CashBalanceAlerts_TenantId_Id] UNIQUE ([TenantId], [Id]),
+                        CONSTRAINT [FK_CashBalanceAlerts_CashBalanceAlertSettings_TenantId_SettingId]
+                            FOREIGN KEY ([TenantId], [SettingId]) REFERENCES [dbo].[CashBalanceAlertSettings] ([TenantId], [Id]) ON DELETE CASCADE
+                    );
+                END;
+
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlerts]', N'U') IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_CashBalanceAlerts_TenantId_SettingId_IsActive' AND [object_id] = OBJECT_ID(N'[dbo].[CashBalanceAlerts]'))
+                    CREATE UNIQUE INDEX [IX_CashBalanceAlerts_TenantId_SettingId_IsActive]
+                        ON [dbo].[CashBalanceAlerts] ([TenantId], [SettingId], [IsActive])
+                        WHERE [IsActive] = 1;
+
+                IF OBJECT_ID(N'[dbo].[CashBalanceAlerts]', N'U') IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'IX_CashBalanceAlerts_TenantId_TriggeredAt' AND [object_id] = OBJECT_ID(N'[dbo].[CashBalanceAlerts]'))
+                    CREATE INDEX [IX_CashBalanceAlerts_TenantId_TriggeredAt]
+                        ON [dbo].[CashBalanceAlerts] ([TenantId], [TriggeredAt]);
+                """,
+                cancellationToken);
+        }
+
+        /// <summary>
         /// Creates and repairs application-owned accounts without relying on a migration.
         /// It also separates the historical 2101 collision between currency-sale
         /// liabilities and pending incoming hawalas.

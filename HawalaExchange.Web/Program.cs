@@ -217,7 +217,12 @@ public partial class Program
             try
             {
                 var context = services.GetRequiredService<ApplicationDbContext>();
-                context.Database.Migrate();
+                if (context.Database.GetMigrations().Any())
+                    context.Database.Migrate();
+                else
+                    context.Database.EnsureCreated();
+
+                context.EnsureApplicationSchemaAsync().GetAwaiter().GetResult();
 
                 var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();
                 var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();

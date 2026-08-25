@@ -161,6 +161,49 @@ function syncOperationMenuQuickActions(menuId, quickHostId, preferenceKey, defau
 }
 
 window.hawalaTools = {
+    openFloatingDropdown: function (trigger, menu) {
+        if (!trigger || !menu) return;
+
+        if (!menu.matches(":popover-open")) {
+            menu.showPopover();
+        }
+
+        const gap = 4;
+        const viewportGap = 10;
+        const triggerRect = trigger.getBoundingClientRect();
+        const width = Math.min(
+            Math.max(triggerRect.width, 320),
+            window.innerWidth - (viewportGap * 2));
+        const left = Math.max(
+            viewportGap,
+            Math.min(triggerRect.right - width, window.innerWidth - width - viewportGap));
+        const roomBelow = window.innerHeight - triggerRect.bottom - viewportGap;
+        const roomAbove = triggerRect.top - viewportGap;
+        const openUpward = roomBelow < 180 && roomAbove > roomBelow;
+        const availableHeight = Math.max(120, Math.min(260, openUpward ? roomAbove - gap : roomBelow - gap));
+
+        menu.style.position = "fixed";
+        menu.style.right = "auto";
+        menu.style.left = `${Math.round(left)}px`;
+        menu.style.width = `${Math.round(width)}px`;
+        menu.style.maxHeight = `${Math.round(availableHeight)}px`;
+        menu.style.margin = "0";
+
+        if (openUpward) {
+            menu.style.top = "auto";
+            menu.style.bottom = `${Math.round(window.innerHeight - triggerRect.top + gap)}px`;
+        } else {
+            menu.style.top = `${Math.round(triggerRect.bottom + gap)}px`;
+            menu.style.bottom = "auto";
+        }
+    },
+
+    closeFloatingDropdown: function (menu) {
+        if (menu?.matches(":popover-open")) {
+            menu.hidePopover();
+        }
+    },
+
     syncOperationMenuQuickActions: function (menuId, quickHostId, preferenceKey, defaults) {
         syncOperationMenuQuickActions(menuId, quickHostId, preferenceKey, defaults);
     },

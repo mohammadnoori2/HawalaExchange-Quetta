@@ -4,6 +4,7 @@ using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HawalaExchange.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260825095149_AddCashBalanceAlerts")]
+    partial class AddCashBalanceAlerts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -81,7 +84,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[CustomerId] IS NOT NULL");
 
-                    b.ToTable("Accounts", null, t =>
+                    b.ToTable("Accounts", t =>
                         {
                             t.HasCheckConstraint("CK_Accounts_OneOwner", "[CustomerId] IS NULL OR [CorrespondentId] IS NULL");
                         });
@@ -198,7 +201,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "AccountId", "CurrencyId")
                         .IsUnique();
 
-                    b.ToTable("AccountBadehkarLimits", (string)null);
+                    b.ToTable("AccountBadehkarLimits");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.AccountMoneyOperation", b =>
@@ -260,7 +263,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "OperationDate");
 
-                    b.ToTable("AccountMoneyOperations", (string)null);
+                    b.ToTable("AccountMoneyOperations");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.ApplicationUser", b =>
@@ -437,7 +440,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "TableName", "RecordId");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.BillingNumberSequence", b =>
@@ -470,7 +473,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("Year", "Prefix")
                         .IsUnique();
 
-                    b.ToTable("BillingNumberSequences", null, t =>
+                    b.ToTable("BillingNumberSequences", t =>
                         {
                             t.HasCheckConstraint("CK_BillingNumberSequences_NextValue", "[NextValue] > 0");
                         });
@@ -518,7 +521,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
 
-                    b.ToTable("Branches", (string)null);
+                    b.ToTable("Branches");
 
                     b.HasData(
                         new
@@ -597,7 +600,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "ReceivingAccountId");
 
-                    b.ToTable("CapitalInvestments", (string)null);
+                    b.ToTable("CapitalInvestments");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CashBalanceAlert", b =>
@@ -646,7 +649,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[IsActive] = 1");
 
-                    b.ToTable("CashBalanceAlerts", (string)null);
+                    b.ToTable("CashBalanceAlerts");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CashBalanceAlertRecipient", b =>
@@ -675,7 +678,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "SettingId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("CashBalanceAlertRecipients", (string)null);
+                    b.ToTable("CashBalanceAlertRecipients");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CashBalanceAlertSetting", b =>
@@ -738,7 +741,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "AccountId", "CurrencyId")
                         .IsUnique();
 
-                    b.ToTable("CashBalanceAlertSettings", (string)null);
+                    b.ToTable("CashBalanceAlertSettings");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CashDailyBalance", b =>
@@ -796,7 +799,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "JournalDate", "AccountId", "CurrencyId")
                         .IsUnique();
 
-                    b.ToTable("CashDailyBalances", (string)null);
+                    b.ToTable("CashDailyBalances");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CompanySetting", b =>
@@ -857,7 +860,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "DefaultProfitCurrencyId");
 
-                    b.ToTable("CompanySettings", (string)null);
+                    b.ToTable("CompanySettings");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.Correspondent", b =>
@@ -925,7 +928,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "SettlementCurrencyId");
 
-                    b.ToTable("Correspondents", (string)null);
+                    b.ToTable("Correspondents");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentSettlementConversion", b =>
@@ -979,7 +982,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "CorrespondentId", "CreatedAt");
 
-                    b.ToTable("CorrespondentSettlementConversions", (string)null);
+                    b.ToTable("CorrespondentSettlementConversions");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentSettlementConversionHawala", b =>
@@ -1000,7 +1003,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "HawalaId")
                         .IsUnique();
 
-                    b.ToTable("CorrespondentSettlementConversionHawalas", (string)null);
+                    b.ToTable("CorrespondentSettlementConversionHawalas");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentSettlementConversionHawalaItem", b =>
@@ -1047,7 +1050,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "HawalaId", "SourceCurrencyId")
                         .IsUnique();
 
-                    b.ToTable("CorrespondentSettlementConversionHawalaItems", (string)null);
+                    b.ToTable("CorrespondentSettlementConversionHawalaItems");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentSettlementConversionItem", b =>
@@ -1091,7 +1094,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "ConversionId", "SourceCurrencyId")
                         .IsUnique();
 
-                    b.ToTable("CorrespondentSettlementConversionItems", (string)null);
+                    b.ToTable("CorrespondentSettlementConversionItems");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.Currency", b =>
@@ -1145,7 +1148,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "Code")
                         .IsUnique();
 
-                    b.ToTable("Currencies", (string)null);
+                    b.ToTable("Currencies");
 
                     b.HasData(
                         new
@@ -1290,7 +1293,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "CustomerCode")
                         .IsUnique();
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.Document", b =>
@@ -1350,7 +1353,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "TransactionId");
 
-                    b.ToTable("Documents", null, t =>
+                    b.ToTable("Documents", t =>
                         {
                             t.HasCheckConstraint("CK_Documents_ExactlyOneOwner", "(CASE WHEN [TransactionId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [CustomerId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [CorrespondentId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [AccountId] IS NULL THEN 0 ELSE 1 END) = 1");
                         });
@@ -1397,7 +1400,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "FromCurrencyId", "ToCurrencyId", "EffectiveDate");
 
-                    b.ToTable("ExchangeRates", (string)null);
+                    b.ToTable("ExchangeRates");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.Expense", b =>
@@ -1464,7 +1467,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "TransactionId");
 
-                    b.ToTable("Expenses", (string)null);
+                    b.ToTable("Expenses");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.Hawala", b =>
@@ -1664,7 +1667,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[CorrespondentId] IS NOT NULL");
 
-                    b.ToTable("Hawalas", null, t =>
+                    b.ToTable("Hawalas", t =>
                         {
                             t.HasCheckConstraint("CK_Hawala_CommissionAmount_NonNegative_IfNotNull", "[CommissionAmount] IS NULL OR [CommissionAmount] >= 0");
 
@@ -1768,7 +1771,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "AccountId", "CurrencyId");
 
-                    b.ToTable("LedgerEntries", null, t =>
+                    b.ToTable("LedgerEntries", t =>
                         {
                             t.HasCheckConstraint("CK_LedgerEntries_AtMostOneSource", "(CASE WHEN [TransactionId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [HawalaId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [TransferId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [CapitalInvestmentId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [ExpenseId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [AccountMoneyOperationId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [MoneyExchangeOperationId] IS NULL THEN 0 ELSE 1 END) <= 1");
 
@@ -1915,7 +1918,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "ToCurrencyId");
 
-                    b.ToTable("MoneyExchangeOperations", (string)null);
+                    b.ToTable("MoneyExchangeOperations");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.PaymentLocation", b =>
@@ -1973,7 +1976,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "UpdatedBy");
 
-                    b.ToTable("PaymentLocations", (string)null);
+                    b.ToTable("PaymentLocations");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.PlatformAuditLog", b =>
@@ -2016,7 +2019,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "CreatedAt");
 
-                    b.ToTable("PlatformAuditLogs", (string)null);
+                    b.ToTable("PlatformAuditLogs");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.SaasAutomationRun", b =>
@@ -2066,7 +2069,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("StartedAt", "Status");
 
-                    b.ToTable("SaasAutomationRuns", (string)null);
+                    b.ToTable("SaasAutomationRuns");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.SaasAutomationSettings", b =>
@@ -2121,7 +2124,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("SaasAutomationSettings", null, t =>
+                    b.ToTable("SaasAutomationSettings", t =>
                         {
                             t.HasCheckConstraint("CK_SaasAutomationSettings_Values", "[Id] = 1 AND [RunIntervalMinutes] >= 5 AND [ExpiryWarningDays] > 0 AND [GracePeriodDays] >= 0 AND [QuotaWarningPercent] BETWEEN 1 AND 100");
                         });
@@ -2198,7 +2201,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("ReadAt", "Severity", "CreatedAt");
 
-                    b.ToTable("SaasNotifications", (string)null);
+                    b.ToTable("SaasNotifications");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.SubscriptionInvoice", b =>
@@ -2306,7 +2309,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "Status", "DueAt");
 
-                    b.ToTable("SubscriptionInvoices", null, t =>
+                    b.ToTable("SubscriptionInvoices", t =>
                         {
                             t.HasCheckConstraint("CK_SubscriptionInvoices_Amounts", "[Subtotal] >= 0 AND [DiscountAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] >= 0 AND [PaidAmount] >= 0 AND [PaidAmount] <= [TotalAmount]");
 
@@ -2352,7 +2355,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("InvoiceId", "SortOrder");
 
-                    b.ToTable("SubscriptionInvoiceItems", null, t =>
+                    b.ToTable("SubscriptionInvoiceItems", t =>
                         {
                             t.HasCheckConstraint("CK_SubscriptionInvoiceItems_Amounts", "[Quantity] > 0 AND [UnitPrice] >= 0 AND [DiscountAmount] >= 0 AND [TaxAmount] >= 0 AND [LineTotal] >= 0");
                         });
@@ -2436,7 +2439,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("SubscriptionId", "Status", "DueAt");
 
-                    b.ToTable("SubscriptionPayments", null, t =>
+                    b.ToTable("SubscriptionPayments", t =>
                         {
                             t.HasCheckConstraint("CK_SubscriptionPayments_Amount", "[Amount] >= 0");
                         });
@@ -2521,7 +2524,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("IsActive", "DisplayOrder");
 
-                    b.ToTable("SubscriptionPlans", null, t =>
+                    b.ToTable("SubscriptionPlans", t =>
                         {
                             t.HasCheckConstraint("CK_SubscriptionPlans_Limits", "[TrialDays] >= 0 AND [MaxUsers] >= 0 AND [MaxBranches] >= 0 AND [MaxStorageBytes] >= 0 AND [MaxMonthlyTransactions] >= 0");
 
@@ -2595,7 +2598,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Tenants", (string)null);
+                    b.ToTable("Tenants");
 
                     b.HasData(
                         new
@@ -2687,7 +2690,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "Status", "EndAt");
 
-                    b.ToTable("TenantSubscriptions", null, t =>
+                    b.ToTable("TenantSubscriptions", t =>
                         {
                             t.HasCheckConstraint("CK_TenantSubscriptions_Dates", "[EndAt] > [StartAt]");
 
@@ -2748,7 +2751,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasIndex("TenantId", "PeriodStart")
                         .IsUnique();
 
-                    b.ToTable("TenantUsageSnapshots", (string)null);
+                    b.ToTable("TenantUsageSnapshots");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.Transaction", b =>
@@ -2838,7 +2841,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "CreatedAt", "Status");
 
-                    b.ToTable("Transactions", (string)null);
+                    b.ToTable("Transactions");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.TransactionDetail", b =>
@@ -2942,7 +2945,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "TransactionId");
 
-                    b.ToTable("TransactionDetails", (string)null);
+                    b.ToTable("TransactionDetails");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.Transfer", b =>
@@ -3004,7 +3007,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "TransactionId");
 
-                    b.ToTable("Transfers", (string)null);
+                    b.ToTable("Transfers");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<long>", b =>

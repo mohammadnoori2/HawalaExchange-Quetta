@@ -1,122 +1,99 @@
 @using HawalaExchange.Application.DTOs
 
 <div class="debt-limit-fields">
-    <div class="debt-limit-heading">
-        <div>
-            <h6><i class="bi bi-shield-check text-muted me-1"></i> سقف بدهکاری</h6>
-            <small class="text-muted">برای ارزهای دلخواه سقف محدود یا نامحدود تعیین کنید.</small>
-        </div>
-        @if (VisibleLimits.Count > 0)
+    <small class="debt-limit-help text-muted">حذف یک ارز یعنی بدهکاری آن ارز نامحدود است.</small>
+
+    <div class="debt-limit-grid">
+        @foreach (var item in Limits)
         {
-            <small class="text-muted">@VisibleLimits.Count ارز</small>
+            var currency = GetCurrency(item.CurrencyId);
+            <div class="debt-limit-item" @key="item">
+                <div class="debt-limit-controls">
+                    <select class="debt-limit-currency"
+                            value="@item.CurrencyId"
+                            @onchange="args => ChangeCurrency(item, args.Value?.ToString())"
+                            aria-label="واحد پولی سقف بدهکاری">
+                        <option value="0">انتخاب ارز</option>
+                        @foreach (var option in Currencies.Where(option => option.IsActive))
+                        {
+                            <option value="@option.Id" disabled="@IsCurrencyUsedByAnotherRow(option.Id, item)">@option.Name</option>
+                        }
+                    </select>
+
+                    <MoneyInput class="debt-limit-amount" @bind-Value="item.BadehkarLimit"
+                                min="0" placeholder="مبلغ سقف" />
+                </div>
+
+                @if (item.BadehkarLimit > 0)
+                {
+                    <small class="debt-limit-words">
+                        @DariNumberToWords.ToWords(item.BadehkarLimit) @(currency?.Name ?? string.Empty)
+                    </small>
+                }
+            </div>
         }
     </div>
 
-    <div class="row g-2 align-items-end debt-limit-add-row">
-        <div class="col-md">
-            <label class="form-label small">ارز</label>
-            <select class="form-select" @bind="selectedCurrencyId">
-                <option value="0">انتخاب ارز برای تعیین سقف</option>
-                @foreach (var currency in AvailableCurrencies)
-                {
-                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                }
-            </select>
-        </div>
-        <div class="col-md-auto">
-            <button type="button" class="btn-modern btn-light-modern debt-limit-add-button"
-                    disabled="@(selectedCurrencyId <= 0)" @onclick="AddCurrency">
-                <i class="bi bi-plus-lg"></i> افزودن ارز
-            </button>
-        </div>
+    <div class="debt-limit-actions">
+        <button type="button" class="debt-limit-icon debt-limit-delete"
+                title="حذف آخرین ارز" aria-label="حذف آخرین ارز"
+                disabled="@(Limits.Count == 0)" @onclick="RemoveLastRow">
+            <i class="bi bi-trash"></i>
+        </button>
+        <button type="button" class="debt-limit-icon"
+                title="افزودن ارز دیگر" aria-label="افزودن ارز دیگر" @onclick="AddRow">
+            <i class="bi bi-plus-lg"></i>
+        </button>
     </div>
-
-    @if (VisibleLimits.Count == 0)
-    {
-        <small class="debt-limit-empty text-muted d-block mt-2">
-            ارزی اضافه نشده است؛ در حالت پیش‌فرض بدهکاری همهٔ ارزها نامحدود است.
-        </small>
-    }
-    else
-    {
-        <div class="debt-limit-list">
-            @foreach (var item in VisibleLimits)
-            {
-                var currency = GetCurrency(item.CurrencyId);
-                <div class="debt-limit-item" @key="item">
-                    <div class="currency-identity">
-                        <span class="currency-code">@(currency?.Code ?? "—")</span>
-                        <span class="currency-name">@(currency?.Name ?? "ارز")</span>
-                    </div>
-
-                    <div class="limit-mode" role="group" aria-label="نوع سقف بدهکاری">
-                        <button type="button" class="mode-button @(item.IsEnabled ? "active limited" : null)"
-                                @onclick="() => SetMode(item, true)">
-                            محدود
-                        </button>
-                        <button type="button" class="mode-button @(!item.IsEnabled ? "active unlimited" : null)"
-                                @onclick="() => SetMode(item, false)">
-                            نامحدود
-                        </button>
-                    </div>
-
-                    <div class="limit-amount">
-                        @if (item.IsEnabled)
-                        {
-                            <label class="form-label small">مبلغ سقف</label>
-                            <div class="input-group">
-                                <MoneyInput class="form-control" @bind-Value="item.BadehkarLimit"
-                                            min="0" placeholder="0" />
-                                <span class="input-group-text">@(currency?.Code ?? "")</span>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="unlimited-description">
-                                بدون محدودیت بدهکاری
-                            </div>
-                        }
-                    </div>
-
-                    <button type="button" class="action-btn action-btn-delete remove-limit-button" title="حذف ارز"
-                            @onclick="() => RemoveCurrency(item)">
-                        <i class="bi bi-trash3"></i>
-                    </button>
-                </div>
-            }
-        </div>
-    }
 </div>
 
 @code {
     [Parameter, EditorRequired] public List<DebtLimitInputDto> Limits { get; set; } = new();
     [Parameter, EditorRequired] public IEnumerable<CurrencyDto> Currencies { get; set; } = [];
 
-    private long selectedCurrencyId;
-    private List<DebtLimitInputDto> VisibleLimits => Limits.Where(x => x.CurrencyId > 0).ToList();
-    private IEnumerable<CurrencyDto> AvailableCurrencies => Currencies
-        .Where(x => x.IsActive && Limits.All(limit => limit.CurrencyId != x.Id))
-        .OrderBy(x => x.Code);
-
-    private CurrencyDto? GetCurrency(long currencyId) => Currencies.FirstOrDefault(x => x.Id == currencyId);
-
-    private void AddCurrency()
+    protected override void OnParametersSet()
     {
-        if (selectedCurrencyId <= 0 || Limits.Any(x => x.CurrencyId == selectedCurrencyId)) return;
-        Limits.Add(new DebtLimitInputDto
-        {
-            CurrencyId = selectedCurrencyId,
-            IsEnabled = true,
-            BadehkarLimit = 0
-        });
-        selectedCurrencyId = 0;
+        EnsureBlankRow();
     }
 
-    private static void SetMode(DebtLimitInputDto item, bool isLimited)
+    private CurrencyDto? GetCurrency(long currencyId) =>
+        Currencies.FirstOrDefault(currency => currency.Id == currencyId);
+
+    private bool IsCurrencyUsedByAnotherRow(long currencyId, DebtLimitInputDto current) =>
+        Limits.Any(item => !ReferenceEquals(item, current) && item.CurrencyId == currencyId);
+
+    private void ChangeCurrency(DebtLimitInputDto item, string? value)
     {
-        item.IsEnabled = isLimited;
-        if (!isLimited) item.BadehkarLimit = 0;
+        item.CurrencyId = long.TryParse(value, out var currencyId) ? currencyId : 0;
+        item.IsEnabled = item.CurrencyId > 0;
     }
 
-    private void RemoveCurrency(DebtLimitInputDto item) => Limits.Remove(item);
+    private void AddRow()
+    {
+        if (Limits.Any(item => item.CurrencyId <= 0) ||
+            Limits.GroupBy(item => item.CurrencyId).Any(group => group.Key > 0 && group.Count() > 1))
+            return;
+
+        Limits.Add(NewRow());
+    }
+
+    private void RemoveLastRow()
+    {
+        if (Limits.Count > 0)
+            Limits.RemoveAt(Limits.Count - 1);
+
+        EnsureBlankRow();
+    }
+
+    private void EnsureBlankRow()
+    {
+        if (Limits.Count == 0)
+            Limits.Add(NewRow());
+    }
+
+    private static DebtLimitInputDto NewRow() => new()
+    {
+        IsEnabled = false,
+        BadehkarLimit = 0
+    };
 }

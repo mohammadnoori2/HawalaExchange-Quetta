@@ -1,133 +1,109 @@
 .debt-limit-fields {
-    margin-top: .75rem;
-    padding-top: .75rem;
-    border-top: 1px solid var(--border-color, #e5e7eb);
+    margin: 0;
 }
 
-.debt-limit-heading,
-.currency-identity,
-.unlimited-description {
+.debt-limit-help { display: block; margin-bottom: .6rem; font-size: .72rem; }
+
+.debt-limit-grid {
     display: flex;
-    align-items: center;
-}
-
-.debt-limit-heading {
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: .65rem;
-}
-
-.debt-limit-heading h6 {
-    margin: 0 0 .15rem;
-    font-weight: 700;
-}
-
-.debt-limit-add-button {
-    min-height: 38px;
-    white-space: nowrap;
-}
-
-.debt-limit-empty {
-    font-size: .8rem;
-}
-
-.debt-limit-list {
-    margin-top: .6rem;
-    border-top: 1px solid var(--border-color, #e5e7eb);
+    flex-wrap: wrap;
+    gap: .65rem .8rem;
 }
 
 .debt-limit-item {
+    flex: 1 1 275px;
+    min-width: 245px;
+    max-width: 340px;
+}
+
+.debt-limit-controls {
     display: grid;
-    grid-template-columns: minmax(7rem, .7fr) minmax(12rem, 1fr) minmax(12rem, 1.2fr) 2.25rem;
-    align-items: center;
-    gap: .65rem;
-    padding: .65rem 0;
-    border-bottom: 1px solid var(--border-color, #e5e7eb);
+    grid-template-columns: minmax(105px, .9fr) minmax(130px, 1.1fr);
+    overflow: hidden;
+    border: 1px solid var(--border-color, #cbd5e1);
+    border-radius: .35rem;
+    background: var(--card-bg, #fff);
+    transition: border-color .15s ease, box-shadow .15s ease;
 }
 
-.currency-identity {
-    gap: .45rem;
+.debt-limit-controls:focus-within {
+    border-color: var(--primary-color, #2563eb);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #2563eb) 12%, transparent);
 }
 
-.currency-code {
+.debt-limit-currency {
+    min-width: 0;
+    height: var(--compact-financial-control-height, 34px);
+    padding: .25rem .45rem;
+    border: 0;
+    border-left: 1px solid var(--border-color, #e2e8f0);
+    background: transparent;
+    color: var(--text-color, #1f2937);
+    font-size: .76rem;
+    font-weight: 600;
+    outline: 0;
+}
+
+.debt-limit-controls ::deep .debt-limit-amount {
+    width: 100%;
+    min-width: 0;
+    height: var(--compact-financial-control-height, 34px);
+    padding: .25rem .45rem;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent;
+    font-size: .78rem;
     font-weight: 700;
+    text-align: left;
+    box-shadow: none !important;
+}
+
+.debt-limit-words {
+    display: block;
+    min-height: .9rem;
+    margin-top: .12rem;
+    padding-inline: .2rem;
+    overflow: hidden;
+    color: var(--text-muted, #6b7280);
+    font-size: .64rem;
+    line-height: 1.25;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.debt-limit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .35rem;
+    margin-top: .45rem;
+}
+
+.debt-limit-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--primary-color, #2563eb);
+    border-radius: .45rem;
+    background: transparent;
     color: var(--primary-color, #2563eb);
 }
 
-.currency-name {
-    color: var(--text-muted, #6b7280);
-    font-size: .8rem;
+.debt-limit-icon:hover { background: color-mix(in srgb, var(--primary-color, #2563eb) 8%, transparent); }
+
+.debt-limit-delete {
+    border-color: var(--border-color, #cbd5e1);
+    color: var(--text-muted, #64748b);
 }
 
-.limit-mode {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: .15rem;
-    border-radius: .5rem;
-    background: var(--light-bg, #f3f4f6);
+.debt-limit-delete:hover {
+    border-color: var(--danger-color, #dc3545);
+    background: color-mix(in srgb, var(--danger-color, #dc3545) 8%, transparent);
+    color: var(--danger-color, #dc3545);
 }
 
-.mode-button {
-    padding: .4rem .55rem;
-    border: 0;
-    border-radius: .4rem;
-    color: var(--text-muted, #6b7280);
-    background: transparent;
-    font-size: .8rem;
-    font-weight: 600;
-}
-
-.mode-button.active {
-    color: #fff;
-}
-
-.mode-button.active.limited {
-    background: var(--bs-warning, #f59e0b);
-}
-
-.mode-button.active.unlimited {
-    background: var(--bs-success, #198754);
-}
-
-.limit-amount .form-label {
-    margin-bottom: .15rem;
-}
-
-.unlimited-description {
-    min-height: 38px;
-    color: var(--bs-success, #198754);
-    font-size: .82rem;
-}
-
-.remove-limit-button {
-    width: 2.2rem;
-    height: 2.2rem;
-}
-
-@media (max-width: 991.98px) {
-    .debt-limit-item {
-        grid-template-columns: 1fr 1.5fr 2.25rem;
-    }
-
-    .limit-amount {
-        grid-column: 1 / 3;
-        grid-row: 2;
-    }
-}
-
-@media (max-width: 575.98px) {
-    .debt-limit-item {
-        grid-template-columns: 1fr 2.25rem;
-    }
-
-    .currency-identity,
-    .limit-mode,
-    .limit-amount {
-        grid-column: 1 / 2;
-    }
-
-    .remove-limit-button {
-        grid-column: 2;
-        grid-row: 1;
-    }
+@media (max-width: 768px) {
+    .debt-limit-item { flex-basis: 100%; max-width: none; }
 }

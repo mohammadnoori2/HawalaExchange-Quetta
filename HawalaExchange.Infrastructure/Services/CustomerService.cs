@@ -124,11 +124,15 @@ namespace HawalaExchange.Application.Services
                     accountDto = await CreateCustomerAccountAsync(customerDto.Id, customerDto.FullName);
                 }
 
-                if (createDto.DebtLimits.Any(x => x.IsEnabled))
+                var debtLimits = createDto.DebtLimits
+                    .Where(limit => limit.IsEnabled && limit.CurrencyId > 0)
+                    .ToList();
+
+                if (debtLimits.Count > 0)
                 {
                     if (accountDto == null)
                         throw new InvalidOperationException("برای تعیین سقف بدهکاری، گزینه افتتاح حساب را انتخاب کنید.");
-                    await _debtLimitService.SetForAccountAsync(accountDto.Id, createDto.DebtLimits);
+                    await _debtLimitService.SetForAccountAsync(accountDto.Id, debtLimits);
                 }
 
                 // ۳. ثبت موجودی اولیه (در صورت وجود)

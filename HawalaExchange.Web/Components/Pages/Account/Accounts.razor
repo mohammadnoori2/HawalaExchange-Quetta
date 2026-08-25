@@ -1,6 +1,7 @@
 @page "/accounts"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
 @using HawalaExchange.Web.Components.Shared.Modals
 @using Microsoft.AspNetCore.Authorization
 @inject IAccountService AccountService
@@ -268,31 +269,6 @@
                         </div>
                     }
 
-                    <!-- راهنما -->
-                    @if (!isEditMode)
-                    {
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i>
-                            کد حساب به‌صورت خودکار بر اساس نوع حساب تولید می‌شود.
-                        </div>
-                    }
-
-                    <!-- سوئیچ موجودی اولیه (فقط ایجاد) -->
-                    @if (!isEditMode)
-                    {
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <div class="custom-switch-inline">
-                                    <input class="form-check-input" type="checkbox" id="hasInitialBalance"
-                                           @bind="HasInitialBalance" />
-                                    <label class="form-check-label fw-bold" for="hasInitialBalance">
-                                        <i class="bi bi-plus-circle text-success me-1"></i> افزودن موجودی اولیه
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    }
-
                     <!-- اطلاعات حساب -->
                     <div class="modern-card mb-4">
                         <div class="card-header">
@@ -301,19 +277,23 @@
                             </h6>
                         </div>
                         <div class="card-body">
-                            @if (!currentAccount.HasInitialBalance || isEditMode)
-                            {
-                                <div class="row">
+                            <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label fw-bold">
-                                            <i class="bi bi-person text-muted me-1"></i> نام حساب <span class="text-danger">*</span>
+                                        <label class="form-label fw-bold d-flex align-items-center gap-1">
+                                            <i class="bi bi-person text-muted"></i>
+                                            <span class="d-inline-flex align-items-baseline flex-nowrap gap-1 text-nowrap">
+                                                نام حساب <span class="text-danger d-inline-block flex-shrink-0">*</span>
+                                            </span>
                                         </label>
                                         <input type="text" class="form-control"
                                                @bind="currentAccount.AccountName" placeholder="نام حساب را وارد کنید" />
                                     </div>
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label fw-bold">
-                                            <i class="bi bi-tag text-muted me-1"></i> نوع حساب <span class="text-danger">*</span>
+                                        <label class="form-label fw-bold d-flex align-items-center gap-1">
+                                            <i class="bi bi-tag text-muted"></i>
+                                            <span class="d-inline-flex align-items-baseline flex-nowrap gap-1 text-nowrap">
+                                                نوع حساب <span class="text-danger d-inline-block flex-shrink-0">*</span>
+                                            </span>
                                         </label>
                                         <select class="form-select"
                                                 @bind="currentAccount.AccountType"
@@ -328,9 +308,9 @@
                                             <option value="Equity">سرمایه</option>
                                         </select>
                                     </div>
-                                </div>
+                            </div>
 
-                                <div class="row">
+                            <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">
                                             <i class="bi bi-link text-muted me-1"></i> نوع مرجع
@@ -348,19 +328,27 @@
                                         @if (IsReferenceTypeSelected())
                                         {
                                             <select class="form-select" @bind="currentAccount.ReferenceId">
-                                                <option value="">انتخاب @(currentAccount.ReferenceType == "Customer" ? "مشتری" : "نماینده")</option>
+                                                <option value="">انتخاب ...</option>
                                                 @if (currentAccount.ReferenceType == "Customer")
                                                 {
-                                                    @foreach (var customer in customers)
+                                                    @foreach (var customer in AvailableCustomers)
                                                     {
                                                         <option value="@customer.Id">@customer.FullName (@customer.CustomerCode)</option>
+                                                    }
+                                                    @if (!AvailableCustomers.Any())
+                                                    {
+                                                        <option disabled>همه مشتریان فعال حساب دارند</option>
                                                     }
                                                 }
                                                 else if (currentAccount.ReferenceType == "Correspondent")
                                                 {
-                                                    @foreach (var correspondent in correspondents)
+                                                    @foreach (var correspondent in AvailableCorrespondents)
                                                     {
                                                         <option value="@correspondent.Id">@correspondent.Name (@correspondent.Code)</option>
+                                                    }
+                                                    @if (!AvailableCorrespondents.Any())
+                                                    {
+                                                        <option disabled>همه نمایندگی‌های فعال حساب دارند</option>
                                                     }
                                                 }
                                             </select>
@@ -371,130 +359,87 @@
                                                    placeholder="شناسه مرجع را وارد کنید" />
                                         }
                                     </div>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="alert alert-warning">
-                                    <i class="bi bi-info-circle"></i>
-                                    مشخصات حساب در هنگام ثبت موجودی اولیه مخفی شده است. پس از ثبت موجودی‌ها، حساب ایجاد خواهد شد.
-                                </div>
-                            }
+                            </div>
                         </div>
                     </div>
+
+                    <!-- سوئیچ موجودی اولیه (فقط ایجاد) -->
+                    @if (!isEditMode)
+                    {
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <div class="custom-switch-inline">
+                                    <input class="form-check-input" type="checkbox" id="hasInitialBalance"
+                                           @bind="HasInitialBalance" />
+                                    <label class="form-check-label fw-bold" for="hasInitialBalance">
+                                        <i class="bi bi-plus-circle text-primary me-1"></i> افزودن موجودی اولیه
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    }
 
                     <!-- بخش ثبت موجودی اولیه -->
                     @if (!isEditMode && currentAccount.HasInitialBalance)
                     {
                         <div class="modern-card mb-4">
-                            <div class="card-header" style="background: linear-gradient(135deg, #28a745, #1a7a3a);">
-                                <h6 class="text-white">
+                            <div class="card-header">
+                                <h6 class="text-primary">
                                     <i class="bi bi-wallet2 me-2"></i> ثبت موجودی اولیه
                                 </h6>
                             </div>
                             <div class="card-body">
-                                <!-- لیست موجودی‌های ثبت شده -->
-                                @if (initialBalances.Any())
-                                {
-                                    <div class="table-scroll-wrapper mb-3">
-                                        <GlobalDataGrid class="table-modern table-striped-modern">
-                                            <thead>
-                                                <tr>
-                                                    <th>واحد پولی</th>
-                                                    <th>مقدار</th>
-                                                    <th>نوع</th>
-                                                    <th>توضیحات</th>
-                                                    <th style="min-width:50px;">عملیات</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var item in initialBalances)
-                                                {
-                                                    var currency = currencies.FirstOrDefault(c => c.Id == item.CurrencyId);
-                                                    <tr>
-                                                        <td>@(currency?.Name ?? "نامشخص") (@(currency?.Code ?? ""))</td>
-                                                        <td>@MoneyFormatHelper.Format(item.Amount)</td>
-                                                        <td>
-                                                            <span class="badge-modern @(item.Direction == "Debit" ? "badge-danger" : "badge-success")">
-                                                                @(item.Direction == "Debit" ? "بدهکار" : "بستانکار")
-                                                            </span>
-                                                        </td>
-                                                        <td>@item.Description</td>
-                                                        <td>
-                                                            <button class="action-btn action-btn-delete" @onclick="() => RemoveInitialBalance(item)">
-                                                                <i class="bi bi-trash"></i>
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                            <tfoot>
-                                                <tr>
-                                                    <td colspan="2"><strong>جمع کل</strong></td>
-                                                    <td colspan="3">
-                                                        @{
-                                                            var totalDebit = initialBalances.Where(b => b.Direction == "Debit").Sum(b => b.Amount);
-                                                            var totalCredit = initialBalances.Where(b => b.Direction == "Credit").Sum(b => b.Amount);
-                                                        }
-                                                        <span class="text-danger">بدهکار: @MoneyFormatHelper.Format(totalDebit)</span>
-                                                        |
-                                                        <span class="text-success">بستانکار: @MoneyFormatHelper.Format(totalCredit)</span>
-                                                    </td>
-                                                </tr>
-                                            </tfoot>
-                                        </GlobalDataGrid>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="alert alert-info">هیچ موجودی اولیه‌ای ثبت نشده است.</div>
-                                }
+                                <div class="initial-balance-grid">
+                                    @foreach (var item in initialBalances)
+                                    {
+                                        var itemCurrency = currencies.FirstOrDefault(c => c.Id == item.CurrencyId);
+                                        var itemIsIncomplete = _isBalanceSubmitted && !IsEmptyInitialBalance(item) && !IsCompleteInitialBalance(item);
+                                        <div class="initial-balance-item">
+                                            <div class="initial-balance-controls @(itemIsIncomplete ? "initial-balance-invalid" : string.Empty)">
+                                                <select class="initial-balance-currency" @bind="item.CurrencyId" aria-label="واحد پولی موجودی اولیه">
+                                                    <option value="0">انتخاب ارز</option>
+                                                    @foreach (var currency in currencies)
+                                                    {
+                                                        <option value="@currency.Id">@currency.Name</option>
+                                                    }
+                                                </select>
 
-                                <hr />
+                                                <MoneyInput class="initial-balance-amount-input" @bind-Value="item.Amount" min="0" placeholder="مبلغ" />
 
-                                <!-- فرم افزودن موجودی جدید -->
-                                <div class="row g-3 align-items-end">
-                                    <div class="col-md-3">
-                                        <label class="form-label">واحد پولی <span class="text-danger">*</span></label>
-                                        <select class="form-select @(_isBalanceSubmitted && newInitialBalance.CurrencyId == 0 ? "is-invalid" : "")"
-                                                @bind="newInitialBalance.CurrencyId">
-                                            <option value="0">انتخاب کنید</option>
-                                            @foreach (var currency in currencies)
+                                                <select class="initial-balance-direction @(item.Direction == "Debit" ? "is-debit" : "is-credit")"
+                                                        @bind="item.Direction" aria-label="نوع موجودی اولیه">
+                                                    <option value="Debit">بدهکار</option>
+                                                    <option value="Credit">طلبکار</option>
+                                                </select>
+                                            </div>
+                                            @if (item.Amount > 0)
                                             {
-                                                <option value="@currency.Id">@currency.Name (@currency.Code)</option>
+                                                <small class="initial-balance-words">
+                                                    @DariNumberToWords.ToWords(item.Amount) @(itemCurrency?.Name ?? string.Empty)
+                                                </small>
                                             }
-                                        </select>
-                                        @if (_isBalanceSubmitted && newInitialBalance.CurrencyId == 0)
-                                        {
-                                            <div class="invalid-feedback">واحد پولی را انتخاب کنید</div>
-                                        }
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">مقدار <span class="text-danger">*</span></label>
-                                        <MoneyInput class="@($"form-control {(_isBalanceSubmitted && newInitialBalance.Amount <= 0 ? "is-invalid" : string.Empty)}")"
-                                                    @bind-Value="newInitialBalance.Amount" min="0" />
-                                        @if (_isBalanceSubmitted && newInitialBalance.Amount <= 0)
-                                        {
-                                            <div class="invalid-feedback">مقدار باید بزرگ‌تر از صفر باشد</div>
-                                        }
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label class="form-label">نوع <span class="text-danger">*</span></label>
-                                        <select class="form-select" @bind="newInitialBalance.Direction">
-                                            <option value="Debit">بدهکار</option>
-                                            <option value="Credit">بستانکار</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">توضیحات</label>
-                                        <input type="text" class="form-control" @bind="newInitialBalance.Description" placeholder="اختیاری" />
-                                    </div>
-                                    <div class="col-md-1">
-                                        <button class="btn btn-success-modern btn-modern w-100" @onclick="AddInitialBalance" disabled="@(!CanAddInitialBalance())">
-                                            <i class="bi bi-plus-lg"></i>
-                                        </button>
-                                    </div>
+                                        </div>
+                                    }
                                 </div>
+
+                                <div class="initial-balance-actions">
+                                    <button type="button" class="initial-balance-icon-button initial-balance-delete"
+                                            title="حذف آخرین ارز" aria-label="حذف آخرین ارز"
+                                            disabled="@(initialBalances.Count == 0)"
+                                            @onclick="RemoveLastInitialBalance">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    <button type="button" class="initial-balance-icon-button initial-balance-add"
+                                            title="افزودن ارز دیگر" aria-label="افزودن ارز دیگر"
+                                            @onclick="AddInitialBalanceRow">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                </div>
+
+                                @if (_isBalanceSubmitted && initialBalances.Any(b => !IsEmptyInitialBalance(b) && !IsCompleteInitialBalance(b)))
+                                {
+                                    <small class="text-danger d-block mt-1">ارز و مبلغ بزرگ‌تر از صفر را کامل وارد کنید.</small>
+                                }
                             </div>
                         </div>
                     }
@@ -568,6 +513,7 @@
     private List<AccountDto> filteredAccounts = new();
     private List<CustomerDto> customers = new();
     private List<CorrespondentDto> correspondents = new();
+
     private List<CurrencyDto> currencies = new();
 
     // ===== جستجو و فیلتر =====
@@ -675,10 +621,21 @@
     // ===== DTO جاری =====
     private CreateAccountDto currentAccount = new();
 
+    private IEnumerable<CustomerDto> AvailableCustomers => customers.Where(customer =>
+        !accounts.Any(account =>
+            account.ReferenceType == "Customer" &&
+            account.ReferenceId == customer.Id &&
+            (!isEditMode || account.Id != editId)));
+
+    private IEnumerable<CorrespondentDto> AvailableCorrespondents => correspondents.Where(correspondent =>
+        !accounts.Any(account =>
+            account.ReferenceType == "Correspondent" &&
+            account.ReferenceId == correspondent.Id &&
+            (!isEditMode || account.Id != editId)));
+
     // ===== موجودی‌های اولیه (موقت) =====
     private List<InitialBalanceDto> initialBalances = new();
-    private InitialBalanceDto newInitialBalance = new();
-    private bool _hasInitialBalance;
+    private bool _hasInitialBalance = true;
     private bool _isBalanceSubmitted = false;
 
     private bool HasInitialBalance
@@ -695,6 +652,10 @@
                     initialBalances.Clear();
                     _isBalanceSubmitted = false;
                 }
+                else if (initialBalances.Count == 0)
+                {
+                    initialBalances.Add(new InitialBalanceDto());
+                }
             }
         }
     }
@@ -705,6 +666,7 @@
     {
         await LoadLookupData();
         await LoadAccounts();
+
     }
 
     private async Task LoadLookupData()
@@ -811,45 +773,50 @@
 
     // ========== متدهای مربوط به موجودی اولیه ==========
 
-    private bool CanAddInitialBalance()
+    private static bool IsEmptyInitialBalance(InitialBalanceDto item)
     {
-        return newInitialBalance.CurrencyId > 0 && newInitialBalance.Amount > 0;
+        return item.CurrencyId <= 0 && item.Amount <= 0 && string.IsNullOrWhiteSpace(item.Description);
     }
 
-    private void AddInitialBalance()
+    private static bool IsCompleteInitialBalance(InitialBalanceDto item)
+    {
+        return item.CurrencyId > 0 && item.Amount > 0;
+    }
+
+    private void AddInitialBalanceRow()
     {
         _isBalanceSubmitted = true;
+        validationErrors.RemoveAll(error => error == "این واحد پولی قبلاً ثبت شده است.");
 
-        if (!CanAddInitialBalance())
+        if (initialBalances.Any(item => !IsCompleteInitialBalance(item)))
         {
             StateHasChanged();
             return;
         }
 
-        if (initialBalances.Any(b => b.CurrencyId == newInitialBalance.CurrencyId))
+        if (initialBalances
+            .GroupBy(item => item.CurrencyId)
+            .Any(group => group.Count() > 1))
         {
             validationErrors.Add("این واحد پولی قبلاً ثبت شده است.");
             StateHasChanged();
             return;
         }
 
-        initialBalances.Add(new InitialBalanceDto
-        {
-            CurrencyId = newInitialBalance.CurrencyId,
-            Amount = newInitialBalance.Amount,
-            Direction = newInitialBalance.Direction,
-            Description = newInitialBalance.Description
-        });
-
-        // ریست کردن فرم
-        newInitialBalance = new InitialBalanceDto();
+        initialBalances.Add(new InitialBalanceDto());
         _isBalanceSubmitted = false;
         StateHasChanged();
     }
 
-    private void RemoveInitialBalance(InitialBalanceDto item)
+    private void RemoveLastInitialBalance()
     {
-        initialBalances.Remove(item);
+        if (initialBalances.Count > 0)
+            initialBalances.RemoveAt(initialBalances.Count - 1);
+
+        if (initialBalances.Count == 0 && currentAccount.HasInitialBalance)
+            initialBalances.Add(new InitialBalanceDto());
+
+        _isBalanceSubmitted = false;
         StateHasChanged();
     }
 
@@ -906,8 +873,8 @@
         successMessage = string.Empty;
         showModal = true;
         initialBalances.Clear();
-        newInitialBalance = new InitialBalanceDto();
-        HasInitialBalance = false;
+        _hasInitialBalance = false;
+        HasInitialBalance = true;
         _isBalanceSubmitted = false;
         StateHasChanged();
     }
@@ -976,6 +943,9 @@
     {
         validationErrors.Clear();
         successMessage = string.Empty;
+        var enteredInitialBalances = initialBalances
+            .Where(item => !IsEmptyInitialBalance(item))
+            .ToList();
 
         if (string.IsNullOrWhiteSpace(currentAccount.AccountName))
             validationErrors.Add("نام حساب الزامی است");
@@ -985,11 +955,21 @@
         if (!string.IsNullOrEmpty(currentAccount.ReferenceType) && !currentAccount.ReferenceId.HasValue)
             validationErrors.Add($"لطفاً یک {GetReferenceTypeName(currentAccount.ReferenceType)} انتخاب کنید");
 
-        if (currentAccount.HasInitialBalance && !initialBalances.Any())
+        if (currentAccount.HasInitialBalance && !enteredInitialBalances.Any())
             validationErrors.Add("حداقل یک موجودی اولیه باید ثبت شود");
+
+        if (currentAccount.HasInitialBalance && enteredInitialBalances.Any(item => !IsCompleteInitialBalance(item)))
+            validationErrors.Add("ارز و مبلغ تمام موجودی‌های اولیه را کامل کنید");
+
+        if (currentAccount.HasInitialBalance && enteredInitialBalances
+            .Where(item => item.CurrencyId > 0)
+            .GroupBy(item => item.CurrencyId)
+            .Any(group => group.Count() > 1))
+            validationErrors.Add("هر ارز را فقط یک‌بار در موجودی اولیه وارد کنید");
 
         if (validationErrors.Any())
         {
+            _isBalanceSubmitted = currentAccount.HasInitialBalance;
             StateHasChanged();
             return;
         }
@@ -1016,7 +996,7 @@
             {
                 if (currentAccount.HasInitialBalance)
                 {
-                    currentAccount.InitialBalances = initialBalances.ToList();
+                    currentAccount.InitialBalances = enteredInitialBalances;
                 }
 
                 await AccountService.CreateAsync(currentAccount);

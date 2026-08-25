@@ -1,9 +1,9 @@
 ﻿using AutoMapper;
-using Azure.Core;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace HawalaExchange.Application.Services
@@ -24,70 +24,99 @@ namespace HawalaExchange.Application.Services
 
         public override async Task<AccountDto> CreateAsync(CreateAccountDto createDto)
         {
-            // ۱. تولید کد اگر خالی باشد
-            if (string.IsNullOrWhiteSpace(createDto.AccountCode))
+            await using var transaction = _context.Database.IsRelational() && _context.Database.CurrentTransaction == null
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            try
             {
-                createDto.AccountCode = await GenerateAccountCodeAsync(createDto.AccountType);
-            }
+                if (string.IsNullOrWhiteSpace(createDto.AccountCode))
+                    createDto.AccountCode = await GenerateAccountCodeAsync(createDto.AccountType);
 
-            // ۲. ایجاد یک حساب (فقط یک بار)
-            var entity = _mapper.Map<Account>(createDto);
-            _context.PrepareTenantEntity(entity);
-            entity.CreatedAt = DateTime.UtcNow;
+                var entity = _mapper.Map<Account>(createDto);
+                _context.PrepareTenantEntity(entity);
+                entity.CreatedAt = DateTime.UtcNow;
+                await ValidateCreateAsync(entity, createDto);
 
-            await _dbSet.AddAsync(entity); // ✅ فقط یک بار
-            await _context.SaveChangesAsync();
-
-            // ۳. ثبت موجودی‌های اولیه (همگی به همین حساب متصل می‌شوند)
-            if (createDto.HasInitialBalance && createDto.InitialBalances != null && createDto.InitialBalances.Any())
-            {
-                // ایجاد یک تراکنش از نوع OpeningBalance
-                var openingTransaction = new Transaction
-                {
-                    TransactionNo = await GenerateOpeningTransactionNumberAsync(),
-                    TransactionType = "OpeningBalance",
-                    BranchId = await _context.GetDefaultBranchIdAsync(),
-                    Status = "Paid",
-                    Remarks = $"موجودی اولیه برای حساب {entity.AccountName} (کد: {entity.AccountCode})",
-                    CreatedBy = _context.RequireCurrentUserId(),
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                await _context.Transactions.AddAsync(openingTransaction);
+                await _dbSet.AddAsync(entity);
                 await _context.SaveChangesAsync();
 
-                // ثبت هر موجودی به‌عنوان یک LedgerEntry
-                foreach (var initialBalance in createDto.InitialBalances)
+                if (createDto.HasInitialBalance && createDto.InitialBalances?.Count > 0)
                 {
-                    decimal talabKar = 0, badehKar = 0;
-                    if (initialBalance.Direction == "Debit")
-                        badehKar = initialBalance.Amount;
-                    else if (initialBalance.Direction == "Credit")
-                        talabKar = initialBalance.Amount;
-
-                    var ledgerEntryDto = new CreateLedgerEntryDto
+                    var openingTransaction = new Transaction
                     {
-                        TransactionId = openingTransaction.Id,
-                        AccountId = entity.Id, // ✅ همه به همین حساب متصل می‌شوند
-                        CurrencyId = initialBalance.CurrencyId,
-                        TalabKar = talabKar,
-                        BadehKar = badehKar,
-                        Description = $"موجودی اولیه: {initialBalance.Description ?? "بدون توضیح"}"
+                        TransactionNo = await GenerateOpeningTransactionNumberAsync(),
+                        TransactionType = "OpeningBalance",
+                        BranchId = await _context.GetDefaultBranchIdAsync(),
+                        Status = "Paid",
+                        Remarks = $"موجودی اولیه حساب {entity.AccountName}",
+                        CreatedBy = _context.RequireCurrentUserId(),
+                        CreatedAt = DateTime.UtcNow
                     };
 
-                    await _ledgerService.CreateLedgerEntryAsync(ledgerEntryDto);
+                    await _context.Transactions.AddAsync(openingTransaction);
+                    await _context.SaveChangesAsync();
+
+                    var ledgerEntries = createDto.InitialBalances.Select(initialBalance =>
+                    {
+                        var entry = new LedgerEntry
+                        {
+                            TransactionId = openingTransaction.Id,
+                            AccountId = entity.Id,
+                            CurrencyId = initialBalance.CurrencyId,
+                            TalabKar = initialBalance.Direction == "Credit" ? initialBalance.Amount : 0,
+                            BadehKar = initialBalance.Direction == "Debit" ? initialBalance.Amount : 0,
+                            Description = string.IsNullOrWhiteSpace(initialBalance.Description)
+                                ? "موجودی اولیه"
+                                : $"موجودی اولیه: {initialBalance.Description}",
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.PrepareTenantEntity(entry);
+                        return entry;
+                    }).ToList();
+
+                    await _context.LedgerEntries.AddRangeAsync(ledgerEntries);
+                    await _context.SaveChangesAsync();
+
+                    await _auditLogService.LogAsync("CREATE", "Transactions", openingTransaction.Id, null,
+                        $"موجودی اولیه حساب {entity.AccountName} ثبت شد", _context.RequireCurrentUserId());
                 }
 
-                // ثبت در AuditLog
-                await _auditLogService.LogAsync("CREATE", "Transactions", openingTransaction.Id, null,
-                    $"تراکنش موجودی اولیه برای حساب {entity.AccountName} ایجاد شد", _context.RequireCurrentUserId());
+                await _auditLogService.LogAsync("CREATE", "Accounts", entity.Id, null,
+                    $"حساب {entity.AccountName} ایجاد شد", _context.RequireCurrentUserId());
+
+                if (transaction != null)
+                    await transaction.CommitAsync();
+
+                return _mapper.Map<AccountDto>(entity);
             }
+            catch (DbUpdateException ex)
+            {
+                if (transaction != null)
+                    await transaction.RollbackAsync();
 
-            // ثبت در AuditLog برای حساب
-            await _auditLogService.LogAsync("CREATE", "Accounts", entity.Id, null,
-                $"حساب {entity.AccountName} با کد {entity.AccountCode} ایجاد شد", _context.RequireCurrentUserId());
+                DetachAddedEntities();
 
-            return _mapper.Map<AccountDto>(entity);
+                if (FindSqlException(ex) is { Number: 2601 or 2627 } sqlException)
+                {
+                    if (sqlException.Message.Contains("IX_Accounts_TenantId_CustomerId", StringComparison.Ordinal))
+                        throw new InvalidOperationException(
+                            "این مشتری قبلاً حساب دارد. اگر حساب او بایگانی شده است، آن را از بخش بایگانی‌ها دوباره فعال کنید.", ex);
+
+                    if (sqlException.Message.Contains("IX_Accounts_TenantId_CorrespondentId", StringComparison.Ordinal))
+                        throw new InvalidOperationException(
+                            "این نمایندگی قبلاً حساب دارد. اگر حساب آن بایگانی شده است، آن را از بخش بایگانی‌ها دوباره فعال کنید.", ex);
+                }
+
+                throw new InvalidOperationException(
+                    "حساب ذخیره نشد. لطفاً اطلاعات حساب را بررسی کرده و دوباره تلاش کنید.", ex);
+            }
+            catch
+            {
+                if (transaction != null)
+                    await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task<AccountDto?> GetByAccountCodeAsync(string accountCode)
@@ -164,6 +193,59 @@ namespace HawalaExchange.Application.Services
                 if (await _dbSet.AnyAsync(a => a.AccountCode == dto.AccountCode))
                     throw new InvalidOperationException($"کد حساب '{dto.AccountCode}' قبلاً وجود دارد.");
             }
+
+            await ValidateUniqueOwnerAsync(entity);
+        }
+
+        protected override async Task ValidateUpdateAsync(Account entity, UpdateAccountDto dto)
+        {
+            await ValidateUniqueOwnerAsync(entity, entity.Id);
+        }
+
+        private async Task ValidateUniqueOwnerAsync(Account entity, long? accountIdToExclude = null)
+        {
+            if (entity.CustomerId.HasValue)
+            {
+                var existingAccount = await _dbSet.AsNoTracking().FirstOrDefaultAsync(account =>
+                    account.CustomerId == entity.CustomerId &&
+                    (!accountIdToExclude.HasValue || account.Id != accountIdToExclude.Value));
+                if (existingAccount != null)
+                {
+                    var archiveHint = existingAccount.IsArchived
+                        ? " حساب قبلی در بایگانی است؛ آن را از بخش بایگانی‌ها دوباره فعال کنید."
+                        : string.Empty;
+                    throw new InvalidOperationException($"این مشتری قبلاً حساب «{existingAccount.AccountName}» دارد.{archiveHint}");
+                }
+            }
+
+            if (entity.CorrespondentId.HasValue)
+            {
+                var existingAccount = await _dbSet.AsNoTracking().FirstOrDefaultAsync(account =>
+                    account.CorrespondentId == entity.CorrespondentId &&
+                    (!accountIdToExclude.HasValue || account.Id != accountIdToExclude.Value));
+                if (existingAccount != null)
+                {
+                    var archiveHint = existingAccount.IsArchived
+                        ? " حساب قبلی در بایگانی است؛ آن را از بخش بایگانی‌ها دوباره فعال کنید."
+                        : string.Empty;
+                    throw new InvalidOperationException($"این نمایندگی قبلاً حساب «{existingAccount.AccountName}» دارد.{archiveHint}");
+                }
+            }
+        }
+
+        private static SqlException? FindSqlException(Exception exception)
+        {
+            for (var current = exception; current != null; current = current.InnerException)
+                if (current is SqlException sqlException)
+                    return sqlException;
+
+            return null;
+        }
+
+        private void DetachAddedEntities()
+        {
+            foreach (var entry in _context.ChangeTracker.Entries().Where(entry => entry.State == EntityState.Added))
+                entry.State = EntityState.Detached;
         }
 
         // متد تولید کد خودکار بر اساس نوع حساب

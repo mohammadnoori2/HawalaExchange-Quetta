@@ -326,9 +326,20 @@
                                         <td class="text-muted fw-bold">@receiptIndex</td>
                                         <td class="journal-row-date"><AppDateTime Value="@row.Operation.CreatedAt" ShowSeconds="true" /></td>
                                         <td class="journal-sentence">
-                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetSourceTypeName(row.Operation.SourceType)</span>
-                                            <span>@row.Operation.SummarySentence</span>
-                                            <small class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</small>
+                                            <ul class="journal-description-list">
+                                                @{ var receiptDescriptions = GetOperationDescriptionItems(row.Operation); }
+                                                @for (var descriptionIndex = 0; descriptionIndex < receiptDescriptions.Count; descriptionIndex++)
+                                                {
+                                                    <li>
+                                                        @if (descriptionIndex == 0)
+                                                        {
+                                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetSourceTypeName(row.Operation.SourceType)</span>
+                                                        }
+                                                        <span>@receiptDescriptions[descriptionIndex]</span>
+                                                    </li>
+                                                }
+                                                <li class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</li>
+                                            </ul>
                                         </td>
                                         <td class="journal-movement-amount">
                                             @foreach (var amount in row.Amounts)
@@ -402,9 +413,20 @@
                                         <td class="text-muted fw-bold">@withdrawalIndex</td>
                                         <td class="journal-row-date"><AppDateTime Value="@row.Operation.CreatedAt" ShowSeconds="true" /></td>
                                         <td class="journal-sentence">
-                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetSourceTypeName(row.Operation.SourceType)</span>
-                                            <span>@row.Operation.SummarySentence</span>
-                                            <small class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</small>
+                                            <ul class="journal-description-list">
+                                                @{ var withdrawalDescriptions = GetOperationDescriptionItems(row.Operation); }
+                                                @for (var descriptionIndex = 0; descriptionIndex < withdrawalDescriptions.Count; descriptionIndex++)
+                                                {
+                                                    <li>
+                                                        @if (descriptionIndex == 0)
+                                                        {
+                                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetSourceTypeName(row.Operation.SourceType)</span>
+                                                        }
+                                                        <span>@withdrawalDescriptions[descriptionIndex]</span>
+                                                    </li>
+                                                }
+                                                <li class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</li>
+                                            </ul>
                                         </td>
                                         <td class="journal-movement-amount">
                                             @foreach (var amount in row.Amounts)
@@ -543,7 +565,14 @@
                                     <td dir="ltr" class="text-danger">
                                         @(entry.BadehKar > 0 ? MoneyFormatHelper.Format(entry.BadehKar) : "-")
                                     </td>
-                                    <td>@(entry.Description ?? "-")</td>
+                                    <td>
+                                        <ul class="journal-description-list journal-description-list-compact">
+                                            @foreach (var item in GetDescriptionItems(entry.Description))
+                                            {
+                                                <li>@item</li>
+                                            }
+                                        </ul>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -552,7 +581,12 @@
 
                 <div class="journal-operation-description">
                     <span>شرح مجموعی عملیات</span>
-                    <p>@selectedOperation.Description</p>
+                    <ul class="journal-description-list">
+                        @foreach (var item in GetDescriptionItems(selectedOperation.Description))
+                        {
+                            <li>@item</li>
+                        }
+                    </ul>
                 </div>
             </div>
 
@@ -564,6 +598,39 @@
 }
 
 @code {
+    private static IReadOnlyList<string> GetDescriptionItems(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+            return new[] { "-" };
+
+        var items = System.Text.RegularExpressions.Regex
+            .Split(description.Trim(), @"(?:[؛;]|\r?\n|(?<=[.!؟])\s+)")
+            .Select(item => item.Trim())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct()
+            .ToList();
+
+        return items.Count == 0 ? new[] { "-" } : items;
+    }
+
+    private static IReadOnlyList<string> GetOperationDescriptionItems(JournalOperationDto operation)
+    {
+        var descriptions = new[]
+        {
+            operation.SummarySentence,
+            operation.Description
+        };
+
+        var items = descriptions
+            .Where(description => !string.IsNullOrWhiteSpace(description) && description.Trim() != "-")
+            .SelectMany(GetDescriptionItems)
+            .Where(item => item != "-")
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return items.Count == 0 ? new[] { "-" } : items;
+    }
+
     private DailyJournalDto journal = new();
     private List<JournalOperationDto> filteredOperations = new();
     private JournalOperationDto? selectedOperation;

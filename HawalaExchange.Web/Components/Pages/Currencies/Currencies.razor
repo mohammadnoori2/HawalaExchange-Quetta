@@ -199,7 +199,7 @@
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content currency-entry-modal">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -273,7 +273,12 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-123 text-muted me-1"></i> تعداد اعشار
                                     </label>
-                                    <input type="number" class="form-control" @bind="currentCurrency.DecimalPlaces" min="0" max="8" />
+                                    <input type="text"
+                                           class="form-control currency-decimal-places"
+                                           @bind="DecimalPlacesInput"
+                                           @bind:event="oninput"
+                                           inputmode="numeric"
+                                           maxlength="1" />
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">اولویت پایه نرخ</label>
@@ -415,6 +420,16 @@
     private string? currencyCodeDisplay;
 
     private CreateCurrencyDto currentCurrency = new();
+
+    private string DecimalPlacesInput
+    {
+        get => currentCurrency.DecimalPlaces.ToString();
+        set
+        {
+            var digit = value?.FirstOrDefault(character => character is >= '0' and <= '8') ?? '\0';
+            currentCurrency.DecimalPlaces = digit == '\0' ? 0 : digit - '0';
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

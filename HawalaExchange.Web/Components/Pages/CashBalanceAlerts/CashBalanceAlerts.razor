@@ -146,7 +146,7 @@
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color:rgba(0,0,0,.5)" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content cash-alert-modal-content">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white"><i class="bi bi-bell me-2"></i>@(editingId.HasValue ? "ویرایش هشدار" : "تنظیم هشدار جدید")</h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
@@ -158,7 +158,7 @@
                     }
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">صندوق <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold cash-alert-required-label">صندوق <span class="text-danger">*</span></label>
                             <select class="form-select" @bind="form.AccountId" disabled="@editingId.HasValue">
                                 <option value="0">انتخاب صندوق</option>
                                 @foreach (var account in cashAccounts)
@@ -169,34 +169,38 @@
                             <AccountBalanceSummary AccountId="@form.AccountId" />
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="form.CurrencyId" disabled="@editingId.HasValue">
-                                <option value="0">انتخاب ارز</option>
-                                @foreach (var currency in currencies)
-                                {
-                                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label fw-bold">حداقل موجودی <span class="text-danger">*</span></label>
-                            <MoneyInput class="form-control" @bind-Value="form.MinimumBalance" placeholder="مثلاً 80000" />
+                            <label class="form-label fw-bold cash-alert-required-label">حداقل موجودی و ارز <span class="text-danger">*</span></label>
+                            <div class="cash-alert-money-field">
+                                <select class="cash-alert-money-currency"
+                                        @bind="form.CurrencyId"
+                                        disabled="@editingId.HasValue"
+                                        aria-label="نوع ارز حداقل موجودی">
+                                    <option value="0">انتخاب ارز</option>
+                                    @foreach (var currency in currencies)
+                                    {
+                                        <option value="@currency.Id">@currency.Name</option>
+                                    }
+                                </select>
+                                <MoneyInput class="cash-alert-money-amount"
+                                            @bind-Value="form.MinimumBalance"
+                                            placeholder="مبلغ حداقل" />
+                            </div>
                             <small class="text-muted">اگر موجودی صندوق از این مبلغ کمتر شود، هشدار نمایش داده می‌شود.</small>
                         </div>
                         <div class="col-md-6">
-                            <div class="form-check form-switch mt-2">
+                            <div class="form-check form-switch mt-2 cash-alert-switch">
                                 <input class="form-check-input" type="checkbox" id="alert-active" @bind="form.IsActive" />
                                 <label class="form-check-label" for="alert-active">هشدار فعال باشد</label>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="form-check form-switch mt-2">
+                            <div class="form-check form-switch mt-2 cash-alert-switch">
                                 <input class="form-check-input" type="checkbox" id="alert-in-app" @bind="form.ShowInApp" />
                                 <label class="form-check-label" for="alert-in-app">داخل برنامه نمایش داده شود</label>
                             </div>
                         </div>
                         <div class="col-12">
-                            <div class="form-check form-switch">
+                            <div class="form-check form-switch cash-alert-switch">
                                 <input class="form-check-input" type="checkbox" id="notify-all" @bind="form.NotifyAllUsers" />
                                 <label class="form-check-label fw-bold" for="notify-all">به همه کاربران این صرافی نشان داده شود</label>
                             </div>
@@ -220,9 +224,9 @@
                         }
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" @onclick="CloseModal">انصراف</button>
-                    <button type="button" class="btn btn-primary" disabled="@isSaving" @onclick="Save">
+                <div class="modal-footer cash-alert-modal-footer">
+                    <button type="button" class="btn btn-light cash-alert-footer-button" @onclick="CloseModal">انصراف</button>
+                    <button type="button" class="btn btn-primary cash-alert-footer-button" disabled="@isSaving" @onclick="Save">
                         @(isSaving ? "در حال ذخیره..." : "ذخیره")
                     </button>
                 </div>

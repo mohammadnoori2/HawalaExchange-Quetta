@@ -17,7 +17,7 @@
          style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
          dir="rtl">
         <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content money-exchange-modal">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -76,7 +76,7 @@
 
                             <div class="card-body">
                                 <div class="row mb-3">
-                                    <div class="col-md-3">
+                                    <div class="col-md-6">
                                         <label class="form-label fw-bold">مالک پول</label>
                                         <select class="form-select"
                                                 value="@CurrentExchange.OperationType"
@@ -86,7 +86,7 @@
                                         </select>
                                         <small class="text-muted">در تبدیل مشتری، گردش ارز در حساب مشتری و مفاد حاصل در حساب مفاد تبدیل ثبت می‌شود.</small>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-6">
                                         <label class="form-label fw-bold">گزینه خرید و فروش</label>
                                         <select class="form-select"
                                                 value="@TradeOption"
@@ -96,20 +96,6 @@
                                         </select>
                                         <small class="text-muted">@TradeOptionHelp</small>
                                     </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label fw-bold">ارز اصلی مفاد و ضرر</label>
-                                        <div class="form-control bg-light">
-                                            @ProfitCurrencyDisplay
-                                        </div>
-                                        <small class="text-muted">از تنظیمات شرکت به‌صورت خودکار انتخاب شده است.</small>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label fw-bold">روش محاسبه مبلغ</label>
-                                        <div class="alert alert-light border mb-0 py-2">
-                                            نرخ تبدیل و یکی از مبلغ‌های پرداختی یا دریافتی را وارد کنید؛ مبلغ مقابل خودکار محاسبه می‌شود.
-                                        </div>
-                                    </div>
-
                                     <div class="col-md-6 mt-3">
                                         <label class="form-label fw-bold">تاریخ و زمان تبدیل</label>
 
@@ -140,9 +126,10 @@
                                                     حساب ارز فروش <span class="text-danger">*</span>
                                                 </label>
 
-                                                <AccountSearchSelect Accounts="@AvailableAccounts"
-                                                                     @bind-Value="CurrentExchange.FromAccountId"
-                                                                     Placeholder="جستجوی حساب ارز فروش..." />
+                                                 <AccountSearchSelect Accounts="@AvailableAccounts"
+                                                                      @bind-Value="CurrentExchange.FromAccountId"
+                                                                      ShowAccountCode="false"
+                                                                      Placeholder="جستجوی حساب ارز فروش..." />
                                             </div>
 
                                             <div class="mb-3">
@@ -159,7 +146,7 @@
                                                         @foreach (var currency in CurrenciesList)
                                                         {
                                                             <option value="@currency.Id">
-                                                                @currency.Code - @currency.Name
+                                                                @currency.Name
                                                             </option>
                                                         }
                                                     }
@@ -197,9 +184,10 @@
                                                     حساب ارز خرید <span class="text-danger">*</span>
                                                 </label>
 
-                                                <AccountSearchSelect Accounts="@AvailableAccounts"
-                                                                     @bind-Value="CurrentExchange.ToAccountId"
-                                                                     Placeholder="جستجوی حساب ارز خرید..." />
+                                                 <AccountSearchSelect Accounts="@AvailableAccounts"
+                                                                      @bind-Value="CurrentExchange.ToAccountId"
+                                                                      ShowAccountCode="false"
+                                                                      Placeholder="جستجوی حساب ارز خرید..." />
                                             </div>
 
                                             <div class="mb-3">
@@ -216,7 +204,7 @@
                                                         @foreach (var currency in CurrenciesList)
                                                         {
                                                             <option value="@currency.Id">
-                                                                @currency.Code - @currency.Name
+                                                                @currency.Name
                                                             </option>
                                                         }
                                                     }
@@ -348,7 +336,6 @@
     private bool IsLoading { get; set; } = false;
     private bool IsDataLoading { get; set; } = true;
     private long DefaultProfitCurrencyId { get; set; }
-    private string DefaultProfitCurrencyCode { get; set; } = string.Empty;
 
     private DateTime ExchangeDateLocal { get; set; } = DateTime.Now;
     private AmountInputSource LastEditedAmount { get; set; } = AmountInputSource.From;
@@ -361,12 +348,6 @@
         CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.FromCurrencyId)?.DecimalPlaces ?? 2;
     private int ToAmountDecimalPlaces =>
         CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.ToCurrencyId)?.DecimalPlaces ?? 2;
-    private string ProfitCurrencyDisplay =>
-        CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.ProfitCurrencyId) is { } currency
-            ? $"{currency.Code} - {currency.Name}"
-            : string.IsNullOrWhiteSpace(DefaultProfitCurrencyCode)
-                ? "در تنظیمات مشخص نشده است"
-                : DefaultProfitCurrencyCode;
     private string LedgerExplanation =>
         CurrentExchange.OperationType == "Customer"
             ? "برای مشتری، ارز خرید طلبکار و ارز فروش بدهکار است؛ مفاد فقط در حساب مفاد تبدیل پول ثبت می‌شود."
@@ -464,12 +445,10 @@
         {
             var companySetting = await CompanySettingService.GetAsync();
             DefaultProfitCurrencyId = companySetting.DefaultProfitCurrencyId ?? 0;
-            DefaultProfitCurrencyCode = companySetting.DefaultProfitCurrencyCode;
         }
         catch (Exception ex)
         {
             DefaultProfitCurrencyId = 0;
-            DefaultProfitCurrencyCode = string.Empty;
             ValidationErrors.Add($"خطا در بارگذاری ارز اصلی مفاد و ضرر: {ex.Message}");
         }
     }

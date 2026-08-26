@@ -265,7 +265,7 @@
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content user-entry-modal">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -336,19 +336,6 @@
                                 </div>
                             </div>
 
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">نقش <span class="text-danger">*</span></label>
-                                    <select class="form-select" @bind="currentUser.Role">
-                                        <option value="">انتخاب نقش</option>
-                                        <option value="Admin">مدیر</option>
-                                        <option value="Manager">سرپرست</option>
-                                        <option value="Cashier">صندوقدار</option>
-                                        <option value="Supervisor">ناظر</option>
-                                    </select>
-                                </div>
-                            </div>
-
                             @if (!isEditMode)
                             {
                                 <div class="row">
@@ -375,6 +362,19 @@
                                     <small>برای تغییر رمز عبور، از گزینه «بازنشانی رمز عبور» در بخش مدیریت کاربران استفاده کنید.</small>
                                 </div>
                             }
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">نقش <span class="text-danger">*</span></label>
+                                    <select class="form-select" @bind="currentUser.Role">
+                                        <option value="">انتخاب نقش</option>
+                                        <option value="Admin">مدیر</option>
+                                        <option value="Manager">سرپرست</option>
+                                        <option value="Cashier">صندوقدار</option>
+                                        <option value="Supervisor">ناظر</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -441,7 +441,7 @@
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
+            <div class="modal-content user-entry-modal">
                 <div class="modal-header" style="background: linear-gradient(135deg, #6f42c1, #5a32a3);">
                     <h5 class="modal-title text-white">
                         <i class="bi bi-key me-2"></i> بازنشانی رمز عبور

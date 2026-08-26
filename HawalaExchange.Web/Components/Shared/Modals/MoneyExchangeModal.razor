@@ -21,7 +21,7 @@
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
-                        @(IsEditMode ? "ویرایش تبدیل پول" : "ثبت تبدیل پول جدید")
+                        @(IsEditMode ? "ویرایش تبادله" : "ایجاد تبادله جدید")
                     </h5>
 
                     <button type="button"
@@ -99,9 +99,11 @@
                                     <div class="col-md-6 mt-3">
                                         <label class="form-label fw-bold">تاریخ و زمان تبدیل</label>
 
-                                        <PersianDatePicker @bind-Value="ExchangeDateLocal"
-                                                           IncludeTime="true"
-                                                           Placeholder="انتخاب تاریخ شمسی" />
+                                        <div class="money-exchange-date-field">
+                                            <PersianDatePicker @bind-Value="ExchangeDateLocal"
+                                                               IncludeTime="true"
+                                                               Placeholder="انتخاب تاریخ شمسی" />
+                                        </div>
                                     </div>
 
                                     <div class="col-md-6 mt-3">
@@ -132,41 +134,40 @@
                                                                       Placeholder="جستجوی حساب ارز فروش..." />
                                             </div>
 
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold">
-                                                    ارز فروش <span class="text-danger">*</span>
-                                                </label>
-
-                                                <select class="form-select"
-                                                        value="@CurrentExchange.FromCurrencyId"
-                                                        @onchange="OnFromCurrencyChanged">
-                                                    <option value="0">انتخاب ارز</option>
-                                                    @if (CurrenciesList != null && CurrenciesList.Any())
-                                                    {
-                                                        @foreach (var currency in CurrenciesList)
-                                                        {
-                                                            <option value="@currency.Id">
-                                                                @currency.Name
-                                                            </option>
-                                                        }
-                                                    }
-                                                    else
-                                                    {
-                                                        <option value="0" disabled>هیچ ارزی یافت نشد</option>
-                                                    }
-                                                </select>
-                                            </div>
-
                                             <div class="mb-0">
                                                 <label class="form-label fw-bold">
-                                                    مبلغ پرداختی (ارز فروش) <span class="text-danger">*</span>
+                                                    ارز فروش و مبلغ پرداختی <span class="text-danger">*</span>
                                                 </label>
 
-                                                <MoneyInput class="form-control"
-                                                            DecimalPlaces="@FromAmountDecimalPlaces"
-                                                            Value="CurrentExchange.FromAmount"
-                                                            ValueChanged="OnFromAmountChanged"
-                                                            placeholder="مثلاً 7,000" />
+                                                <div class="money-exchange-amount-field">
+                                                    <select class="money-exchange-amount-currency"
+                                                            value="@CurrentExchange.FromCurrencyId"
+                                                            @onchange="OnFromCurrencyChanged">
+                                                        <option value="0">انتخاب ارز</option>
+                                                        @if (CurrenciesList != null && CurrenciesList.Any())
+                                                        {
+                                                            @foreach (var currency in CurrenciesList)
+                                                            {
+                                                                <option value="@currency.Id">@currency.Name</option>
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <option value="0" disabled>هیچ ارزی یافت نشد</option>
+                                                        }
+                                                    </select>
+                                                    <MoneyInput class="money-exchange-amount-input"
+                                                                DecimalPlaces="@FromAmountDecimalPlaces"
+                                                                Value="CurrentExchange.FromAmount"
+                                                                ValueChanged="OnFromAmountChanged"
+                                                                placeholder="مثلاً 7,000" />
+                                                </div>
+                                                @if (CurrentExchange.FromAmount > 0)
+                                                {
+                                                    <small class="money-exchange-amount-words">
+                                                        @DariNumberToWords.ToWords(CurrentExchange.FromAmount) @GetCurrencyName(CurrentExchange.FromCurrencyId)
+                                                    </small>
+                                                }
                                                 <small class="text-muted">قابل ویرایش است؛ مبلغ دریافتی با نرخ تبدیل خودکار به‌روزرسانی می‌شود.</small>
                                             </div>
                                         </div>
@@ -190,41 +191,40 @@
                                                                       Placeholder="جستجوی حساب ارز خرید..." />
                                             </div>
 
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold">
-                                                    ارز خرید <span class="text-danger">*</span>
-                                                </label>
-
-                                                <select class="form-select"
-                                                        value="@CurrentExchange.ToCurrencyId"
-                                                        @onchange="OnToCurrencyChanged">
-                                                    <option value="0">انتخاب ارز</option>
-                                                    @if (CurrenciesList != null && CurrenciesList.Any())
-                                                    {
-                                                        @foreach (var currency in CurrenciesList)
-                                                        {
-                                                            <option value="@currency.Id">
-                                                                @currency.Name
-                                                            </option>
-                                                        }
-                                                    }
-                                                    else
-                                                    {
-                                                        <option value="0" disabled>هیچ ارزی یافت نشد</option>
-                                                    }
-                                                </select>
-                                            </div>
-
                                             <div class="mb-0">
                                                 <label class="form-label fw-bold">
-                                                    مبلغ دریافتی (ارز خرید) <span class="text-danger">*</span>
+                                                    ارز خرید و مبلغ دریافتی <span class="text-danger">*</span>
                                                 </label>
 
-                                                <MoneyInput class="form-control"
-                                                            DecimalPlaces="@ToAmountDecimalPlaces"
-                                                            Value="CurrentExchange.ToAmount"
-                                                            ValueChanged="OnToAmountChanged"
-                                                            placeholder="مثلاً 100" />
+                                                <div class="money-exchange-amount-field">
+                                                    <select class="money-exchange-amount-currency"
+                                                            value="@CurrentExchange.ToCurrencyId"
+                                                            @onchange="OnToCurrencyChanged">
+                                                        <option value="0">انتخاب ارز</option>
+                                                        @if (CurrenciesList != null && CurrenciesList.Any())
+                                                        {
+                                                            @foreach (var currency in CurrenciesList)
+                                                            {
+                                                                <option value="@currency.Id">@currency.Name</option>
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <option value="0" disabled>هیچ ارزی یافت نشد</option>
+                                                        }
+                                                    </select>
+                                                    <MoneyInput class="money-exchange-amount-input"
+                                                                DecimalPlaces="@ToAmountDecimalPlaces"
+                                                                Value="CurrentExchange.ToAmount"
+                                                                ValueChanged="OnToAmountChanged"
+                                                                placeholder="مثلاً 100" />
+                                                </div>
+                                                @if (CurrentExchange.ToAmount > 0)
+                                                {
+                                                    <small class="money-exchange-amount-words">
+                                                        @DariNumberToWords.ToWords(CurrentExchange.ToAmount) @GetCurrencyName(CurrentExchange.ToCurrencyId)
+                                                    </small>
+                                                }
                                                 <small class="text-muted">قابل ویرایش است؛ مبلغ پرداختی با نرخ تبدیل خودکار به‌روزرسانی می‌شود.</small>
                                             </div>
                                         </div>
@@ -718,7 +718,7 @@
             CurrentExchange.FromAmount = AmountValueHelper.RoundConvertedAmount(result.ToAmount);
         }
 
-        RateMeaning = $"1 {result.BaseCurrencyCode} = {MoneyFormatHelper.Format(CurrentExchange.ExchangeRate)} {result.QuoteCurrencyCode}";
+        RateMeaning = $"۱ {GetCurrencyName(result.BaseCurrencyId)} برابر است با {MoneyFormatHelper.Format(CurrentExchange.ExchangeRate)} {GetCurrencyName(result.QuoteCurrencyId)}";
     }
 
     private void ClearCalculatedAmount()
@@ -742,6 +742,9 @@
     }
 
     // ===== توابع کمکی =====
+
+    private string GetCurrencyName(long currencyId) =>
+        CurrenciesList.FirstOrDefault(currency => currency.Id == currencyId)?.Name ?? string.Empty;
 
     private string GetAccountTypeName(string? type) => AppDisplayText.AccountType(type);
 }

@@ -122,29 +122,6 @@
 
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">
-                                            تاریخ و زمان
-                                        </label>
-
-                                        <div class="deposit-withdraw-date-field">
-                                            <PersianDatePicker @bind-Value="OperationDateLocal"
-                                                               IncludeTime="true"
-                                                               Placeholder="انتخاب تاریخ شمسی" />
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label fw-bold">
-                                            توضیحات
-                                        </label>
-
-                                        <input type="text"
-                                               class="form-control"
-                                               @bind="CurrentOperation.Description"
-                                               placeholder="توضیحات اضافی" />
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label fw-bold">
                                             حساب انتخاب‌شده <span class="text-danger">*</span>
                                         </label>
 
@@ -171,6 +148,29 @@
                                         <small class="text-muted">
                                             حساب صندوق یا بانک را انتخاب کنید.
                                         </small>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">
+                                            تاریخ و زمان
+                                        </label>
+
+                                        <div class="deposit-withdraw-date-field">
+                                            <PersianDatePicker @bind-Value="OperationDateLocal"
+                                                               IncludeTime="true"
+                                                               Placeholder="انتخاب تاریخ شمسی" />
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label fw-bold">
+                                            توضیحات
+                                        </label>
+
+                                        <input type="text"
+                                               class="form-control"
+                                               @bind="CurrentOperation.Description"
+                                               placeholder="توضیحات اضافی" />
                                     </div>
                                 </div>
 

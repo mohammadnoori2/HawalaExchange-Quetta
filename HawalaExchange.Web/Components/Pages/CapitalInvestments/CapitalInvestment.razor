@@ -176,7 +176,7 @@
          style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
          dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content capital-investment-modal">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -211,7 +211,7 @@
 
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         ارز <span class="text-danger">*</span>
                                     </label>
@@ -222,13 +222,13 @@
                                         @foreach (var currency in currencies)
                                         {
                                             <option value="@currency.Id">
-                                                @currency.Code - @currency.Name
+                                                @currency.Name
                                             </option>
                                         }
                                     </select>
                                 </div>
 
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         مبلغ سرمایه <span class="text-danger">*</span>
                                     </label>
@@ -238,7 +238,7 @@
                                                 placeholder="مثلاً 100,000" />
                                 </div>
 
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         ارز محاسبه مفاد <span class="text-danger">*</span>
                                     </label>
@@ -246,12 +246,12 @@
                                         <option value="0">انتخاب ارز</option>
                                         @foreach (var currency in currencies)
                                         {
-                                            <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                            <option value="@currency.Id">@currency.Name</option>
                                         }
                                     </select>
                                 </div>
 
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         ارزش افتتاحیه <span class="text-danger">*</span>
                                     </label>
@@ -261,33 +261,35 @@
                                     <small class="text-muted">بهای توافقی سرمایه در ارز محاسبه مفاد</small>
                                 </div>
 
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         حساب دریافت‌کننده <span class="text-danger">*</span>
                                     </label>
 
-                                    <AccountSearchSelect Accounts="@receivingAccounts"
-                                                         @bind-Value="model.ReceivingAccountId"
-                                                         Placeholder="جستجوی حساب دریافت‌کننده..." />
+                                     <AccountSearchSelect Accounts="@receivingAccounts"
+                                                          @bind-Value="model.ReceivingAccountId"
+                                                          ShowAccountCode="false"
+                                                          Placeholder="جستجوی حساب دریافت‌کننده..." />
 
-                                    <small class="text-muted">معمولاً Cash یا Bank</small>
+                                    <small class="text-muted">معمولاً صندوق یا حساب بانکی</small>
                                 </div>
 
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         حساب سرمایه <span class="text-danger">*</span>
                                     </label>
 
-                                    <AccountSearchSelect Accounts="@capitalAccounts"
-                                                         @bind-Value="model.CapitalAccountId"
-                                                         Placeholder="جستجوی حساب سرمایه..." />
+                                     <AccountSearchSelect Accounts="@capitalAccounts"
+                                                          @bind-Value="model.CapitalAccountId"
+                                                          ShowAccountCode="false"
+                                                          Placeholder="جستجوی حساب سرمایه..." />
 
-                                    <small class="text-muted">معمولاً Owner Capital</small>
+                                    <small class="text-muted">معمولاً حساب سرمایه مالک</small>
                                 </div>
                             </div>
 
                             <div class="row">
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         تاریخ و زمان
                                     </label>
@@ -297,7 +299,7 @@
                                                        Placeholder="انتخاب تاریخ شمسی" />
                                 </div>
 
-                                <div class="col-md-8 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         توضیحات
                                     </label>
@@ -316,10 +318,6 @@
                                     حساب دریافت‌کننده بدهکار می‌شود و حساب سرمایه طلبکار می‌شود.
                                 </div>
 
-                                <div class="mt-2" dir="ltr">
-                                    Receiving Account: TalabKar |
-                                    Capital Account: BadehKar
-                                </div>
                             </div>
                         </div>
                     </div>

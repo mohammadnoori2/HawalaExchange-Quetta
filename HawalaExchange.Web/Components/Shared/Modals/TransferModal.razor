@@ -59,20 +59,25 @@
                                                       Placeholder="جستجوی حساب مقصد..." />
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
-                                <select class="form-select" @bind="CurrentTransfer.CurrencyId">
-                                    <option value="0">انتخاب ارز</option>
-                                    @foreach (var currency in Currencies)
-                                    {
-                                        <option value="@currency.Id">@currency.Name</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">مبلغ <span class="text-danger">*</span></label>
-                                <MoneyInput class="form-control"
-                                            @bind-Value="CurrentTransfer.Amount"
-                                            placeholder="مبلغ انتقال" />
+                                <label class="form-label fw-bold">مبلغ و ارز <span class="text-danger">*</span></label>
+                                <div class="transfer-money-field">
+                                    <select class="transfer-money-currency" @bind="CurrentTransfer.CurrencyId">
+                                        <option value="0">انتخاب ارز</option>
+                                        @foreach (var currency in Currencies)
+                                        {
+                                            <option value="@currency.Id">@currency.Name</option>
+                                        }
+                                    </select>
+                                    <MoneyInput class="transfer-money-amount"
+                                                @bind-Value="CurrentTransfer.Amount"
+                                                placeholder="مبلغ انتقال" />
+                                </div>
+                                @if (CurrentTransfer.Amount > 0)
+                                {
+                                    <small class="transfer-money-words">
+                                        @DariNumberToWords.ToWords(CurrentTransfer.Amount) @GetCurrencyName(CurrentTransfer.CurrencyId)
+                                    </small>
+                                }
                             </div>
                             @if (RequiresCostBasis)
                             {
@@ -300,6 +305,9 @@
     private static bool IsCorrespondent(AccountDto? account) =>
         account != null && (string.Equals(account.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(account.ReferenceType, "Correspondent", StringComparison.OrdinalIgnoreCase));
+
+    private string GetCurrencyName(long currencyId) =>
+        Currencies.FirstOrDefault(currency => currency.Id == currencyId)?.Name ?? string.Empty;
 
     private async Task CloseAsync()
     {

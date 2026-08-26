@@ -278,23 +278,25 @@
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-coin text-muted me-1"></i> ارز <span class="text-danger">*</span>
+                                        <i class="bi bi-coin text-muted me-1"></i> مبلغ و ارز <span class="text-danger">*</span>
                                     </label>
-                                    <select class="form-select"
-                                            @bind="currentTransfer.CurrencyId">
-                                        <option value="0">انتخاب ارز</option>
-                                        @foreach (var currency in currencies)
-                                        {
-                                            <option value="@currency.Id">@currency.Name</option>
-                                        }
-                                    </select>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ <span class="text-danger">*</span>
-                                    </label>
-                                    <MoneyInput class="form-control"
-                                                @bind-Value="currentTransfer.Amount" placeholder="مبلغ انتقال" />
+                                    <div class="transfer-money-field">
+                                        <select class="transfer-money-currency" @bind="currentTransfer.CurrencyId">
+                                            <option value="0">انتخاب ارز</option>
+                                            @foreach (var currency in currencies)
+                                            {
+                                                <option value="@currency.Id">@currency.Name</option>
+                                            }
+                                        </select>
+                                        <MoneyInput class="transfer-money-amount"
+                                                    @bind-Value="currentTransfer.Amount" placeholder="مبلغ انتقال" />
+                                    </div>
+                                    @if (currentTransfer.Amount > 0)
+                                    {
+                                        <small class="transfer-money-words">
+                                            @DariNumberToWords.ToWords(currentTransfer.Amount) @GetCurrencyName(currentTransfer.CurrencyId)
+                                        </small>
+                                    }
                                 </div>
                                 @if (RequiresCostBasis)
                                 {
@@ -767,6 +769,9 @@
     }
 
     private string GetTransferMethodName(string method) => AppDisplayText.TransferMethod(method);
+
+    private string GetCurrencyName(long currencyId) =>
+        currencies.FirstOrDefault(currency => currency.Id == currencyId)?.Name ?? string.Empty;
 
     private static bool IsCorrespondent(AccountDto? account) =>
         account != null && (string.Equals(account.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase) ||

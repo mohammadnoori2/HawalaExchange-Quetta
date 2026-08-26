@@ -164,8 +164,8 @@
 @if (showModal)
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
-        <div class="modal-dialog modal-md modal-dialog-centered">
-            <div class="modal-content">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content payment-location-entry-modal">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -186,31 +186,25 @@
                         </div>
                     }
 
-                    <div class="row">
-                        <div class="col-12 mb-3">
+                    <div class="row g-3">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">نمایندگی <span class="text-danger">*</span></label>
                             <select class="form-select" @bind="currentLocation.CorrespondentId">
                                 <option value="">انتخاب نمایندگی</option>
                                 @foreach (var correspondent in availableCorrespondents)
                                 {
-                                    <option value="@correspondent.Id">@correspondent.Name (@correspondent.Code)</option>
+                                    <option value="@correspondent.Id">@correspondent.Name</option>
                                 }
                             </select>
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-12 mb-3">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">نام محل <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" @bind="currentLocation.Name" placeholder="مثال: دفتر مرکزی" />
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-12 mb-3">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">آدرس <span class="text-danger">*</span></label>
                             <textarea class="form-control" @bind="currentLocation.Address" rows="2" placeholder="آدرس کامل"></textarea>
                         </div>
-                    </div>
-                    <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">تلفن</label>
                             <input type="text" class="form-control" @bind="currentLocation.Phone" placeholder="شماره تلفن" />
@@ -219,12 +213,12 @@
                             <label class="form-label fw-bold">مسئول</label>
                             <input type="text" class="form-control" @bind="currentLocation.ContactPerson" placeholder="نام مسئول" />
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-12 mb-3">
-                            <div class="form-check form-switch">
+                        <div class="col-md-6 mb-3 d-flex align-items-end">
+                            <div class="form-check form-switch payment-location-status-toggle">
                                 <input class="form-check-input" type="checkbox" id="isActive" @bind="currentLocation.IsActive" />
-                                <label class="form-check-label" for="isActive">فعال</label>
+                                <label class="form-check-label" for="isActive">
+                                    @(currentLocation.IsActive ? "فعال" : "غیرفعال")
+                                </label>
                             </div>
                         </div>
                     </div>

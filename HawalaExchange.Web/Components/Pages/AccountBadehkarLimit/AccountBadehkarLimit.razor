@@ -246,7 +246,7 @@
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content debt-limit-modal-content">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -284,7 +284,7 @@
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
+                                    <label class="form-label fw-bold debt-limit-required-label">
                                         <i class="bi bi-person-badge text-muted me-1"></i> حساب <span class="text-danger">*</span>
                                     </label>
                                     @if (isEditMode)
@@ -300,36 +300,25 @@
                                     }
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-coin text-muted me-1"></i> ارز <span class="text-danger">*</span>
+                                    <label class="form-label fw-bold debt-limit-required-label">
+                                        <i class="bi bi-credit-card text-muted me-1"></i> مبلغ سقف بدهکاری و ارز <span class="text-danger">*</span>
                                     </label>
-                                    @if (isEditMode)
-                                    {
-                                        <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentLimit.CurrencyId)?.Code ?? "نامشخص")" disabled readonly />
-                                        <small class="text-muted">ارز قابل تغییر نیست</small>
-                                    }
-                                    else
-                                    {
-                                        <select class="form-select"
-                                                @bind="currentLimit.CurrencyId">
+                                    <div class="debt-limit-money-field">
+                                        <select class="debt-limit-money-currency"
+                                                @bind="currentLimit.CurrencyId"
+                                                disabled="@isEditMode"
+                                                aria-label="نوع ارز سقف بدهکاری">
                                             <option value="0">انتخاب ارز</option>
                                             @foreach (var currency in currencies)
                                             {
-                                                <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                                <option value="@currency.Id">@currency.Name</option>
                                             }
                                         </select>
-                                    }
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-12 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-credit-card text-muted me-1"></i> سقف بدهکاری <span class="text-danger">*</span>
-                                    </label>
-                                    <MoneyInput class="form-control"
-                                                @bind-Value="currentLimit.BadehkarLimit" placeholder="مقدار سقف را وارد کنید" />
-                                    <small class="text-muted">مقدار صفر یعنی این حساب اجازه بدهکار شدن ندارد.</small>
+                                        <MoneyInput class="debt-limit-money-amount"
+                                                    @bind-Value="currentLimit.BadehkarLimit"
+                                                    placeholder="مبلغ سقف" />
+                                    </div>
+                                    <small class="text-muted">@(isEditMode ? "ارز قابل تغییر نیست. " : string.Empty)مقدار صفر یعنی این حساب اجازه بدهکار شدن ندارد.</small>
                                 </div>
                             </div>
                         </div>
@@ -339,7 +328,7 @@
                     {
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i>
-                            <small>در حال ویرایش محدودیت برای حساب: <strong>@(accounts.FirstOrDefault(a => a.Id == currentLimit.AccountId)?.AccountName ?? "نامشخص")</strong> و ارز: <strong>@(currencies.FirstOrDefault(c => c.Id == currentLimit.CurrencyId)?.Code ?? "نامشخص")</strong></small>
+                            <small>در حال ویرایش محدودیت برای حساب: <strong>@(accounts.FirstOrDefault(a => a.Id == currentLimit.AccountId)?.AccountName ?? "نامشخص")</strong> و ارز: <strong>@(currencies.FirstOrDefault(c => c.Id == currentLimit.CurrencyId)?.Name ?? "نامشخص")</strong></small>
                         </div>
                     }
                 </div>

@@ -1,0 +1,90 @@
+/* Commercial compact density: at browser 100%, it approximates the previous 80% view. */
+@media (min-width: 769px) {
+    html {
+        font-size: clamp(12.5px, 0.7vw, 14px);
+    }
+}
+
+body {
+    font-family: var(--ui-font-family);
+    font-size: var(--ui-font-size);
+    line-height: var(--ui-line-height);
+}
+
+.page-wrapper,
+.dashboard-wrapper {
+    padding: var(--ui-page-block) var(--ui-page-inline) calc(var(--ui-page-block) * 1.5) !important;
+}
+
+.modern-card,
+.table-card,
+.app-page-header,
+.compact-filter-bar {
+    border-radius: var(--ui-radius-md) !important;
+}
+
+.form-control:not(textarea),
+.form-select,
+.btn-modern,
+.btn-rounded,
+.compact-quick-filter {
+    min-height: var(--ui-control-height);
+}
+
+.form-control,
+.form-select {
+    padding-block: clamp(0.28rem, 0.22rem + 0.1vw, 0.42rem);
+    font-size: 0.86rem;
+}
+
+.btn,
+.btn-modern {
+    font-size: 0.84rem;
+}
+
+.table-modern thead th,
+.table-modern tbody td,
+[data-global-grid="true"] th,
+[data-global-grid="true"] td {
+    padding-block: clamp(0.38rem, 0.3rem + 0.14vw, 0.55rem) !important;
+    padding-inline: clamp(0.42rem, 0.32rem + 0.18vw, 0.65rem) !important;
+    font-size: 0.8rem;
+}
+
+.modal-dialog {
+    --bs-modal-width: min(92vw, 58rem);
+}
+
+.modal-header,
+.modal-footer {
+    padding: var(--ui-space-3) var(--ui-space-4);
+}
+
+.modal-body {
+    padding: var(--ui-space-4);
+}
+
+@media (max-width: 768px) {
+    html {
+        font-size: 16px;
+    }
+
+    :root {
+        --ui-page-inline: clamp(0.4rem, 2.2vw, 0.75rem);
+        --ui-page-block: clamp(3.75rem, 12vw, 4.5rem);
+    }
+
+    body {
+        font-size: 0.875rem;
+    }
+
+    .page-wrapper,
+    .dashboard-wrapper {
+        padding-top: var(--ui-page-block) !important;
+    }
+
+    .modal-dialog {
+        width: calc(100% - 1rem);
+        margin: 0.5rem auto;
+    }
+}

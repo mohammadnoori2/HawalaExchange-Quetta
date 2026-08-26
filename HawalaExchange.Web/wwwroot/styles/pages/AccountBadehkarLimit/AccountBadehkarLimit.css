@@ -1,0 +1,69 @@
+.debt-limit-required-label {
+    display: inline-flex !important;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: .25rem;
+    white-space: nowrap;
+}
+
+.debt-limit-required-label .text-danger {
+    display: inline-block !important;
+    flex: 0 0 auto;
+    margin: 0 !important;
+    line-height: 1;
+}
+
+.debt-limit-money-field {
+    display: grid;
+    grid-template-columns: minmax(105px, .9fr) minmax(130px, 1.1fr);
+    overflow: hidden;
+    border: 1px solid var(--border-color, #cbd5e1);
+    border-radius: .35rem;
+    background: var(--card-bg, #fff);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.debt-limit-money-field:focus-within {
+    border-color: var(--primary-color, #2563eb);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #2563eb) 12%, transparent);
+}
+
+.debt-limit-money-currency {
+    min-width: 0;
+    height: var(--compact-financial-control-height, 34px);
+    padding: .25rem .45rem;
+    border: 0;
+    border-left: 1px solid var(--border-color, #e2e8f0);
+    background: transparent;
+    color: var(--text-color, #1f2937);
+    font-size: .76rem;
+    font-weight: 600;
+    outline: 0;
+}
+
+.debt-limit-money-currency:disabled {
+    background: var(--surface-muted, #f8fafc);
+    color: var(--text-muted, #64748b);
+    opacity: 1;
+}
+
+.debt-limit-money-field .debt-limit-money-amount {
+    width: 100%;
+    min-width: 0;
+    height: var(--compact-financial-control-height, 34px);
+    min-height: var(--compact-financial-control-height, 34px);
+    padding: .25rem .45rem;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent;
+    font-size: .78rem;
+    font-weight: 700;
+    text-align: left;
+    box-shadow: none !important;
+}
+
+@media (max-width: 576px) {
+    .debt-limit-required-label {
+        white-space: normal;
+    }
+}

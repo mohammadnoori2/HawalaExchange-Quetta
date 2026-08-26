@@ -1,9 +1,16 @@
 ﻿@inherits LayoutComponentBase
 
 <div class="page app-shell">
-    <div class="sidebar">
+    <input type="checkbox" id="mobile-nav-toggle" class="mobile-menu-toggle" aria-label="نمایش منوی اصلی" />
+    <label for="mobile-nav-toggle" class="mobile-menu-button" aria-label="باز یا بسته کردن منوی اصلی">
+        <i class="bi bi-list mobile-menu-open-icon" aria-hidden="true"></i>
+        <i class="bi bi-x-lg mobile-menu-close-icon" aria-hidden="true"></i>
+    </label>
+    <label for="mobile-nav-toggle" class="mobile-menu-backdrop" aria-label="بستن منوی اصلی"></label>
+
+    <aside class="sidebar" aria-label="منوی اصلی">
         <NavMenu />
-    </div>
+    </aside>
 
     <main class="app-main">
         <SubscriptionStatusBanner />

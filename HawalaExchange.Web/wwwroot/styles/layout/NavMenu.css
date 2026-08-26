@@ -1,0 +1,343 @@
+.nav-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 100% !important;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--surface, #fff) !important;
+}
+
+.navbar-brand-custom {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    min-height: clamp(3.75rem, 7vh, 4.8rem);
+    padding: var(--ui-space-2) var(--ui-space-4) !important;
+    border-block-end: 1px solid var(--app-border, #e2e8f0) !important;
+    background: var(--surface, #fff) !important;
+}
+
+.logo-wrapper {
+    display: grid;
+    place-items: center;
+    width: 100%;
+}
+
+.logo-image {
+    display: block;
+    width: min(100%, 10rem);
+    max-height: 3rem;
+    object-fit: contain;
+}
+
+.nav-scrollable {
+    display: block !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: var(--ui-space-2) var(--ui-space-2) var(--ui-space-4) !important;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.nav-sidebar .nav {
+    gap: 0.1rem;
+}
+
+.nav-sidebar .nav-item {
+    width: 100%;
+    padding: 0 !important;
+    font-size: inherit;
+}
+
+.nav-sidebar .nav-link-custom,
+.nav-sidebar .nav-link-toggle {
+    position: relative;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
+    min-height: var(--ui-control-height);
+    margin: 0 !important;
+    padding: var(--ui-space-2) var(--ui-space-3) !important;
+    gap: var(--ui-space-2) !important;
+    border: 0 !important;
+    border-radius: var(--ui-radius-sm) !important;
+    background: transparent !important;
+    color: #475569 !important;
+    font: inherit;
+    font-size: 0.86rem !important;
+    font-weight: 550 !important;
+    line-height: 1.35;
+    text-align: start !important;
+    text-decoration: none !important;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 140ms ease, background-color 140ms ease;
+}
+
+.nav-sidebar .nav-link-custom:hover,
+.nav-sidebar .nav-link-toggle:hover,
+.nav-sidebar .nav-link-custom.active,
+.nav-sidebar .nav-link-toggle.active {
+    color: var(--app-primary-strong, #1d4ed8) !important;
+    background: var(--app-primary-soft, #eff6ff) !important;
+}
+
+.nav-sidebar .nav-link-custom.active,
+.nav-sidebar .nav-link-toggle.active {
+    box-shadow: inset 0 0 0 1px var(--app-primary-border, #bfdbfe) !important;
+    font-weight: 700 !important;
+}
+
+.nav-sidebar .nav-link-custom.active::before,
+.nav-sidebar .nav-link-toggle.active::before {
+    position: absolute;
+    inset-block: 22%;
+    inset-inline-start: 0;
+    width: 0.2rem;
+    border-radius: 0 0.25rem 0.25rem 0;
+    background: var(--app-primary, #2563eb);
+    content: "";
+}
+
+.nav-sidebar .nav-link-custom > i,
+.nav-sidebar .nav-link-custom > span[class*="bi-"],
+.nav-sidebar .nav-link-toggle > i,
+.nav-sidebar .nav-link-toggle > span[class*="bi-"] {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 1.25rem;
+    width: 1.25rem !important;
+    height: 1.25rem;
+    margin: 0 !important;
+    color: #94a3b8 !important;
+    font-size: 1rem !important;
+}
+
+.nav-sidebar .nav-link-custom:hover > i,
+.nav-sidebar .nav-link-custom:hover > span[class*="bi-"],
+.nav-sidebar .nav-link-custom.active > i,
+.nav-sidebar .nav-link-custom.active > span[class*="bi-"],
+.nav-sidebar .nav-link-toggle:hover > i,
+.nav-sidebar .nav-link-toggle:hover > span[class*="bi-"],
+.nav-sidebar .nav-link-toggle.active > i,
+.nav-sidebar .nav-link-toggle.active > span[class*="bi-"] {
+    color: var(--app-primary, #2563eb) !important;
+}
+
+.nav-divider {
+    width: calc(100% - 1rem);
+    height: 1px !important;
+    margin: var(--ui-space-2) auto !important;
+    background: var(--app-border, #e2e8f0) !important;
+}
+
+.toggle-icon {
+    margin-inline-start: auto;
+    transition: transform 160ms ease;
+}
+
+.nav-menu-group > summary {
+    list-style: none;
+    cursor: pointer;
+}
+
+.nav-menu-group > summary::-webkit-details-marker {
+    display: none;
+}
+
+.nav-menu-group[open] > .nav-link-toggle {
+    color: var(--app-primary-strong, #1d4ed8) !important;
+    background: var(--app-primary-soft, #eff6ff) !important;
+}
+
+.nav-menu-group[open] > summary .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.sub-menu {
+    max-height: 0;
+    margin-inline-start: var(--ui-space-3);
+    padding-inline-start: var(--ui-space-2);
+    overflow: hidden;
+    border-inline-start: 1px solid transparent;
+    opacity: 0;
+    transition: max-height 180ms ease, opacity 140ms ease;
+}
+
+.nav-menu-group[open] > .sub-menu,
+.sub-menu.open {
+    max-height: 38rem;
+    border-inline-start-color: var(--app-border, #e2e8f0);
+    opacity: 1;
+}
+
+.nav-sidebar .sub-link {
+    min-height: var(--ui-control-height-sm) !important;
+    padding: var(--ui-space-1) var(--ui-space-2) !important;
+    color: var(--app-muted, #64748b) !important;
+    font-size: 0.8rem !important;
+}
+
+.user-dropdown-container {
+    position: relative;
+    margin-block-start: var(--ui-space-2);
+}
+
+.user-info-card {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: var(--ui-space-2);
+    padding: var(--ui-space-2) var(--ui-space-3);
+    border: 1px solid var(--app-border, #e2e8f0);
+    border-radius: var(--ui-radius-md);
+    background: var(--surface-muted, #f8fafc);
+    color: var(--app-ink, #172033);
+    text-align: start;
+    cursor: pointer;
+}
+
+.user-avatar,
+.user-dropdown-avatar {
+    display: grid;
+    place-items: center;
+    flex: 0 0 2rem;
+    width: 2rem;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: var(--app-primary, #2563eb);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.user-details,
+.user-dropdown-info {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.user-name,
+.user-dropdown-name {
+    overflow: hidden;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-role,
+.user-dropdown-email {
+    overflow: hidden;
+    color: var(--app-muted, #64748b);
+    font-size: 0.7rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dropdown-arrow {
+    margin-inline-start: auto;
+    transition: transform 160ms ease;
+}
+
+.dropdown-arrow.open {
+    transform: rotate(180deg);
+}
+
+.user-dropdown-menu {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: calc(100% + var(--ui-space-2));
+    z-index: 1080;
+    padding: var(--ui-space-2);
+    border: 1px solid var(--app-border, #e2e8f0);
+    border-radius: var(--ui-radius-md);
+    background: var(--surface, #fff);
+    box-shadow: var(--shadow-float, 0 1rem 2rem rgb(15 23 42 / 18%));
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(0.4rem);
+    transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+}
+
+.user-dropdown-menu.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.user-dropdown-header {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-2);
+    padding: var(--ui-space-2);
+}
+
+.user-dropdown-divider {
+    height: 1px;
+    margin-block: var(--ui-space-1);
+    background: var(--app-border, #e2e8f0);
+}
+
+.user-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-2);
+    padding: var(--ui-space-2);
+    border-radius: var(--ui-radius-sm);
+    color: var(--app-ink, #172033);
+    text-decoration: none;
+}
+
+.user-dropdown-item:hover {
+    background: var(--app-primary-soft, #eff6ff);
+}
+
+.user-dropdown-logout,
+.user-dropdown-logout:hover {
+    color: var(--app-danger, #dc2626);
+}
+
+@media (max-width: 768px) {
+    .app-shell > .sidebar .nav-sidebar {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        height: 100dvh !important;
+        min-height: 100dvh !important;
+        max-height: 100dvh !important;
+        position: relative !important;
+        overflow: hidden !important;
+    }
+
+    .navbar-brand-custom {
+        min-height: 4rem;
+        padding-inline-end: 4rem !important;
+    }
+
+    .app-shell > .sidebar .nav-scrollable {
+        display: block !important;
+        flex: 1 1 0 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow-y: auto !important;
+        padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important;
+    }
+
+    .nav-sidebar .nav-link-custom,
+    .nav-sidebar .nav-link-toggle {
+        min-height: 2.6rem;
+        font-size: 0.9rem !important;
+    }
+
+    .user-dropdown-menu {
+        position: fixed;
+        inset-inline: 0.75rem;
+        inset-block-end: max(0.75rem, env(safe-area-inset-bottom));
+    }
+}

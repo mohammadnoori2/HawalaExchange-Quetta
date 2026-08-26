@@ -1,4 +1,4 @@
-﻿@* NavMenu.razor *@
+@* NavMenu.razor *@
 @implements IDisposable
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
@@ -18,9 +18,7 @@
         </div>
     </div>
 
-    <input type="checkbox" id="nav-toggle" title="منوی ناوبری" class="navbar-toggler" />
-
-    <div class="nav-scrollable" onclick="document.getElementById('nav-toggle').checked = false;">
+    <div class="nav-scrollable">
         <nav class="nav flex-column">
             <AuthorizeView Policy="PlatformAccess">
                 <Authorized Context="platformAuth">
@@ -72,14 +70,14 @@
             <!-- ========================================= -->
             <!-- 💱 حواله‌ها - منوی تودرتو -->
             <!-- ========================================= -->
-            <div class="nav-item px-3">
-                <div class="nav-link-custom nav-link-toggle" onclick="toggleSubMenu('hawalaSubMenu', this)">
+            <details class="nav-item nav-menu-group px-3" open="@IsSectionActive("hawala")">
+                <summary class="nav-link-custom nav-link-toggle">
                     <span class="bi bi-arrow-left-right"></span> حواله‌ها
                     <span class="toggle-icon">
                         <i class="bi bi-chevron-down"></i>
                     </span>
-                </div>
-                <div class="sub-menu" id="hawalaSubMenu">
+                </summary>
+                <div class="sub-menu">
                     <NavLink class="nav-link-custom sub-link" href="/hawala-transactions">
                         <span class="bi bi-pencil-square"></span> ثبت و لیست حواله‌ها
                     </NavLink>
@@ -91,7 +89,7 @@
                     </NavLink>
                     
                 </div>
-            </div>
+            </details>
 
             <!-- تبدیل پول -->
             <div class="nav-item px-3">
@@ -114,14 +112,14 @@
             <!-- ========================================= -->
             <!-- 📊 حسابداری - منوی تودرتو -->
             <!-- ========================================= -->
-            <div class="nav-item px-3">
-                <div class="nav-link-custom nav-link-toggle" onclick="toggleSubMenu('accountingSubMenu', this)">
+            <details class="nav-item nav-menu-group px-3" open="@IsSectionActive("accounting")">
+                <summary class="nav-link-custom nav-link-toggle">
                     <span class="bi bi-journal"></span> حسابداری
                     <span class="toggle-icon">
                         <i class="bi bi-chevron-down"></i>
                     </span>
-                </div>
-                <div class="sub-menu" id="accountingSubMenu">
+                </summary>
+                <div class="sub-menu">
                     <NavLink class="nav-link-custom sub-link" href="/ledger">
                         <span class="bi bi-wallet2"></span> دفتر کل
                     </NavLink>
@@ -140,21 +138,21 @@
                         </NavLink>
                     </AuthorizeView>
                 </div>
-            </div>
+            </details>
 
             <div class="nav-divider"></div>
 
             <!-- ========================================= -->
             <!-- ⚙️ تنظیمات سیستم - منوی تودرتو -->
             <!-- ========================================= -->
-            <div class="nav-item px-3">
-                <div class="nav-link-custom nav-link-toggle" onclick="toggleSubMenu('settingsSubMenu', this)">
+            <details class="nav-item nav-menu-group px-3" open="@IsSectionActive("settings")">
+                <summary class="nav-link-custom nav-link-toggle">
                     <span class="bi bi-gear"></span> تنظیمات سیستم
                     <span class="toggle-icon">
                         <i class="bi bi-chevron-down"></i>
                     </span>
-                </div>
-                <div class="sub-menu" id="settingsSubMenu">
+                </summary>
+                <div class="sub-menu">
                     <AuthorizeView Policy="PlatformAccess">
                         <NavLink class="nav-link-custom sub-link" href="/platform">
                             <span class="bi bi-grid-1x2"></span> داشبورد SaaS
@@ -199,20 +197,20 @@
                         تنظیمات شرکت
                     </NavLink>
                 </div>
-            </div>
+            </details>
 
             <div class="nav-divider"></div>
 
             <!-- گزارش‌ها -->
             <AuthorizeView Roles="Admin">
-                <div class="nav-item px-3">
-                    <div class="nav-link-custom nav-link-toggle" onclick="toggleSubMenu('reportsSubMenu', this)">
+                <details class="nav-item nav-menu-group px-3" open="@IsSectionActive("reports")">
+                    <summary class="nav-link-custom nav-link-toggle">
                         <span class="bi bi-pie-chart"></span> گزارش‌ها
                         <span class="toggle-icon">
                             <i class="bi bi-chevron-down"></i>
                         </span>
-                    </div>
-                    <div class="sub-menu" id="reportsSubMenu">
+                    </summary>
+                    <div class="sub-menu">
                         <NavLink class="nav-link-custom sub-link" href="/reports">
                             <span class="bi bi-bar-chart"></span> گزارش‌های عمومی
                         </NavLink>
@@ -223,7 +221,7 @@
                             <span class="bi bi-graph-up-arrow"></span> سود و زیان
                         </NavLink>
                     </div>
-                </div>
+                </details>
             </AuthorizeView>
 
             <!-- اسناد -->
@@ -253,7 +251,7 @@
             <AuthorizeView>
                 <Authorized>
                     <div class="user-dropdown-container">
-                        <div class="user-info-card" onclick="toggleUserDropdown()">
+                        <button type="button" class="user-info-card" @onclick="ToggleUserMenu" aria-expanded="@userMenuOpen">
                             <div class="user-avatar">
                                 @{
                                     var userName = context.User.FindFirst("local_user_name")?.Value ?? "کاربر";
@@ -270,11 +268,11 @@
                                     }
                                 </span>
                             </div>
-                            <span class="dropdown-arrow bi bi-chevron-down"></span>
-                        </div>
+                            <span class="dropdown-arrow bi bi-chevron-down @(userMenuOpen ? "open" : string.Empty)"></span>
+                        </button>
 
                         <!-- منوی dropdown کاربر -->
-                        <div class="user-dropdown-menu" id="userDropdownMenu">
+                        <div class="user-dropdown-menu @(userMenuOpen ? "open" : string.Empty)">
                             <div class="user-dropdown-header">
                                 <div class="user-dropdown-avatar">
                                     @{
@@ -307,488 +305,10 @@
         </nav>
     </div>
 </div>
-
-<script>
-    // تغییر وضعیت منو (برای کلیک)
-    function toggleSubMenu(subMenuId, element) {
-        var subMenu = document.getElementById(subMenuId);
-        if (subMenu) {
-            if (subMenu.classList.contains('open')) {
-                subMenu.classList.remove('open');
-                var toggleIcon = element.querySelector('.toggle-icon');
-                if (toggleIcon) {
-                    toggleIcon.classList.remove('open');
-                }
-                element.classList.remove('active');
-            } else {
-                subMenu.classList.add('open');
-                var toggleIcon = element.querySelector('.toggle-icon');
-                if (toggleIcon) {
-                    toggleIcon.classList.add('open');
-                }
-                element.classList.add('active');
-            }
-        }
-    }
-
-    // تغییر وضعیت منوی کاربر
-    function toggleUserDropdown() {
-        var dropdown = document.getElementById('userDropdownMenu');
-        var arrow = document.querySelector('.dropdown-arrow');
-        if (dropdown) {
-            if (dropdown.classList.contains('open')) {
-                dropdown.classList.remove('open');
-                if (arrow) arrow.classList.remove('open');
-            } else {
-                dropdown.classList.add('open');
-                if (arrow) arrow.classList.add('open');
-                // بستن منوی قبلی باز شده
-                var allSubMenus = document.querySelectorAll('.sub-menu');
-                allSubMenus.forEach(function(menu) {
-                    if (menu.id !== 'userDropdownMenu') {
-                        menu.classList.remove('open');
-                    }
-                });
-            }
-        }
-    }
-
-    // بستن منو با کلیک خارج از آن
-    document.addEventListener('click', function(event) {
-        var container = document.querySelector('.user-dropdown-container');
-        if (container && !container.contains(event.target)) {
-            var dropdown = document.getElementById('userDropdownMenu');
-            var arrow = document.querySelector('.dropdown-arrow');
-            if (dropdown && dropdown.classList.contains('open')) {
-                dropdown.classList.remove('open');
-                if (arrow) arrow.classList.remove('open');
-            }
-        }
-    });
-
-    // بستن منوهای تودرتو با کلیک خارج از آنها
-    document.addEventListener('click', function(event) {
-        var navItems = document.querySelectorAll('.nav-item');
-        var clickedInside = false;
-        navItems.forEach(function(item) {
-            if (item.contains(event.target)) {
-                clickedInside = true;
-            }
-        });
-        if (!clickedInside) {
-            var allSubMenus = document.querySelectorAll('.sub-menu');
-            allSubMenus.forEach(function(menu) {
-                menu.classList.remove('open');
-            });
-            var allToggles = document.querySelectorAll('.nav-link-toggle');
-            allToggles.forEach(function(toggle) {
-                toggle.classList.remove('active');
-                var icon = toggle.querySelector('.toggle-icon');
-                if (icon) icon.classList.remove('open');
-            });
-        }
-    });
-</script>
-
-<style>
-    /* =========================================
-                   استایل‌های منوی تودرتو - هماهنگ با site.css
-                ========================================= */
-
-    /* استایل دکمه منوی تودرتو */
-    .nav-link-toggle {
-        cursor: pointer !important;
-        user-select: none !important;
-        width: 100% !important;
-        text-align: right !important;
-        background: transparent !important;
-        border: none !important;
-        font-family: inherit !important;
-        font-size: 0.95rem !important;
-        font-weight: 450 !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 14px !important;
-        padding: 0.7rem 1.2rem !important;
-        margin: 0.2rem 0.6rem !important;
-        border-radius: 14px !important;
-        color: #1e3d66 !important;
-        transition: all 0.2s ease !important;
-        text-decoration: none !important;
-        background-color: transparent !important;
-        white-space: nowrap !important;
-        position: relative !important;
-    }
-
-        .nav-link-toggle:hover {
-            background: #e7f2ff !important;
-            color: #0645b0 !important;
-            transform: translateX(-4px);
-            box-shadow: 0 3px 8px rgba(0, 80, 200, 0.06);
-        }
-
-        .nav-link-toggle.active {
-            background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
-            color: #003d99 !important;
-            font-weight: 600 !important;
-            box-shadow: 0 4px 12px rgba(10, 107, 255, 0.15), inset 0 0 0 2px rgba(10, 107, 255, 0.2) !important;
-            transform: translateX(-2px);
-        }
-
-            .nav-link-toggle.active::before {
-                content: '';
-                position: absolute;
-                right: 0;
-                top: 15%;
-                height: 70%;
-                width: 4px;
-                background: linear-gradient(180deg, #0a6bff, #4a8fff);
-                border-radius: 0 4px 4px 0;
-                box-shadow: 0 0 12px rgba(10, 107, 255, 0.3);
-            }
-
-        .nav-link-toggle i,
-        .nav-link-toggle span[class^="bi-"] {
-            font-size: 1.3rem !important;
-            width: 1.8rem !important;
-            text-align: center !important;
-            color: #5a7fa8 !important;
-            transition: 0.2s !important;
-            flex-shrink: 0 !important;
-        }
-
-        .nav-link-toggle:hover i,
-        .nav-link-toggle:hover span[class^="bi-"] {
-            color: #0a6bff !important;
-        }
-
-        .nav-link-toggle.active i,
-        .nav-link-toggle.active span[class^="bi-"] {
-            color: #0066ff !important;
-            filter: drop-shadow(0 2px 4px rgba(0, 102, 255, 0.2));
-        }
-
-        .nav-link-toggle .toggle-icon {
-            transition: transform 0.3s ease;
-            font-size: 0.8rem;
-            margin-right: auto;
-            margin-left: 8px;
-        }
-
-            .nav-link-toggle .toggle-icon.open {
-                transform: rotate(180deg);
-            }
-
-    /* منوی تودرتو */
-    .sub-menu {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
-        opacity: 0;
-        padding-right: 20px;
-        margin-right: 8px;
-        border-right: 2px solid rgba(79, 70, 229, 0.15);
-    }
-
-        .sub-menu.open {
-            max-height: 500px;
-            opacity: 1;
-            padding-top: 6px;
-            padding-bottom: 6px;
-        }
-
-    /* زیرلینک‌های منو - هماهنگ با nav-link-custom */
-    .sub-link {
-        display: flex !important;
-        align-items: center !important;
-        gap: 10px !important;
-        padding: 6px 12px !important;
-        border-radius: 6px !important;
-        font-size: 0.85rem !important;
-        color: #5a7fa8 !important;
-        text-decoration: none !important;
-        transition: all 0.2s ease !important;
-        margin: 0.1rem 0 !important;
-        background: transparent !important;
-        font-weight: 450 !important;
-    }
-
-        .sub-link:hover {
-            background: #e7f2ff !important;
-            color: #0645b0 !important;
-            transform: translateX(-4px) !important;
-        }
-
-        .sub-link.active {
-            background: linear-gradient(135deg, #dcebff, #c5dfff) !important;
-            color: #003d99 !important;
-            font-weight: 600 !important;
-        }
-
-        .sub-link span {
-            font-size: 0.9rem;
-            min-width: 20px;
-        }
-
-    /* =========================================
-                   استایل‌های Dropdown کاربر
-                ========================================= */
-    .user-dropdown-container {
-        position: relative;
-        margin: 0.5rem 0.6rem;
-    }
-
-    .user-info-card {
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
-        padding: 0.7rem 1rem !important;
-        background: linear-gradient(145deg, #f8faff, #eef5ff) !important;
-        border-radius: 16px !important;
-        cursor: pointer !important;
-        transition: all 0.3s ease !important;
-        border: 1px solid rgba(10, 107, 255, 0.08) !important;
-        box-shadow: 0 2px 8px rgba(0, 40, 100, 0.05) !important;
-        position: relative;
-    }
-
-        .user-info-card:hover {
-            background: linear-gradient(145deg, #f0f6ff, #e3edff) !important;
-            border-color: rgba(10, 107, 255, 0.2) !important;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 80, 200, 0.1) !important;
-        }
-
-    .user-avatar {
-        width: 42px !important;
-        height: 42px !important;
-        border-radius: 50% !important;
-        background: linear-gradient(135deg, #0a6bff, #4a8fff) !important;
-        color: white !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-weight: bold !important;
-        font-size: 1.1rem !important;
-        flex-shrink: 0 !important;
-        box-shadow: 0 2px 8px rgba(10, 107, 255, 0.3) !important;
-    }
-
-    .user-details {
-        display: flex !important;
-        flex-direction: column !important;
-        flex: 1 !important;
-        min-width: 0 !important;
-    }
-
-    .user-name {
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-        color: #1a2d4a !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    }
-
-    .user-role {
-        font-size: 0.7rem !important;
-        color: #5a7fa8 !important;
-        font-weight: 400 !important;
-    }
-
-    .dropdown-arrow {
-        font-size: 0.8rem !important;
-        color: #5a7fa8 !important;
-        transition: transform 0.3s ease !important;
-        margin-right: 4px;
-        flex-shrink: 0;
-    }
-
-        .dropdown-arrow.open {
-            transform: rotate(180deg);
-        }
-
-    /* منوی dropdown کاربر */
-    .user-dropdown-menu {
-        position: absolute;
-        bottom: calc(100% + 6px);
-        left: 0;
-        right: 0;
-        background: white !important;
-        border-radius: 16px !important;
-        box-shadow: 0 8px 32px rgba(0, 40, 100, 0.15) !important;
-        border: 1px solid rgba(10, 107, 255, 0.08) !important;
-        padding: 0.5rem 0 !important;
-        opacity: 0 !important;
-        visibility: hidden !important;
-        transform: translateY(8px) scale(0.98) !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        z-index: 1000 !important;
-        min-width: 200px !important;
-        overflow: hidden !important;
-    }
-
-        .user-dropdown-menu.open {
-            opacity: 1 !important;
-            visibility: visible !important;
-            transform: translateY(0) scale(1) !important;
-        }
-
-    .user-dropdown-header {
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
-        padding: 0.8rem 1rem 0.6rem 1rem !important;
-        border-bottom: 1px solid #f0f4fa !important;
-    }
-
-    .user-dropdown-avatar {
-        width: 40px !important;
-        height: 40px !important;
-        border-radius: 50% !important;
-        background: linear-gradient(135deg, #0a6bff, #4a8fff) !important;
-        color: white !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        font-weight: bold !important;
-        font-size: 1rem !important;
-        flex-shrink: 0 !important;
-    }
-
-    .user-dropdown-info {
-        display: flex !important;
-        flex-direction: column !important;
-        flex: 1 !important;
-        min-width: 0 !important;
-    }
-
-    .user-dropdown-name {
-        font-weight: 600 !important;
-        font-size: 0.9rem !important;
-        color: #1a2d4a !important;
-    }
-
-    .user-dropdown-email {
-        font-size: 0.75rem !important;
-        color: #7a94b5 !important;
-        word-break: break-all !important;
-    }
-
-    .user-dropdown-divider {
-        height: 1px !important;
-        background: #f0f4fa !important;
-        margin: 0.2rem 0.8rem !important;
-    }
-
-    .user-dropdown-item {
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
-        padding: 0.6rem 1rem !important;
-        color: #1e3d66 !important;
-        text-decoration: none !important;
-        transition: all 0.2s ease !important;
-        font-size: 0.9rem !important;
-        font-weight: 450 !important;
-        cursor: pointer !important;
-        margin: 0.1rem 0.4rem !important;
-        border-radius: 10px !important;
-    }
-
-        .user-dropdown-item:hover {
-            background: #f0f6ff !important;
-            color: #0a6bff !important;
-        }
-
-        .user-dropdown-item span {
-            font-size: 1.1rem !important;
-        }
-
-    .user-dropdown-logout {
-        color: #dc3545 !important;
-    }
-
-        .user-dropdown-logout:hover {
-            background: #fff0f0 !important;
-            color: #c82333 !important;
-        }
-
-        .user-dropdown-logout span {
-            color: #dc3545 !important;
-        }
-
-        .user-dropdown-logout:hover span {
-            color: #c82333 !important;
-        }
-
-    /* استایل ورود برای کاربر مهمان */
-    .nav-link-login {
-        color: #0a6bff !important;
-    }
-
-        .nav-link-login:hover {
-            background: #f0f6ff !important;
-            color: #0645b0 !important;
-        }
-
-    /* =========================================
-                   واکنش‌گرا (Responsive) - هماهنگ با responsive.css
-                ========================================= */
-    @@media (max-width: 768px) {
-        .sub-menu {
-            padding-right: 16px;
-            margin-right: 4px;
-        }
-
-        .sub-link {
-            padding: 8px 12px !important;
-            font-size: 0.85rem !important;
-        }
-
-        .nav-link-toggle {
-            padding: 0.6rem 1rem !important;
-            font-size: 0.95rem !important;
-            margin: 0.1rem 0.2rem !important;
-        }
-
-        .user-dropdown-menu {
-            position: fixed !important;
-            top: auto !important;
-            bottom: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            border-radius: 20px 20px 0 0 !important;
-            transform: translateY(100%) !important;
-            max-height: 80vh !important;
-        }
-
-            .user-dropdown-menu.open {
-                transform: translateY(0) !important;
-            }
-    }
-
-    @@media (max-width: 576px) {
-        .sub-menu {
-            padding-right: 12px;
-            margin-right: 2px;
-        }
-
-        .sub-link {
-            padding: 8px 10px !important;
-            font-size: 0.8rem !important;
-        }
-
-        .nav-link-toggle {
-            padding: 0.6rem 0.8rem !important;
-            font-size: 0.9rem !important;
-        }
-    }
-</style>
-
 @code {
     private string? currentUrl;
     private bool isAuthenticated;
+    private bool userMenuOpen;
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
@@ -808,7 +328,25 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        userMenuOpen = false;
         StateHasChanged();
+    }
+
+    private bool IsSectionActive(string section) => section switch
+    {
+        "hawala" => IsCurrentPath("hawala-transactions", "hawala-receive", "hawala-pending"),
+        "accounting" => IsCurrentPath("ledger", "transfers", "capital-investment", "expenses", "deposit-withdraw"),
+        "settings" => IsCurrentPath("branches", "payment-locations", "users", "currencies", "exchangerates", "account-limits", "cash-balance-alerts", "company-settings"),
+        "reports" => IsCurrentPath("reports"),
+        _ => false
+    };
+
+    private bool IsCurrentPath(params string[] paths) =>
+        paths.Any(path => currentUrl?.StartsWith(path, StringComparison.OrdinalIgnoreCase) == true);
+
+    private void ToggleUserMenu()
+    {
+        userMenuOpen = !userMenuOpen;
     }
 
     public void Dispose()

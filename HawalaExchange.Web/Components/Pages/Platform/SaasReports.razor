@@ -61,9 +61,6 @@
         </div>
     }
 </div>
-<style>
-    .growth-chart{height:190px;display:flex;align-items:flex-end;gap:10px;overflow-x:auto;padding:12px 4px;border-bottom:1px solid #dbe5f1}.growth-column{min-width:55px;text-align:center}.bars{height:150px;display:flex;align-items:flex-end;justify-content:center;gap:3px}.bar{display:inline-block;width:11px;min-height:2px;border-radius:4px 4px 0 0}.tenant,.chart-legend i.tenant{background:#0d6efd}.user,.chart-legend i.user{background:#20c997}.subscription,.chart-legend i.subscription{background:#ffc107}.chart-legend{display:flex;gap:18px;margin-top:12px}.chart-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-left:4px}
-</style>
 @code{
     private SaasManagementReportDto report=new();private SaasReportFilterDto filter=new(){PageSize=25};private List<SubscriptionPlanDto> plans=[];private bool isLoading=true;private string? message;
     private string ExcelUrl=>"/api/platform/reports/excel?"+string.Join("&",new[]{filter.FromDate.HasValue?$"fromDate={filter.FromDate:yyyy-MM-dd}":null,filter.ToDate.HasValue?$"toDate={filter.ToDate:yyyy-MM-dd}":null,filter.PlanId.HasValue?$"planId={filter.PlanId}":null,filter.Status.HasValue?$"status={filter.Status}":null,!string.IsNullOrWhiteSpace(filter.CurrencyCode)?$"currencyCode={Uri.EscapeDataString(filter.CurrencyCode)}":null,!string.IsNullOrWhiteSpace(filter.Search)?$"search={Uri.EscapeDataString(filter.Search)}":null,$"sortBy={Uri.EscapeDataString(filter.SortBy)}",$"sortDescending={filter.SortDescending.ToString().ToLowerInvariant()}"}.Where(x=>x!=null));

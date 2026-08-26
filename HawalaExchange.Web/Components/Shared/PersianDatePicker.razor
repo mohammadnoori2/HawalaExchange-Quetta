@@ -1,4 +1,4 @@
-﻿@using System.Globalization
+@using System.Globalization
 @using HawalaExchange.Web.Helpers
 
 <div class="persian-date-picker-wrapper" dir="rtl">
@@ -135,112 +135,6 @@
         </div>
     }
 </div>
-
-<style>
-    .persian-date-picker-wrapper {
-        position: relative;
-        width: 100%;
-    }
-
-    .persian-calendar-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.15);
-        z-index: 99998;
-    }
-
-    .persian-calendar-modal {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: min(360px, calc(100vw - 24px));
-        max-height: calc(100vh - 40px);
-        overflow-y: auto;
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 16px;
-        padding: 14px;
-        z-index: 99999;
-    }
-
-    .calendar-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 12px;
-    }
-
-    .calendar-weekdays {
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        text-align: center;
-        font-weight: 700;
-        color: #6b7280;
-        font-size: 0.8rem;
-        margin-bottom: 6px;
-    }
-
-    .calendar-days {
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 5px;
-    }
-
-    .calendar-day {
-        border: 0;
-        border-radius: 8px;
-        padding: 8px 0;
-        background: #f9fafb;
-        cursor: pointer;
-        font-size: 0.9rem;
-        min-height: 36px;
-    }
-
-        .calendar-day:hover {
-            background: #e0f2fe;
-        }
-
-        .calendar-day.empty {
-            background: transparent;
-            cursor: default;
-        }
-
-        .calendar-day.selected {
-            background: #2563eb;
-            color: white;
-            font-weight: 700;
-        }
-
-        .calendar-day.today {
-            border: 1px solid #2563eb;
-            font-weight: 700;
-        }
-
-    .calendar-time {
-        background: #f9fafb;
-        border-radius: 10px;
-        padding: 10px;
-    }
-
-    .calendar-footer {
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
-        margin-top: 12px;
-    }
-
-    @@media (max-width: 576px) {
-        .persian-calendar-modal
-
-    {
-        top: 12px;
-        transform: translateX(-50%);
-        max-height: calc(100vh - 24px);
-    }
-
-    }
-</style>
 
 @code {
     [Parameter] public DateTime Value { get; set; }

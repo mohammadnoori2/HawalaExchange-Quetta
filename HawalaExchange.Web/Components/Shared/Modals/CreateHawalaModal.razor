@@ -282,33 +282,35 @@
                             <h6 class="text-primary"><i class="bi bi-currency-exchange me-2"></i> اطلاعات مالی</h6>
                         </div>
                         <div class="card-body">
-                            <!-- سطر اول: ارز ارسالی، مبلغ حواله و روش محاسبه -->
-                            <div class="row">
+                            <div class="row g-3 hawala-financial-grid">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-arrow-right text-muted me-1"></i> نوع ارز ارسالی <span class="text-danger">*</span>
+                                        <i class="bi bi-arrow-right text-muted me-1"></i> مبلغ حواله و ارز <span class="text-danger">*</span>
                                     </label>
-                                    <select class="form-select"
-                                            value="@CurrentHawala.FromCurrencyId"
-                                            @onchange="OnFromCurrencyChanged">
-                                        <option value="0">انتخاب ارز</option>
-                                        @if (CurrenciesList != null && CurrenciesList.Any())
-                                        {
-                                            @foreach (var currency in CurrenciesList)
+                                    <div class="hawala-money-field">
+                                        <select class="hawala-money-currency"
+                                                value="@CurrentHawala.FromCurrencyId"
+                                                @onchange="OnFromCurrencyChanged">
+                                            <option value="0">انتخاب ارز</option>
+                                            @if (CurrenciesList != null && CurrenciesList.Any())
                                             {
-                                                <option value="@currency.Id">@currency.Name</option>
+                                                @foreach (var currency in CurrenciesList)
+                                                {
+                                                    <option value="@currency.Id">@currency.Name</option>
+                                                }
                                             }
-                                        }
-                                    </select>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ حواله <span class="text-danger">*</span>
-                                    </label>
-                                    <MoneyInput class="form-control"
+                                        </select>
+                                        <MoneyInput class="hawala-money-amount"
                                                 Value="CurrentHawala.FromAmount"
                                                 ValueChanged="OnFromAmountChanged"
                                                 placeholder="مبلغ" />
+                                    </div>
+                                    @if (CurrentHawala.FromAmount > 0)
+                                    {
+                                        <small class="hawala-money-words">
+                                            @DariNumberToWords.ToWords(CurrentHawala.FromAmount) @GetCurrencyName(CurrentHawala.FromCurrencyId)
+                                        </small>
+                                    }
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
@@ -337,10 +339,6 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- سطر دوم: نرخ تبدیل، ارز پرداختی و مبلغ پرداختی -->
-                            <div class="row">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-left-right text-muted me-1"></i> نرخ تبدیل
@@ -366,96 +364,93 @@
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-arrow-left text-muted me-1"></i> نوع ارز پرداختی <span class="text-danger">*</span>
+                                        <i class="bi bi-arrow-left text-muted me-1"></i> مبلغ پرداختی و ارز <span class="text-danger">*</span>
                                     </label>
-                                    <select class="form-select"
-                                            value="@CurrentHawala.ToCurrencyId"
-                                            @onchange="OnToCurrencyChanged">
-                                        <option value="0">انتخاب ارز</option>
-                                        @if (CurrenciesList != null && CurrenciesList.Any())
-                                        {
-                                            @foreach (var currency in CurrenciesList)
+                                    <div class="hawala-money-field">
+                                        <select class="hawala-money-currency"
+                                                value="@CurrentHawala.ToCurrencyId"
+                                                @onchange="OnToCurrencyChanged">
+                                            <option value="0">انتخاب ارز</option>
+                                            @if (CurrenciesList != null && CurrenciesList.Any())
                                             {
-                                                <option value="@currency.Id">@currency.Name</option>
+                                                @foreach (var currency in CurrenciesList)
+                                                {
+                                                    <option value="@currency.Id">@currency.Name</option>
+                                                }
                                             }
-                                        }
-                                    </select>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-cash-stack text-muted me-1"></i> مبلغ پرداختی
-                                        @if (!AreCurrenciesSame())
-                                        {
-                                            <span class="text-danger">*</span>
-                                        }
-                                    </label>
-                                    <NullableMoneyInput class="form-control"
+                                        </select>
+                                        <NullableMoneyInput class="hawala-money-amount"
                                                         Value="CurrentHawala.ToAmount"
                                                         ValueChanged="OnToAmountChanged"
                                                         disabled="@(CalculationMode == "RateToAmount" || AreCurrenciesSame())"
                                                         placeholder="مبلغ مقصد" />
+                                    </div>
+                                    @if (CurrentHawala.ToAmount is > 0)
+                                    {
+                                        <small class="hawala-money-words">
+                                            @DariNumberToWords.ToWords(CurrentHawala.ToAmount.Value) @GetCurrencyName(CurrentHawala.ToCurrencyId)
+                                        </small>
+                                    }
                                     @if (AreCurrenciesSame())
                                     {
                                         <small class="text-muted text-success">ارزها یکسان هستند، مبلغ برابر با مبلغ حواله است</small>
                                     }
                                 </div>
-                            </div>
-
-                            <!-- سطر سوم: ارز کارمزد، کارمزد و یادداشت -->
-                            <div class="row">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-coin text-muted me-1"></i> ارز کارمزد
+                                        <i class="bi bi-coin text-muted me-1"></i> کارمزد و ارز
                                     </label>
-                                    <select class="form-select" @bind="CurrentHawala.CommissionCurrencyId">
-                                        <option value="0">انتخاب ارز</option>
-                                        @if (CurrenciesList != null && CurrenciesList.Any())
-                                        {
-                                            @foreach (var currency in CurrenciesList)
+                                    <div class="hawala-money-field">
+                                        <select class="hawala-money-currency" @bind="CurrentHawala.CommissionCurrencyId">
+                                            <option value="0">انتخاب ارز</option>
+                                            @if (CurrenciesList != null && CurrenciesList.Any())
                                             {
-                                                <option value="@currency.Id">@currency.Name</option>
+                                                @foreach (var currency in CurrenciesList)
+                                                {
+                                                    <option value="@currency.Id">@currency.Name</option>
+                                                }
                                             }
-                                        }
-                                    </select>
+                                        </select>
+                                        <NullableMoneyInput class="hawala-money-amount" @bind-Value="CurrentHawala.CommissionAmount" placeholder="کارمزد" />
+                                    </div>
+                                    @if (CurrentHawala.CommissionAmount is > 0)
+                                    {
+                                        <small class="hawala-money-words">
+                                            @DariNumberToWords.ToWords(CurrentHawala.CommissionAmount.Value) @GetCurrencyName(CurrentHawala.CommissionCurrencyId)
+                                        </small>
+                                    }
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-cash-stack text-muted me-1"></i> کارمزد
-                                    </label>
-                                    <NullableMoneyInput class="form-control" @bind-Value="CurrentHawala.CommissionAmount" placeholder="کارمزد" />
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold"><i class="bi bi-chat text-muted me-1"></i> یادداشت</label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.Notes" placeholder="یادداشت" />
-                                </div>
-                            </div>
-
-                            <!-- سطر چهارم: ارز کارمزد نمایندگی و کارمزد نمایندگی -->
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-coin text-muted me-1"></i> ارز کارمزد نمایندگی
+                                        <i class="bi bi-coin text-muted me-1"></i> کارمزد نمایندگی و ارز
                                         @if (CurrentHawala.AgentCommissionAmount > 0)
                                         {
                                             <span class="text-danger">*</span>
                                         }
                                     </label>
-                                    <select class="form-select" @bind="CurrentHawala.AgentCommissionCurrencyId">
-                                        <option value="0">انتخاب ارز</option>
-                                        @if (CurrenciesList != null && CurrenciesList.Any())
-                                        {
-                                            @foreach (var currency in CurrenciesList)
+                                    <div class="hawala-money-field">
+                                        <select class="hawala-money-currency" @bind="CurrentHawala.AgentCommissionCurrencyId">
+                                            <option value="0">انتخاب ارز</option>
+                                            @if (CurrenciesList != null && CurrenciesList.Any())
                                             {
-                                                <option value="@currency.Id">@currency.Name</option>
+                                                @foreach (var currency in CurrenciesList)
+                                                {
+                                                    <option value="@currency.Id">@currency.Name</option>
+                                                }
                                             }
-                                        }
-                                    </select>
+                                        </select>
+                                        <NullableMoneyInput class="hawala-money-amount" @bind-Value="CurrentHawala.AgentCommissionAmount" placeholder="کارمزد نمایندگی" />
+                                    </div>
+                                    @if (CurrentHawala.AgentCommissionAmount is > 0)
+                                    {
+                                        <small class="hawala-money-words">
+                                            @DariNumberToWords.ToWords(CurrentHawala.AgentCommissionAmount.Value) @GetCurrencyName(CurrentHawala.AgentCommissionCurrencyId)
+                                        </small>
+                                    }
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-cash-stack text-muted me-1"></i> کارمزد نمایندگی
-                                    </label>
-                                    <NullableMoneyInput class="form-control" @bind-Value="CurrentHawala.AgentCommissionAmount" placeholder="کارمزد نمایندگی" />
+                                    <label class="form-label fw-bold"><i class="bi bi-chat text-muted me-1"></i> یادداشت</label>
+                                    <input type="text" class="form-control" @bind="CurrentHawala.Notes" placeholder="یادداشت" />
                                 </div>
                             </div>
 

@@ -266,7 +266,7 @@
          style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
          dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content expense-entry-modal">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -305,8 +305,8 @@
                         </div>
 
                         <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
+                            <div class="row g-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-tag text-muted me-1"></i>
                                         کتگوری مصرف <span class="text-danger">*</span>
@@ -325,59 +325,57 @@
                                     </select>
                                 </div>
 
-                                <div class="col-md-2 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-coin text-muted me-1"></i>
-                                        ارز <span class="text-danger">*</span>
-                                    </label>
-
-                                    <select class="form-select" @bind="currentExpense.CurrencyId">
-                                        <option value="0">انتخاب ارز</option>
-                                        @foreach (var currency in currencies)
-                                        {
-                                            <option value="@currency.Id">
-                                                @currency.Code
-                                            </option>
-                                        }
-                                    </select>
-                                </div>
-
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-cash-stack text-muted me-1"></i>
-                                        مبلغ <span class="text-danger">*</span>
+                                        مبلغ و ارز <span class="text-danger">*</span>
                                     </label>
-
-                                    <MoneyInput class="form-control"
-                                                @bind-Value="currentExpense.Amount"
-                                                placeholder="مثلاً 5,000" />
+                                    <div class="expense-money-field">
+                                        <select class="expense-money-currency" @bind="currentExpense.CurrencyId">
+                                            <option value="0">انتخاب ارز</option>
+                                            @foreach (var currency in currencies)
+                                            {
+                                                <option value="@currency.Id">@currency.Name</option>
+                                            }
+                                        </select>
+                                        <MoneyInput class="expense-money-amount"
+                                                    @bind-Value="currentExpense.Amount"
+                                                    placeholder="مثلاً 5,000" />
+                                    </div>
+                                    @if (currentExpense.Amount > 0)
+                                    {
+                                        var selectedCurrency = currencies.FirstOrDefault(currency => currency.Id == currentExpense.CurrencyId);
+                                        <small class="expense-money-words">
+                                            @DariNumberToWords.ToWords(currentExpense.Amount) @(selectedCurrency?.Name ?? string.Empty)
+                                        </small>
+                                    }
                                 </div>
 
-                                <div class="col-md-3 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-calendar-date text-muted me-1"></i>
                                         تاریخ و زمان مصرف
                                     </label>
 
-                                    <PersianDatePicker @bind-Value="expenseDateLocal"
-                                                       IncludeTime="true"
-                                                       Placeholder="انتخاب تاریخ شمسی" />
+                                    <div class="expense-date-field">
+                                        <PersianDatePicker @bind-Value="expenseDateLocal"
+                                                           IncludeTime="true"
+                                                           Placeholder="انتخاب تاریخ شمسی" />
+                                    </div>
                                 </div>
-                            </div>
-
-                            <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-receipt text-muted me-1"></i>
                                         حساب مصرف <span class="text-danger">*</span>
                                     </label>
 
-                                    <AccountSearchSelect Accounts="@expenseAccounts"
-                                                         @bind-Value="currentExpense.ExpenseAccountId"
-                                                         Placeholder="جستجوی حساب مصرف..." />
+                                     <AccountSearchSelect Accounts="@expenseAccounts"
+                                                          @bind-Value="currentExpense.ExpenseAccountId"
+                                                          ShowAccountCode="false"
+                                                          Placeholder="جستجوی حساب مصرف..." />
 
                                     <small class="text-muted">
-                                        مثال: Office Expense, Rent Expense, Salary Expense
+                                        حسابی که مصرف در آن ثبت می‌شود
                                     </small>
                                 </div>
 
@@ -387,18 +385,16 @@
                                         حساب پرداخت‌کننده <span class="text-danger">*</span>
                                     </label>
 
-                                    <AccountSearchSelect Accounts="@paymentAccounts"
-                                                         @bind-Value="currentExpense.PaidFromAccountId"
-                                                         Placeholder="جستجوی حساب پرداخت‌کننده..." />
+                                     <AccountSearchSelect Accounts="@paymentAccounts"
+                                                          @bind-Value="currentExpense.PaidFromAccountId"
+                                                          ShowAccountCode="false"
+                                                          Placeholder="جستجوی حساب پرداخت‌کننده..." />
 
                                     <small class="text-muted">
-                                        معمولاً Cash یا Bank
+                                        معمولاً صندوق یا حساب بانکی
                                     </small>
                                 </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-12 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-chat text-muted me-1"></i>
                                         توضیحات

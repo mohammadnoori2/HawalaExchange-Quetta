@@ -224,7 +224,7 @@
 {
     <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content exchange-rate-entry-modal">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -269,7 +269,7 @@
                                     </label>
                                     @if (isEditMode)
                                     {
-                                        <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentRate.FromCurrencyId)?.Code ?? "نامشخص")" disabled readonly />
+                                        <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentRate.FromCurrencyId)?.Name ?? "نامشخص")" disabled readonly />
                                         <small class="text-muted">ارز مبدأ قابل تغییر نیست</small>
                                     }
                                     else
@@ -279,7 +279,7 @@
                                             <option value="0">انتخاب ارز مبدأ</option>
                                             @foreach (var currency in currencies)
                                             {
-                                                <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                                <option value="@currency.Id">@currency.Name</option>
                                             }
                                         </select>
                                     }
@@ -290,7 +290,7 @@
                                     </label>
                                     @if (isEditMode)
                                     {
-                                        <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentRate.ToCurrencyId)?.Code ?? "نامشخص")" disabled readonly />
+                                        <input type="text" class="form-control bg-light" value="@(currencies.FirstOrDefault(c => c.Id == currentRate.ToCurrencyId)?.Name ?? "نامشخص")" disabled readonly />
                                         <small class="text-muted">ارز مقصد قابل تغییر نیست</small>
                                     }
                                     else
@@ -300,7 +300,7 @@
                                             <option value="0">انتخاب ارز مقصد</option>
                                             @foreach (var currency in currencies)
                                             {
-                                                <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                                <option value="@currency.Id">@currency.Name</option>
                                             }
                                         </select>
                                     }
@@ -326,9 +326,11 @@
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-calendar-date text-muted me-1"></i> تاریخ مؤثر <span class="text-danger">*</span>
                                     </label>
-                                    <PersianDatePicker @bind-Value="currentRate.EffectiveDate"
-                                                       IncludeTime="true"
-                                                       Placeholder="انتخاب تاریخ و زمان" />
+                                    <div class="exchange-rate-date-field">
+                                        <PersianDatePicker @bind-Value="currentRate.EffectiveDate"
+                                                           IncludeTime="true"
+                                                           Placeholder="انتخاب تاریخ و زمان" />
+                                    </div>
                                 </div>
                             </div>
                         </div>

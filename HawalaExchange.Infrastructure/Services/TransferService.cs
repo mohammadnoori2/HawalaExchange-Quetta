@@ -55,6 +55,12 @@ namespace HawalaExchange.Application.Services
                 await _context.Transfers.AddAsync(transfer);
                 await _context.SaveChangesAsync();
 
+                if (string.IsNullOrWhiteSpace(transfer.ReferenceNumber))
+                {
+                    transfer.ReferenceNumber = BuildReferenceNumber(transfer.Id);
+                    await _context.SaveChangesAsync();
+                }
+
                 await CreateTransferLedgerEntriesAsync(transfer);
                 await _currencyCostService.RebuildAsync();
 
@@ -106,7 +112,11 @@ namespace HawalaExchange.Application.Services
                 if (ledgerEntries.Count > 0)
                     _context.LedgerEntries.RemoveRange(ledgerEntries);
 
+                var existingReferenceNumber = transfer.ReferenceNumber;
                 _mapper.Map(updateDto, transfer);
+                transfer.ReferenceNumber = string.IsNullOrWhiteSpace(updateDto.ReferenceNumber)
+                    ? existingReferenceNumber ?? BuildReferenceNumber(transfer.Id)
+                    : updateDto.ReferenceNumber.Trim();
                 await _context.SaveChangesAsync();
 
                 await CreateTransferLedgerEntriesAsync(transfer);
@@ -174,6 +184,9 @@ namespace HawalaExchange.Application.Services
                 Description = $"انتقال از حساب {transfer.FromAccountId}"
             });
         }
+
+        private static string BuildReferenceNumber(long transferId) =>
+            $"TRF-{DateTime.Now:yyyyMMdd}-{transferId:D4}";
 
         private async Task ValidateTransferAsync(
             long fromAccountId,

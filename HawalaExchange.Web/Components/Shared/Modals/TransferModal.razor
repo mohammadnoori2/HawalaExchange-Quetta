@@ -13,7 +13,7 @@
          style="background-color: rgba(0,0,0,0.55); backdrop-filter: blur(4px);"
          dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content transfer-entry-modal">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-arrow-left-right") me-2"></i>
@@ -46,15 +46,17 @@
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">حساب مبدأ <span class="text-danger">*</span></label>
-                                <AccountSearchSelect Accounts="@Accounts"
-                                                     @bind-Value="CurrentTransfer.FromAccountId"
-                                                     Placeholder="جستجوی حساب مبدأ..." />
+                                 <AccountSearchSelect Accounts="@Accounts"
+                                                      @bind-Value="CurrentTransfer.FromAccountId"
+                                                      ShowAccountCode="false"
+                                                      Placeholder="جستجوی حساب مبدأ..." />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">حساب مقصد <span class="text-danger">*</span></label>
-                                <AccountSearchSelect Accounts="@Accounts"
-                                                     @bind-Value="CurrentTransfer.ToAccountId"
-                                                     Placeholder="جستجوی حساب مقصد..." />
+                                 <AccountSearchSelect Accounts="@Accounts"
+                                                      @bind-Value="CurrentTransfer.ToAccountId"
+                                                      ShowAccountCode="false"
+                                                      Placeholder="جستجوی حساب مقصد..." />
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">ارز <span class="text-danger">*</span></label>
@@ -62,7 +64,7 @@
                                     <option value="0">انتخاب ارز</option>
                                     @foreach (var currency in Currencies)
                                     {
-                                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                        <option value="@currency.Id">@currency.Name</option>
                                     }
                                 </select>
                             </div>
@@ -76,7 +78,7 @@
                             {
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">
-                                        ارزش انتقالی در @DefaultProfitCurrencyCode <span class="text-danger">*</span>
+                                        ارزش انتقالی در ارز اصلی <span class="text-danger">*</span>
                                     </label>
                                     <input type="number" min="0" step="0.0001" class="form-control" dir="ltr"
                                            @bind="CurrentTransfer.ProfitCurrencyAmount"
@@ -85,7 +87,7 @@
                                         بهای تاریخی این ارز را وارد کنید؛ انتقال به صندوق به خودی خود مفاد ایجاد نمی‌کند.
                                         @if (TransferCostRate is > 0)
                                         {
-                                            <span> نرخ بهای واحد: @MoneyFormatHelper.Format(TransferCostRate.Value) @DefaultProfitCurrencyCode</span>
+                                            <span> نرخ بهای واحد: @MoneyFormatHelper.Format(TransferCostRate.Value) در ارز اصلی</span>
                                         }
                                     </div>
                                 </div>
@@ -100,10 +102,6 @@
                                 </select>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold">شماره مرجع</label>
-                                <input class="form-control" @bind="CurrentTransfer.ReferenceNumber" />
-                            </div>
-                            <div class="col-12">
                                 <label class="form-label fw-bold">توضیحات</label>
                                 <textarea class="form-control" rows="2" @bind="CurrentTransfer.Remarks"></textarea>
                             </div>
@@ -153,7 +151,6 @@
     private bool IsDataLoading = true;
     private bool wasVisible;
     private long? DefaultProfitCurrencyId;
-    private string DefaultProfitCurrencyCode = string.Empty;
 
     private bool RequiresCostBasis
     {
@@ -227,7 +224,6 @@
                 .ToList();
             var setting = await CompanySettingService.GetAsync();
             DefaultProfitCurrencyId = setting.DefaultProfitCurrencyId;
-            DefaultProfitCurrencyCode = setting.DefaultProfitCurrencyCode;
         }
         catch (Exception ex)
         {
@@ -296,7 +292,7 @@
         if (CurrentTransfer.Amount <= 0)
             ValidationErrors.Add("مبلغ باید بزرگتر از صفر باشد.");
         if (RequiresCostBasis && CurrentTransfer.ProfitCurrencyAmount is not > 0)
-            ValidationErrors.Add($"ارزش انتقالی در {DefaultProfitCurrencyCode} الزامی است.");
+            ValidationErrors.Add("ارزش انتقالی در ارز اصلی الزامی است.");
         if (string.IsNullOrWhiteSpace(CurrentTransfer.TransferMethod))
             ValidationErrors.Add("انتخاب روش انتقال الزامی است.");
     }

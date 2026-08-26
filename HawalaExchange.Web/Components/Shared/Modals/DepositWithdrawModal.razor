@@ -16,7 +16,7 @@
          style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
          dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
+            <div class="modal-content deposit-withdraw-entry-modal">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -74,8 +74,8 @@
                             </div>
 
                             <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-4 mb-3">
+                                <div class="row g-3">
+                                    <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">
                                             نوع عملیات <span class="text-danger">*</span>
                                         </label>
@@ -87,49 +87,49 @@
                                         </select>
                                     </div>
 
-                                    <div class="col-md-4 mb-3">
+                                    <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">
-                                            ارز <span class="text-danger">*</span>
+                                            مبلغ و ارز <span class="text-danger">*</span>
                                         </label>
 
-                                        <select class="form-select" @bind="CurrentOperation.CurrencyId">
-                                            <option value="0">انتخاب ارز</option>
-                                            @if (CurrenciesList != null && CurrenciesList.Any())
-                                            {
-                                                @foreach (var currency in CurrenciesList)
+                                        <div class="deposit-withdraw-money-field">
+                                            <select class="deposit-withdraw-money-currency" @bind="CurrentOperation.CurrencyId">
+                                                <option value="0">انتخاب ارز</option>
+                                                @if (CurrenciesList != null && CurrenciesList.Any())
                                                 {
-                                                    <option value="@currency.Id">
-                                                        @currency.Code - @currency.Name
-                                                    </option>
+                                                    @foreach (var currency in CurrenciesList)
+                                                    {
+                                                        <option value="@currency.Id">@currency.Name</option>
+                                                    }
                                                 }
-                                            }
-                                            else
-                                            {
-                                                <option value="0" disabled>هیچ ارزی یافت نشد</option>
-                                            }
-                                        </select>
-                                    </div>
-
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label fw-bold">
-                                            مبلغ <span class="text-danger">*</span>
-                                        </label>
-
-                                        <MoneyInput class="form-control"
+                                                else
+                                                {
+                                                    <option value="0" disabled>هیچ ارزی یافت نشد</option>
+                                                }
+                                            </select>
+                                            <MoneyInput class="deposit-withdraw-money-amount"
                                                     @bind-Value="CurrentOperation.Amount"
                                                     placeholder="مثلاً 10,000" />
+                                        </div>
+                                        @if (CurrentOperation.Amount > 0)
+                                        {
+                                            var selectedCurrency = GetCurrency(CurrentOperation.CurrencyId);
+                                            <small class="deposit-withdraw-money-words">
+                                                @DariNumberToWords.ToWords(CurrentOperation.Amount) @(selectedCurrency?.Name ?? string.Empty)
+                                            </small>
+                                        }
                                     </div>
-                                </div>
 
-                                <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">
                                             تاریخ و زمان
                                         </label>
 
-                                        <PersianDatePicker @bind-Value="OperationDateLocal"
-                                                           IncludeTime="true"
-                                                           Placeholder="انتخاب تاریخ شمسی" />
+                                        <div class="deposit-withdraw-date-field">
+                                            <PersianDatePicker @bind-Value="OperationDateLocal"
+                                                               IncludeTime="true"
+                                                               Placeholder="انتخاب تاریخ شمسی" />
+                                        </div>
                                     </div>
 
                                     <div class="col-md-6 mb-3">
@@ -142,9 +142,7 @@
                                                @bind="CurrentOperation.Description"
                                                placeholder="توضیحات اضافی" />
                                     </div>
-                                </div>
 
-                                <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label fw-bold">
                                             حساب انتخاب‌شده <span class="text-danger">*</span>
@@ -152,6 +150,7 @@
 
                                         <AccountSearchSelect Accounts="@SelectableAccounts"
                                                              @bind-Value="CurrentOperation.AccountId"
+                                                             ShowAccountCode="false"
                                                              Placeholder="جستجوی حساب..." />
 
                                         <small class="text-muted">
@@ -166,10 +165,11 @@
 
                                         <AccountSearchSelect Accounts="@CashBankAccounts"
                                                              @bind-Value="CurrentOperation.CashOrBankAccountId"
+                                                             ShowAccountCode="false"
                                                              Placeholder="جستجوی حساب صندوق یا بانک..." />
 
                                         <small class="text-muted">
-                                            معمولاً Cash یا Bank.
+                                            حساب صندوق یا بانک را انتخاب کنید.
                                         </small>
                                     </div>
                                 </div>
@@ -183,10 +183,6 @@
                                             در رسید: حساب صندوق/بانک بدهکار می‌شود و حساب انتخاب‌شده طلبکار می‌شود.
                                         </div>
 
-                                        <div class="mt-2" dir="ltr">
-                                            Cash/Bank: TalabKar |
-                                            Selected Account: BadehKar
-                                        </div>
                                     }
                                     else if (CurrentOperation.OperationType == "Withdraw")
                                     {
@@ -194,10 +190,6 @@
                                             در برد: حساب انتخاب‌شده بدهکار می‌شود و حساب صندوق/بانک طلبکار می‌شود.
                                         </div>
 
-                                        <div class="mt-2" dir="ltr">
-                                            Selected Account: TalabKar |
-                                            Cash/Bank: BadehKar
-                                        </div>
                                     }
                                     else
                                     {
@@ -489,6 +481,9 @@
     }
 
     // ===== توابع کمکی =====
+
+    private CurrencyDto? GetCurrency(long currencyId) =>
+        CurrenciesList?.FirstOrDefault(currency => currency.Id == currencyId);
 
     private string GetAccountTypeName(string? type) => AppDisplayText.AccountType(type);
 }

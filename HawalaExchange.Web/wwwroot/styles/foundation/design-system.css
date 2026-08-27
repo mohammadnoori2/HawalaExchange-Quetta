@@ -495,16 +495,29 @@ body {
 
 .table-modern tbody tr,
 .table-striped-modern tbody tr:nth-child(even),
-.table > tbody > tr {
+.table > tbody > tr,
+[data-global-grid="true"] > tbody > tr,
+.table-scroll-wrapper table > tbody > tr {
     background: var(--surface) !important;
     transform: none !important;
+    transform-origin: center;
+    transition: transform 0.3s ease;
 }
 
 .table-modern tbody tr:hover,
 .table-striped-modern tbody tr:nth-child(even):hover,
-.table > tbody > tr:hover {
-    background: #f8fbff !important;
-    transform: none !important;
+.table > tbody > tr:hover,
+[data-global-grid="true"] > tbody > tr:hover,
+.table-scroll-wrapper table > tbody > tr:hover {
+    background: var(--surface) !important;
+    position: relative;
+    z-index: 1;
+    transform: scale(1.01) !important;
+}
+
+.table-hover {
+    --bs-table-hover-bg: transparent;
+    --bs-table-hover-color: inherit;
 }
 
 .badge-modern,

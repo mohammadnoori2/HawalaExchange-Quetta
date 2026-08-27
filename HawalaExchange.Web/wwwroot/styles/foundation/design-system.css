@@ -500,8 +500,8 @@ body {
 .table-scroll-wrapper table > tbody > tr {
     background: var(--surface) !important;
     transform: none !important;
-    transform-origin: center;
-    transition: transform 0.3s ease;
+    filter: none;
+    transition: filter 0.18s ease;
 }
 
 .table-modern tbody tr:hover,
@@ -510,14 +510,21 @@ body {
 [data-global-grid="true"] > tbody > tr:hover,
 .table-scroll-wrapper table > tbody > tr:hover {
     background: var(--surface) !important;
-    position: relative;
-    z-index: 1;
-    transform: scale(1.01) !important;
+    transform: none !important;
+    filter: brightness(0.97);
 }
 
 .table-hover {
     --bs-table-hover-bg: transparent;
     --bs-table-hover-color: inherit;
+}
+
+:is(.reports-page, .financial-page, .report-print-area, .statement-sheet) table > tbody > tr,
+:is(.reports-page, .financial-page, .report-print-area, .statement-sheet) table > tbody > tr:hover {
+    background: var(--surface) !important;
+    transform: none !important;
+    filter: none !important;
+    transition: none !important;
 }
 
 .badge-modern,

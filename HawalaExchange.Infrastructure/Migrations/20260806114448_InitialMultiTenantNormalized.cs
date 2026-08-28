@@ -14,27 +14,20 @@ namespace HawalaExchange.Infrastructure.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "Correspondents",
+                name: "BillingNumberSequences",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
-                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Country = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    City = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    PhoneNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    IsArchived = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
-                    Remarks = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Year = table.Column<int>(type: "int", nullable: false),
+                    Prefix = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    NextValue = table.Column<long>(type: "bigint", nullable: false),
                     RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Correspondents", x => x.Id);
-                    table.UniqueConstraint("AK_Correspondents_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.PrimaryKey("PK_BillingNumberSequences", x => x.Id);
+                    table.CheckConstraint("CK_BillingNumberSequences_NextValue", "[NextValue] > 0");
                 });
 
             migrationBuilder.CreateTable(
@@ -100,13 +93,98 @@ namespace HawalaExchange.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SaasAutomationRuns",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    JobName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    RunKey = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    StartedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ProcessedSubscriptions = table.Column<int>(type: "int", nullable: false),
+                    CreatedInvoices = table.Column<int>(type: "int", nullable: false),
+                    CreatedNotifications = table.Column<int>(type: "int", nullable: false),
+                    Error = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SaasAutomationRuns", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SaasAutomationSettings",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    AutoCreateInvoices = table.Column<bool>(type: "bit", nullable: false),
+                    SendEmailNotifications = table.Column<bool>(type: "bit", nullable: false),
+                    RunIntervalMinutes = table.Column<int>(type: "int", nullable: false),
+                    ExpiryWarningDays = table.Column<int>(type: "int", nullable: false),
+                    GracePeriodDays = table.Column<int>(type: "int", nullable: false),
+                    GraceWarningDays = table.Column<int>(type: "int", nullable: false),
+                    InvoiceLeadDays = table.Column<int>(type: "int", nullable: false),
+                    InvoiceDueDays = table.Column<int>(type: "int", nullable: false),
+                    QuotaWarningPercent = table.Column<int>(type: "int", nullable: false),
+                    LastRunAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SaasAutomationSettings", x => x.Id);
+                    table.CheckConstraint("CK_SaasAutomationSettings_Values", "[Id] = 1 AND [RunIntervalMinutes] >= 5 AND [ExpiryWarningDays] > 0 AND [GracePeriodDays] >= 0 AND [QuotaWarningPercent] BETWEEN 1 AND 100");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SubscriptionPlans",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    MonthlyPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    AnnualPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CurrencyCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    TrialDays = table.Column<int>(type: "int", nullable: false),
+                    MaxUsers = table.Column<int>(type: "int", nullable: false),
+                    MaxBranches = table.Column<int>(type: "int", nullable: false),
+                    MaxStorageBytes = table.Column<long>(type: "bigint", nullable: false),
+                    MaxMonthlyTransactions = table.Column<int>(type: "int", nullable: false),
+                    IncludesAdvancedReports = table.Column<bool>(type: "bit", nullable: false),
+                    IncludesDocumentManagement = table.Column<bool>(type: "bit", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SubscriptionPlans", x => x.Id);
+                    table.CheckConstraint("CK_SubscriptionPlans_Limits", "[TrialDays] >= 0 AND [MaxUsers] >= 0 AND [MaxBranches] >= 0 AND [MaxStorageBytes] >= 0 AND [MaxMonthlyTransactions] >= 0");
+                    table.CheckConstraint("CK_SubscriptionPlans_Prices", "[MonthlyPrice] >= 0 AND [AnnualPrice] >= 0");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Tenants",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    LegalName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ContactName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ContactEmail = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    ContactPhone = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    IsArchived = table.Column<bool>(type: "bit", nullable: false),
+                    LastActivityAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -115,36 +193,32 @@ namespace HawalaExchange.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Accounts",
+                name: "Correspondents",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     TenantId = table.Column<long>(type: "bigint", nullable: false),
-                    AccountCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    AccountName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    AccountType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    CustomerId = table.Column<long>(type: "bigint", nullable: true),
-                    CorrespondentId = table.Column<long>(type: "bigint", nullable: true),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Country = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    City = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsArchived = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    SettlementCurrencyId = table.Column<long>(type: "bigint", nullable: true),
+                    Remarks = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Accounts", x => x.Id);
-                    table.UniqueConstraint("AK_Accounts_TenantId_Id", x => new { x.TenantId, x.Id });
-                    table.CheckConstraint("CK_Accounts_OneOwner", "[CustomerId] IS NULL OR [CorrespondentId] IS NULL");
+                    table.PrimaryKey("PK_Correspondents", x => x.Id);
+                    table.UniqueConstraint("AK_Correspondents_TenantId_Id", x => new { x.TenantId, x.Id });
                     table.ForeignKey(
-                        name: "FK_Accounts_Correspondents_TenantId_CorrespondentId",
-                        columns: x => new { x.TenantId, x.CorrespondentId },
-                        principalTable: "Correspondents",
-                        principalColumns: new[] { "TenantId", "Id" },
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Accounts_Customers_TenantId_CustomerId",
-                        columns: x => new { x.TenantId, x.CustomerId },
-                        principalTable: "Customers",
+                        name: "FK_Correspondents_Currencies_TenantId_SettlementCurrencyId",
+                        columns: x => new { x.TenantId, x.SettlementCurrencyId },
+                        principalTable: "Currencies",
                         principalColumns: new[] { "TenantId", "Id" },
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -230,6 +304,235 @@ namespace HawalaExchange.Infrastructure.Migrations
                         principalTable: "Tenants",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PlatformAuditLogs",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ActorUserId = table.Column<long>(type: "bigint", nullable: true),
+                    TenantId = table.Column<long>(type: "bigint", nullable: true),
+                    Action = table.Column<string>(type: "nvarchar(80)", maxLength: 80, nullable: false),
+                    EntityName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    EntityId = table.Column<long>(type: "bigint", nullable: true),
+                    Details = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PlatformAuditLogs", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PlatformAuditLogs_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TenantSubscriptions",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    PlanId = table.Column<long>(type: "bigint", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    BillingCycle = table.Column<int>(type: "int", nullable: false),
+                    StartAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EndAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    TrialEndAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    GracePeriodEndAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    AutoRenew = table.Column<bool>(type: "bit", nullable: false),
+                    AgreedPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CurrencyCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    LastPaymentAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    NextPaymentAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    AdministrativeNote = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    SuspensionReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TenantSubscriptions", x => x.Id);
+                    table.CheckConstraint("CK_TenantSubscriptions_Dates", "[EndAt] > [StartAt]");
+                    table.CheckConstraint("CK_TenantSubscriptions_Price", "[AgreedPrice] >= 0");
+                    table.ForeignKey(
+                        name: "FK_TenantSubscriptions_SubscriptionPlans_PlanId",
+                        column: x => x.PlanId,
+                        principalTable: "SubscriptionPlans",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_TenantSubscriptions_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TenantUsageSnapshots",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    PeriodStart = table.Column<DateTime>(type: "date", nullable: false),
+                    UserCount = table.Column<int>(type: "int", nullable: false),
+                    BranchCount = table.Column<int>(type: "int", nullable: false),
+                    TransactionCount = table.Column<int>(type: "int", nullable: false),
+                    StorageBytes = table.Column<long>(type: "bigint", nullable: false),
+                    CalculatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TenantUsageSnapshots", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TenantUsageSnapshots_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Accounts",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    AccountCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    AccountName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    AccountType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    CustomerId = table.Column<long>(type: "bigint", nullable: true),
+                    CorrespondentId = table.Column<long>(type: "bigint", nullable: true),
+                    IsArchived = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Accounts", x => x.Id);
+                    table.UniqueConstraint("AK_Accounts_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.CheckConstraint("CK_Accounts_OneOwner", "[CustomerId] IS NULL OR [CorrespondentId] IS NULL");
+                    table.ForeignKey(
+                        name: "FK_Accounts_Correspondents_TenantId_CorrespondentId",
+                        columns: x => new { x.TenantId, x.CorrespondentId },
+                        principalTable: "Correspondents",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Accounts_Customers_TenantId_CustomerId",
+                        columns: x => new { x.TenantId, x.CustomerId },
+                        principalTable: "Customers",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Users",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    LocalUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    FullName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    BranchId = table.Column<long>(type: "bigint", nullable: true),
+                    IsPlatformUser = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
+                    LastLoginAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RefreshToken = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RefreshTokenExpiryTime = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedEmail = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    EmailConfirmed = table.Column<bool>(type: "bit", nullable: false),
+                    PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    SecurityStamp = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PhoneNumberConfirmed = table.Column<bool>(type: "bit", nullable: false),
+                    TwoFactorEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    LockoutEnd = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    LockoutEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    AccessFailedCount = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Users", x => x.Id);
+                    table.UniqueConstraint("AK_Users_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.CheckConstraint("CK_Users_Scope", "([IsPlatformUser] = 1 AND [BranchId] IS NULL) OR ([IsPlatformUser] = 0 AND [BranchId] IS NOT NULL)");
+                    table.ForeignKey(
+                        name: "FK_Users_Branches_TenantId_BranchId",
+                        columns: x => new { x.TenantId, x.BranchId },
+                        principalTable: "Branches",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Users_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SubscriptionInvoices",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    InvoiceNumber = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    SubscriptionId = table.Column<long>(type: "bigint", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    IssuedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DueAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ServicePeriodStart = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ServicePeriodEnd = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    PaidAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Subtotal = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    DiscountAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TaxAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    PaidAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CurrencyCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    BillingName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    BillingEmail = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    BillingPhone = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    AutoRenewOnPayment = table.Column<bool>(type: "bit", nullable: false),
+                    RenewalAppliedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SubscriptionInvoices", x => x.Id);
+                    table.CheckConstraint("CK_SubscriptionInvoices_Amounts", "[Subtotal] >= 0 AND [DiscountAmount] >= 0 AND [TaxAmount] >= 0 AND [TotalAmount] >= 0 AND [PaidAmount] >= 0 AND [PaidAmount] <= [TotalAmount]");
+                    table.CheckConstraint("CK_SubscriptionInvoices_Dates", "[ServicePeriodEnd] > [ServicePeriodStart] AND [DueAt] >= [IssuedAt]");
+                    table.ForeignKey(
+                        name: "FK_SubscriptionInvoices_TenantSubscriptions_SubscriptionId",
+                        column: x => x.SubscriptionId,
+                        principalTable: "TenantSubscriptions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SubscriptionInvoices_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -448,54 +751,6 @@ namespace HawalaExchange.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Users",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    TenantId = table.Column<long>(type: "bigint", nullable: false),
-                    LocalUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    FullName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    BranchId = table.Column<long>(type: "bigint", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()"),
-                    LastLoginAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    RefreshToken = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    RefreshTokenExpiryTime = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    NormalizedEmail = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    EmailConfirmed = table.Column<bool>(type: "bit", nullable: false),
-                    PasswordHash = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    SecurityStamp = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    PhoneNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    PhoneNumberConfirmed = table.Column<bool>(type: "bit", nullable: false),
-                    TwoFactorEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    LockoutEnd = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    LockoutEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    AccessFailedCount = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Users", x => x.Id);
-                    table.UniqueConstraint("AK_Users_TenantId_Id", x => new { x.TenantId, x.Id });
-                    table.ForeignKey(
-                        name: "FK_Users_Branches_TenantId_BranchId",
-                        columns: x => new { x.TenantId, x.BranchId },
-                        principalTable: "Branches",
-                        principalColumns: new[] { "TenantId", "Id" },
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Users_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "AccountBadehkarLimits",
                 columns: table => new
                 {
@@ -527,6 +782,48 @@ namespace HawalaExchange.Infrastructure.Migrations
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_AccountBadehkarLimits_Users_TenantId_CreatedBy",
+                        columns: x => new { x.TenantId, x.CreatedBy },
+                        principalTable: "Users",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CashBalanceAlertSettings",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    AccountId = table.Column<long>(type: "bigint", nullable: false),
+                    CurrencyId = table.Column<long>(type: "bigint", nullable: false),
+                    MinimumBalance = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    NotifyAllUsers = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    ShowInApp = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CashBalanceAlertSettings", x => x.Id);
+                    table.UniqueConstraint("AK_CashBalanceAlertSettings_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.ForeignKey(
+                        name: "FK_CashBalanceAlertSettings_Accounts_TenantId_AccountId",
+                        columns: x => new { x.TenantId, x.AccountId },
+                        principalTable: "Accounts",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CashBalanceAlertSettings_Currencies_TenantId_CurrencyId",
+                        columns: x => new { x.TenantId, x.CurrencyId },
+                        principalTable: "Currencies",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CashBalanceAlertSettings_Users_TenantId_CreatedBy",
                         columns: x => new { x.TenantId, x.CreatedBy },
                         principalTable: "Users",
                         principalColumns: new[] { "TenantId", "Id" },
@@ -578,6 +875,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    CorrespondentId = table.Column<long>(type: "bigint", nullable: true),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     Phone = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
@@ -592,6 +890,12 @@ namespace HawalaExchange.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_PaymentLocations", x => x.Id);
                     table.UniqueConstraint("AK_PaymentLocations_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.ForeignKey(
+                        name: "FK_PaymentLocations_Correspondents_TenantId_CorrespondentId",
+                        columns: x => new { x.TenantId, x.CorrespondentId },
+                        principalTable: "Correspondents",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_PaymentLocations_Users_TenantId_CreatedBy",
                         columns: x => new { x.TenantId, x.CreatedBy },
@@ -687,6 +991,172 @@ namespace HawalaExchange.Infrastructure.Migrations
                         column: x => x.UserId,
                         principalTable: "Users",
                         principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SaasNotifications",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: true),
+                    SubscriptionId = table.Column<long>(type: "bigint", nullable: true),
+                    InvoiceId = table.Column<long>(type: "bigint", nullable: true),
+                    Type = table.Column<int>(type: "int", nullable: false),
+                    Severity = table.Column<int>(type: "int", nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Message = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
+                    DeduplicationKey = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
+                    RecipientEmail = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    DeliveryStatus = table.Column<int>(type: "int", nullable: false),
+                    DeliveryError = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    SentAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ReadAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SaasNotifications", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SaasNotifications_SubscriptionInvoices_InvoiceId",
+                        column: x => x.InvoiceId,
+                        principalTable: "SubscriptionInvoices",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SaasNotifications_TenantSubscriptions_SubscriptionId",
+                        column: x => x.SubscriptionId,
+                        principalTable: "TenantSubscriptions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SaasNotifications_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SubscriptionInvoiceItems",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    InvoiceId = table.Column<long>(type: "bigint", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Quantity = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
+                    UnitPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    DiscountAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TaxAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    LineTotal = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    SortOrder = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SubscriptionInvoiceItems", x => x.Id);
+                    table.CheckConstraint("CK_SubscriptionInvoiceItems_Amounts", "[Quantity] > 0 AND [UnitPrice] >= 0 AND [DiscountAmount] >= 0 AND [TaxAmount] >= 0 AND [LineTotal] >= 0");
+                    table.ForeignKey(
+                        name: "FK_SubscriptionInvoiceItems_SubscriptionInvoices_InvoiceId",
+                        column: x => x.InvoiceId,
+                        principalTable: "SubscriptionInvoices",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SubscriptionPayments",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    SubscriptionId = table.Column<long>(type: "bigint", nullable: false),
+                    InvoiceId = table.Column<long>(type: "bigint", nullable: true),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    CurrencyCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    DueAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    PaidAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PaymentMethod = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ReferenceNumber = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    ProviderName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ProviderTransactionId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ReceiptNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Note = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SubscriptionPayments", x => x.Id);
+                    table.CheckConstraint("CK_SubscriptionPayments_Amount", "[Amount] >= 0");
+                    table.ForeignKey(
+                        name: "FK_SubscriptionPayments_SubscriptionInvoices_InvoiceId",
+                        column: x => x.InvoiceId,
+                        principalTable: "SubscriptionInvoices",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SubscriptionPayments_TenantSubscriptions_SubscriptionId",
+                        column: x => x.SubscriptionId,
+                        principalTable: "TenantSubscriptions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CashBalanceAlertRecipients",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    SettingId = table.Column<long>(type: "bigint", nullable: false),
+                    UserId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CashBalanceAlertRecipients", x => x.Id);
+                    table.UniqueConstraint("AK_CashBalanceAlertRecipients_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.ForeignKey(
+                        name: "FK_CashBalanceAlertRecipients_CashBalanceAlertSettings_TenantId_SettingId",
+                        columns: x => new { x.TenantId, x.SettingId },
+                        principalTable: "CashBalanceAlertSettings",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CashBalanceAlertRecipients_Users_TenantId_UserId",
+                        columns: x => new { x.TenantId, x.UserId },
+                        principalTable: "Users",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CashBalanceAlerts",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    SettingId = table.Column<long>(type: "bigint", nullable: false),
+                    CurrentBalance = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    MinimumBalance = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    TriggeredAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    LastCheckedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ResolvedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CashBalanceAlerts", x => x.Id);
+                    table.UniqueConstraint("AK_CashBalanceAlerts_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.ForeignKey(
+                        name: "FK_CashBalanceAlerts_CashBalanceAlertSettings_TenantId_SettingId",
+                        columns: x => new { x.TenantId, x.SettingId },
+                        principalTable: "CashBalanceAlertSettings",
+                        principalColumns: new[] { "TenantId", "Id" },
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -887,6 +1357,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     TenantId = table.Column<long>(type: "bigint", nullable: false),
                     UserId = table.Column<long>(type: "bigint", nullable: true),
+                    ProcessId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Action = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     TableName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     RecordId = table.Column<long>(type: "bigint", nullable: false),
@@ -913,6 +1384,52 @@ namespace HawalaExchange.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "CorrespondentSettlementConversions",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    CorrespondentId = table.Column<long>(type: "bigint", nullable: false),
+                    TargetCurrencyId = table.Column<long>(type: "bigint", nullable: false),
+                    TransactionId = table.Column<long>(type: "bigint", nullable: false),
+                    SourceMode = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    Note = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedBy = table.Column<long>(type: "bigint", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CorrespondentSettlementConversions", x => x.Id);
+                    table.UniqueConstraint("AK_CorrespondentSettlementConversions_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversions_Correspondents_TenantId_CorrespondentId",
+                        columns: x => new { x.TenantId, x.CorrespondentId },
+                        principalTable: "Correspondents",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversions_Currencies_TenantId_TargetCurrencyId",
+                        columns: x => new { x.TenantId, x.TargetCurrencyId },
+                        principalTable: "Currencies",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversions_Transactions_TenantId_TransactionId",
+                        columns: x => new { x.TenantId, x.TransactionId },
+                        principalTable: "Transactions",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversions_Users_TenantId_CreatedBy",
+                        columns: x => new { x.TenantId, x.CreatedBy },
+                        principalTable: "Users",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Documents",
                 columns: table => new
                 {
@@ -926,6 +1443,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     FileName = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
                     FilePath = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
                     ContentType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    FileSizeBytes = table.Column<long>(type: "bigint", nullable: false, defaultValue: 0L),
                     UploadedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -1090,6 +1608,8 @@ namespace HawalaExchange.Infrastructure.Migrations
                     ToAccountId = table.Column<long>(type: "bigint", nullable: false),
                     CurrencyId = table.Column<long>(type: "bigint", nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    ProfitCurrencyId = table.Column<long>(type: "bigint", nullable: true),
+                    ProfitCurrencyAmount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
                     TransferMethod = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     ReferenceNumber = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Remarks = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
@@ -1118,10 +1638,114 @@ namespace HawalaExchange.Infrastructure.Migrations
                         principalColumns: new[] { "TenantId", "Id" },
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
+                        name: "FK_Transfers_Currencies_TenantId_ProfitCurrencyId",
+                        columns: x => new { x.TenantId, x.ProfitCurrencyId },
+                        principalTable: "Currencies",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
                         name: "FK_Transfers_Transactions_TenantId_TransactionId",
                         columns: x => new { x.TenantId, x.TransactionId },
                         principalTable: "Transactions",
                         principalColumns: new[] { "TenantId", "Id" });
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CorrespondentSettlementConversionHawalaItems",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    ConversionId = table.Column<long>(type: "bigint", nullable: false),
+                    HawalaId = table.Column<long>(type: "bigint", nullable: false),
+                    SourceCurrencyId = table.Column<long>(type: "bigint", nullable: false),
+                    SourceTalabKar = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
+                    SourceBadehKar = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
+                    ExchangeRate = table.Column<decimal>(type: "decimal(18,8)", nullable: false),
+                    TargetTalabKar = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
+                    TargetBadehKar = table.Column<decimal>(type: "decimal(18,4)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CorrespondentSettlementConversionHawalaItems", x => x.Id);
+                    table.UniqueConstraint("AK_CorrespondentSettlementConversionHawalaItems_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversionHawalaItems_CorrespondentSettlementConversions_TenantId_ConversionId",
+                        columns: x => new { x.TenantId, x.ConversionId },
+                        principalTable: "CorrespondentSettlementConversions",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversionHawalaItems_Currencies_TenantId_SourceCurrencyId",
+                        columns: x => new { x.TenantId, x.SourceCurrencyId },
+                        principalTable: "Currencies",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversionHawalaItems_Hawalas_TenantId_HawalaId",
+                        columns: x => new { x.TenantId, x.HawalaId },
+                        principalTable: "Hawalas",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CorrespondentSettlementConversionHawalas",
+                columns: table => new
+                {
+                    ConversionId = table.Column<long>(type: "bigint", nullable: false),
+                    HawalaId = table.Column<long>(type: "bigint", nullable: false),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CorrespondentSettlementConversionHawalas", x => new { x.ConversionId, x.HawalaId });
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversionHawalas_CorrespondentSettlementConversions_TenantId_ConversionId",
+                        columns: x => new { x.TenantId, x.ConversionId },
+                        principalTable: "CorrespondentSettlementConversions",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversionHawalas_Hawalas_TenantId_HawalaId",
+                        columns: x => new { x.TenantId, x.HawalaId },
+                        principalTable: "Hawalas",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CorrespondentSettlementConversionItems",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<long>(type: "bigint", nullable: false),
+                    ConversionId = table.Column<long>(type: "bigint", nullable: false),
+                    SourceCurrencyId = table.Column<long>(type: "bigint", nullable: false),
+                    SourceTalabKar = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
+                    SourceBadehKar = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
+                    ExchangeRate = table.Column<decimal>(type: "decimal(18,8)", nullable: false),
+                    TargetTalabKar = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
+                    TargetBadehKar = table.Column<decimal>(type: "decimal(18,4)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CorrespondentSettlementConversionItems", x => x.Id);
+                    table.UniqueConstraint("AK_CorrespondentSettlementConversionItems_TenantId_Id", x => new { x.TenantId, x.Id });
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversionItems_CorrespondentSettlementConversions_TenantId_ConversionId",
+                        columns: x => new { x.TenantId, x.ConversionId },
+                        principalTable: "CorrespondentSettlementConversions",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_CorrespondentSettlementConversionItems_Currencies_TenantId_SourceCurrencyId",
+                        columns: x => new { x.TenantId, x.SourceCurrencyId },
+                        principalTable: "Currencies",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -1133,6 +1757,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                     TenantId = table.Column<long>(type: "bigint", nullable: false),
                     TransferId = table.Column<long>(type: "bigint", nullable: true),
                     HawalaId = table.Column<long>(type: "bigint", nullable: true),
+                    SettlementHawalaItemId = table.Column<long>(type: "bigint", nullable: true),
                     TransactionId = table.Column<long>(type: "bigint", nullable: true),
                     CapitalInvestmentId = table.Column<long>(type: "bigint", nullable: true),
                     ExpenseId = table.Column<long>(type: "bigint", nullable: true),
@@ -1170,6 +1795,12 @@ namespace HawalaExchange.Infrastructure.Migrations
                         name: "FK_LedgerEntries_CapitalInvestments_TenantId_CapitalInvestmentId",
                         columns: x => new { x.TenantId, x.CapitalInvestmentId },
                         principalTable: "CapitalInvestments",
+                        principalColumns: new[] { "TenantId", "Id" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_LedgerEntries_CorrespondentSettlementConversionHawalaItems_TenantId_SettlementHawalaItemId",
+                        columns: x => new { x.TenantId, x.SettlementHawalaItemId },
+                        principalTable: "CorrespondentSettlementConversionHawalaItems",
                         principalColumns: new[] { "TenantId", "Id" },
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -1237,14 +1868,24 @@ namespace HawalaExchange.Infrastructure.Migrations
                 });
 
             migrationBuilder.InsertData(
+                table: "SubscriptionPlans",
+                columns: new[] { "Id", "AnnualPrice", "Code", "CreatedAt", "CurrencyCode", "Description", "DisplayOrder", "IncludesAdvancedReports", "IncludesDocumentManagement", "IsActive", "MaxBranches", "MaxMonthlyTransactions", "MaxStorageBytes", "MaxUsers", "MonthlyPrice", "Name", "TrialDays", "UpdatedAt" },
+                values: new object[] { 1L, 0m, "STANDARD", new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "USD", "پلن پایه برای صرافی پیش‌فرض", 1, true, true, true, 5, 100000, 10737418240L, 25, 0m, "پلن استاندارد", 0, null });
+
+            migrationBuilder.InsertData(
                 table: "Tenants",
-                columns: new[] { "Id", "CreatedAt", "IsActive", "Name" },
-                values: new object[] { 1L, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, "صرافی پیش‌فرض" });
+                columns: new[] { "Id", "ContactEmail", "ContactName", "ContactPhone", "CreatedAt", "IsActive", "IsArchived", "LastActivityAt", "LegalName", "Name" },
+                values: new object[] { 1L, null, null, null, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), true, false, null, null, "صرافی پیش‌فرض" });
 
             migrationBuilder.InsertData(
                 table: "Branches",
                 columns: new[] { "Id", "Address", "Code", "CreatedAt", "Name", "PhoneNumber", "TenantId" },
                 values: new object[] { 1L, "", "MAIN", new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "شعبه اصلی", null, 1L });
+
+            migrationBuilder.InsertData(
+                table: "TenantSubscriptions",
+                columns: new[] { "Id", "AdministrativeNote", "AgreedPrice", "AutoRenew", "BillingCycle", "CreatedAt", "CurrencyCode", "EndAt", "GracePeriodEndAt", "LastPaymentAt", "NextPaymentAt", "PlanId", "StartAt", "Status", "SuspensionReason", "TenantId", "TrialEndAt", "UpdatedAt" },
+                values: new object[] { 1L, null, 0m, false, 12, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "USD", new DateTime(2036, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, null, null, 1L, new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 2, null, 1L, null, null });
 
             migrationBuilder.CreateIndex(
                 name: "IX_AccountBadehkarLimits_TenantId_AccountId_CurrencyId",
@@ -1308,6 +1949,11 @@ namespace HawalaExchange.Infrastructure.Migrations
                 columns: new[] { "TenantId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_AuditLogs_TenantId_ProcessId",
+                table: "AuditLogs",
+                columns: new[] { "TenantId", "ProcessId" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AuditLogs_TenantId_TableName_RecordId",
                 table: "AuditLogs",
                 columns: new[] { "TenantId", "TableName", "RecordId" });
@@ -1321,6 +1967,12 @@ namespace HawalaExchange.Infrastructure.Migrations
                 name: "IX_AuditLogs_TenantId_UserId",
                 table: "AuditLogs",
                 columns: new[] { "TenantId", "UserId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BillingNumberSequences_Year_Prefix",
+                table: "BillingNumberSequences",
+                columns: new[] { "Year", "Prefix" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Branches_TenantId_Code",
@@ -1354,6 +2006,45 @@ namespace HawalaExchange.Infrastructure.Migrations
                 columns: new[] { "TenantId", "ReceivingAccountId" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_CashBalanceAlertRecipients_TenantId_SettingId_UserId",
+                table: "CashBalanceAlertRecipients",
+                columns: new[] { "TenantId", "SettingId", "UserId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CashBalanceAlertRecipients_TenantId_UserId",
+                table: "CashBalanceAlertRecipients",
+                columns: new[] { "TenantId", "UserId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CashBalanceAlerts_TenantId_SettingId_IsActive",
+                table: "CashBalanceAlerts",
+                columns: new[] { "TenantId", "SettingId", "IsActive" },
+                unique: true,
+                filter: "[IsActive] = 1");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CashBalanceAlerts_TenantId_TriggeredAt",
+                table: "CashBalanceAlerts",
+                columns: new[] { "TenantId", "TriggeredAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CashBalanceAlertSettings_TenantId_AccountId_CurrencyId",
+                table: "CashBalanceAlertSettings",
+                columns: new[] { "TenantId", "AccountId", "CurrencyId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CashBalanceAlertSettings_TenantId_CreatedBy",
+                table: "CashBalanceAlertSettings",
+                columns: new[] { "TenantId", "CreatedBy" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CashBalanceAlertSettings_TenantId_CurrencyId",
+                table: "CashBalanceAlertSettings",
+                columns: new[] { "TenantId", "CurrencyId" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CashDailyBalances_TenantId_AccountId",
                 table: "CashDailyBalances",
                 columns: new[] { "TenantId", "AccountId" });
@@ -1385,6 +2076,69 @@ namespace HawalaExchange.Infrastructure.Migrations
                 table: "Correspondents",
                 columns: new[] { "TenantId", "Code" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Correspondents_TenantId_SettlementCurrencyId",
+                table: "Correspondents",
+                columns: new[] { "TenantId", "SettlementCurrencyId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversionHawalaItems_TenantId_ConversionId",
+                table: "CorrespondentSettlementConversionHawalaItems",
+                columns: new[] { "TenantId", "ConversionId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversionHawalaItems_TenantId_HawalaId_SourceCurrencyId",
+                table: "CorrespondentSettlementConversionHawalaItems",
+                columns: new[] { "TenantId", "HawalaId", "SourceCurrencyId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversionHawalaItems_TenantId_SourceCurrencyId",
+                table: "CorrespondentSettlementConversionHawalaItems",
+                columns: new[] { "TenantId", "SourceCurrencyId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversionHawalas_TenantId_ConversionId",
+                table: "CorrespondentSettlementConversionHawalas",
+                columns: new[] { "TenantId", "ConversionId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversionHawalas_TenantId_HawalaId",
+                table: "CorrespondentSettlementConversionHawalas",
+                columns: new[] { "TenantId", "HawalaId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversionItems_TenantId_ConversionId_SourceCurrencyId",
+                table: "CorrespondentSettlementConversionItems",
+                columns: new[] { "TenantId", "ConversionId", "SourceCurrencyId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversionItems_TenantId_SourceCurrencyId",
+                table: "CorrespondentSettlementConversionItems",
+                columns: new[] { "TenantId", "SourceCurrencyId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversions_TenantId_CorrespondentId_CreatedAt",
+                table: "CorrespondentSettlementConversions",
+                columns: new[] { "TenantId", "CorrespondentId", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversions_TenantId_CreatedBy",
+                table: "CorrespondentSettlementConversions",
+                columns: new[] { "TenantId", "CreatedBy" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversions_TenantId_TargetCurrencyId",
+                table: "CorrespondentSettlementConversions",
+                columns: new[] { "TenantId", "TargetCurrencyId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CorrespondentSettlementConversions_TenantId_TransactionId",
+                table: "CorrespondentSettlementConversions",
+                columns: new[] { "TenantId", "TransactionId" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Currencies_TenantId_Code",
@@ -1573,6 +2327,11 @@ namespace HawalaExchange.Infrastructure.Migrations
                 columns: new[] { "TenantId", "MoneyExchangeOperationId" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_LedgerEntries_TenantId_SettlementHawalaItemId",
+                table: "LedgerEntries",
+                columns: new[] { "TenantId", "SettlementHawalaItemId" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_LedgerEntries_TenantId_TransactionId",
                 table: "LedgerEntries",
                 columns: new[] { "TenantId", "TransactionId" });
@@ -1623,6 +2382,11 @@ namespace HawalaExchange.Infrastructure.Migrations
                 columns: new[] { "TenantId", "ToCurrencyId" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_PaymentLocations_TenantId_CorrespondentId",
+                table: "PaymentLocations",
+                columns: new[] { "TenantId", "CorrespondentId" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_PaymentLocations_TenantId_CreatedBy",
                 table: "PaymentLocations",
                 columns: new[] { "TenantId", "CreatedBy" });
@@ -1631,6 +2395,16 @@ namespace HawalaExchange.Infrastructure.Migrations
                 name: "IX_PaymentLocations_TenantId_UpdatedBy",
                 table: "PaymentLocations",
                 columns: new[] { "TenantId", "UpdatedBy" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlatformAuditLogs_CreatedAt_Action",
+                table: "PlatformAuditLogs",
+                columns: new[] { "CreatedAt", "Action" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlatformAuditLogs_TenantId_CreatedAt",
+                table: "PlatformAuditLogs",
+                columns: new[] { "TenantId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_RoleClaims_RoleId",
@@ -1650,6 +2424,140 @@ namespace HawalaExchange.Infrastructure.Migrations
                 column: "NormalizedName",
                 unique: true,
                 filter: "[NormalizedName] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SaasAutomationRuns_RunKey",
+                table: "SaasAutomationRuns",
+                column: "RunKey",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SaasAutomationRuns_StartedAt_Status",
+                table: "SaasAutomationRuns",
+                columns: new[] { "StartedAt", "Status" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SaasNotifications_DeduplicationKey",
+                table: "SaasNotifications",
+                column: "DeduplicationKey",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SaasNotifications_InvoiceId",
+                table: "SaasNotifications",
+                column: "InvoiceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SaasNotifications_ReadAt_Severity_CreatedAt",
+                table: "SaasNotifications",
+                columns: new[] { "ReadAt", "Severity", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SaasNotifications_SubscriptionId",
+                table: "SaasNotifications",
+                column: "SubscriptionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SaasNotifications_TenantId_CreatedAt",
+                table: "SaasNotifications",
+                columns: new[] { "TenantId", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionInvoiceItems_InvoiceId_SortOrder",
+                table: "SubscriptionInvoiceItems",
+                columns: new[] { "InvoiceId", "SortOrder" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionInvoices_CurrencyCode_IssuedAt",
+                table: "SubscriptionInvoices",
+                columns: new[] { "CurrencyCode", "IssuedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionInvoices_InvoiceNumber",
+                table: "SubscriptionInvoices",
+                column: "InvoiceNumber",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionInvoices_Status_DueAt",
+                table: "SubscriptionInvoices",
+                columns: new[] { "Status", "DueAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionInvoices_SubscriptionId",
+                table: "SubscriptionInvoices",
+                column: "SubscriptionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionInvoices_TenantId_Status_DueAt",
+                table: "SubscriptionInvoices",
+                columns: new[] { "TenantId", "Status", "DueAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPayments_InvoiceId",
+                table: "SubscriptionPayments",
+                column: "InvoiceId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPayments_ProviderTransactionId",
+                table: "SubscriptionPayments",
+                column: "ProviderTransactionId",
+                unique: true,
+                filter: "[ProviderTransactionId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPayments_ReferenceNumber",
+                table: "SubscriptionPayments",
+                column: "ReferenceNumber",
+                unique: true,
+                filter: "[ReferenceNumber] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPayments_SubscriptionId_Status_DueAt",
+                table: "SubscriptionPayments",
+                columns: new[] { "SubscriptionId", "Status", "DueAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPlans_Code",
+                table: "SubscriptionPlans",
+                column: "Code",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SubscriptionPlans_IsActive_DisplayOrder",
+                table: "SubscriptionPlans",
+                columns: new[] { "IsActive", "DisplayOrder" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantSubscriptions_NextPaymentAt",
+                table: "TenantSubscriptions",
+                column: "NextPaymentAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantSubscriptions_PlanId",
+                table: "TenantSubscriptions",
+                column: "PlanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantSubscriptions_Status_EndAt",
+                table: "TenantSubscriptions",
+                columns: new[] { "Status", "EndAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantSubscriptions_TenantId_Status_EndAt",
+                table: "TenantSubscriptions",
+                columns: new[] { "TenantId", "Status", "EndAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantUsageSnapshots_PeriodStart",
+                table: "TenantUsageSnapshots",
+                column: "PeriodStart");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantUsageSnapshots_TenantId_PeriodStart",
+                table: "TenantUsageSnapshots",
+                columns: new[] { "TenantId", "PeriodStart" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_TransactionDetails_TenantId_AgentCommissionCurrencyId",
@@ -1733,6 +2641,11 @@ namespace HawalaExchange.Infrastructure.Migrations
                 columns: new[] { "TenantId", "FromAccountId" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_Transfers_TenantId_ProfitCurrencyId",
+                table: "Transfers",
+                columns: new[] { "TenantId", "ProfitCurrencyId" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Transfers_TenantId_ToAccountId",
                 table: "Transfers",
                 columns: new[] { "TenantId", "ToAccountId" });
@@ -1793,10 +2706,25 @@ namespace HawalaExchange.Infrastructure.Migrations
                 name: "AuditLogs");
 
             migrationBuilder.DropTable(
+                name: "BillingNumberSequences");
+
+            migrationBuilder.DropTable(
+                name: "CashBalanceAlertRecipients");
+
+            migrationBuilder.DropTable(
+                name: "CashBalanceAlerts");
+
+            migrationBuilder.DropTable(
                 name: "CashDailyBalances");
 
             migrationBuilder.DropTable(
                 name: "CompanySettings");
+
+            migrationBuilder.DropTable(
+                name: "CorrespondentSettlementConversionHawalas");
+
+            migrationBuilder.DropTable(
+                name: "CorrespondentSettlementConversionItems");
 
             migrationBuilder.DropTable(
                 name: "Documents");
@@ -1808,7 +2736,28 @@ namespace HawalaExchange.Infrastructure.Migrations
                 name: "LedgerEntries");
 
             migrationBuilder.DropTable(
+                name: "PlatformAuditLogs");
+
+            migrationBuilder.DropTable(
                 name: "RoleClaims");
+
+            migrationBuilder.DropTable(
+                name: "SaasAutomationRuns");
+
+            migrationBuilder.DropTable(
+                name: "SaasAutomationSettings");
+
+            migrationBuilder.DropTable(
+                name: "SaasNotifications");
+
+            migrationBuilder.DropTable(
+                name: "SubscriptionInvoiceItems");
+
+            migrationBuilder.DropTable(
+                name: "SubscriptionPayments");
+
+            migrationBuilder.DropTable(
+                name: "TenantUsageSnapshots");
 
             migrationBuilder.DropTable(
                 name: "TransactionDetails");
@@ -1826,10 +2775,16 @@ namespace HawalaExchange.Infrastructure.Migrations
                 name: "UserTokens");
 
             migrationBuilder.DropTable(
+                name: "CashBalanceAlertSettings");
+
+            migrationBuilder.DropTable(
                 name: "AccountMoneyOperations");
 
             migrationBuilder.DropTable(
                 name: "CapitalInvestments");
+
+            migrationBuilder.DropTable(
+                name: "CorrespondentSettlementConversionHawalaItems");
 
             migrationBuilder.DropTable(
                 name: "Expenses");
@@ -1841,10 +2796,22 @@ namespace HawalaExchange.Infrastructure.Migrations
                 name: "Transfers");
 
             migrationBuilder.DropTable(
+                name: "SubscriptionInvoices");
+
+            migrationBuilder.DropTable(
                 name: "Roles");
 
             migrationBuilder.DropTable(
+                name: "CorrespondentSettlementConversions");
+
+            migrationBuilder.DropTable(
+                name: "TenantSubscriptions");
+
+            migrationBuilder.DropTable(
                 name: "Transactions");
+
+            migrationBuilder.DropTable(
+                name: "SubscriptionPlans");
 
             migrationBuilder.DropTable(
                 name: "Hawalas");
@@ -1853,19 +2820,19 @@ namespace HawalaExchange.Infrastructure.Migrations
                 name: "Accounts");
 
             migrationBuilder.DropTable(
-                name: "Currencies");
-
-            migrationBuilder.DropTable(
                 name: "PaymentLocations");
-
-            migrationBuilder.DropTable(
-                name: "Correspondents");
 
             migrationBuilder.DropTable(
                 name: "Customers");
 
             migrationBuilder.DropTable(
+                name: "Correspondents");
+
+            migrationBuilder.DropTable(
                 name: "Users");
+
+            migrationBuilder.DropTable(
+                name: "Currencies");
 
             migrationBuilder.DropTable(
                 name: "Branches");

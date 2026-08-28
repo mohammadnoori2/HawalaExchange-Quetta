@@ -84,13 +84,6 @@
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
-                            <th class="sortable-header @(sortColumn == "CustomerCode" ? "active" : "")" @onclick="@(() => SortBy("CustomerCode"))">
-                                کد مشتری
-                                @if (sortColumn == "CustomerCode")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
                             <th class="sortable-header @(sortColumn == "FullName" ? "active" : "")" @onclick="@(() => SortBy("FullName"))">
                                 نام کامل
                                 @if (sortColumn == "FullName")
@@ -110,7 +103,7 @@
                         @if (isLoading && customers == null)
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="8" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status">
                                             <span class="visually-hidden">در حال بارگذاری...</span>
@@ -123,7 +116,7 @@
                         else if (!pagedCustomers.Any())
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="8" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">@(IsRegisteredReceiverTab ? "هیچ گیرندهٔ ثبت‌شده‌ای یافت نشد" : "هیچ مشتری‌ای یافت نشد")</span>
@@ -139,9 +132,6 @@
                             {
                                 <tr class="@(customer.IsArchived ? "table-row-archived" : "")">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
-                                    <td>
-                                        <span class="customer-code">@customer.CustomerCode</span>
-                                    </td>
                                     <td>
                                         <span class="fw-semibold">@customer.FullName</span>
                                     </td>

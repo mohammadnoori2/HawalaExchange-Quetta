@@ -101,7 +101,6 @@
                     <thead>
                         <tr>
                             <th>صندوق</th>
-                            <th>کُد حساب</th>
                             <th>ارز</th>
                             <th>موجودی فعلی</th>
                         </tr>
@@ -110,7 +109,7 @@
                         @if (!currentCashBalances.Any())
                         {
                             <tr>
-                                <td colspan="4" class="text-center py-4 text-muted">
+                                <td colspan="3" class="text-center py-4 text-muted">
                                     هنوز برای حساب صندوق هیچ معامله‌ای با ارز ثبت نشده است.
                                 </td>
                             </tr>
@@ -121,7 +120,6 @@
                             {
                                 <tr>
                                     <td class="fw-bold">@balance.AccountName</td>
-                                    <td dir="ltr">@balance.AccountCode</td>
                                     <td><span class="badge-modern badge-info">@balance.CurrencyCode</span></td>
                                     <td dir="ltr" class="fw-bold @(balance.Balance >= 0 ? "text-success" : "text-danger")">
                                         @MoneyFormatHelper.Format(balance.Balance)

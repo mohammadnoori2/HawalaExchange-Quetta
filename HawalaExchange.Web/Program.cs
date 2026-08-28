@@ -17,7 +17,7 @@ using Microsoft.EntityFrameworkCore;
 
 public partial class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -174,11 +174,11 @@ public partial class Program
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
         app.UseHttpsRedirection();
         app.UseStaticFiles();
-        app.UseAntiforgery();
 
         // ✅ Authentication & Authorization Middleware
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseAntiforgery();
 
         app.MapStaticAssets();
         app.MapRazorComponents<App>()
@@ -208,54 +208,8 @@ public partial class Program
             return Results.File(file.Content, file.ContentType, file.FileName);
         }).RequireAuthorization("PlatformAccess");
 
-        // ============================================================
-        // 10. Seed Data
-        // ============================================================
-        using (var scope = app.Services.CreateScope())
-        {
-            var services = scope.ServiceProvider;
-            try
-            {
-                var context = services.GetRequiredService<ApplicationDbContext>();
-                if (context.Database.GetMigrations().Any())
-                    context.Database.Migrate();
-                else
-                    context.Database.EnsureCreated();
-
-                context.EnsureApplicationSchemaAsync().GetAwaiter().GetResult();
-
-                var roleManager = services.GetRequiredService<RoleManager<IdentityRole<long>>>();
-                var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
-
-                SeedData.InitializeAsync(
-                    roleManager,
-                    userManager,
-                    context,
-                    app.Environment.IsDevelopment(),
-                    builder.Configuration).Wait();
-
-                var tenantIds = context.Tenants
-                    .AsNoTracking()
-                    .Where(x => x.IsActive)
-                    .Select(x => x.Id)
-                    .ToList();
-                var currencyCostService = services.GetRequiredService<ICurrencyCostService>();
-                foreach (var tenantId in tenantIds)
-                {
-                    using var tenantScope = context.UseTenantScope(tenantId);
-                    using var subscriptionBypass = context.BypassSubscriptionEnforcement();
-                    context.EnsureSystemAccountsAsync(tenantId).GetAwaiter().GetResult();
-                    // Recalculate cost positions and valuation entries independently.
-                    currencyCostService.RebuildAsync().GetAwaiter().GetResult();
-                }
-            }
-            catch (Exception ex)
-            {
-                var logger = services.GetRequiredService<ILogger<Program>>();
-                logger.LogError(ex, "An error occurred while seeding the database.");
-            }
-        }
-
-        app.Run();
+        // Apply every pending migration and seed required data before serving requests.
+        await app.InitializeDatabaseAsync();
+        await app.RunAsync();
     }
 }

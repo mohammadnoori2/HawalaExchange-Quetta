@@ -194,14 +194,14 @@
 <!-- مودال آپلود سند -->
 @if (showUploadModal)
 {
-    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
-        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal show d-block modal-modern document-modal-backdrop" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable document-upload-modal">
             <div class="modal-content">
-                <div class="modal-header gradient">
-                    <h5 class="modal-title text-white">
+                <div class="modal-header">
+                    <h5 class="modal-title">
                         <i class="bi bi-cloud-arrow-up me-2"></i> آپلود سند جدید
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseUploadModal()"></button>
+                    <button type="button" class="btn-close" @onclick="() => CloseUploadModal()" aria-label="بستن"></button>
                 </div>
                 <div class="modal-body">
                     <!-- پیام‌های خطا -->
@@ -233,12 +233,13 @@
                             </h6>
                         </div>
                         <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-tag text-muted me-1"></i> نوع موجودیت <span class="text-danger">*</span>
+                            <div class="row g-3 document-upload-fields">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold" for="document-entity-type">
+                                        <i class="bi bi-tag text-muted me-1"></i> نوع موجودیت <span class="document-required">*</span>
                                     </label>
-                                    <select class="form-select"
+                                    <select id="document-entity-type" class="form-select"
+                                            aria-required="true"
                                             @bind="uploadDto.EntityType">
                                         <option value="">انتخاب نوع</option>
                                         <option value="Transaction">تراکنش</option>
@@ -247,33 +248,26 @@
                                         <option value="Account">حساب</option>
                                     </select>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-hash text-muted me-1"></i> شناسه موجودیت <span class="text-danger">*</span>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold" for="document-entity-id">
+                                        <i class="bi bi-hash text-muted me-1"></i> شناسه موجودیت <span class="document-required">*</span>
                                     </label>
-                                    <input type="number" class="form-control"
+                                    <input id="document-entity-id" type="number" min="1" step="1" class="form-control"
+                                           aria-required="true"
                                            @bind="uploadDto.EntityId" placeholder="شناسه موجودیت" />
                                 </div>
-                            </div>
 
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-file-earmark text-muted me-1"></i> انتخاب فایل <span class="text-danger">*</span>
+                                <div class="col-12">
+                                    <label class="form-label fw-bold" for="document-file">
+                                        <i class="bi bi-file-earmark text-muted me-1"></i> انتخاب فایل <span class="document-required">*</span>
                                     </label>
-                                    <InputFile class="form-control" OnChange="HandleFileSelected" />
+                                    <InputFile id="document-file" class="form-control" aria-required="true" OnChange="HandleFileSelected" />
                                     @if (!string.IsNullOrEmpty(selectedFileName))
                                     {
-                                        <div class="mt-1 text-success">
+                                        <div class="document-selected-file">
                                             <i class="bi bi-check-circle"></i> @selectedFileName
                                         </div>
                                     }
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-file-earmark-text text-muted me-1"></i> نوع محتوا (اختیاری)
-                                    </label>
-                                    <input type="text" class="form-control" @bind="uploadDto.ContentType" placeholder="مثال: application/pdf" />
                                 </div>
                             </div>
                         </div>

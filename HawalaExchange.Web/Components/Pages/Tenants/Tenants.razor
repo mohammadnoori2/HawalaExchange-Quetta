@@ -129,7 +129,7 @@
                         </div>
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label" for="tenant-name">نام صرافی</label>
+                                <label class="form-label" for="tenant-name">نام صرافی <span class="tenant-required">*</span></label>
                                 <input id="tenant-name" class="form-control" @bind="createModel.Name" @bind:event="oninput" />
                                 <ValidationMessage For="@(() => createModel.Name)" />
                             </div>
@@ -138,22 +138,22 @@
                             <div class="col-md-6"><label class="form-label">شماره تماس</label><input class="form-control" @bind="createModel.ContactPhone" @bind:event="oninput" /></div>
                             <div class="col-12"><label class="form-label">ایمیل تماس</label><input type="email" class="form-control" @bind="createModel.ContactEmail" @bind:event="oninput" /></div>
                             <div class="col-md-6">
-                                <label class="form-label" for="tenant-admin-name">نام مدیر</label>
+                                <label class="form-label" for="tenant-admin-name">نام مدیر <span class="tenant-required">*</span></label>
                                 <input id="tenant-admin-name" class="form-control" @bind="createModel.AdminFullName" @bind:event="oninput" />
                                 <ValidationMessage For="@(() => createModel.AdminFullName)" />
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label" for="tenant-admin-user">نام کاربری مدیر</label>
+                                <label class="form-label" for="tenant-admin-user">نام کاربری مدیر <span class="tenant-required">*</span></label>
                                 <input id="tenant-admin-user" class="form-control" autocomplete="off" @bind="createModel.AdminUserName" @bind:event="oninput" />
                                 <ValidationMessage For="@(() => createModel.AdminUserName)" />
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label" for="tenant-admin-email">ایمیل مدیر</label>
+                                <label class="form-label" for="tenant-admin-email">ایمیل مدیر <span class="tenant-required">*</span></label>
                                 <input id="tenant-admin-email" type="email" class="form-control" @bind="createModel.AdminEmail" @bind:event="oninput" />
                                 <ValidationMessage For="@(() => createModel.AdminEmail)" />
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label" for="tenant-admin-password">رمز عبور مدیر</label>
+                                <label class="form-label" for="tenant-admin-password">رمز عبور مدیر <span class="tenant-required">*</span></label>
                                 <div class="input-group" dir="ltr">
                                     <input id="tenant-admin-password" type="@(showCreatePassword ? "text" : "password")" class="form-control" autocomplete="new-password" @bind="createModel.AdminPassword" @bind:event="oninput" />
                                     <button type="button" class="btn btn-outline-secondary" @onclick="() => showCreatePassword = !showCreatePassword"
@@ -166,7 +166,7 @@
                             </div>
                             <div class="col-12"><hr /><h6>اشتراک اولیه</h6></div>
                             <div class="col-md-6">
-                                <label class="form-label">پلن اشتراک</label>
+                                <label class="form-label">پلن اشتراک <span class="tenant-required">*</span></label>
                                 <InputSelect class="form-select" @bind-Value="createModel.PlanId">
                                     <option value="0">انتخاب پلن</option>
                                     @foreach (var plan in plans.Where(x => x.IsActive))
@@ -176,7 +176,7 @@
                                 </InputSelect>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">دوره پرداخت</label>
+                                <label class="form-label">دوره پرداخت <span class="tenant-required">*</span></label>
                                 <InputSelect class="form-select" @bind-Value="createModel.BillingCycle">
                                     <option value="@BillingCycle.Monthly">ماهانه</option>
                                     <option value="@BillingCycle.Quarterly">سه‌ماهه</option>
@@ -184,19 +184,23 @@
                                     <option value="@BillingCycle.Annual">سالانه</option>
                                 </InputSelect>
                             </div>
-                            <div class="col-md-6"><label class="form-label">تاریخ شروع</label><InputDate class="form-control" @bind-Value="createModel.SubscriptionStartAt" /></div>
-                            <div class="col-md-6"><label class="form-label">تاریخ پایان</label><InputDate class="form-control" @bind-Value="createModel.SubscriptionEndAt" /></div>
-                            <div class="col-md-6"><label class="form-label">مبلغ توافق‌شده</label><InputNumber class="form-control" @bind-Value="createModel.AgreedPrice" /></div>
-                            <div class="col-md-3">
-                                <label class="form-label">ارز</label>
-                                <InputSelect class="form-select" @bind-Value="createModel.SubscriptionCurrencyCode">
-                                    @foreach (var currency in SubscriptionCurrencies)
-                                    {
-                                        <option value="@currency.Code">@currency.Name (@currency.Code)</option>
-                                    }
-                                </InputSelect>
+                            <div class="col-md-6"><label class="form-label">تاریخ شروع <span class="tenant-required">*</span></label><InputDate class="form-control" @bind-Value="createModel.SubscriptionStartAt" /></div>
+                            <div class="col-md-6"><label class="form-label">تاریخ پایان <span class="tenant-required">*</span></label><InputDate class="form-control" @bind-Value="createModel.SubscriptionEndAt" /></div>
+                            <div class="col-md-6">
+                                <label class="form-label">مبلغ توافق‌شده و ارز <span class="tenant-required">*</span></label>
+                                <div class="tenant-money-field">
+                                    <InputSelect class="tenant-money-currency" @bind-Value="createModel.SubscriptionCurrencyCode">
+                                        @foreach (var currency in SubscriptionCurrencies)
+                                        {
+                                            <option value="@currency.Code">@currency.Name</option>
+                                        }
+                                    </InputSelect>
+                                    <MoneyInput class="tenant-money-amount" @bind-Value="createModel.AgreedPrice" placeholder="مبلغ" />
+                                </div>
+                                <ValidationMessage For="@(() => createModel.AgreedPrice)" />
+                                <ValidationMessage For="@(() => createModel.SubscriptionCurrencyCode)" />
                             </div>
-                            <div class="col-md-3 form-check form-switch mt-5"><InputCheckbox class="form-check-input" @bind-Value="createModel.AutoRenew" /><label class="form-check-label">تمدید خودکار</label></div>
+                            <div class="col-md-6 form-check form-switch mt-5"><InputCheckbox class="form-check-input" @bind-Value="createModel.AutoRenew" /><label class="form-check-label">تمدید خودکار</label></div>
                         </div>
                     </div>
                     @if (!string.IsNullOrWhiteSpace(createError))

@@ -1,0 +1,241 @@
+.profile-layout {
+    display: grid;
+    grid-template-columns: minmax(13rem, 17rem) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--ui-space-4);
+}
+
+.profile-photo-card,
+.profile-card {
+    padding: var(--ui-space-4);
+}
+
+.profile-photo-card {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: var(--ui-space-3);
+    text-align: center;
+}
+
+.profile-section-title {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--ui-space-2);
+    margin: 0 0 var(--ui-space-2);
+    color: var(--app-primary);
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.profile-photo-preview {
+    display: grid;
+    overflow: hidden;
+    place-items: center;
+    width: clamp(5.5rem, 9vw, 7rem);
+    aspect-ratio: 1;
+    border: 0.2rem solid var(--surface);
+    border-radius: 50%;
+    background: var(--app-primary-soft);
+    box-shadow: 0 0 0 1px var(--app-border);
+    color: var(--app-primary);
+    font-size: 1.65rem;
+    font-weight: 800;
+}
+
+.profile-photo-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-identity {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.profile-identity strong,
+.profile-identity span {
+    overflow: hidden;
+    max-width: 100%;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-identity span,
+.profile-help {
+    color: var(--app-muted);
+    font-size: 0.78rem;
+}
+
+.profile-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.profile-file-button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-2);
+    cursor: pointer;
+}
+
+.profile-remove-photo {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-1);
+    padding: 0;
+    font-size: 0.78rem;
+    text-decoration: none;
+}
+
+.profile-forms {
+    display: grid;
+    gap: var(--ui-space-4);
+}
+
+.profile-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ui-space-3);
+}
+
+.profile-email-field {
+    grid-column: 1 / -1;
+}
+
+.profile-password-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-password-input {
+    position: relative;
+}
+
+.profile-password-input .form-control {
+    padding-inline-end: 2.75rem;
+}
+
+.profile-password-toggle {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0.2rem;
+    display: grid;
+    width: 2.4rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--app-muted);
+    place-items: center;
+    cursor: pointer;
+}
+
+.profile-password-toggle:hover,
+.profile-password-toggle:focus-visible {
+    color: var(--app-primary);
+}
+
+.profile-password-toggle:focus-visible {
+    border-radius: var(--ui-radius-sm);
+    outline: 2px solid color-mix(in srgb, var(--app-primary) 35%, transparent);
+    outline-offset: -0.25rem;
+}
+
+.profile-password-toggle i {
+    pointer-events: none;
+}
+
+.profile-card .form-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-block-end: var(--ui-space-1);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.profile-card .required-mark {
+    color: var(--app-danger);
+}
+
+.profile-validation:empty,
+.field-validation:empty {
+    display: none;
+}
+
+.profile-validation {
+    margin-block-end: var(--ui-space-3);
+}
+
+.field-validation {
+    display: block;
+    margin-block-start: var(--ui-space-1);
+    font-size: 0.75rem;
+}
+
+.profile-password-help {
+    display: block;
+    margin-block-start: var(--ui-space-2);
+}
+
+.profile-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-block-start: var(--ui-space-4);
+}
+
+.profile-form-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-2);
+}
+
+@media (max-width: 62rem) {
+    .profile-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-photo-card {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        text-align: start;
+    }
+
+    .profile-photo-card .profile-section-title {
+        grid-column: 1 / -1;
+    }
+
+    .profile-photo-card .profile-help,
+    .profile-photo-card form:last-child {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 44rem) {
+    .profile-fields,
+    .profile-password-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-email-field {
+        grid-column: auto;
+    }
+
+    .profile-photo-card {
+        display: flex;
+        text-align: center;
+    }
+
+    .profile-form-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

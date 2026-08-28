@@ -8,6 +8,7 @@ namespace HawalaExchange.Domain.Entities
         public long TenantId { get; set; }
         public string LocalUserName { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
+        public string? ProfileImagePath { get; set; }
         public long? BranchId { get; set; }
         public bool IsPlatformUser { get; set; }
         public bool IsActive { get; set; } = true;

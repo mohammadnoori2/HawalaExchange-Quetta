@@ -1497,6 +1497,7 @@ namespace HawalaExchange.Infrastructure.Data
                     .IsUnique()
                     .HasFilter("[NormalizedEmail] IS NOT NULL");
                 entity.Property(u => u.FullName).HasMaxLength(200);
+                entity.Property(u => u.ProfileImagePath).HasMaxLength(500);
                 entity.Property(u => u.IsActive).HasDefaultValue(true);
                 entity.Property(u => u.IsPlatformUser).HasDefaultValue(false);
                 entity.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");

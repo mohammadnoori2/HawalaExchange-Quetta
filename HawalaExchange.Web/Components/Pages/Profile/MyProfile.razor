@@ -1,0 +1,378 @@
+@page "/profile"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@attribute [ExcludeFromInteractiveRouting]
+
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Domain.Entities
+@using HawalaExchange.Infrastructure.Data
+@using HawalaExchange.Web.Components.Account
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IFileService FileService
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>پروفایل من</PageTitle>
+
+<div class="page-wrapper profile-page">
+    <AppPageHeader Title="پروفایل من"
+                   Subtitle="ویرایش مشخصات و رمز عبور"
+                   Icon="bi-person-gear" />
+
+    <HawalaExchange.Web.Components.Account.Shared.StatusMessage />
+
+    <div class="profile-layout">
+        <section class="modern-card profile-photo-card" aria-labelledby="profile-photo-title">
+            <h2 id="profile-photo-title" class="profile-section-title">
+                <i class="bi bi-person-bounding-box" aria-hidden="true"></i>
+                تصویر پروفایل
+            </h2>
+
+            <div class="profile-photo-preview">
+                @if (!string.IsNullOrWhiteSpace(profileImageUrl))
+                {
+                    <img src="@profileImageUrl" alt="تصویر پروفایل @displayName" />
+                }
+                else
+                {
+                    <span>@GetInitials(displayName)</span>
+                }
+            </div>
+
+            <div class="profile-identity">
+                <strong>@displayName</strong>
+                <span>@localUserName</span>
+            </div>
+
+            <form method="post" enctype="multipart/form-data" action="/api/profile/image" class="profile-photo-form">
+                <AntiforgeryToken />
+                <label for="profile-image" class="btn btn-outline-primary profile-file-button">
+                    <i class="bi bi-image" aria-hidden="true"></i>
+                    انتخاب تصویر
+                </label>
+                <input id="profile-image"
+                       class="profile-file-input"
+                       type="file"
+                       name="image"
+                       accept=".jpg,.jpeg,.jfif,.png,.webp,.gif,.bmp,.avif,.heic,.heif,image/jpeg,image/png,image/webp,image/gif,image/bmp,image/avif,image/heic,image/heif"
+                       required
+                       onchange="this.form.requestSubmit()" />
+            </form>
+
+            <small class="profile-help">تصویر JPG، JFIF، PNG، WebP، GIF، BMP، AVIF، HEIC یا HEIF تا حداکثر ۳ مگابایت</small>
+
+            @if (!string.IsNullOrWhiteSpace(profileImageUrl))
+            {
+                <form method="post" action="/api/profile/image/remove">
+                    <AntiforgeryToken />
+                    <button type="submit" class="btn btn-link text-danger profile-remove-photo">
+                        <i class="bi bi-trash3" aria-hidden="true"></i>
+                        حذف تصویر
+                    </button>
+                </form>
+            }
+        </section>
+
+        <div class="profile-forms">
+            <section class="modern-card profile-card" aria-labelledby="personal-info-title">
+                <h2 id="personal-info-title" class="profile-section-title">
+                    <i class="bi bi-person-vcard" aria-hidden="true"></i>
+                    مشخصات شخصی
+                </h2>
+
+                <EditForm Model="ProfileInput" FormName="profile-details" OnValidSubmit="SaveProfileAsync" method="post">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="alert alert-danger profile-validation" role="alert" />
+
+                    <div class="profile-fields">
+                        <div class="form-group">
+                            <label for="profile-full-name" class="form-label">نام کامل <span class="required-mark">*</span></label>
+                            <InputText id="profile-full-name" class="form-control" @bind-Value="ProfileInput.FullName" autocomplete="name" />
+                            <ValidationMessage For="@(() => ProfileInput.FullName)" class="text-danger field-validation" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="profile-phone" class="form-label">شماره تلفن</label>
+                            <InputText id="profile-phone" class="form-control" @bind-Value="ProfileInput.PhoneNumber" autocomplete="tel" dir="ltr" />
+                            <ValidationMessage For="@(() => ProfileInput.PhoneNumber)" class="text-danger field-validation" />
+                        </div>
+
+                        <div class="form-group profile-email-field">
+                            <label for="profile-email" class="form-label">ایمیل <span class="required-mark">*</span></label>
+                            <input id="profile-email"
+                                   name="ProfileInput.Email"
+                                   value="@currentEmail"
+                                   class="form-control"
+                                   type="email"
+                                   autocomplete="email"
+                                   inputmode="email"
+                                   dir="ltr" />
+                            <ValidationMessage For="@(() => ProfileInput.Email)" class="text-danger field-validation" />
+                        </div>
+                    </div>
+
+                    <div class="profile-form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                            ذخیره مشخصات
+                        </button>
+                    </div>
+                </EditForm>
+            </section>
+
+            <section class="modern-card profile-card" aria-labelledby="password-title">
+                <h2 id="password-title" class="profile-section-title">
+                    <i class="bi bi-shield-lock" aria-hidden="true"></i>
+                    تغییر رمز عبور
+                </h2>
+
+                <EditForm Model="PasswordInput" FormName="change-password" OnValidSubmit="ChangePasswordAsync" method="post">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="alert alert-danger profile-validation" role="alert" />
+
+                    <div class="profile-fields profile-password-fields">
+                        <div class="form-group">
+                            <label for="current-password" class="form-label">رمز عبور فعلی <span class="required-mark">*</span></label>
+                            <div class="profile-password-input">
+                                <InputText id="current-password" type="password" class="form-control" @bind-Value="PasswordInput.CurrentPassword" autocomplete="current-password" />
+                                <button type="button"
+                                        class="profile-password-toggle"
+                                        data-password-toggle
+                                        data-password-target="current-password"
+                                        aria-label="نمایش رمز عبور فعلی"
+                                        aria-controls="current-password"
+                                        aria-pressed="false"
+                                        title="نمایش رمز عبور">
+                                    <i class="bi bi-eye-fill" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                            <ValidationMessage For="@(() => PasswordInput.CurrentPassword)" class="text-danger field-validation" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="new-password" class="form-label">رمز عبور جدید <span class="required-mark">*</span></label>
+                            <div class="profile-password-input">
+                                <InputText id="new-password" type="password" class="form-control" @bind-Value="PasswordInput.NewPassword" autocomplete="new-password" />
+                                <button type="button"
+                                        class="profile-password-toggle"
+                                        data-password-toggle
+                                        data-password-target="new-password"
+                                        aria-label="نمایش رمز عبور جدید"
+                                        aria-controls="new-password"
+                                        aria-pressed="false"
+                                        title="نمایش رمز عبور">
+                                    <i class="bi bi-eye-fill" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                            <ValidationMessage For="@(() => PasswordInput.NewPassword)" class="text-danger field-validation" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirm-password" class="form-label">تکرار رمز عبور جدید <span class="required-mark">*</span></label>
+                            <div class="profile-password-input">
+                                <InputText id="confirm-password" type="password" class="form-control" @bind-Value="PasswordInput.ConfirmPassword" autocomplete="new-password" />
+                                <button type="button"
+                                        class="profile-password-toggle"
+                                        data-password-toggle
+                                        data-password-target="confirm-password"
+                                        aria-label="نمایش تکرار رمز عبور جدید"
+                                        aria-controls="confirm-password"
+                                        aria-pressed="false"
+                                        title="نمایش رمز عبور">
+                                    <i class="bi bi-eye-fill" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                            <ValidationMessage For="@(() => PasswordInput.ConfirmPassword)" class="text-danger field-validation" />
+                        </div>
+                    </div>
+
+                    <small class="profile-help profile-password-help">
+                        رمز باید حداقل ۶ نویسه و شامل حرف بزرگ انگلیسی، حرف کوچک انگلیسی و عدد باشد.
+                    </small>
+
+                    <div class="profile-form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-key" aria-hidden="true"></i>
+                            تغییر رمز عبور
+                        </button>
+                    </div>
+                </EditForm>
+            </section>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ApplicationUser? currentUser;
+    private string displayName = "کاربر";
+    private string localUserName = string.Empty;
+    private string currentEmail = string.Empty;
+    private string? profileImageUrl;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "profile-details")]
+    private ProfileInputModel ProfileInput { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "change-password")]
+    private PasswordInputModel PasswordInput { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ProfileInput ??= new();
+        PasswordInput ??= new();
+
+        var userId = UserManager.GetUserId(HttpContext.User);
+        if (!long.TryParse(userId, out var parsedUserId))
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        currentUser = await DbContext.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == parsedUserId);
+        if (currentUser is null)
+        {
+            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            return;
+        }
+
+        displayName = string.IsNullOrWhiteSpace(currentUser.FullName)
+            ? currentUser.LocalUserName
+            : currentUser.FullName;
+        localUserName = currentUser.LocalUserName;
+        currentEmail = HttpContext.User.FindFirstValue(ClaimTypes.Email)
+            ?? currentUser.Email
+            ?? string.Empty;
+        profileImageUrl = string.IsNullOrWhiteSpace(currentUser.ProfileImagePath)
+            ? null
+            : FileService.GetFileUrl(currentUser.ProfileImagePath);
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            ProfileInput.FullName = currentUser.FullName;
+            ProfileInput.PhoneNumber = currentUser.PhoneNumber;
+            ProfileInput.Email = currentEmail;
+        }
+    }
+
+    private async Task SaveProfileAsync()
+    {
+        if (currentUser is null)
+            return;
+
+        var email = ProfileInput.Email.Trim();
+        var normalizedEmail = UserManager.NormalizeEmail(email);
+        var emailExists = await DbContext.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(x => x.Id != currentUser.Id && x.NormalizedEmail == normalizedEmail);
+        if (emailExists)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus("خطا: این ایمیل قبلاً در سیستم ثبت شده است.", HttpContext);
+            return;
+        }
+
+        var emailChanged = !string.Equals(currentEmail, email, StringComparison.OrdinalIgnoreCase);
+        currentUser.FullName = ProfileInput.FullName.Trim();
+        currentUser.PhoneNumber = NullIfWhiteSpace(ProfileInput.PhoneNumber);
+        currentUser.Email = email;
+        if (emailChanged)
+            currentUser.EmailConfirmed = false;
+
+        var result = await UserManager.UpdateAsync(currentUser);
+        if (!result.Succeeded)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus(
+                $"خطا: {GetIdentityError(result)}",
+                HttpContext);
+            return;
+        }
+
+        await SignInManager.RefreshSignInAsync(currentUser);
+        RedirectManager.RedirectToCurrentPageWithStatus("مشخصات شما با موفقیت ذخیره شد.", HttpContext);
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        if (currentUser is null)
+            return;
+
+        var result = await UserManager.ChangePasswordAsync(
+            currentUser,
+            PasswordInput.CurrentPassword,
+            PasswordInput.NewPassword);
+        if (!result.Succeeded)
+        {
+            RedirectManager.RedirectToCurrentPageWithStatus(
+                $"خطا: {GetIdentityError(result)}",
+                HttpContext);
+            return;
+        }
+
+        await SignInManager.RefreshSignInAsync(currentUser);
+        RedirectManager.RedirectToCurrentPageWithStatus("رمز عبور شما با موفقیت تغییر کرد.", HttpContext);
+    }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string GetInitials(string value)
+    {
+        var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0)
+            return "ک";
+        return string.Concat(words.Take(2).Select(x => x[0]));
+    }
+
+    private static string GetIdentityError(IdentityResult result)
+    {
+        var code = result.Errors.FirstOrDefault()?.Code;
+        return code switch
+        {
+            "PasswordMismatch" => "رمز عبور فعلی نادرست است.",
+            "DuplicateEmail" => "این ایمیل قبلاً در سیستم ثبت شده است.",
+            "InvalidEmail" => "ایمیل واردشده معتبر نیست.",
+            "PasswordTooShort" => "رمز عبور جدید بسیار کوتاه است.",
+            "PasswordRequiresDigit" => "رمز عبور جدید باید حداقل یک عدد داشته باشد.",
+            "PasswordRequiresUpper" => "رمز عبور جدید باید حداقل یک حرف بزرگ انگلیسی داشته باشد.",
+            "PasswordRequiresLower" => "رمز عبور جدید باید حداقل یک حرف کوچک انگلیسی داشته باشد.",
+            _ => "اطلاعات ذخیره نشد. لطفاً دوباره تلاش کنید."
+        };
+    }
+
+    private sealed class ProfileInputModel
+    {
+        [Required(ErrorMessage = "نام کامل الزامی است.")]
+        [StringLength(200, ErrorMessage = "نام کامل نمی‌تواند بیشتر از ۲۰۰ نویسه باشد.")]
+        public string FullName { get; set; } = string.Empty;
+
+        [StringLength(50, ErrorMessage = "شماره تلفن نمی‌تواند بیشتر از ۵۰ نویسه باشد.")]
+        public string? PhoneNumber { get; set; }
+
+        [Required(ErrorMessage = "ایمیل الزامی است.")]
+        [EmailAddress(ErrorMessage = "ایمیل واردشده معتبر نیست.")]
+        [StringLength(256, ErrorMessage = "ایمیل نمی‌تواند بیشتر از ۲۵۶ نویسه باشد.")]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    private sealed class PasswordInputModel
+    {
+        [Required(ErrorMessage = "رمز عبور فعلی الزامی است.")]
+        public string CurrentPassword { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "رمز عبور جدید الزامی است.")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "رمز عبور جدید باید حداقل ۶ نویسه باشد.")]
+        public string NewPassword { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "تکرار رمز عبور جدید الزامی است.")]
+        [Compare(nameof(NewPassword), ErrorMessage = "رمز عبور جدید و تکرار آن یکسان نیستند.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

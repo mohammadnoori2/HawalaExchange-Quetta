@@ -1,13 +1,14 @@
 @* NavMenu.razor *@
 @implements IDisposable
 @using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
-@using HawalaExchange.Domain.Entities
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Infrastructure.Data
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject SignInManager<ApplicationUser> SignInManager
-@inject UserManager<ApplicationUser> UserManager
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject IFileService FileService
 @inject ILogger<NavMenu> Logger
 
 <div class="nav-sidebar">
@@ -250,17 +251,20 @@
             <!-- اطلاعات کاربر جاری با منوی dropdown در انتهای منو -->
             <AuthorizeView>
                 <Authorized>
-                    <div class="user-dropdown-container">
-                        <button type="button" class="user-info-card" @onclick="ToggleUserMenu" aria-expanded="@userMenuOpen">
+                    <details class="user-dropdown-container">
+                        <summary class="user-info-card">
                             <div class="user-avatar">
-                                @{
-                                    var userName = context.User.FindFirst("local_user_name")?.Value ?? "کاربر";
-                                    var initial = userName.Length > 0 ? userName.Substring(0, Math.Min(2, userName.Length)).ToUpper() : "??";
-                                    @initial
+                                @if (!string.IsNullOrWhiteSpace(currentUserProfileImageUrl))
+                                {
+                                    <img class="user-avatar-image" src="@currentUserProfileImageUrl" alt="تصویر @currentUserDisplayName" />
+                                }
+                                else
+                                {
+                                    @GetInitials(currentUserDisplayName)
                                 }
                             </div>
                             <div class="user-details">
-                                <span class="user-name">@context.User.FindFirst("local_user_name")?.Value</span>
+                                <span class="user-name">@currentUserDisplayName</span>
                                 <span class="user-role">
                                     @{
                                         var roles = context.User.FindAll(ClaimTypes.Role).Select(c => c.Value);
@@ -268,31 +272,37 @@
                                     }
                                 </span>
                             </div>
-                            <span class="dropdown-arrow bi bi-chevron-down @(userMenuOpen ? "open" : string.Empty)"></span>
-                        </button>
+                            <span class="dropdown-arrow bi bi-chevron-down"></span>
+                        </summary>
 
                         <!-- منوی dropdown کاربر -->
-                        <div class="user-dropdown-menu @(userMenuOpen ? "open" : string.Empty)">
+                        <div class="user-dropdown-menu">
                             <div class="user-dropdown-header">
                                 <div class="user-dropdown-avatar">
-                                    @{
-                                        var userName2 = context.User.FindFirst("local_user_name")?.Value ?? "کاربر";
-                                        var initial2 = userName2.Length > 0 ? userName2.Substring(0, Math.Min(2, userName2.Length)).ToUpper() : "??";
-                                        @initial2
+                                    @if (!string.IsNullOrWhiteSpace(currentUserProfileImageUrl))
+                                    {
+                                        <img class="user-avatar-image" src="@currentUserProfileImageUrl" alt="تصویر @currentUserDisplayName" />
+                                    }
+                                    else
+                                    {
+                                        @GetInitials(currentUserDisplayName)
                                     }
                                 </div>
                                 <div class="user-dropdown-info">
-                                    <span class="user-dropdown-name">@context.User.FindFirst("local_user_name")?.Value</span>
-                                    <span class="user-dropdown-email">@context.User.FindFirst(ClaimTypes.Email)?.Value</span>
+                                    <span class="user-dropdown-name">@currentUserDisplayName</span>
+                                    <span class="user-dropdown-email">@currentUserEmail</span>
                                 </div>
                             </div>
                             <div class="user-dropdown-divider"></div>
+                            <NavLink class="user-dropdown-item" href="/profile">
+                                <span class="bi bi-person-gear"></span> پروفایل من
+                            </NavLink>
                             <!-- گزینه خروج -->
                             <NavLink class="user-dropdown-item user-dropdown-logout" href="/logout">
                                 <span class="bi bi-box-arrow-right"></span> خروج
                             </NavLink>
                         </div>
-                    </div>
+                    </details>
                 </Authorized>
                 <NotAuthorized>
                     <div class="nav-item px-3">
@@ -307,8 +317,9 @@
 </div>
 @code {
     private string? currentUrl;
-    private bool isAuthenticated;
-    private bool userMenuOpen;
+    private string currentUserDisplayName = "کاربر";
+    private string? currentUserEmail;
+    private string? currentUserProfileImageUrl;
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
@@ -321,14 +332,42 @@
         if (AuthenticationState != null)
         {
             var authState = await AuthenticationState;
-            isAuthenticated = authState.User?.Identity?.IsAuthenticated ?? false;
+            currentUserDisplayName = authState.User.FindFirst("local_user_name")?.Value ?? "کاربر";
+            currentUserEmail = authState.User.FindFirst(ClaimTypes.Email)?.Value;
+
+            var userIdValue = authState.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (long.TryParse(userIdValue, out var userId))
+            {
+                await using var context = await DbContextFactory.CreateDbContextAsync();
+                var user = await context.Users
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == userId);
+                if (user is not null)
+                {
+                    currentUserDisplayName = string.IsNullOrWhiteSpace(user.FullName)
+                        ? user.LocalUserName
+                        : user.FullName;
+                    currentUserEmail = user.Email;
+                    currentUserProfileImageUrl = string.IsNullOrWhiteSpace(user.ProfileImagePath)
+                        ? null
+                        : FileService.GetFileUrl(user.ProfileImagePath);
+                }
+            }
         }
+    }
+
+    private static string GetInitials(string value)
+    {
+        var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0)
+            return "ک";
+        return string.Concat(words.Take(2).Select(x => x[0]));
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
-        userMenuOpen = false;
         StateHasChanged();
     }
 
@@ -343,11 +382,6 @@
 
     private bool IsCurrentPath(params string[] paths) =>
         paths.Any(path => currentUrl?.StartsWith(path, StringComparison.OrdinalIgnoreCase) == true);
-
-    private void ToggleUserMenu()
-    {
-        userMenuOpen = !userMenuOpen;
-    }
 
     public void Dispose()
     {

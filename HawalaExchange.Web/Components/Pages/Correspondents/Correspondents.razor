@@ -61,13 +61,6 @@
                     <thead>
                         <tr>
                             <th style="width: 50px;">#</th>
-                            <th class="sortable-header @(sortColumn == "Code" ? "active" : "")" @onclick="@(() => SortBy("Code"))">
-                                کد
-                                @if (sortColumn == "Code")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
                             <th class="sortable-header @(sortColumn == "Name" ? "active" : "")" @onclick="@(() => SortBy("Name"))">
                                 نام
                                 @if (sortColumn == "Name")
@@ -98,7 +91,7 @@
                         @if (isLoading && correspondents == null)
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="7" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status">
                                             <span class="visually-hidden">در حال بارگذاری...</span>
@@ -111,7 +104,7 @@
                         else if (!pagedCorrespondents.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="7" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ نماینده‌ای یافت نشد</span>
@@ -127,9 +120,6 @@
                             {
                                 <tr class="@(correspondent.IsArchived ? "table-row-archived" : "")">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
-                                    <td>
-                                        <span class="customer-code">@correspondent.Code</span>
-                                    </td>
                                     <td>
                                         <span class="fw-semibold">@correspondent.Name</span>
                                     </td>

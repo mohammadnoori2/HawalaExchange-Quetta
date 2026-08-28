@@ -17,6 +17,60 @@
     overscroll-behavior: contain;
 }
 
+.tenant-management-modal .form-label {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.2rem;
+}
+
+.tenant-management-modal .tenant-required {
+    display: inline-block;
+    flex: 0 0 auto;
+    color: var(--app-danger, #dc2626);
+    line-height: 1;
+}
+
+.tenant-management-modal .tenant-money-field {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.9fr) minmax(8rem, 1.1fr);
+    overflow: hidden;
+    border: 1px solid var(--app-border, #cbd5e1);
+    border-radius: var(--ui-radius-sm, 0.35rem);
+    background: var(--surface, #fff);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.tenant-management-modal .tenant-money-field:focus-within {
+    border-color: var(--app-primary, #2563eb);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #2563eb) 12%, transparent);
+}
+
+.tenant-management-modal .tenant-money-currency,
+.tenant-management-modal .tenant-money-amount {
+    width: 100%;
+    min-width: 0;
+    height: var(--compact-financial-control-height, 2.125rem);
+    padding: 0.25rem 0.45rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    outline: 0;
+}
+
+.tenant-management-modal .tenant-money-currency {
+    border-inline-end: 1px solid var(--app-border, #e2e8f0);
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.tenant-management-modal .tenant-money-field .tenant-money-amount {
+    text-align: start;
+    font-size: 0.78rem;
+    font-weight: 700;
+    box-shadow: none;
+}
+
 @media (max-width: 575.98px) {
     .tenant-management-modal .modal-content {
         max-height: calc(100dvh - 1rem);

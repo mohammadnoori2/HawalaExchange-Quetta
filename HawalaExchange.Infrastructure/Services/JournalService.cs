@@ -779,7 +779,7 @@ public class JournalService : IJournalService
                 Add(operation, "ارزش انتقالی", Money(source.ProfitCurrencyAmount.Value, source.ProfitCurrency?.Code));
             Add(operation, "روش انتقال", AppDisplayText.TransferMethod(source.TransferMethod));
             Add(operation, "شماره مرجع", source.ReferenceNumber);
-            Add(operation, "ملاحظات", source.Remarks);
+            Add(operation, "توضیحات", source.Remarks);
         }
     }
 
@@ -921,7 +921,7 @@ public class JournalService : IJournalService
                 $"{Detail(operation, "نوع عملیات", "رسید یا برد")} شماره {operation.DocumentNumber} به مبلغ {Detail(operation, "مبلغ", CurrencyMovement(operation))} میان حساب {Detail(operation, "حساب طرف", accounts)} و {Detail(operation, "صندوق / بانک", "صندوق یا بانک")} ثبت شد{suffix}",
 
             "انتقال" =>
-                $"مبلغ {Detail(operation, "مبلغ انتقال", CurrencyMovement(operation))} از حساب {Detail(operation, "از حساب", "نامشخص")} به حساب {Detail(operation, "به حساب", "نامشخص")} با شماره مرجع {operation.DocumentNumber} انتقال شد{suffix}",
+                $"مبلغ {Detail(operation, "مبلغ انتقال", CurrencyMovement(operation))} از حساب {Detail(operation, "از حساب", "نامشخص")} به حساب {Detail(operation, "به حساب", "نامشخص")} انتقال شد{TransferDescription(operation)}{suffix}",
 
             "تراکنش" when Detail(operation, "نوع تراکنش", "") == AppDisplayText.TransactionType("CorrespondentSettlementConversion") =>
                 $"{Detail(operation, "خلاصه تبدیل", CurrencyMovement(operation))} تبدیل شد و در حساب ثبت شد{suffix}",
@@ -944,6 +944,14 @@ public class JournalService : IJournalService
         operation.SourceDetails
             .FirstOrDefault(x => x.Label == label)?.Value
         ?? fallback;
+
+    private static string TransferDescription(JournalOperationDto operation)
+    {
+        var description = Detail(operation, "توضیحات", string.Empty);
+        return string.IsNullOrWhiteSpace(description)
+            ? string.Empty
+            : $"؛ توضیحات: {description.Trim()}";
+    }
 
     private static string CurrencyMovement(JournalOperationDto operation)
     {

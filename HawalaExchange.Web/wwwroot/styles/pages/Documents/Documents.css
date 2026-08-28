@@ -1,0 +1,43 @@
+.document-modal-backdrop {
+    background: rgb(15 23 42 / 48%);
+    backdrop-filter: blur(0.2rem);
+}
+
+.document-upload-modal .modal-content {
+    max-height: calc(100dvh - 2rem);
+}
+
+.document-upload-modal .modern-card {
+    margin-block-end: 0 !important;
+    overflow: visible;
+}
+
+.document-upload-modal .form-label {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.2rem;
+    white-space: nowrap;
+}
+
+.document-upload-modal .document-required {
+    display: inline-block;
+    flex: 0 0 auto;
+    color: var(--app-danger, #dc2626);
+    line-height: 1;
+}
+
+.document-upload-modal .document-selected-file {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-1, 0.25rem);
+    margin-block-start: var(--ui-space-1, 0.25rem);
+    color: var(--app-success, #15803d);
+    font-size: 0.76rem;
+}
+
+@media (max-width: 36rem) {
+    .document-upload-modal .modal-content {
+        max-height: calc(100dvh - 1rem);
+    }
+}

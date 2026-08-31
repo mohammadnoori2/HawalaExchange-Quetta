@@ -43,7 +43,7 @@
                                             <td>@(AccountMode ? "مانده حساب" : $"{group.Items.Select(x => x.HawalaId).Distinct().Count()} حواله")</td>
                                             <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(GetSourceTotal(group)) @group.CurrencyCode</td>
                                             <td style="min-width:9rem">
-                                                <input type="number" min="0.00000001" step="any" class="form-control form-control-sm"
+                                                <input type="number" min="0.00000001" step="any" class="form-control form-control-sm financial-value-input"
                                                        @bind="group.Rate" @bind:event="oninput" @bind:after="() => ApplyGroupRate(group)" />
                                             </td>
                                             <td dir="ltr" class="fw-bold text-success">
@@ -80,7 +80,7 @@
                                                 <td>شماره @item.HawalaNumber</td>
                                                 <td class="fw-bold">@item.CurrencyCode</td>
                                                 <td dir="ltr">@MoneyFormatHelper.Format(item.SourceAmount) @item.CurrencyCode</td>
-                                                <td><input type="number" min="0.00000001" step="any" class="form-control form-control-sm" @bind="item.Rate" @bind:event="oninput" /></td>
+                                                <td><input type="number" min="0.00000001" step="any" class="form-control form-control-sm financial-value-input" @bind="item.Rate" @bind:event="oninput" /></td>
                                                 <td dir="ltr">@(item.Rate.GetValueOrDefault() > 0 ? $"{MoneyFormatHelper.Format(ConvertInput(item))} {preview.TargetCurrencyCode}" : "—")</td>
                                             </tr>
                                         }

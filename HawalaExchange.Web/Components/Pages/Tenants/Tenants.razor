@@ -280,7 +280,7 @@
                             <div class="col-md-6"><label class="form-label">پایان دوره آزمایشی</label><InputDate class="form-control" @bind-Value="subscriptionModel.TrialEndAt" /></div>
                             <div class="col-md-6"><label class="form-label">پایان دوره مهلت</label><InputDate class="form-control" @bind-Value="subscriptionModel.GracePeriodEndAt" /></div>
                             <div class="col-md-6"><label class="form-label">دوره پرداخت</label><InputSelect class="form-select" @bind-Value="subscriptionModel.BillingCycle"><option value="@BillingCycle.Monthly">ماهانه</option><option value="@BillingCycle.Quarterly">سه‌ماهه</option><option value="@BillingCycle.SemiAnnual">شش‌ماهه</option><option value="@BillingCycle.Annual">سالانه</option></InputSelect></div>
-                            <div class="col-md-4"><label class="form-label">مبلغ</label><InputNumber class="form-control" @bind-Value="subscriptionModel.AgreedPrice" /></div>
+                            <div class="col-md-4"><label class="form-label">مبلغ</label><InputNumber class="form-control financial-value-input" @bind-Value="subscriptionModel.AgreedPrice" /></div>
                             <div class="col-md-4">
                                 <label class="form-label">ارز</label>
                                 <InputSelect class="form-select" @bind-Value="subscriptionModel.CurrencyCode">

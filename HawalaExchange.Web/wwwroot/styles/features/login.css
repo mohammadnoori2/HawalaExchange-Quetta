@@ -559,15 +559,18 @@
     animation: fadeInUp 1s ease;
 }
 
-.form-check {
-    display: flex;
+.login-page .form-check {
+    display: inline-flex;
     align-items: center;
     gap: 8px;
     margin: 0;
+    padding: 0;
+    min-height: 18px;
+    direction: rtl;
     cursor: pointer;
 }
 
-.form-check-input {
+.login-page .form-check .form-check-input {
     width: 18px;
     height: 18px;
     border-radius: 6px;
@@ -576,20 +579,26 @@
     accent-color: var(--primary-color);
     transition: var(--transition);
     margin: 0;
+    float: none;
+    vertical-align: middle;
     flex-shrink: 0;
 }
 
-    .form-check-input:checked {
+    .login-page .form-check .form-check-input:checked {
         border-color: var(--primary-color);
         background-color: var(--primary-color);
     }
 
-    .form-check-input:hover {
+    .login-page .form-check .form-check-input:hover {
         border-color: var(--primary-color);
     }
 
-.form-check-label {
+.login-page .form-check .form-check-label {
+    display: inline-flex;
+    align-items: center;
     font-size: 0.85rem;
+    line-height: 18px;
+    margin: 0;
     color: var(--text-secondary);
     cursor: pointer;
     user-select: none;

@@ -37,7 +37,9 @@
 
             public async Task<HawalaDto> CreateHawalaAsync(CreateHawalaDto dto)
             {
-                using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+                await using var transaction = _context.Database.CurrentTransaction == null
+                    ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+                    : null;
 
                 try
                 {
@@ -101,13 +103,42 @@
                     };
                     await _auditLogService.LogAsync("CREATE", "Hawalas", hawala.Id, null, $"حواله {hawalaTypeName} شماره {hawala.Number} ثبت شد.", GetCurrentUserId());
 
-                    await transaction.CommitAsync();
+                    if (transaction != null)
+                        await transaction.CommitAsync();
 
                     return _mapper.Map<HawalaDto>(hawala);
                 }
                 catch (Exception)
                 {
-                    await transaction.RollbackAsync();
+                    if (transaction != null)
+                        await transaction.RollbackAsync();
+                    throw;
+                }
+            }
+
+            public async Task<IReadOnlyList<HawalaDto>> CreateHawalasAsync(
+                IReadOnlyCollection<CreateHawalaDto> items)
+            {
+                if (items.Count == 0)
+                    return [];
+
+                await using var transaction = _context.Database.CurrentTransaction == null
+                    ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+                    : null;
+                try
+                {
+                    var results = new List<HawalaDto>(items.Count);
+                    foreach (var item in items)
+                        results.Add(await CreateHawalaAsync(item));
+
+                    if (transaction != null)
+                        await transaction.CommitAsync();
+                    return results;
+                }
+                catch
+                {
+                    if (transaction != null)
+                        await transaction.RollbackAsync();
                     throw;
                 }
             }

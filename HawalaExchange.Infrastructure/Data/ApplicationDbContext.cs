@@ -110,6 +110,8 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<Document> Documents { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Hawala> Hawalas { get; set; }
+        public DbSet<HawalaImportBatch> HawalaImportBatches { get; set; }
+        public DbSet<HawalaImportRow> HawalaImportRows { get; set; }
         public DbSet<CorrespondentSettlementConversion> CorrespondentSettlementConversions { get; set; }
         public DbSet<CorrespondentSettlementConversionItem> CorrespondentSettlementConversionItems { get; set; }
         public DbSet<CorrespondentSettlementConversionHawala> CorrespondentSettlementConversionHawalas { get; set; }
@@ -1602,6 +1604,15 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasFilter("[SourceHawalaId] IS NOT NULL");
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.ReferenceNumber });
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+            modelBuilder.Entity<HawalaImportBatch>()
+                .HasIndex(x => new { x.TenantId, x.FileHash, x.Status });
+            modelBuilder.Entity<HawalaImportBatch>()
+                .HasIndex(x => new { x.TenantId, x.FileHash })
+                .IsUnique()
+                .HasFilter("[Status] = 'Posted'");
+            modelBuilder.Entity<HawalaImportRow>()
+                .HasIndex(x => new { x.TenantId, x.BatchId, x.ExcelRowNumber })
+                .IsUnique();
             modelBuilder.Entity<PaymentLocation>()
                 .HasIndex(x => new { x.TenantId, x.NormalizedName })
                 .IsUnique();
@@ -1645,6 +1656,10 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Hawala>()
                 .Property(x => x.Status)
                 .HasDefaultValue("Pending");
+
+            modelBuilder.Entity<HawalaImportBatch>()
+                .Property(x => x.Status)
+                .HasDefaultValue("Preview");
 
             modelBuilder.Entity<Hawala>()
                 .Property(x => x.CreatedAt)
@@ -1817,6 +1832,42 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureRelationships(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<HawalaImportBatch>(entity =>
+            {
+                entity.HasOne(x => x.Correspondent)
+                    .WithMany()
+                    .HasForeignKey(x => x.CorrespondentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.CreatedBy)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ConfirmedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.ConfirmedBy)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HawalaImportRow>(entity =>
+            {
+                entity.HasOne(x => x.Batch)
+                    .WithMany(x => x.Rows)
+                    .HasForeignKey(x => x.BatchId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.PaymentLocation)
+                    .WithMany()
+                    .HasForeignKey(x => x.PaymentLocationId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Currency)
+                    .WithMany()
+                    .HasForeignKey(x => x.CurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Hawala)
+                    .WithMany()
+                    .HasForeignKey(x => x.HawalaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
             modelBuilder.Entity<PaymentLocationAlias>()
                 .HasOne(x => x.PaymentLocation)
                 .WithMany(x => x.Aliases)

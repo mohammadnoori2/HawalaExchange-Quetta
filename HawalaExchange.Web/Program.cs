@@ -128,6 +128,7 @@ public partial class Program
         builder.Services.AddScoped<IAccountBadehkarLimitService, AccountBadehkarLimitService>();
         builder.Services.AddScoped<ICashBalanceAlertService, CashBalanceAlertService>();
         builder.Services.AddScoped<IHawalaService, HawalaService>();
+        builder.Services.AddScoped<IHawalaImportService, HawalaImportService>();
         builder.Services.AddScoped<ICapitalInvestmentService, CapitalInvestmentService>();
         builder.Services.AddScoped<IPaymentLocationService, PaymentLocationService>();
         builder.Services.AddScoped<IFileService, FileService>();

@@ -17,6 +17,7 @@ namespace HawalaExchange.Application.DTOs
         public string? Remarks { get; set; }
         public long? SettlementCurrencyId { get; set; }
         public string? SettlementCurrencyCode { get; set; }
+        public string CommissionMethod { get; set; } = "PerTransaction";
         public DateTime CreatedAt { get; set; }
     }
 
@@ -31,6 +32,7 @@ namespace HawalaExchange.Application.DTOs
         public bool HasInitialBalance { get; set; } = false;
         public List<InitialBalanceDto>? InitialBalances { get; set; }
         public long? SettlementCurrencyId { get; set; }
+        public string CommissionMethod { get; set; } = "PerTransaction";
     }
 
     public class UpdateCorrespondentDto
@@ -44,6 +46,7 @@ namespace HawalaExchange.Application.DTOs
         public bool IsArchived { get; set; }
         public string? Remarks { get; set; }
         public long? SettlementCurrencyId { get; set; }
+        public string CommissionMethod { get; set; } = "PerTransaction";
 
     }
 }

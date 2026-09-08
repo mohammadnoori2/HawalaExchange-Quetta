@@ -52,6 +52,12 @@
                 <span>@correspondent.Name · @correspondent.Code</span>
             </div>
             <div class="correspondent-header-actions">
+                @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
+                {
+                    <button class="btn btn-success" @onclick="OpenCommissionPage">
+                        <i class="bi bi-calculator me-1"></i> محاسبه کمیشن
+                    </button>
+                }
                 <CorrespondentActionsMenu IsArchived="@correspondent.IsArchived"
                                            CanUseFinancialActions="@(correspondentAccount != null && !correspondent.IsArchived)"
                                            SettlementCurrencyCode="@correspondent.SettlementCurrencyCode"
@@ -182,6 +188,13 @@
                                 }
                             </select>
                             <div class="form-text">اگر انتخاب نشود، تبدیل ارز برای این نمایندگی غیرفعال می‌ماند.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">روش محاسبه کمیشن</label>
+                            <select class="form-select" @bind="editModel.CommissionMethod">
+                                <option value="PerTransaction">برای هر معامله</option>
+                                <option value="PeriodicPerLakh">دوره‌ای بر اساس هر لک</option>
+                            </select>
                         </div>
                         <div class="col-12">
                             <label class="form-label">یادداشت</label>
@@ -367,6 +380,7 @@
             Address = correspondent.Address,
             Remarks = correspondent.Remarks,
             SettlementCurrencyId = correspondent.SettlementCurrencyId,
+            CommissionMethod = correspondent.CommissionMethod,
             IsArchived = correspondent.IsArchived
         };
         showEditModal = true;
@@ -377,6 +391,9 @@
         showEditModal = false;
         editErrors.Clear();
     }
+
+    private void OpenCommissionPage() =>
+        NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/commission");
 
     private async Task SaveEditAsync()
     {

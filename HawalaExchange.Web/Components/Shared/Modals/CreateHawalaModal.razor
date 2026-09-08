@@ -394,6 +394,8 @@
                                         <small class="text-muted text-success">ارزها یکسان هستند، مبلغ برابر با مبلغ حواله است</small>
                                     }
                                 </div>
+                                @if (!UsesPeriodicCommission())
+                                {
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-coin text-muted me-1"></i> کارمزد و ارز
@@ -418,6 +420,7 @@
                                         </small>
                                     }
                                 </div>
+                                }
                                 @if (CurrentHawala.HawalaType != "HawalaReceive" || CurrentHawala.Status == "Paid")
                                 {
                                     <div class="col-md-4 mb-3">
@@ -1706,6 +1709,11 @@
 
     private async Task OnHawalaTypeChanged(ChangeEventArgs e)
     {
+        if (UsesPeriodicCommission())
+        {
+            CurrentHawala.CommissionAmount = null;
+            CurrentHawala.CommissionCurrencyId = null;
+        }
         CurrentHawala.HawalaType = e?.Value?.ToString() ?? string.Empty;
         if (!IsEditMode)
         {
@@ -1741,9 +1749,18 @@
             long.TryParse(e.Value?.ToString(), out var correspondentId)
                 ? correspondentId
                 : null;
+        if (UsesPeriodicCommission())
+        {
+            CurrentHawala.CommissionAmount = null;
+            CurrentHawala.CommissionCurrencyId = null;
+        }
         await GetSuggestedNumber();
         StateHasChanged();
     }
+
+    private bool UsesPeriodicCommission() =>
+        CurrentHawala.HawalaType == "HawalaReceive" &&
+        CorrespondentsList.FirstOrDefault(x => x.Id == CurrentHawala.CorrespondentId)?.CommissionMethod == "PeriodicPerLakh";
 
     private async Task LoadPaymentLocationsAsync(bool includeCurrentLocation = false)
     {

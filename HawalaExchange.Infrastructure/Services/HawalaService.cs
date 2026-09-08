@@ -44,6 +44,8 @@
                 try
                 {
                     ValidateCreateHawala(dto);
+                    await EnforceCorrespondentCommissionMethodAsync(
+                        dto.HawalaType, dto.CorrespondentId, dto.CommissionAmount);
                     await ValidatePaymentLocationAsync(dto.PaymentLocationId);
 
                     var hawala = _mapper.Map<Hawala>(dto);
@@ -538,6 +540,9 @@
                 if (hawala.AgentCommissionAmount > 0 &&
                     (!hawala.AgentCommissionCurrencyId.HasValue || hawala.AgentCommissionCurrencyId.Value <= 0))
                     throw new InvalidOperationException("انتخاب ارز کارمزد نمایندگی الزامی است.");
+
+                await EnforceCorrespondentCommissionMethodAsync(
+                    hawala.HawalaType, hawala.CorrespondentId, hawala.CommissionAmount);
 
                 await ValidatePaymentLocationAsync(hawala.PaymentLocationId, requireActive: false);
 
@@ -1399,6 +1404,19 @@
             }
 
             private long GetCurrentUserId() => _context.RequireCurrentUserId();
+            private async Task EnforceCorrespondentCommissionMethodAsync(
+                string hawalaType, long? correspondentId, decimal? commissionAmount)
+            {
+                if (hawalaType != "HawalaReceive" || !correspondentId.HasValue || commissionAmount is not > 0)
+                    return;
+
+                var method = await _context.Correspondents
+                    .Where(x => x.Id == correspondentId.Value)
+                    .Select(x => x.CommissionMethod)
+                    .SingleOrDefaultAsync();
+                if (method == "PeriodicPerLakh")
+                    throw new InvalidOperationException("برای این نمایندگی کمیشن به‌صورت دوره‌ای محاسبه می‌شود و در هر حواله قابل ثبت نیست.");
+            }
             private async Task<Account> GetOrCreatePendingHawalaAccountAsync()
             {
                 const string accountCode = ApplicationDbContext.PendingHawalaAccountCode;

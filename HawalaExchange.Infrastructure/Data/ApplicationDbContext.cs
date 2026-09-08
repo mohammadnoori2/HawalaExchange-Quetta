@@ -116,6 +116,8 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<CorrespondentSettlementConversionItem> CorrespondentSettlementConversionItems { get; set; }
         public DbSet<CorrespondentSettlementConversionHawala> CorrespondentSettlementConversionHawalas { get; set; }
         public DbSet<CorrespondentSettlementConversionHawalaItem> CorrespondentSettlementConversionHawalaItems { get; set; }
+        public DbSet<CorrespondentCommissionBatch> CorrespondentCommissionBatches { get; set; }
+        public DbSet<CorrespondentCommissionBatchItem> CorrespondentCommissionBatchItems { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
         public DbSet<PaymentLocationAlias> PaymentLocationAliases { get; set; }
 
@@ -1595,6 +1597,12 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<CorrespondentSettlementConversionHawalaItem>()
                 .HasIndex(x => new { x.TenantId, x.HawalaId, x.SourceCurrencyId })
                 .IsUnique();
+            modelBuilder.Entity<CorrespondentCommissionBatch>()
+                .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.CreatedAt });
+            modelBuilder.Entity<CorrespondentCommissionBatchItem>()
+                .HasIndex(x => new { x.TenantId, x.HawalaId, x.IsActive })
+                .IsUnique()
+                .HasFilter("[IsActive] = 1");
             modelBuilder.Entity<Hawala>()
                 .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.Number })
                 .IsUnique();
@@ -1643,6 +1651,9 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Account>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<Customer>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<Correspondent>().Property(x => x.IsArchived).HasDefaultValue(false);
+            modelBuilder.Entity<Correspondent>().Property(x => x.CommissionMethod).HasDefaultValue("PerTransaction");
+            modelBuilder.Entity<CorrespondentCommissionBatch>().Property(x => x.Status).HasDefaultValue("Posted");
+            modelBuilder.Entity<CorrespondentCommissionBatchItem>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<CashBalanceAlertSetting>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<CashBalanceAlertSetting>().Property(x => x.NotifyAllUsers).HasDefaultValue(true);
@@ -1885,6 +1896,36 @@ namespace HawalaExchange.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(x => x.SettlementCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Correspondent>()
+                .ToTable(t => t.HasCheckConstraint("CK_Correspondents_CommissionMethod_Valid",
+                    "[CommissionMethod] IN ('PerTransaction', 'PeriodicPerLakh')"));
+
+            modelBuilder.Entity<CorrespondentCommissionBatch>(entity =>
+            {
+                entity.HasOne(x => x.Correspondent).WithMany(x => x.CommissionBatches)
+                    .HasForeignKey(x => x.CorrespondentId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.PostingTransaction).WithMany()
+                    .HasForeignKey(x => x.PostingTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversalTransaction).WithMany()
+                    .HasForeignKey(x => x.ReversalTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser).WithMany()
+                    .HasForeignKey(x => x.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversedByUser).WithMany()
+                    .HasForeignKey(x => x.ReversedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(t => t.HasCheckConstraint("CK_CorrespondentCommissionBatches_Status_Valid",
+                    "[Status] IN ('Posted', 'Reversed')"));
+            });
+
+            modelBuilder.Entity<CorrespondentCommissionBatchItem>(entity =>
+            {
+                entity.HasOne(x => x.Batch).WithMany(x => x.Items)
+                    .HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.Hawala).WithMany()
+                    .HasForeignKey(x => x.HawalaId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.SourceCurrency).WithMany()
+                    .HasForeignKey(x => x.SourceCurrencyId).OnDelete(DeleteBehavior.Restrict);
+            });
 
             modelBuilder.Entity<CorrespondentSettlementConversion>(entity =>
             {

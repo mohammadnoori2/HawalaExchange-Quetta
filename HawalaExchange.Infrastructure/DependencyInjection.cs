@@ -29,6 +29,7 @@ namespace HawalaExchange.Infrastructure
             // Entity Services
             services.AddScoped<ICustomerService, CustomerService>();
             services.AddScoped<ICorrespondentService, CorrespondentService>();
+            services.AddScoped<ICorrespondentCommissionService, CorrespondentCommissionService>();
             services.AddScoped<ICurrencyService, CurrencyService>();
             services.AddScoped<IAccountService, AccountService>();
             services.AddScoped<ICashBalanceAlertService, CashBalanceAlertService>();

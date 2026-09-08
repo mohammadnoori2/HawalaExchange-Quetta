@@ -81,6 +81,16 @@ Acceptance: principal and agent commission produce distinct, balanced ledger eff
 
 Acceptance: weekly or monthly commission batches reconcile and cannot include a hawala twice.
 
+Implementation status: completed locally on `codex/stage-04-periodic-commission` (awaiting customer test and approval before push).
+
+Implemented calculation decisions:
+
+- Include registered incoming hawalas in the selected date period, except cancelled hawalas and hawalas that already have a per-transaction commission.
+- Use one user-entered source-to-AFN rate per currency for the batch and store that rate on every batch item as an immutable snapshot.
+- Calculate partial lakhs proportionally (`AFN equivalent / 100,000 × commission per lakh`).
+- Round the final AFN commission and final USD commission to whole units using half-up (`MidpointRounding.AwayFromZero`).
+- Post only after preview and explicit confirmation; reversal creates an opposite accounting transaction and releases the hawalas for a future batch.
+
 ## Stage 05: end-of-day USD settlement
 
 - Preview unsettled non-USD transactions/balances by date, account, correspondent, and currency.
@@ -121,8 +131,7 @@ Acceptance: a clean environment can be installed, migrated, tested, and operated
 
 ## Decisions to confirm during the relevant stage
 
-- Whether periodic commission includes registered incoming hawalas immediately or only after payout.
-- Whether periodic commission uses one batch rate or the stored end-of-day rate for each hawala.
-- Whether per-lakh commission is proportional for partial lakhs or counts only complete lakhs.
+- Revisit whether eligibility should change from all registered incoming hawalas to paid-only after customer testing.
+- Revisit whether future daily closing should replace the batch rate snapshot with an end-of-day rate per hawala.
 - Which roles may see or edit the internal AED markers and profit.
 - Whether end-of-day processing is settlement only or also locks the accounting date.

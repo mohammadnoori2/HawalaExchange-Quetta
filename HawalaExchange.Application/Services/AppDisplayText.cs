@@ -20,6 +20,8 @@ public static class AppDisplayText
         "Deposit" => "رسید",
         "Withdraw" or "Payment" => "برد",
         "CorrespondentSettlementConversion" => "تبدیل مانده نمایندگی به ارز توافقی",
+        "PeriodicCorrespondentCommission" => "محاسبه کمیشن دوره‌ای نمایندگی",
+        "PeriodicCorrespondentCommissionReversal" => "برگشت کمیشن دوره‌ای نمایندگی",
         null or "" => "نوع مشخص نشده",
         _ => "عملیات مالی دیگر"
     };

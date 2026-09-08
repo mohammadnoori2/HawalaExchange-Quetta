@@ -22,6 +22,9 @@ public static class AppDisplayText
         "CorrespondentSettlementConversion" => "تبدیل مانده نمایندگی به ارز توافقی",
         "PeriodicCorrespondentCommission" => "محاسبه کمیشن دوره‌ای نمایندگی",
         "PeriodicCorrespondentCommissionReversal" => "برگشت کمیشن دوره‌ای نمایندگی",
+        "AedDealHolding" => "ثبت و نگهداری معامله درهم",
+        "AedDealConversion" => "تبدیل معامله درهم به دالر",
+        "AedDealReversal" => "برگشت معامله درهم",
         null or "" => "نوع مشخص نشده",
         _ => "عملیات مالی دیگر"
     };
@@ -31,6 +34,11 @@ public static class AppDisplayText
         "Pending" when hawalaType == "HawalaReceive" => "هنوز اجرا نشده",
         "Pending" => "در انتظار اجرا",
         "Paid" => "پرداخت و تکمیل شده",
+        "Held" => "نگهداری شده",
+        "PartiallyConverted" => "قسمتی تبدیل شده",
+        "Converted" => "تبدیل کامل شده",
+        "Posted" => "ثبت شده",
+        "Reversed" => "برگشت داده شده",
         "Cancel" or "Cancelled" => "لغو شده",
         "Active" => "فعال",
         "Inactive" => "غیرفعال",

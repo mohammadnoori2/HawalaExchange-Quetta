@@ -803,6 +803,24 @@ public class JournalService : IJournalService
             .Where(x => ids.Contains(x.TransactionId))
             .ToDictionaryAsync(x => x.TransactionId);
 
+        var aedDeals = await _context.AedDeals
+            .AsNoTracking()
+            .Include(x => x.SourceCorrespondent)
+            .Include(x => x.DubaiCorrespondent)
+            .Include(x => x.SourceCurrency)
+            .Where(x => ids.Contains(x.HoldingTransactionId) ||
+                        (x.ReversalTransactionId.HasValue && ids.Contains(x.ReversalTransactionId.Value)))
+            .ToListAsync();
+
+        var aedConversions = await _context.AedDealConversions
+            .AsNoTracking()
+            .Include(x => x.Deal).ThenInclude(x => x.SourceCorrespondent)
+            .Include(x => x.Deal).ThenInclude(x => x.DubaiCorrespondent)
+            .Include(x => x.Deal).ThenInclude(x => x.SourceCurrency)
+            .Where(x => ids.Contains(x.PostingTransactionId) ||
+                        (x.ReversalTransactionId.HasValue && ids.Contains(x.ReversalTransactionId.Value)))
+            .ToListAsync();
+
         foreach (var operation in operations.Where(x => x.SourceType == "تراکنش"))
         {
             if (!operation.SourceId.HasValue ||
@@ -849,6 +867,30 @@ public class JournalService : IJournalService
                 Add(operation, "نوع تبدیل", conversionType);
                 Add(operation, "نمایندگی", settlement.Correspondent.Name);
                 Add(operation, "خلاصه تبدیل", conversionSummary);
+            }
+
+            var aedDeal = aedDeals.FirstOrDefault(x =>
+                x.HoldingTransactionId == source.Id || x.ReversalTransactionId == source.Id);
+            var aedConversion = aedConversions.FirstOrDefault(x =>
+                x.PostingTransactionId == source.Id || x.ReversalTransactionId == source.Id);
+            if (aedDeal != null)
+            {
+                Add(operation, "نمبر معامله درهم", aedDeal.DealNumber);
+                Add(operation, "طرف کویته", aedDeal.SourceCorrespondent.Name);
+                Add(operation, "طرف دبی", aedDeal.DubaiCorrespondent.Name);
+                Add(operation, "مبلغ اصل معامله", Money(aedDeal.OriginalAmount, aedDeal.SourceCurrency.Code));
+                Add(operation, "وضعیت معامله", AppDisplayText.Status(aedDeal.Status));
+            }
+            else if (aedConversion != null)
+            {
+                Add(operation, "نمبر معامله درهم", aedConversion.Deal.DealNumber);
+                Add(operation, "طرف کویته", aedConversion.Deal.SourceCorrespondent.Name);
+                Add(operation, "طرف دبی", aedConversion.Deal.DubaiCorrespondent.Name);
+                Add(operation, "مبلغ تبدیل", Money(aedConversion.SourceAmount, aedConversion.Deal.SourceCurrency.Code));
+                Add(operation, "مبلغ نهایی", Money(aedConversion.FinalUsdAmount, "USD"));
+                Add(operation, aedConversion.ProfitUsd >= 0 ? "مفاد" : "زیان",
+                    Money(Math.Abs(aedConversion.ProfitUsd), "USD"));
+                Add(operation, "وضعیت تبدیل", aedConversion.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده");
             }
 
             var index = 1;
@@ -914,6 +956,15 @@ public class JournalService : IJournalService
 
             "تراکنش" when Detail(operation, "نوع تراکنش", "") == AppDisplayText.TransactionType("CorrespondentSettlementConversion") =>
                 $"{Detail(operation, "خلاصه تبدیل", CurrencyMovement(operation))} تبدیل شد و در حساب ثبت شد{suffix}",
+
+            "تراکنش" when Detail(operation, "نوع تراکنش", "") == AppDisplayText.TransactionType("AedDealHolding") =>
+                $"معامله درهم شماره {Detail(operation, "نمبر معامله درهم", operation.DocumentNumber)} به مبلغ {Detail(operation, "مبلغ اصل معامله", CurrencyMovement(operation))} از طرف {Detail(operation, "طرف کویته", "کویته")} نزد {Detail(operation, "طرف دبی", "طرف دبی")} ثبت شد{suffix}",
+
+            "تراکنش" when Detail(operation, "نوع تراکنش", "") == AppDisplayText.TransactionType("AedDealConversion") =>
+                $"از معامله درهم شماره {Detail(operation, "نمبر معامله درهم", operation.DocumentNumber)}، مبلغ {Detail(operation, "مبلغ تبدیل", CurrencyMovement(operation))} به {Detail(operation, "مبلغ نهایی", "دالر")} تبدیل و در حساب ثبت شد{suffix}",
+
+            "تراکنش" when Detail(operation, "نوع تراکنش", "") == AppDisplayText.TransactionType("AedDealReversal") =>
+                $"سند مربوط به معامله درهم شماره {Detail(operation, "نمبر معامله درهم", operation.DocumentNumber)} برگشت داده شد{suffix}",
 
             "تراکنش" =>
                 $"تراکنش {Detail(operation, "نوع تراکنش", "عمومی")} به شماره {operation.DocumentNumber} برای {Detail(operation, "مشتری", "حساب‌های مرتبط")} در حساب‌های {accounts} ثبت شد{suffix}",

@@ -1,0 +1,301 @@
+@page "/aed-transactions"
+@page "/aed-transactions/{CorrespondentId:long}"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IAedDealService AedDealService
+@inject ICorrespondentService CorrespondentService
+@inject ICurrencyService CurrencyService
+@inject NavigationManager NavigationManager
+
+<PageTitle>معاملات درهم</PageTitle>
+
+<div class="page-wrapper" dir="rtl">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h4 class="mb-1"><i class="bi bi-currency-exchange text-primary"></i> معاملات درهم</h4>
+            <div class="text-muted small">ثبت مبلغ نزد طرف دبی و تبدیل کامل یا قسمتی آن به دالر</div>
+        </div>
+        <div class="d-flex gap-2">
+            @if (CorrespondentId.HasValue)
+            {
+                <button class="btn btn-light border" @onclick="BackToCorrespondent">
+                    <i class="bi bi-arrow-right"></i> بازگشت به نمایندگی
+                </button>
+            }
+            <button class="btn btn-primary" disabled="@(isLoading || correspondents.Count < 2 || currencies.Count == 0)" @onclick="OpenCreate">
+                <i class="bi bi-plus-lg"></i> معامله جدید
+            </button>
+        </div>
+    </div>
+
+    <div class="alert alert-info py-2">
+        نرخ هر دالر <strong>۳٫۶۷ درهم</strong> ثابت است. مشخصه‌ها در همان ارز اصل معامله وارد می‌شوند و نتیجه با روش گردکردن معمولی ثبت می‌شود.
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="alert alert-success py-2">@successMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger py-2">@errorMessage</div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+    }
+    else if (deals.Count == 0)
+    {
+        <div class="card border-0 shadow-sm"><div class="card-body text-center py-5 text-muted">هنوز معامله‌ای ثبت نشده است.</div></div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>نمبر معامله</th><th>طرف کویته</th><th>طرف دبی</th><th>مبلغ اصل</th>
+                            <th>تبدیل‌شده</th><th>باقی‌مانده</th><th>دالر نهایی</th><th>مفاد / زیان</th><th>وضعیت</th><th>عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var deal in deals)
+                        {
+                            <tr>
+                                <td><strong>@deal.DealNumber</strong><div class="small text-muted">@deal.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div></td>
+                                <td>@deal.SourceCorrespondentName</td>
+                                <td>@deal.DubaiCorrespondentName</td>
+                                <td>@Money(deal.OriginalAmount) @deal.SourceCurrencyCode</td>
+                                <td>@Money(deal.ConvertedAmount) @deal.SourceCurrencyCode</td>
+                                <td><strong>@Money(deal.RemainingAmount) @deal.SourceCurrencyCode</strong></td>
+                                <td>@Money(deal.TotalFinalUsd) USD</td>
+                                <td class="@(deal.TotalProfitUsd >= 0 ? "text-success" : "text-danger")">@SignedMoney(deal.TotalProfitUsd) USD</td>
+                                <td><span class="badge @StatusClass(deal.Status)">@StatusText(deal.Status)</span></td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @if (deal.Status is "Held" or "PartiallyConverted")
+                                        {
+                                            <button class="btn btn-sm btn-success" @onclick="() => OpenConvert(deal)">تبدیل</button>
+                                        }
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => ToggleDetails(deal.Id)">جزئیات</button>
+                                        @if (deal.Status != "Cancelled" && !deal.Conversions.Any(x => x.Status == "Posted"))
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenCancel(deal)">لغو</button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                            @if (expandedDealId == deal.Id)
+                            {
+                                <tr class="table-light">
+                                    <td colspan="10">
+                                        <div class="p-2">
+                                            <div class="mb-2"><strong>نرخ:</strong> @deal.AedPerUsdRate &nbsp; | &nbsp; <strong>گردکردن:</strong> @RoundingText(deal.RoundingDecimalPlaces)</div>
+                                            @if (!string.IsNullOrWhiteSpace(deal.Note))
+                                            {
+                                                <div class="mb-2"><strong>یادداشت:</strong> @deal.Note</div>
+                                            }
+                                            @if (deal.Conversions.Count == 0)
+                                            {
+                                                <span class="text-muted">هنوز تبدیلی ثبت نشده است.</span>
+                                            }
+                                            else
+                                            {
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm mb-0 bg-white">
+                                                        <thead><tr><th>تاریخ</th><th>مبلغ تبدیل</th><th>دالر نهایی</th><th>مفاد / زیان</th><th>وضعیت</th><th></th></tr></thead>
+                                                        <tbody>
+                                                            @foreach (var conversion in deal.Conversions)
+                                                            {
+                                                                <tr>
+                                                                    <td>@conversion.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                                                    <td>@Money(conversion.SourceAmount) @deal.SourceCurrencyCode</td>
+                                                                    <td>@Money(conversion.FinalUsdAmount) USD</td>
+                                                                    <td class="@(conversion.ProfitUsd >= 0 ? "text-success" : "text-danger")">@SignedMoney(conversion.ProfitUsd) USD</td>
+                                                                    <td>@(conversion.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</td>
+                                                                    <td>
+                                                                        @if (conversion.Status == "Posted")
+                                                                        {
+                                                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => OpenReverse(deal, conversion)">برگشت</button>
+                                                                        }
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@if (showCreate)
+{
+    <div class="modal show d-block" style="background:rgba(0,0,0,.5)" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">ثبت معامله جدید</h5><button class="btn-close" @onclick="CloseCreate"></button></div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label">نمبر معامله</label><input class="form-control" maxlength="50" @bind="createModel.DealNumber" /></div>
+                    <div class="col-md-6"><label class="form-label">ارز معامله</label><select class="form-select" @bind="createModel.SourceCurrencyId">@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code - @currency.Name</option>}</select></div>
+                    <div class="col-md-6"><label class="form-label">طرف کویته</label><select class="form-select" @bind="createModel.SourceCorrespondentId"><option value="0">انتخاب کنید</option>@foreach (var item in correspondents){<option value="@item.Id">@item.Name (@item.Code)</option>}</select></div>
+                    <div class="col-md-6"><label class="form-label">طرف دبی</label><select class="form-select" @bind="createModel.DubaiCorrespondentId"><option value="0">انتخاب کنید</option>@foreach (var item in correspondents){<option value="@item.Id">@item.Name (@item.Code)</option>}</select></div>
+                    <div class="col-md-6"><label class="form-label">مبلغ</label><MoneyInput class="form-control" DecimalPlaces="4" @bind-Value="createModel.Amount" /></div>
+                    <div class="col-md-6"><label class="form-label">تعداد خانه اعشار نتیجه</label><select class="form-select" @bind="createModel.RoundingDecimalPlaces"><option value="0">بدون اعشار (پیش‌فرض)</option><option value="1">۱ خانه</option><option value="2">۲ خانه</option><option value="3">۳ خانه</option><option value="4">۴ خانه</option></select></div>
+                    <div class="col-12"><label class="form-label">یادداشت</label><textarea class="form-control" rows="2" maxlength="500" @bind="createModel.Note"></textarea></div>
+                </div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-light border" @onclick="CloseCreate">انصراف</button><button class="btn btn-primary" disabled="@isSaving" @onclick="CreateAsync">@(isSaving ? "در حال ثبت..." : "ثبت و نگهداری معامله")</button></div>
+        </div></div>
+    </div>
+}
+
+@if (showConvert && selectedDeal != null)
+{
+    <div class="modal show d-block" style="background:rgba(0,0,0,.5)" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header"><div><h5 class="modal-title">تبدیل معامله @selectedDeal.DealNumber</h5><small class="text-muted">باقی‌مانده: @Money(selectedDeal.RemainingAmount) @selectedDeal.SourceCurrencyCode</small></div><button class="btn-close" @onclick="CloseConvert"></button></div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-4"><label class="form-label">مبلغ قابل تبدیل</label><MoneyInput class="form-control" DecimalPlaces="4" @bind-Value="conversionModel.SourceAmount" /></div>
+                    <div class="col-md-4"><label class="form-label">مشخصه معامله (@selectedDeal.SourceCurrencyCode)</label><MoneyInput class="form-control" DecimalPlaces="4" @bind-Value="conversionModel.ActualMarker" /></div>
+                    <div class="col-md-4"><label class="form-label">مشخصه اعلامی به کویته (@selectedDeal.SourceCurrencyCode)</label><MoneyInput class="form-control" DecimalPlaces="4" @bind-Value="conversionModel.DeclaredMarker" /></div>
+                    <div class="col-12"><label class="form-label">یادداشت</label><textarea class="form-control" rows="2" maxlength="500" @bind="conversionModel.Note"></textarea></div>
+                </div>
+                <div class="form-text mt-2">مقدار مثبت را بدون علامت و مقدار منفی را با علامت منفی وارد کنید. مشخصه بر اساس هر ۱۰۰٬۰۰۰ واحد ارز معامله محاسبه می‌شود.</div>
+                @if (preview != null)
+                {
+                    <div class="row g-2 mt-3">
+                        <div class="col-md-6"><div class="alert alert-primary mb-0"><small>مبلغ نهایی قابل دریافت</small><div class="fs-5 fw-bold">@Money(preview.FinalUsdAmount) USD</div></div></div>
+                        <div class="col-md-6"><div class="alert @(preview.ProfitUsd >= 0 ? "alert-success" : "alert-danger") mb-0"><small>@(preview.ProfitUsd >= 0 ? "مفاد" : "زیان")</small><div class="fs-5 fw-bold">@Money(Math.Abs(preview.ProfitUsd)) USD</div></div></div>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer"><button class="btn btn-light border" @onclick="CloseConvert">انصراف</button><button class="btn btn-outline-primary" disabled="@isSaving" @onclick="PreviewAsync">محاسبه</button><button class="btn btn-success" disabled="@(isSaving || preview == null)" @onclick="ConvertAsync">@(isSaving ? "در حال ثبت..." : "تأیید و ثبت تبدیل")</button></div>
+        </div></div>
+    </div>
+}
+
+@if (showReason && selectedDeal != null)
+{
+    <div class="modal show d-block" style="background:rgba(0,0,0,.5)" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">@(selectedConversion == null ? "لغو معامله" : "برگشت تبدیل")</h5><button class="btn-close" @onclick="CloseReason"></button></div>
+            <div class="modal-body"><p>معامله: <strong>@selectedDeal.DealNumber</strong></p><label class="form-label">دلیل</label><textarea class="form-control" rows="3" maxlength="500" @bind="reason"></textarea></div>
+            <div class="modal-footer"><button class="btn btn-light border" @onclick="CloseReason">انصراف</button><button class="btn btn-danger" disabled="@isSaving" @onclick="ConfirmReasonAsync">@(isSaving ? "در حال ثبت..." : "تأیید")</button></div>
+        </div></div>
+    </div>
+}
+
+@code {
+    [Parameter] public long? CorrespondentId { get; set; }
+    private List<AedDealDto> deals = [];
+    private List<CorrespondentDto> correspondents = [];
+    private List<CurrencyDto> currencies = [];
+    private CreateAedDealDto createModel = new();
+    private PreviewAedConversionDto conversionModel = new();
+    private AedConversionPreviewDto? preview;
+    private AedDealDto? selectedDeal;
+    private AedDealConversionDto? selectedConversion;
+    private long? expandedDealId;
+    private bool isLoading = true, isSaving, showCreate, showConvert, showReason;
+    private string reason = string.Empty, successMessage = string.Empty, errorMessage = string.Empty;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            isLoading = true; errorMessage = string.Empty;
+            correspondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList();
+            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).Where(x => x.Code is "AED" or "USD").OrderBy(x => x.Code).ToList();
+            deals = (await AedDealService.GetAllAsync(CorrespondentId)).ToList();
+        }
+        catch (Exception ex) { errorMessage = $"بارگذاری معاملات انجام نشد: {ex.Message}"; }
+        finally { isLoading = false; }
+    }
+
+    private void OpenCreate()
+    {
+        errorMessage = string.Empty;
+        createModel = new CreateAedDealDto
+        {
+            DubaiCorrespondentId = CorrespondentId ?? 0,
+            SourceCurrencyId = currencies.FirstOrDefault(x => x.Code == "AED")?.Id ?? currencies.FirstOrDefault()?.Id ?? 0,
+            RoundingDecimalPlaces = 0
+        };
+        showCreate = true;
+    }
+    private void CloseCreate() => showCreate = false;
+    private async Task CreateAsync()
+    {
+        try { isSaving = true; errorMessage = string.Empty; await AedDealService.CreateAsync(createModel); showCreate = false; successMessage = "معامله با موفقیت ثبت و نزد طرف دبی نگهداری شد."; await LoadAsync(); }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isSaving = false; }
+    }
+
+    private void OpenConvert(AedDealDto deal)
+    {
+        selectedDeal = deal; preview = null;
+        conversionModel = new PreviewAedConversionDto { DealId = deal.Id, SourceAmount = deal.RemainingAmount };
+        showConvert = true;
+    }
+    private void CloseConvert() { showConvert = false; preview = null; }
+    private async Task PreviewAsync()
+    {
+        try { isSaving = true; errorMessage = string.Empty; preview = await AedDealService.PreviewConversionAsync(conversionModel); }
+        catch (Exception ex) { preview = null; errorMessage = ex.Message; }
+        finally { isSaving = false; }
+    }
+    private async Task ConvertAsync()
+    {
+        try
+        {
+            isSaving = true; errorMessage = string.Empty;
+            var current = await AedDealService.PreviewConversionAsync(conversionModel);
+            if (preview == null || current.SourceAmount != preview.SourceAmount || current.FinalUsdAmount != preview.FinalUsdAmount || current.ProfitUsd != preview.ProfitUsd) { preview = current; throw new InvalidOperationException("محاسبه به‌روز شد؛ نتیجه را دوباره بررسی و تأیید کنید."); }
+            await AedDealService.ConvertAsync(conversionModel); showConvert = false; preview = null; successMessage = "تبدیل معامله با موفقیت در حسابداری ثبت شد."; await LoadAsync();
+        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isSaving = false; }
+    }
+
+    private void OpenReverse(AedDealDto deal, AedDealConversionDto conversion) { selectedDeal = deal; selectedConversion = conversion; reason = string.Empty; showReason = true; }
+    private void OpenCancel(AedDealDto deal) { selectedDeal = deal; selectedConversion = null; reason = string.Empty; showReason = true; }
+    private void CloseReason() => showReason = false;
+    private async Task ConfirmReasonAsync()
+    {
+        try
+        {
+            isSaving = true; errorMessage = string.Empty;
+            if (selectedConversion == null) await AedDealService.CancelAsync(selectedDeal!.Id, reason);
+            else await AedDealService.ReverseConversionAsync(selectedConversion.Id, reason);
+            showReason = false; successMessage = selectedConversion == null ? "معامله لغو و سند آن برگشت داده شد." : "تبدیل و سند حسابداری آن برگشت داده شد."; await LoadAsync();
+        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isSaving = false; }
+    }
+
+    private void ToggleDetails(long id) => expandedDealId = expandedDealId == id ? null : id;
+    private void BackToCorrespondent() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}");
+    private static string Money(decimal value) => MoneyFormatHelper.Format(value);
+    private static string SignedMoney(decimal value) => value > 0 ? $"+{Money(value)}" : Money(value);
+    private static string StatusText(string value) => value switch { "Held" => "نگهداری‌شده", "PartiallyConverted" => "قسمتی تبدیل‌شده", "Converted" => "تبدیل کامل", "Cancelled" => "لغوشده", _ => value };
+    private static string StatusClass(string value) => value switch { "Held" => "bg-info", "PartiallyConverted" => "bg-warning text-dark", "Converted" => "bg-success", "Cancelled" => "bg-secondary", _ => "bg-light text-dark" };
+    private static string RoundingText(int places) => places == 0 ? "بدون اعشار" : $"{places} خانه اعشار";
+}

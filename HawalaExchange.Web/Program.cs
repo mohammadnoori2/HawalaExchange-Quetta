@@ -114,6 +114,7 @@ public partial class Program
         builder.Services.AddScoped<ICorrespondentService, CorrespondentService>();
         builder.Services.AddScoped<ICorrespondentCommissionService, CorrespondentCommissionService>();
         builder.Services.AddScoped<ICorrespondentSettlementService, CorrespondentSettlementService>();
+        builder.Services.AddScoped<IAedDealService, AedDealService>();
         builder.Services.AddScoped<ICurrencyService, CurrencyService>();
         builder.Services.AddScoped<IAccountService, AccountService>();
         builder.Services.AddScoped<IExchangeRateService, ExchangeRateService>();

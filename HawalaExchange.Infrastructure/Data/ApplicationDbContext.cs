@@ -116,6 +116,8 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<CorrespondentSettlementConversionItem> CorrespondentSettlementConversionItems { get; set; }
         public DbSet<CorrespondentSettlementConversionHawala> CorrespondentSettlementConversionHawalas { get; set; }
         public DbSet<CorrespondentSettlementConversionHawalaItem> CorrespondentSettlementConversionHawalaItems { get; set; }
+        public DbSet<AedDeal> AedDeals { get; set; }
+        public DbSet<AedDealConversion> AedDealConversions { get; set; }
         public DbSet<CorrespondentCommissionBatch> CorrespondentCommissionBatches { get; set; }
         public DbSet<CorrespondentCommissionBatchItem> CorrespondentCommissionBatchItems { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
@@ -912,7 +914,8 @@ namespace HawalaExchange.Infrastructure.Data
         {
             "Hawalas" => 0,
             "MoneyExchangeOperations" or "AccountMoneyOperations" or "Transfers" or
-                "CapitalInvestments" or "Expenses" or "CorrespondentSettlementConversions" => 1,
+                "CapitalInvestments" or "Expenses" or "CorrespondentSettlementConversions" or
+                "AedDeals" or "AedDealConversions" => 1,
             "Customers" or "Correspondents" or "Accounts" or "Branches" or "Users" or
                 "CashBalanceAlertSettings" => 2,
             "Transactions" => 3,
@@ -1603,6 +1606,15 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasIndex(x => new { x.TenantId, x.HawalaId, x.IsActive })
                 .IsUnique()
                 .HasFilter("[IsActive] = 1");
+            modelBuilder.Entity<AedDeal>()
+                .HasIndex(x => new { x.TenantId, x.DealNumber })
+                .IsUnique();
+            modelBuilder.Entity<AedDeal>()
+                .HasIndex(x => new { x.TenantId, x.DubaiCorrespondentId, x.CreatedAt });
+            modelBuilder.Entity<AedDeal>()
+                .HasIndex(x => new { x.TenantId, x.SourceCorrespondentId, x.CreatedAt });
+            modelBuilder.Entity<AedDealConversion>()
+                .HasIndex(x => new { x.TenantId, x.AedDealId, x.CreatedAt });
             modelBuilder.Entity<Hawala>()
                 .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.Number })
                 .IsUnique();
@@ -1925,6 +1937,50 @@ namespace HawalaExchange.Infrastructure.Data
                     .HasForeignKey(x => x.HawalaId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.SourceCurrency).WithMany()
                     .HasForeignKey(x => x.SourceCurrencyId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<AedDeal>(entity =>
+            {
+                entity.HasOne(x => x.SourceCorrespondent).WithMany()
+                    .HasForeignKey(x => x.SourceCorrespondentId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.DubaiCorrespondent).WithMany()
+                    .HasForeignKey(x => x.DubaiCorrespondentId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.SourceCurrency).WithMany()
+                    .HasForeignKey(x => x.SourceCurrencyId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.HoldingTransaction).WithMany()
+                    .HasForeignKey(x => x.HoldingTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversalTransaction).WithMany()
+                    .HasForeignKey(x => x.ReversalTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser).WithMany()
+                    .HasForeignKey(x => x.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CancelledByUser).WithMany()
+                    .HasForeignKey(x => x.CancelledBy).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint("CK_AedDeals_Status_Valid", "[Status] IN ('Held', 'PartiallyConverted', 'Converted', 'Cancelled')");
+                    t.HasCheckConstraint("CK_AedDeals_Amount_Valid", "[OriginalAmount] > 0 AND [ConvertedAmount] >= 0 AND [ConvertedAmount] <= [OriginalAmount]");
+                    t.HasCheckConstraint("CK_AedDeals_Correspondents_Different", "[SourceCorrespondentId] <> [DubaiCorrespondentId]");
+                    t.HasCheckConstraint("CK_AedDeals_Rounding_Valid", "[RoundingDecimalPlaces] BETWEEN 0 AND 4");
+                });
+            });
+
+            modelBuilder.Entity<AedDealConversion>(entity =>
+            {
+                entity.HasOne(x => x.Deal).WithMany(x => x.Conversions)
+                    .HasForeignKey(x => x.AedDealId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.PostingTransaction).WithMany()
+                    .HasForeignKey(x => x.PostingTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversalTransaction).WithMany()
+                    .HasForeignKey(x => x.ReversalTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser).WithMany()
+                    .HasForeignKey(x => x.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversedByUser).WithMany()
+                    .HasForeignKey(x => x.ReversedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint("CK_AedDealConversions_Status_Valid", "[Status] IN ('Posted', 'Reversed')");
+                    t.HasCheckConstraint("CK_AedDealConversions_Amount_Valid", "[SourceAmount] > 0");
+                });
             });
 
             modelBuilder.Entity<CorrespondentSettlementConversion>(entity =>

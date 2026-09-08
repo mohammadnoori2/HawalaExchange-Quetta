@@ -65,6 +65,7 @@
                                            OnViewRange="ViewRange"
                                            OnConvertBalance="OpenBalanceSettlement"
                                            OnExchange="OpenExchange"
+                                           OnAedDeal="OpenAedDeals"
                                            OnTransfer="OpenTransfer"
                                            OnReceiptOrWithdrawal="OpenAccountOperation"
                                            OnEdit="OpenEdit"
@@ -391,6 +392,8 @@
         showEditModal = false;
         editErrors.Clear();
     }
+
+    private void OpenAedDeals() => NavigationManager.NavigateTo($"/aed-transactions/{CorrespondentId}");
 
     private void OpenCommissionPage() =>
         NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/commission");

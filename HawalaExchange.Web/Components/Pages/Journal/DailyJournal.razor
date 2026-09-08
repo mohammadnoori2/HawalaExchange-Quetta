@@ -20,6 +20,7 @@
         </div>
 
         <PageHeaderStats AriaLabel="آمار روزنامچه">
+            <PageHeaderStat Label="تمام عملیات" Value="@filteredOperations.Count" Icon="bi-journal-check" Tone="primary" />
             <PageHeaderStat Label="رسید" Value="@receiptRows.Count" Icon="bi-box-arrow-in-down" Tone="success" />
             <PageHeaderStat Label="برد" Value="@withdrawalRows.Count" Icon="bi-box-arrow-up" Tone="danger" />
             <PageHeaderStat Label="ارزها" Value="@journal.CurrencySummaries.Count" Icon="bi-coin" Tone="success" />
@@ -279,6 +280,90 @@
                     </tbody>
                 </GlobalDataGrid>
             </div>
+        </div>
+    </div>
+
+    <div class="table-card mb-4">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <h6 class="mb-0 text-primary">
+                    <i class="bi bi-journal-check"></i>
+                    تمام عملیات مالی
+                    <small>هر سند حسابداری در یک ردیف</small>
+                </h6>
+            </div>
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">@filteredOperations.Count مورد</span>
+            </div>
+        </div>
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <GlobalDataGrid class="table-modern table-striped-modern journal-movement-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>تاریخ</th>
+                            <th>نوع عملیات</th>
+                            <th>شماره سند</th>
+                            <th>شرح</th>
+                            <th>گردش ارزی</th>
+                            <th>جزئیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading)
+                        {
+                            <tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+                        }
+                        else if (!pagedOperations.Any())
+                        {
+                            <tr><td colspan="7" class="text-center py-5 text-muted">عملیات مالی برای بازهٔ انتخاب‌شده یافت نشد.</td></tr>
+                        }
+                        else
+                        {
+                            var operationIndex = GetFirstRowNumber(operationCurrentPage);
+                            @foreach (var operation in pagedOperations)
+                            {
+                                <tr>
+                                    <td class="text-muted fw-bold">@operationIndex</td>
+                                    <td class="journal-row-date"><AppDateTime Value="@operation.CreatedAt" ShowSeconds="true" /></td>
+                                    <td><span class="badge-modern @GetSourceBadge(operation.SourceType)">@GetSourceTypeName(operation.SourceType)</span></td>
+                                    <td dir="ltr" class="fw-bold">@operation.DocumentNumber</td>
+                                    <td class="journal-sentence">@operation.SummarySentence</td>
+                                    <td class="journal-movement-amount">
+                                        @foreach (var amount in operation.CurrencySummaries)
+                                        {
+                                            <span dir="ltr">
+                                                @amount.CurrencyCode:
+                                                @if (amount.TotalBadehKar > 0)
+                                                {
+                                                    <strong class="text-danger"> بدهکار @MoneyFormatHelper.Format(amount.TotalBadehKar)</strong>
+                                                }
+                                                @if (amount.TotalTalabKar > 0)
+                                                {
+                                                    <strong class="text-success"> طلبکار @MoneyFormatHelper.Format(amount.TotalTalabKar)</strong>
+                                                }
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary journal-icon-button" title="مشاهده جزئیات" @onclick="() => ShowDetails(operation)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                operationIndex++;
+                            }
+                        }
+                    </tbody>
+                </GlobalDataGrid>
+            </div>
+        </div>
+        <div class="table-card-footer journal-movement-footer">
+            <span class="text-muted small">نمایش <strong>@pagedOperations.Count</strong> از <strong>@filteredOperations.Count</strong></span>
+            <CompactPagination CurrentPage="operationCurrentPage"
+                               TotalPages="operationTotalPages"
+                               PageChanged="GoToOperationPage" />
         </div>
     </div>
 
@@ -643,6 +728,7 @@
     private List<CashJournalRow> receiptRows = new();
     private List<CashJournalRow> withdrawalRows = new();
     private int pageSize = 20;
+    private int operationCurrentPage = 1;
     private int receiptCurrentPage = 1;
     private int withdrawalCurrentPage = 1;
     private bool isCashLoading;
@@ -709,8 +795,10 @@
         }
     }
 
+    private List<JournalOperationDto> pagedOperations => GetOperationPage(filteredOperations, operationCurrentPage);
     private List<CashJournalRow> pagedReceiptRows => GetPage(receiptRows, receiptCurrentPage);
     private List<CashJournalRow> pagedWithdrawalRows => GetPage(withdrawalRows, withdrawalCurrentPage);
+    private int operationTotalPages => GetTotalPages(filteredOperations.Count);
     private int receiptTotalPages => GetTotalPages(receiptRows.Count);
     private int withdrawalTotalPages => GetTotalPages(withdrawalRows.Count);
 
@@ -920,6 +1008,12 @@
             receiptCurrentPage = page;
     }
 
+    private void GoToOperationPage(int page)
+    {
+        if (page >= 1 && page <= operationTotalPages)
+            operationCurrentPage = page;
+    }
+
     private void GoToWithdrawalPage(int page)
     {
         if (page >= 1 && page <= withdrawalTotalPages)
@@ -928,6 +1022,7 @@
 
     private void ResetMovementPages()
     {
+        operationCurrentPage = 1;
         receiptCurrentPage = 1;
         withdrawalCurrentPage = 1;
     }
@@ -939,6 +1034,14 @@
         : Math.Max(1, (int)Math.Ceiling((double)count / pageSize));
 
     private List<CashJournalRow> GetPage(List<CashJournalRow> rows, int page)
+    {
+        if (pageSize == 0)
+            return rows;
+
+        return rows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private List<JournalOperationDto> GetOperationPage(List<JournalOperationDto> rows, int page)
     {
         if (pageSize == 0)
             return rows;

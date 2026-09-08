@@ -91,15 +91,16 @@ Implemented calculation decisions:
 - Round the final AFN commission and final USD commission to whole units using half-up (`MidpointRounding.AwayFromZero`).
 - Post only after preview and explicit confirmation; reversal creates an opposite accounting transaction and releases the hawalas for a future batch.
 
-## Stage 05: end-of-day USD settlement
+## Stage 05: correspondent balance settlement and complete daily journal
 
-- Preview unsettled non-USD transactions/balances by date, account, correspondent, and currency.
-- Enter or select rate snapshots.
-- Convert through the settlement clearing account and retain original currency facts.
-- Prevent duplicate close/settlement and support controlled reversal.
-- Apply the special AED rule where required.
+- Use each correspondent's configured settlement currency; do not force every correspondent to USD.
+- Preview the correspondent's current non-settlement-currency balances and allow individual currency selection.
+- Provide select-all and clear-all controls, then require one rate snapshot for every selected currency.
+- Convert only the selected balances through the settlement clearing account and retain the original transaction facts.
+- Leave unselected currencies unchanged and allow them to be converted in a later batch.
+- Show every posted accounting operation in the daily journal while retaining the separate cash receipt and withdrawal sections.
 
-Acceptance: all eligible non-USD values for a day receive a traceable USD settlement without duplicate posting.
+Acceptance: selected balances become zero in their source currencies and are transferred to the correspondent's settlement currency with a balanced, traceable posting; unselected balances remain unchanged, and the journal includes cash and non-cash accounting documents.
 
 ## Stage 06: AED transactions
 

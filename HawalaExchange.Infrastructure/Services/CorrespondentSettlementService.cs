@@ -210,9 +210,23 @@ public sealed class CorrespondentSettlementService(
         var correspondent = await GetConfiguredCorrespondentAsync(dto.CorrespondentId, cancellationToken);
         var targetCurrencyId = correspondent.SettlementCurrencyId!.Value;
         var accountId = await GetCorrespondentAccountIdAsync(dto.CorrespondentId, cancellationToken);
-        var balances = await GetNetBalancesAsync(accountId, targetCurrencyId, cancellationToken);
-        if (balances.Count == 0)
+        var availableBalances = await GetNetBalancesAsync(accountId, targetCurrencyId, cancellationToken);
+        if (availableBalances.Count == 0)
             throw new InvalidOperationException("مانده‌ای در ارزهای دیگر برای تبدیل وجود ندارد.");
+
+        var selectedCurrencyIds = dto.Rates
+            .Where(x => x.SourceCurrencyId > 0 && x.Rate > 0)
+            .Select(x => x.SourceCurrencyId)
+            .Distinct()
+            .ToHashSet();
+        if (selectedCurrencyIds.Count == 0)
+            throw new InvalidOperationException("حداقل یک ارز را برای تبدیل انتخاب کنید.");
+
+        var balances = availableBalances
+            .Where(x => selectedCurrencyIds.Contains(x.SourceCurrencyId))
+            .ToList();
+        if (balances.Count != selectedCurrencyIds.Count)
+            throw new InvalidOperationException("یک یا چند ارز انتخاب‌شده دیگر ماندهٔ قابل تبدیل ندارد.");
 
         var sourceCurrencyIds = balances.Select(x => x.SourceCurrencyId).ToArray();
         var hawalaIds = await PendingHawalas(dto.CorrespondentId, targetCurrencyId)

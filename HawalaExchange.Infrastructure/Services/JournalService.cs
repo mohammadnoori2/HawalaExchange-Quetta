@@ -39,19 +39,8 @@ public class JournalService : IJournalService
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
-        var cashOperationKeys = ledgerEntries
-            .Where(x => string.Equals(
-                x.Account?.AccountType,
-                "Cash",
-                StringComparison.OrdinalIgnoreCase))
-            .Select(GetOperationKey)
-            .ToHashSet(StringComparer.Ordinal);
-        var cashRelatedEntries = ledgerEntries
-            .Where(x => cashOperationKeys.Contains(GetOperationKey(x)))
-            .ToList();
-
-        var entries = cashRelatedEntries.Select(ToEntryDto).ToList();
-        var operations = cashRelatedEntries
+        var entries = ledgerEntries.Select(ToEntryDto).ToList();
+        var operations = ledgerEntries
             .GroupBy(GetOperationKey)
             .Select(group => BuildOperation(group.Key, group))
             .OrderByDescending(x => x.CreatedAt)

@@ -55,7 +55,7 @@
                 <input type="text"
                        class="form-control"
                        aria-label="جستجوی حواله‌ها"
-                       placeholder="جستجو با نمبر، مبلغ، فرستنده یا گیرنده..."
+                       placeholder="جستجو با نمبر، رفرنس، مبلغ، فرستنده یا گیرنده..."
                        @bind="searchTerm"
                        @bind:event="oninput"
                        @bind:after="OnFilterChangedAsync" />
@@ -163,6 +163,7 @@
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
+                            <th>نمبر رفرنس</th>
                             <th class="sortable-header" @onclick="@(() => SortBy("HawalaType"))">
                                 نوع
                                 @if (sortColumn == "HawalaType")
@@ -217,7 +218,7 @@
                         @if (isLoading && filteredHawalas == null)
                         {
                             <tr>
-                                <td colspan="14" class="text-center py-5">
+                                <td colspan="15" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status"><span class="visually-hidden">در حال بارگذاری...</span></div>
                                         <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
@@ -228,7 +229,7 @@
                         else if (!filteredHawalas.Any())
                         {
                             <tr>
-                                <td colspan="14" class="text-center py-5">
+                                <td colspan="15" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ حواله‌ای یافت نشد</span>
@@ -245,6 +246,7 @@
                                 <tr class="@(hawala.SettlementState == "Pending" ? "table-danger" : hawala.SettlementState == "Converted" ? "table-success" : null)">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
                                     <td><span class="fw-bold">@hawala.Number</span></td>
+                                    <td><span dir="ltr">@(hawala.ReferenceNumber ?? "-")</span></td>
                                     <td>
                                         <span class="badge-modern @GetTypeBadge(hawala.HawalaType)">
                                             @GetListHawalaType(hawala)

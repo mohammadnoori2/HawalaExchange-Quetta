@@ -88,6 +88,7 @@
                         <tr>
                             <th style="width:50px;">#</th>
                             <th>نمبر</th>
+                            <th>نمبر رفرنس</th>
                             <th>فرستنده</th>
                             <th>گیرنده</th>
                             <th>نماینده</th>
@@ -105,7 +106,7 @@
                         @if (isLoading)
                         {
                             <tr>
-                                <td colspan="12" class="text-center py-5">
+                                <td colspan="13" class="text-center py-5">
                                     <div class="spinner-border text-primary"></div>
                                     <p class="text-muted mt-2">در حال بارگذاری...</p>
                                 </td>
@@ -114,7 +115,7 @@
                         else if (!pagedHawalas.Any())
                         {
                             <tr>
-                                <td colspan="12" class="text-center py-5">
+                                <td colspan="13" class="text-center py-5">
                                     هیچ حواله دریافتی یافت نشد.
                                 </td>
                             </tr>
@@ -131,6 +132,8 @@
                                     <td>
                                         <strong>@hawala.Number</strong>
                                     </td>
+
+                                    <td><span dir="ltr">@(hawala.ReferenceNumber ?? "-")</span></td>
 
                                     <td>@(hawala.SenderName ?? "-")</td>
 
@@ -314,6 +317,13 @@
                             <div class="info-card">
                                 <span class="info-label">نمبر</span>
                                 <span class="info-value fw-bold">@selectedHawala.Number</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <div class="info-card">
+                                <span class="info-label">نمبر رفرنس</span>
+                                <span class="info-value" dir="ltr">@(selectedHawala.ReferenceNumber ?? "-")</span>
                             </div>
                         </div>
 

@@ -339,6 +339,20 @@
                                     <span class="info-value"><AppDateTime Value="@selectedHawala.PaidAt" /></span>
                                 </div>
                             </div>
+                            <div class="col-md-4">
+                                <div class="info-card">
+                                    <span class="info-label">حساب پرداخت‌کننده</span>
+                                    <span class="info-value">
+                                        @(selectedHawala.PaidFromAccountName ?? "-")
+                                        @if (!string.IsNullOrWhiteSpace(selectedHawala.PaidFromAccountType))
+                                        {
+                                            <small class="text-muted d-block">
+                                                @GetAccountTypeName(selectedHawala.PaidFromAccountType)
+                                            </small>
+                                        }
+                                    </span>
+                                </div>
+                            </div>
                         }
 
                         <div class="col-md-6">

@@ -51,6 +51,5 @@ namespace HawalaExchange.Domain.Entities
         // Navigation Properties
         public virtual ICollection<TransactionDetail>? TransactionDetails { get; set; }
         public virtual ICollection<CorrespondentSettlementConversion> SettlementConversions { get; set; } = [];
-        public virtual ICollection<PaymentLocation> PaymentLocations { get; set; } = [];
     }
 }

@@ -107,11 +107,9 @@
                                     </label>
                                     <select class="form-select"
                                             @bind="CurrentHawala.PaymentLocationId"
-                                            disabled="@(!CurrentHawala.CorrespondentId.HasValue || isPaymentLocationsLoading)">
+                                            disabled="@isPaymentLocationsLoading">
                                         <option value="">
-                                            @(CurrentHawala.CorrespondentId.HasValue
-                                                ? "انتخاب محل پرداخت"
-                                                : "ابتدا نمایندگی را انتخاب کنید")
+                                            انتخاب محل پرداخت
                                         </option>
                                         @if (PaymentLocationsList != null && PaymentLocationsList.Any())
                                         {
@@ -920,7 +918,7 @@
 
         ValidationErrors.Clear();
         SuccessMessage = string.Empty;
-        await LoadPaymentLocationsForCurrentCorrespondentAsync(IsEditMode);
+        await LoadPaymentLocationsAsync(IsEditMode);
         StateHasChanged();
 
         // دریافت شماره پیشنهادی
@@ -1573,7 +1571,7 @@
         if (CurrentHawala.PaymentLocationId.HasValue &&
             !PaymentLocationsList.Any(x => x.Id == CurrentHawala.PaymentLocationId.Value))
         {
-            ValidationErrors.Add("محل پرداخت انتخاب‌شده متعلق به نمایندگی انتخاب‌شده نیست.");
+            ValidationErrors.Add("محل پرداخت انتخاب‌شده معتبر یا فعال نیست.");
         }
 
         // اگر ارزها یکسان هستند
@@ -1739,30 +1737,19 @@
             long.TryParse(e.Value?.ToString(), out var correspondentId)
                 ? correspondentId
                 : null;
-        CurrentHawala.PaymentLocationId = null;
-        await LoadPaymentLocationsForCurrentCorrespondentAsync();
         await GetSuggestedNumber();
         StateHasChanged();
     }
 
-    private async Task LoadPaymentLocationsForCurrentCorrespondentAsync(bool includeCurrentLocation = false)
+    private async Task LoadPaymentLocationsAsync(bool includeCurrentLocation = false)
     {
         var loadVersion = ++paymentLocationLoadVersion;
         PaymentLocationsList = new List<PaymentLocationDto>();
 
-        if (!CurrentHawala.CorrespondentId.HasValue)
-        {
-            isPaymentLocationsLoading = false;
-            return;
-        }
-
-        var correspondentId = CurrentHawala.CorrespondentId.Value;
-
         try
         {
             isPaymentLocationsLoading = true;
-            var locations = await PaymentLocationService.GetByCorrespondentAsync(
-                correspondentId);
+            var locations = await PaymentLocationService.GetActiveAsync();
 
             if (loadVersion != paymentLocationLoadVersion)
                 return;
@@ -1779,7 +1766,7 @@
                 if (loadVersion != paymentLocationLoadVersion)
                     return;
 
-                if (currentLocation?.CorrespondentId == correspondentId)
+                if (currentLocation != null)
                     PaymentLocationsList.Add(currentLocation);
             }
 

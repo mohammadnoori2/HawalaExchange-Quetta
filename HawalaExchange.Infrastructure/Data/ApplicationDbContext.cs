@@ -115,6 +115,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<CorrespondentSettlementConversionHawala> CorrespondentSettlementConversionHawalas { get; set; }
         public DbSet<CorrespondentSettlementConversionHawalaItem> CorrespondentSettlementConversionHawalaItems { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
+        public DbSet<PaymentLocationAlias> PaymentLocationAliases { get; set; }
 
         public DbSet<CapitalInvestment> CapitalInvestments { get; set; }
         public DbSet<AccountMoneyOperation> AccountMoneyOperations { get; set; }
@@ -1601,6 +1602,12 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasFilter("[SourceHawalaId] IS NOT NULL");
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.ReferenceNumber });
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+            modelBuilder.Entity<PaymentLocation>()
+                .HasIndex(x => new { x.TenantId, x.NormalizedName })
+                .IsUnique();
+            modelBuilder.Entity<PaymentLocationAlias>()
+                .HasIndex(x => new { x.TenantId, x.NormalizedName })
+                .IsUnique();
             modelBuilder.Entity<CashDailyBalance>()
                 .HasIndex(x => new { x.TenantId, x.JournalDate, x.AccountId, x.CurrencyId })
                 .IsUnique();
@@ -1810,10 +1817,16 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureRelationships(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<PaymentLocation>()
-                .HasOne(x => x.Correspondent)
-                .WithMany(x => x.PaymentLocations)
-                .HasForeignKey(x => x.CorrespondentId)
+            modelBuilder.Entity<PaymentLocationAlias>()
+                .HasOne(x => x.PaymentLocation)
+                .WithMany(x => x.Aliases)
+                .HasForeignKey(x => x.PaymentLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PaymentLocationAlias>()
+                .HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Correspondent>()

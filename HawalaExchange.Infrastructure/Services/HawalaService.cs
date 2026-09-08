@@ -42,9 +42,7 @@
                 try
                 {
                     ValidateCreateHawala(dto);
-                    await ValidatePaymentLocationForCorrespondentAsync(
-                        dto.CorrespondentId,
-                        dto.PaymentLocationId);
+                    await ValidatePaymentLocationAsync(dto.PaymentLocationId);
 
                     var hawala = _mapper.Map<Hawala>(dto);
                     await NormalizeHawalaConversionAsync(hawala);
@@ -510,9 +508,7 @@
                     (!hawala.AgentCommissionCurrencyId.HasValue || hawala.AgentCommissionCurrencyId.Value <= 0))
                     throw new InvalidOperationException("انتخاب ارز کارمزد نمایندگی الزامی است.");
 
-                await ValidatePaymentLocationForCorrespondentAsync(
-                    hawala.CorrespondentId,
-                    hawala.PaymentLocationId);
+                await ValidatePaymentLocationAsync(hawala.PaymentLocationId, requireActive: false);
 
                 var duplicateNumber = await _context.Hawalas.AnyAsync(x =>
                     x.Id != hawala.Id &&
@@ -527,29 +523,23 @@
                 }
             }
 
-            private async Task ValidatePaymentLocationForCorrespondentAsync(
-                long? correspondentId,
-                long? paymentLocationId)
+            private async Task ValidatePaymentLocationAsync(
+                long? paymentLocationId,
+                bool requireActive = true)
             {
                 if (!paymentLocationId.HasValue)
                     return;
 
-                if (!correspondentId.HasValue)
-                {
-                    throw new InvalidOperationException(
-                        "برای انتخاب محل پرداخت، ابتدا نمایندگی را انتخاب کنید.");
-                }
-
-                var belongsToCorrespondent = await _context.PaymentLocations
+                var exists = await _context.PaymentLocations
                     .AsNoTracking()
                     .AnyAsync(x =>
                         x.Id == paymentLocationId.Value &&
-                        x.CorrespondentId == correspondentId.Value);
+                        (!requireActive || x.IsActive));
 
-                if (!belongsToCorrespondent)
+                if (!exists)
                 {
                     throw new InvalidOperationException(
-                        "محل پرداخت انتخاب‌شده متعلق به نمایندگی انتخاب‌شده نیست.");
+                        "محل پرداخت انتخاب‌شده معتبر یا فعال نیست.");
                 }
             }
             public async Task DeleteHawalaAsync(long id)
@@ -1134,19 +1124,6 @@
                         $"نمبر {generatedNumber} برای حواله ارسالی این نمایندگی قبلاً ثبت شده است.");
                 }
 
-                long? generatedPaymentLocationId = null;
-                if (receivedHawala.PaymentLocationId.HasValue)
-                {
-                    var paymentLocationMatchesDestination = await _context.PaymentLocations
-                        .AsNoTracking()
-                        .AnyAsync(x =>
-                            x.Id == receivedHawala.PaymentLocationId.Value &&
-                            x.CorrespondentId == destinationCorrespondentId);
-
-                    if (paymentLocationMatchesDestination)
-                        generatedPaymentLocationId = receivedHawala.PaymentLocationId;
-                }
-
                 var now = DateTime.UtcNow;
                 var generatedHawala = new Hawala
                 {
@@ -1157,7 +1134,7 @@
                     SourceHawalaId = receivedHawala.Id,
                     IsSystemGenerated = true,
                     PaidFromAccountId = paidFromAccount.Id,
-                    PaymentLocationId = generatedPaymentLocationId,
+                    PaymentLocationId = receivedHawala.PaymentLocationId,
                     SenderName = receivedHawala.SenderName,
                     SenderFatherName = receivedHawala.SenderFatherName,
                     SenderPhone = receivedHawala.SenderPhone,

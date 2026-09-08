@@ -354,7 +354,7 @@
                                         <small class="d-block text-muted mt-1">@(IsCashOperation(operation) ? "نقدی" : "غیرنقدی")</small>
                                     </td>
                                     <td dir="ltr" class="fw-bold">@operation.DocumentNumber</td>
-                                    <td class="journal-sentence">@operation.SummarySentence</td>
+                                    <td class="journal-sentence">@HighlightImportantText(operation, operation.SummarySentence)</td>
                                     <td>
                                         @if (operation.AccountNames.Count > 0)
                                         {
@@ -451,7 +451,7 @@
                                                         {
                                                             <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetOperationTypeName(row.Operation)</span>
                                                         }
-                                                        <span>@receiptDescriptions[descriptionIndex]</span>
+                                                        <span>@HighlightImportantText(row.Operation, receiptDescriptions[descriptionIndex])</span>
                                                     </li>
                                                 }
                                                 <li class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</li>
@@ -538,7 +538,7 @@
                                                         {
                                                             <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetOperationTypeName(row.Operation)</span>
                                                         }
-                                                        <span>@withdrawalDescriptions[descriptionIndex]</span>
+                                                        <span>@HighlightImportantText(row.Operation, withdrawalDescriptions[descriptionIndex])</span>
                                                     </li>
                                                 }
                                                 <li class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</li>
@@ -688,7 +688,7 @@
                                         <ul class="journal-description-list journal-description-list-compact">
                                             @foreach (var item in GetDescriptionItems(entry.Description))
                                             {
-                                                <li>@item</li>
+                                                <li>@HighlightImportantText(selectedOperation, item)</li>
                                             }
                                         </ul>
                                     </td>
@@ -703,7 +703,7 @@
                     <ul class="journal-description-list">
                         @foreach (var item in GetDescriptionItems(selectedOperation.Description))
                         {
-                            <li>@item</li>
+                            <li>@HighlightImportantText(selectedOperation, item)</li>
                         }
                     </ul>
                 </div>
@@ -1197,6 +1197,76 @@
 
     private static decimal GetDocumentAmount(JournalOperationCurrencySummaryDto amount) =>
         Math.Max(amount.TotalTalabKar, amount.TotalBadehKar);
+
+    private static MarkupString HighlightImportantText(JournalOperationDto operation, string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return new MarkupString("—");
+
+        var operationType = GetOperationTypeName(operation);
+        var currencies = operation.CurrencySummaries
+            .Select(x => x.CurrencyCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var namesAndAccounts = operation.AccountNames
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var importantLabels = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "فرستنده", "گیرنده", "مشتری", "نمایندگی", "از حساب", "به حساب",
+            "حساب طرف", "صندوق / بانک", "پرداخت از حساب", "حساب دریافت‌کننده",
+            "حساب ارز فروش", "حساب ارز خرید"
+        };
+        foreach (var detail in operation.SourceDetails.Where(x => importantLabels.Contains(x.Label)))
+        {
+            if (!string.IsNullOrWhiteSpace(detail.Value) && detail.Value.Length <= 100)
+                namesAndAccounts.Add(detail.Value.Trim());
+        }
+
+        var terms = namesAndAccounts
+            .Concat(currencies)
+            .Append(operationType)
+            .Append(operation.DocumentNumber)
+            .Where(x => !string.IsNullOrWhiteSpace(x) && x.Trim().Length > 1)
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(x => x.Length)
+            .ToList();
+        var termPattern = terms.Count == 0
+            ? string.Empty
+            : string.Join("|", terms.Select(System.Text.RegularExpressions.Regex.Escape)) + "|";
+        var pattern = $"(?:{termPattern}(?<![\\p{{L}}\\p{{N}}])[+-]?\\d[\\d,.٬]*(?![\\p{{L}}\\p{{N}}]))";
+        var matches = System.Text.RegularExpressions.Regex.Matches(
+            text,
+            pattern,
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (matches.Count == 0)
+            return new MarkupString(System.Net.WebUtility.HtmlEncode(text));
+
+        var html = new System.Text.StringBuilder();
+        var position = 0;
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            html.Append(System.Net.WebUtility.HtmlEncode(text[position..match.Index]));
+            var value = match.Value;
+            var encoded = System.Net.WebUtility.HtmlEncode(value);
+            if (string.Equals(value, operationType, StringComparison.OrdinalIgnoreCase))
+                html.Append($"<strong class=\"text-primary\">{encoded}</strong>");
+            else if (string.Equals(value, operation.DocumentNumber, StringComparison.OrdinalIgnoreCase))
+                html.Append($"<mark class=\"px-1 rounded bg-info-subtle fw-bold\">{encoded}</mark>");
+            else if (currencies.Contains(value))
+                html.Append($"<mark class=\"px-1 rounded bg-warning-subtle fw-bold\">{encoded}</mark>");
+            else if (namesAndAccounts.Contains(value))
+                html.Append($"<strong class=\"text-primary\">{encoded}</strong>");
+            else
+                html.Append($"<mark class=\"px-1 rounded bg-warning-subtle fw-bold\">{encoded}</mark>");
+            position = match.Index + match.Length;
+        }
+
+        html.Append(System.Net.WebUtility.HtmlEncode(text[position..]));
+        return new MarkupString(html.ToString());
+    }
 
     private sealed class CashJournalRow
     {

@@ -107,11 +107,9 @@
                                     </label>
                                     <select class="form-select"
                                             @bind="CurrentHawala.PaymentLocationId"
-                                            disabled="@(!CurrentHawala.CorrespondentId.HasValue || isPaymentLocationsLoading)">
+                                            disabled="@isPaymentLocationsLoading">
                                         <option value="">
-                                            @(CurrentHawala.CorrespondentId.HasValue
-                                                ? "انتخاب محل پرداخت"
-                                                : "ابتدا نمایندگی را انتخاب کنید")
+                                            انتخاب محل پرداخت
                                         </option>
                                         @if (PaymentLocationsList != null && PaymentLocationsList.Any())
                                         {
@@ -396,6 +394,8 @@
                                         <small class="text-muted text-success">ارزها یکسان هستند، مبلغ برابر با مبلغ حواله است</small>
                                     }
                                 </div>
+                                @if (!UsesPeriodicCommission())
+                                {
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-coin text-muted me-1"></i> کارمزد و ارز
@@ -420,34 +420,39 @@
                                         </small>
                                     }
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-coin text-muted me-1"></i> کارمزد نمایندگی و ارز
-                                        @if (CurrentHawala.AgentCommissionAmount > 0)
-                                        {
-                                            <span class="text-danger">*</span>
-                                        }
-                                    </label>
-                                    <div class="hawala-money-field">
-                                        <select class="hawala-money-currency" @bind="CurrentHawala.AgentCommissionCurrencyId">
-                                            <option value="0">انتخاب ارز</option>
-                                            @if (CurrenciesList != null && CurrenciesList.Any())
+                                }
+                                @if (CurrentHawala.HawalaType != "HawalaReceive" || CurrentHawala.Status == "Paid")
+                                {
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-coin text-muted me-1"></i>
+                                            @(CurrentHawala.HawalaType == "HawalaReceive" ? "کمیشن عامل پرداخت و ارز" : "کارمزد نمایندگی و ارز")
+                                            @if (CurrentHawala.AgentCommissionAmount > 0)
                                             {
-                                                @foreach (var currency in CurrenciesList)
-                                                {
-                                                    <option value="@currency.Id">@currency.Name</option>
-                                                }
+                                                <span class="text-danger">*</span>
                                             }
-                                        </select>
-                                        <NullableMoneyInput class="hawala-money-amount" @bind-Value="CurrentHawala.AgentCommissionAmount" placeholder="کارمزد نمایندگی" />
+                                        </label>
+                                        <div class="hawala-money-field">
+                                            <select class="hawala-money-currency" @bind="CurrentHawala.AgentCommissionCurrencyId">
+                                                <option value="0">انتخاب ارز</option>
+                                                @if (CurrenciesList != null && CurrenciesList.Any())
+                                                {
+                                                    @foreach (var currency in CurrenciesList)
+                                                    {
+                                                        <option value="@currency.Id">@currency.Name</option>
+                                                    }
+                                                }
+                                            </select>
+                                            <NullableMoneyInput class="hawala-money-amount" @bind-Value="CurrentHawala.AgentCommissionAmount" placeholder="کمیشن عامل پرداخت" />
+                                        </div>
+                                        @if (CurrentHawala.AgentCommissionAmount is > 0)
+                                        {
+                                            <small class="hawala-money-words">
+                                                @DariNumberToWords.ToWords(CurrentHawala.AgentCommissionAmount.Value) @GetCurrencyName(CurrentHawala.AgentCommissionCurrencyId)
+                                            </small>
+                                        }
                                     </div>
-                                    @if (CurrentHawala.AgentCommissionAmount is > 0)
-                                    {
-                                        <small class="hawala-money-words">
-                                            @DariNumberToWords.ToWords(CurrentHawala.AgentCommissionAmount.Value) @GetCurrencyName(CurrentHawala.AgentCommissionCurrencyId)
-                                        </small>
-                                    }
-                                </div>
+                                }
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold"><i class="bi bi-chat text-muted me-1"></i> یادداشت</label>
                                     <input type="text" class="form-control" @bind="CurrentHawala.Notes" placeholder="یادداشت" />
@@ -920,7 +925,7 @@
 
         ValidationErrors.Clear();
         SuccessMessage = string.Empty;
-        await LoadPaymentLocationsForCurrentCorrespondentAsync(IsEditMode);
+        await LoadPaymentLocationsAsync(IsEditMode);
         StateHasChanged();
 
         // دریافت شماره پیشنهادی
@@ -1573,7 +1578,7 @@
         if (CurrentHawala.PaymentLocationId.HasValue &&
             !PaymentLocationsList.Any(x => x.Id == CurrentHawala.PaymentLocationId.Value))
         {
-            ValidationErrors.Add("محل پرداخت انتخاب‌شده متعلق به نمایندگی انتخاب‌شده نیست.");
+            ValidationErrors.Add("محل پرداخت انتخاب‌شده معتبر یا فعال نیست.");
         }
 
         // اگر ارزها یکسان هستند
@@ -1704,6 +1709,11 @@
 
     private async Task OnHawalaTypeChanged(ChangeEventArgs e)
     {
+        if (UsesPeriodicCommission())
+        {
+            CurrentHawala.CommissionAmount = null;
+            CurrentHawala.CommissionCurrencyId = null;
+        }
         CurrentHawala.HawalaType = e?.Value?.ToString() ?? string.Empty;
         if (!IsEditMode)
         {
@@ -1739,30 +1749,28 @@
             long.TryParse(e.Value?.ToString(), out var correspondentId)
                 ? correspondentId
                 : null;
-        CurrentHawala.PaymentLocationId = null;
-        await LoadPaymentLocationsForCurrentCorrespondentAsync();
+        if (UsesPeriodicCommission())
+        {
+            CurrentHawala.CommissionAmount = null;
+            CurrentHawala.CommissionCurrencyId = null;
+        }
         await GetSuggestedNumber();
         StateHasChanged();
     }
 
-    private async Task LoadPaymentLocationsForCurrentCorrespondentAsync(bool includeCurrentLocation = false)
+    private bool UsesPeriodicCommission() =>
+        CurrentHawala.HawalaType == "HawalaReceive" &&
+        CorrespondentsList.FirstOrDefault(x => x.Id == CurrentHawala.CorrespondentId)?.CommissionMethod == "PeriodicPerLakh";
+
+    private async Task LoadPaymentLocationsAsync(bool includeCurrentLocation = false)
     {
         var loadVersion = ++paymentLocationLoadVersion;
         PaymentLocationsList = new List<PaymentLocationDto>();
 
-        if (!CurrentHawala.CorrespondentId.HasValue)
-        {
-            isPaymentLocationsLoading = false;
-            return;
-        }
-
-        var correspondentId = CurrentHawala.CorrespondentId.Value;
-
         try
         {
             isPaymentLocationsLoading = true;
-            var locations = await PaymentLocationService.GetByCorrespondentAsync(
-                correspondentId);
+            var locations = await PaymentLocationService.GetActiveAsync();
 
             if (loadVersion != paymentLocationLoadVersion)
                 return;
@@ -1779,7 +1787,7 @@
                 if (loadVersion != paymentLocationLoadVersion)
                     return;
 
-                if (currentLocation?.CorrespondentId == correspondentId)
+                if (currentLocation != null)
                     PaymentLocationsList.Add(currentLocation);
             }
 

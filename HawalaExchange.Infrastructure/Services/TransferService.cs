@@ -169,8 +169,8 @@ namespace HawalaExchange.Application.Services
                 TransferId = transfer.Id,
                 AccountId = transfer.FromAccountId,
                 CurrencyId = transfer.CurrencyId,
-                TalabKar = 0,
-                BadehKar = transfer.Amount,
+                TalabKar = transfer.Amount,
+                BadehKar = 0,
                 Description = $"انتقال به حساب {transfer.ToAccountId}"
             });
 
@@ -179,8 +179,8 @@ namespace HawalaExchange.Application.Services
                 TransferId = transfer.Id,
                 AccountId = transfer.ToAccountId,
                 CurrencyId = transfer.CurrencyId,
-                TalabKar = transfer.Amount,
-                BadehKar = 0,
+                TalabKar = 0,
+                BadehKar = transfer.Amount,
                 Description = $"انتقال از حساب {transfer.FromAccountId}"
             });
         }

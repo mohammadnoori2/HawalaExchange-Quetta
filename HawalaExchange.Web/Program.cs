@@ -112,7 +112,9 @@ public partial class Program
         builder.Services.AddScoped<IBranchService, BranchService>();
         builder.Services.AddScoped<ICustomerService, CustomerService>();
         builder.Services.AddScoped<ICorrespondentService, CorrespondentService>();
+        builder.Services.AddScoped<ICorrespondentCommissionService, CorrespondentCommissionService>();
         builder.Services.AddScoped<ICorrespondentSettlementService, CorrespondentSettlementService>();
+        builder.Services.AddScoped<IAedDealService, AedDealService>();
         builder.Services.AddScoped<ICurrencyService, CurrencyService>();
         builder.Services.AddScoped<IAccountService, AccountService>();
         builder.Services.AddScoped<IExchangeRateService, ExchangeRateService>();
@@ -128,6 +130,7 @@ public partial class Program
         builder.Services.AddScoped<IAccountBadehkarLimitService, AccountBadehkarLimitService>();
         builder.Services.AddScoped<ICashBalanceAlertService, CashBalanceAlertService>();
         builder.Services.AddScoped<IHawalaService, HawalaService>();
+        builder.Services.AddScoped<IHawalaImportService, HawalaImportService>();
         builder.Services.AddScoped<ICapitalInvestmentService, CapitalInvestmentService>();
         builder.Services.AddScoped<IPaymentLocationService, PaymentLocationService>();
         builder.Services.AddScoped<IFileService, FileService>();

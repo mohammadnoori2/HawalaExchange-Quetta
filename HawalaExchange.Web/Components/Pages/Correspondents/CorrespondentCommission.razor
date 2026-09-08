@@ -1,0 +1,244 @@
+@page "/correspondents/{CorrespondentId:long}/commission"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@inject ICorrespondentService CorrespondentService
+@inject ICorrespondentCommissionService CommissionService
+@inject NavigationManager Navigation
+@attribute [Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>محاسبه کمیشن دوره‌ای</PageTitle>
+
+<div class="page-wrapper" dir="rtl">
+    <AppPageHeader Title="محاسبه کمیشن دوره‌ای"
+                   Subtitle="محاسبه کمیشن حواله‌های دریافتی بر اساس هر لک"
+                   Icon="bi-calculator">
+        <Actions>
+            <button class="btn-modern btn-light-modern" @onclick="BackToCorrespondent">
+                <i class="bi bi-arrow-right"></i> بازگشت به نمایندگی
+            </button>
+        </Actions>
+    </AppPageHeader>
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>@error</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(success))
+    {
+        <div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>@success</div>
+    }
+
+    @if (loadingPage)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+    }
+    else if (correspondent == null)
+    {
+        <div class="alert alert-warning">نمایندگی یافت نشد.</div>
+    }
+    else
+    {
+        <div class="modern-card mb-4">
+            <div class="card-header"><h6 class="text-primary mb-0"><i class="bi bi-building me-2"></i>@correspondent.Name (@correspondent.Code)</h6></div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">از تاریخ</label>
+                        <input type="date" class="form-control" @bind="request.PeriodFrom" @bind:format="yyyy-MM-dd" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">تا تاریخ</label>
+                        <input type="date" class="form-control" @bind="request.PeriodTo" @bind:format="yyyy-MM-dd" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">کمیشن هر لک (AFN)</label>
+                        <MoneyInput class="form-control" DecimalPlaces="0" @bind-Value="request.CommissionPerLakhAfn" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">نرخ USD به AFN</label>
+                        <MoneyInput class="form-control" DecimalPlaces="8" @bind-Value="request.UsdToAfnRate" />
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn-modern btn-primary-modern" disabled="@busy" @onclick="LoadPreview">
+                        <i class="bi bi-search"></i> نمایش حواله‌های محاسبه‌نشده
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (preview != null)
+        {
+            <div class="modern-card mb-4">
+                <div class="card-header"><h6 class="mb-0">نرخ تبدیل ارزها به افغانی</h6></div>
+                <div class="card-body">
+                    @if (preview.Rates.Count == 0)
+                    {
+                        <div class="text-muted">در این دوره حواله محاسبه‌نشده‌ای وجود ندارد.</div>
+                    }
+                    else
+                    {
+                        <div class="row g-3">
+                            @foreach (var rate in request.Rates)
+                            {
+                                <div class="col-md-4" @key="rate.CurrencyId">
+                                    <label class="form-label fw-bold">@rate.CurrencyCode به AFN — جمع @rate.TotalAmount.ToString("N0")</label>
+                                    <MoneyInput class="form-control" DecimalPlaces="8" @bind-Value="rate.SourceToAfnRate" disabled="@(rate.CurrencyCode == "AFN")" />
+                                </div>
+                            }
+                        </div>
+                        <button class="btn-modern btn-info-modern mt-3" disabled="@busy" @onclick="Recalculate">
+                            <i class="bi bi-arrow-repeat"></i> محاسبه پیش‌نمایش
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (calculated && preview.HawalaCount > 0)
+            {
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3"><div class="modern-card p-3"><small>تعداد حواله</small><h4>@preview.HawalaCount</h4></div></div>
+                    <div class="col-md-3"><div class="modern-card p-3"><small>مجموع معادل AFN</small><h4>@preview.TotalBaseAfn.ToString("N0")</h4></div></div>
+                    <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن AFN</small><h4>@preview.TotalCommissionAfn.ToString("N0")</h4></div></div>
+                    <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن نهایی USD</small><h4>@preview.TotalCommissionUsd.ToString("N0")</h4></div></div>
+                </div>
+
+                <div class="table-card mb-4">
+                    <div class="table-card-body"><div class="table-scroll-wrapper">
+                        <GlobalDataGrid class="table-modern table-striped-modern">
+                            <thead><tr><th>نمبر</th><th>تاریخ</th><th>مبلغ</th><th>نرخ به AFN</th><th>معادل AFN</th><th>سهم کمیشن AFN</th></tr></thead>
+                            <tbody>
+                            @foreach (var item in preview.Items)
+                            {
+                                <tr><td>@item.HawalaNumber</td><td>@item.HawalaDate.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                                    <td dir="ltr">@item.SourceAmount.ToString("N0") @item.CurrencyCode</td><td dir="ltr">@item.SourceToAfnRate</td>
+                                    <td dir="ltr">@item.AfnEquivalent.ToString("N0")</td><td dir="ltr">@item.CommissionAfn.ToString("N0")</td></tr>
+                            }
+                            </tbody>
+                        </GlobalDataGrid>
+                    </div></div>
+                </div>
+
+                <div class="alert alert-warning d-flex justify-content-between align-items-center">
+                    <span>پس از تأیید، مبلغ <strong>@preview.TotalCommissionUsd.ToString("N0") USD</strong> در حسابداری ثبت می‌شود.</span>
+                    <button class="btn-modern btn-success-modern" disabled="@busy" @onclick="PostBatch">
+                        <i class="bi bi-check2-circle"></i> تأیید و ثبت حسابداری
+                    </button>
+                </div>
+            }
+        }
+
+        <div class="modern-card mt-4">
+            <div class="card-header"><h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>تاریخچه محاسبات</h6></div>
+            <div class="card-body">
+                @if (history.Count == 0)
+                {
+                    <div class="text-muted">هنوز محاسبه‌ای ثبت نشده است.</div>
+                }
+                else
+                {
+                    <div class="table-responsive"><table class="table table-hover align-middle">
+                        <thead><tr><th>دوره</th><th>حواله</th><th>کمیشن AFN</th><th>کمیشن USD</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                        <tbody>@foreach (var batch in history)
+                        {
+                            <tr><td>@batch.PeriodFrom.ToString("yyyy-MM-dd") تا @batch.PeriodTo.ToString("yyyy-MM-dd")</td><td>@batch.HawalaCount</td>
+                                <td>@batch.TotalCommissionAfn.ToString("N0")</td><td>@batch.TotalCommissionUsd.ToString("N0")</td>
+                                <td><span class="badge @(batch.Status == "Posted" ? "bg-success" : "bg-secondary")">@(batch.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></td>
+                                <td>@if (batch.Status == "Posted")
+                                    {<button class="btn btn-sm btn-outline-danger" @onclick="() => SelectReverse(batch.Id)">برگشت</button>}</td></tr>
+                        }</tbody>
+                    </table></div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (reverseBatchId.HasValue)
+{
+    <div class="modal show d-block" style="background:rgba(0,0,0,.5)" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">برگشت محاسبه کمیشن</h5></div>
+            <div class="modal-body"><label class="form-label">دلیل برگشت</label><textarea class="form-control" @bind="reverseReason"></textarea></div>
+            <div class="modal-footer"><button class="btn btn-light" @onclick="CancelReverse">انصراف</button><button class="btn btn-danger" disabled="@busy" @onclick="ReverseBatch">تأیید برگشت</button></div>
+        </div></div>
+    </div>
+}
+
+@code {
+    [Parameter] public long CorrespondentId { get; set; }
+    private CorrespondentDto? correspondent;
+    private CorrespondentCommissionPreviewRequestDto request = new();
+    private CorrespondentCommissionPreviewDto? preview;
+    private List<CorrespondentCommissionBatchDto> history = [];
+    private bool loadingPage = true;
+    private bool busy;
+    private bool calculated;
+    private string error = string.Empty;
+    private string success = string.Empty;
+    private long? reverseBatchId;
+    private string reverseReason = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId);
+        request = new CorrespondentCommissionPreviewRequestDto
+        {
+            CorrespondentId = CorrespondentId, PeriodFrom = DateTime.Today.AddMonths(-1),
+            PeriodTo = DateTime.Today, CommissionPerLakhAfn = 200
+        };
+        await LoadHistory();
+        loadingPage = false;
+    }
+
+    private async Task LoadPreview()
+    {
+        await Execute(async () =>
+        {
+            calculated = false;
+            preview = await CommissionService.PreviewAsync(request);
+            request.Rates = preview.Rates;
+        });
+    }
+
+    private async Task Recalculate()
+    {
+        await Execute(async () => { preview = await CommissionService.PreviewAsync(request); calculated = true; });
+    }
+
+    private async Task PostBatch()
+    {
+        await Execute(async () =>
+        {
+            var result = await CommissionService.PostAsync(request);
+            success = $"کمیشن دوره‌ای با شماره {result.Id} با موفقیت ثبت شد.";
+            preview = null; calculated = false;
+            await LoadHistory();
+        });
+    }
+
+    private void SelectReverse(long id) { reverseBatchId = id; reverseReason = string.Empty; }
+    private void BackToCorrespondent() => Navigation.NavigateTo($"/correspondents/{CorrespondentId}");
+    private void CancelReverse() { reverseBatchId = null; reverseReason = string.Empty; }
+    private async Task ReverseBatch()
+    {
+        if (!reverseBatchId.HasValue) return;
+        await Execute(async () =>
+        {
+            await CommissionService.ReverseAsync(reverseBatchId.Value, reverseReason);
+            success = "محاسبه کمیشن و سند حسابداری آن برگشت داده شد.";
+            CancelReverse(); await LoadHistory();
+        });
+    }
+
+    private async Task LoadHistory() => history = (await CommissionService.GetHistoryAsync(CorrespondentId)).ToList();
+    private async Task Execute(Func<Task> action)
+    {
+        error = string.Empty; success = string.Empty; busy = true;
+        try { await action(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+}

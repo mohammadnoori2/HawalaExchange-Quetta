@@ -30,31 +30,57 @@
                     else if (preview != null)
                     {
                         <div class="alert alert-info py-2">
-                            نرخ هر ارز را یک‌بار وارد کنید؛ این نرخ برای تمام حواله‌های همان ارز اعمال می‌شود، اما برای هر حواله جداگانه ذخیره خواهد شد.
+                            @if (AccountMode)
+                            {
+                                <span>فقط ارزهای انتخاب‌شده به ارز توافقی تبدیل می‌شوند؛ ماندهٔ سایر ارزها بدون تغییر می‌ماند.</span>
+                            }
+                            else
+                            {
+                                <span>نرخ هر ارز را یک‌بار وارد کنید؛ این نرخ برای تمام حواله‌های همان ارز اعمال می‌شود، اما برای هر حواله جداگانه ذخیره خواهد شد.</span>
+                            }
                         </div>
+                        @if (AccountMode && rateGroups.Count > 0)
+                        {
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted small">@SelectedGroupCount ارز از @rateGroups.Count انتخاب شده</span>
+                                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="ToggleSelectAll">
+                                    <i class="bi @(AllGroupsSelected ? "bi-square" : "bi-check2-square")"></i>
+                                    @(AllGroupsSelected ? "لغو انتخاب همه" : "انتخاب همه")
+                                </button>
+                            </div>
+                        }
                         <div class="table-responsive">
                             <GlobalDataGrid class="table table-sm align-middle">
-                                <thead><tr><th>ارز فعلی</th><th>تعداد حواله</th><th>مجموع مبلغ فعلی</th><th>نرخ تبدیل</th><th>مجموع به @preview.TargetCurrencyCode</th></tr></thead>
+                                <thead><tr>@if (AccountMode) { <th class="text-center">انتخاب</th> }<th>ارز فعلی</th><th>تعداد حواله</th><th>مجموع مبلغ فعلی</th><th>نرخ تبدیل</th><th>مجموع به @preview.TargetCurrencyCode</th></tr></thead>
                                 <tbody>
                                     @foreach (var group in rateGroups)
                                     {
                                         <tr>
+                                            @if (AccountMode)
+                                            {
+                                                <td class="text-center">
+                                                    <input type="checkbox" class="form-check-input" @bind="group.IsSelected" />
+                                                </td>
+                                            }
                                             <td class="fw-bold">@group.CurrencyCode</td>
                                             <td>@(AccountMode ? "مانده حساب" : $"{group.Items.Select(x => x.HawalaId).Distinct().Count()} حواله")</td>
                                             <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(GetSourceTotal(group)) @group.CurrencyCode</td>
                                             <td style="min-width:9rem">
                                                 <input type="number" min="0.00000001" step="any" class="form-control form-control-sm financial-value-input"
+                                                       disabled="@(AccountMode && !group.IsSelected)"
                                                        @bind="group.Rate" @bind:event="oninput" @bind:after="() => ApplyGroupRate(group)" />
                                             </td>
                                             <td dir="ltr" class="fw-bold text-success">
-                                                @(group.Items.All(x => x.Rate > 0) ? $"{MoneyFormatHelper.Format(GetTargetTotal(group))} {preview.TargetCurrencyCode}" : "—")
+                                                @(!AccountMode || group.IsSelected
+                                                    ? group.Items.All(x => x.Rate > 0) ? $"{MoneyFormatHelper.Format(GetTargetTotal(group))} {preview.TargetCurrencyCode}" : "—"
+                                                    : "انتخاب نشده")
                                             </td>
                                         </tr>
                                     }
                                 </tbody>
                             </GlobalDataGrid>
                         </div>
-                        @if (rateInputs.Count > 0 && rateInputs.All(x => x.Rate > 0))
+                        @if (SelectedInputs.Count > 0 && SelectedInputs.All(x => x.Rate > 0))
                         {
                             <div class="alert alert-success py-2 d-flex justify-content-between align-items-center">
                                 <span>مجموع نهایی به ارز توافقی</span>
@@ -94,7 +120,7 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-light border" disabled="@saving" @onclick="CloseAsync">انصراف</button>
-                    <button class="btn btn-primary" disabled="@(saving || loading || preview == null || rateInputs.Count == 0)" @onclick="SubmitAsync">
+                    <button class="btn btn-primary" disabled="@(saving || loading || preview == null || SelectedInputs.Count == 0)" @onclick="SubmitAsync">
                         @(saving ? "در حال ثبت..." : $"تبدیل به {preview?.TargetCurrencyCode}")
                     </button>
                 </div>
@@ -177,7 +203,8 @@
                 {
                     CurrencyId = x.Key.CurrencyId,
                     CurrencyCode = x.Key.CurrencyCode,
-                    Items = x.ToList()
+                    Items = x.ToList(),
+                    IsSelected = !AccountMode
                 }));
 
             if (rateInputs.Count == 0)
@@ -197,7 +224,13 @@
     private async Task SubmitAsync()
     {
         error = string.Empty;
-        if (rateInputs.Any(x => x.Rate.GetValueOrDefault() <= 0))
+        if (SelectedInputs.Count == 0)
+        {
+            error = AccountMode ? "حداقل یک ارز را برای تبدیل انتخاب کنید." : "حداقل یک حواله را انتخاب کنید.";
+            return;
+        }
+
+        if (SelectedInputs.Any(x => x.Rate.GetValueOrDefault() <= 0))
         {
             error = "برای همه ردیف‌ها نرخ معتبر وارد کنید.";
             return;
@@ -210,7 +243,7 @@
                 ? await SettlementService.ConvertBalanceAsync(new ConvertCorrespondentBalanceDto
                 {
                     CorrespondentId = CorrespondentId,
-                    Rates = rateInputs.Select(x => new SettlementRateDto
+                    Rates = SelectedInputs.Select(x => new SettlementRateDto
                     {
                         SourceCurrencyId = x.CurrencyId,
                         Rate = x.Rate!.Value
@@ -246,7 +279,22 @@
 
     private decimal GetTargetTotal(RateGroup group) => group.Items.Sum(ConvertInput);
 
-    private decimal GetOverallTargetTotal() => rateInputs.Sum(ConvertInput);
+    private decimal GetOverallTargetTotal() => SelectedInputs.Sum(ConvertInput);
+
+    private List<RateInput> SelectedInputs => AccountMode
+        ? rateGroups.Where(x => x.IsSelected).SelectMany(x => x.Items).ToList()
+        : rateInputs;
+
+    private int SelectedGroupCount => rateGroups.Count(x => x.IsSelected);
+
+    private bool AllGroupsSelected => rateGroups.Count > 0 && rateGroups.All(x => x.IsSelected);
+
+    private void ToggleSelectAll()
+    {
+        var select = !AllGroupsSelected;
+        foreach (var group in rateGroups)
+            group.IsSelected = select;
+    }
 
     private void ApplyGroupRate(RateGroup group)
     {
@@ -298,5 +346,6 @@
         public string CurrencyCode { get; init; } = string.Empty;
         public List<RateInput> Items { get; init; } = [];
         public decimal? Rate { get; set; }
+        public bool IsSelected { get; set; }
     }
 }

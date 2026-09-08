@@ -263,6 +263,217 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.ToTable("AccountMoneyOperations");
                 });
 
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.AedDeal", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("AedPerUsdRate")
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CancelledBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("ConvertedAmount")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("DealNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<long>("DubaiCorrespondentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("HoldingTransactionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("OriginalAmount")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<long?>("ReversalTransactionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("RoundingDecimalPlaces")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("SourceCorrespondentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("SourceCurrencyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("TotalFinalUsd")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("TotalProfitUsd")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CancelledBy");
+
+                    b.HasIndex("TenantId", "CreatedBy");
+
+                    b.HasIndex("TenantId", "DealNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "HoldingTransactionId");
+
+                    b.HasIndex("TenantId", "ReversalTransactionId");
+
+                    b.HasIndex("TenantId", "SourceCurrencyId");
+
+                    b.HasIndex("TenantId", "DubaiCorrespondentId", "CreatedAt");
+
+                    b.HasIndex("TenantId", "SourceCorrespondentId", "CreatedAt");
+
+                    b.ToTable("AedDeals", t =>
+                        {
+                            t.HasCheckConstraint("CK_AedDeals_Amount_Valid", "[OriginalAmount] > 0 AND [ConvertedAmount] >= 0 AND [ConvertedAmount] <= [OriginalAmount]");
+
+                            t.HasCheckConstraint("CK_AedDeals_Correspondents_Different", "[SourceCorrespondentId] <> [DubaiCorrespondentId]");
+
+                            t.HasCheckConstraint("CK_AedDeals_Rounding_Valid", "[RoundingDecimalPlaces] BETWEEN 0 AND 4");
+
+                            t.HasCheckConstraint("CK_AedDeals_Status_Valid", "[Status] IN ('Held', 'PartiallyConverted', 'Converted', 'Cancelled')");
+                        });
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.AedDealConversion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("ActualAdjustmentSource")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("ActualMarker")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("AedDealId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("AedPerUsdRate")
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("DeclaredAdjustmentSource")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("DeclaredMarker")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("DeclaredUsdAmount")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("FinalUsdAmount")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("PostingTransactionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("ProfitUsd")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("ReversalReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long?>("ReversalTransactionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ReversedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReversedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<decimal>("SourceAmount")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "CreatedBy");
+
+                    b.HasIndex("TenantId", "PostingTransactionId");
+
+                    b.HasIndex("TenantId", "ReversalTransactionId");
+
+                    b.HasIndex("TenantId", "ReversedBy");
+
+                    b.HasIndex("TenantId", "AedDealId", "CreatedAt");
+
+                    b.ToTable("AedDealConversions", t =>
+                        {
+                            t.HasCheckConstraint("CK_AedDealConversions_Amount_Valid", "[SourceAmount] > 0");
+
+                            t.HasCheckConstraint("CK_AedDealConversions_Status_Valid", "[Status] IN ('Posted', 'Reversed')");
+                        });
+                });
+
             modelBuilder.Entity("HawalaExchange.Domain.Entities.ApplicationUser", b =>
                 {
                     b.Property<long>("Id")
@@ -885,6 +1096,13 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("CommissionMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("PerTransaction");
+
                     b.Property<string>("Country")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -929,7 +1147,150 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "SettlementCurrencyId");
 
-                    b.ToTable("Correspondents");
+                    b.ToTable("Correspondents", t =>
+                        {
+                            t.HasCheckConstraint("CK_Correspondents_CommissionMethod_Valid", "[CommissionMethod] IN ('PerTransaction', 'PeriodicPerLakh')");
+                        });
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentCommissionBatch", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("CommissionPerLakhAfn")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("CorrespondentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("PeriodFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("PeriodTo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("PostingTransactionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReversalReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long?>("ReversalTransactionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ReversedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReversedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Posted");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("TotalBaseAfn")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("TotalCommissionAfn")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("TotalCommissionUsd")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("UsdToAfnRate")
+                        .HasColumnType("decimal(18,8)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreatedBy");
+
+                    b.HasIndex("TenantId", "PostingTransactionId");
+
+                    b.HasIndex("TenantId", "ReversalTransactionId");
+
+                    b.HasIndex("TenantId", "ReversedBy");
+
+                    b.HasIndex("TenantId", "CorrespondentId", "CreatedAt");
+
+                    b.ToTable("CorrespondentCommissionBatches", t =>
+                        {
+                            t.HasCheckConstraint("CK_CorrespondentCommissionBatches_Status_Valid", "[Status] IN ('Posted', 'Reversed')");
+                        });
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentCommissionBatchItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("AfnEquivalent")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("BatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("CommissionAfn")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("HawalaId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<decimal>("SourceAmount")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("SourceCurrencyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("SourceToAfnRate")
+                        .HasColumnType("decimal(18,8)");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "BatchId");
+
+                    b.HasIndex("TenantId", "SourceCurrencyId");
+
+                    b.HasIndex("TenantId", "HawalaId", "IsActive")
+                        .IsUnique()
+                        .HasFilter("[IsActive] = 1");
+
+                    b.ToTable("CorrespondentCommissionBatchItems");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentSettlementConversion", b =>
@@ -1684,6 +2045,141 @@ namespace HawalaExchange.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.HawalaImportBatch", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ConfirmedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CorrespondentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("FileHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Preview");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ConfirmedBy");
+
+                    b.HasIndex("TenantId", "CorrespondentId");
+
+                    b.HasIndex("TenantId", "CreatedBy");
+
+                    b.HasIndex("TenantId", "FileHash")
+                        .IsUnique()
+                        .HasFilter("[Status] = 'Posted'");
+
+                    b.HasIndex("TenantId", "FileHash", "Status");
+
+                    b.ToTable("HawalaImportBatches");
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.HawalaImportRow", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal?>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("BatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("CurrencyCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<long?>("CurrencyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ExcelRowNumber")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("HawalaId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("HawalaNumber")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("PaymentLocationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("PaymentLocationText")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ReceiverName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("SenderName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ValidationErrors")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "CurrencyId");
+
+                    b.HasIndex("TenantId", "HawalaId");
+
+                    b.HasIndex("TenantId", "PaymentLocationId");
+
+                    b.HasIndex("TenantId", "BatchId", "ExcelRowNumber")
+                        .IsUnique();
+
+                    b.ToTable("HawalaImportRows");
+                });
+
             modelBuilder.Entity("HawalaExchange.Domain.Entities.LedgerEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -1939,9 +2435,6 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<long?>("CorrespondentId")
-                        .HasColumnType("bigint");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1952,6 +2445,11 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NormalizedName")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -1971,13 +2469,58 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "CorrespondentId");
-
                     b.HasIndex("TenantId", "CreatedBy");
+
+                    b.HasIndex("TenantId", "NormalizedName")
+                        .IsUnique();
 
                     b.HasIndex("TenantId", "UpdatedBy");
 
                     b.ToTable("PaymentLocations");
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.PaymentLocationAlias", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("PaymentLocationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "CreatedBy");
+
+                    b.HasIndex("TenantId", "NormalizedName")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "PaymentLocationId");
+
+                    b.ToTable("PaymentLocationAliases");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.PlatformAuditLog", b =>
@@ -3226,6 +3769,116 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.Navigation("Currency");
                 });
 
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.AedDeal", b =>
+                {
+                    b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "CancelledByUser")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CancelledBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Correspondent", "DubaiCorrespondent")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DubaiCorrespondentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Transaction", "HoldingTransaction")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "HoldingTransactionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Transaction", "ReversalTransaction")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversalTransactionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Correspondent", "SourceCorrespondent")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SourceCorrespondentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Currency", "SourceCurrency")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SourceCurrencyId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CancelledByUser");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("DubaiCorrespondent");
+
+                    b.Navigation("HoldingTransaction");
+
+                    b.Navigation("ReversalTransaction");
+
+                    b.Navigation("SourceCorrespondent");
+
+                    b.Navigation("SourceCurrency");
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.AedDealConversion", b =>
+                {
+                    b.HasOne("HawalaExchange.Domain.Entities.AedDeal", "Deal")
+                        .WithMany("Conversions")
+                        .HasForeignKey("TenantId", "AedDealId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Transaction", "PostingTransaction")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PostingTransactionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Transaction", "ReversalTransaction")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversalTransactionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "ReversedByUser")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Deal");
+
+                    b.Navigation("PostingTransaction");
+
+                    b.Navigation("ReversalTransaction");
+
+                    b.Navigation("ReversedByUser");
+                });
+
             modelBuilder.Entity("HawalaExchange.Domain.Entities.ApplicationUser", b =>
                 {
                     b.HasOne("HawalaExchange.Domain.Entities.Tenant", "Tenant")
@@ -3422,6 +4075,82 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("SettlementCurrency");
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentCommissionBatch", b =>
+                {
+                    b.HasOne("HawalaExchange.Domain.Entities.Correspondent", "Correspondent")
+                        .WithMany("CommissionBatches")
+                        .HasForeignKey("TenantId", "CorrespondentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Transaction", "PostingTransaction")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PostingTransactionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Transaction", "ReversalTransaction")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversalTransactionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "ReversedByUser")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Correspondent");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("PostingTransaction");
+
+                    b.Navigation("ReversalTransaction");
+
+                    b.Navigation("ReversedByUser");
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentCommissionBatchItem", b =>
+                {
+                    b.HasOne("HawalaExchange.Domain.Entities.CorrespondentCommissionBatch", "Batch")
+                        .WithMany("Items")
+                        .HasForeignKey("TenantId", "BatchId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Hawala", "Hawala")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "HawalaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Currency", "SourceCurrency")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SourceCurrencyId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("Hawala");
+
+                    b.Navigation("SourceCurrency");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentSettlementConversion", b =>
@@ -3728,6 +4457,71 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.Navigation("ToCurrency");
                 });
 
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.HawalaImportBatch", b =>
+                {
+                    b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "ConfirmedByUser")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ConfirmedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Correspondent", "Correspondent")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CorrespondentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ConfirmedByUser");
+
+                    b.Navigation("Correspondent");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.HawalaImportRow", b =>
+                {
+                    b.HasOne("HawalaExchange.Domain.Entities.HawalaImportBatch", "Batch")
+                        .WithMany("Rows")
+                        .HasForeignKey("TenantId", "BatchId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Currency", "Currency")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CurrencyId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Hawala", "Hawala")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "HawalaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HawalaExchange.Domain.Entities.PaymentLocation", "PaymentLocation")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PaymentLocationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("Currency");
+
+                    b.Navigation("Hawala");
+
+                    b.Navigation("PaymentLocation");
+                });
+
             modelBuilder.Entity("HawalaExchange.Domain.Entities.LedgerEntry", b =>
                 {
                     b.HasOne("HawalaExchange.Domain.Entities.Account", "Account")
@@ -3878,12 +4672,6 @@ namespace HawalaExchange.Infrastructure.Migrations
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.PaymentLocation", b =>
                 {
-                    b.HasOne("HawalaExchange.Domain.Entities.Correspondent", "Correspondent")
-                        .WithMany("PaymentLocations")
-                        .HasForeignKey("TenantId", "CorrespondentId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("TenantId", "CreatedBy")
@@ -3896,11 +4684,30 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .HasForeignKey("TenantId", "UpdatedBy")
                         .HasPrincipalKey("TenantId", "Id");
 
-                    b.Navigation("Correspondent");
-
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.PaymentLocationAlias", b =>
+                {
+                    b.HasOne("HawalaExchange.Domain.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CreatedBy")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HawalaExchange.Domain.Entities.PaymentLocation", "PaymentLocation")
+                        .WithMany("Aliases")
+                        .HasForeignKey("TenantId", "PaymentLocationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("PaymentLocation");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.PlatformAuditLog", b =>
@@ -4229,6 +5036,11 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.Navigation("LedgerEntries");
                 });
 
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.AedDeal", b =>
+                {
+                    b.Navigation("Conversions");
+                });
+
             modelBuilder.Entity("HawalaExchange.Domain.Entities.ApplicationUser", b =>
                 {
                     b.Navigation("AccountLimits");
@@ -4269,11 +5081,16 @@ namespace HawalaExchange.Infrastructure.Migrations
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.Correspondent", b =>
                 {
-                    b.Navigation("PaymentLocations");
+                    b.Navigation("CommissionBatches");
 
                     b.Navigation("SettlementConversions");
 
                     b.Navigation("TransactionDetails");
+                });
+
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentCommissionBatch", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CorrespondentSettlementConversion", b =>
@@ -4330,6 +5147,11 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.Navigation("SettlementConversionLinks");
                 });
 
+            modelBuilder.Entity("HawalaExchange.Domain.Entities.HawalaImportBatch", b =>
+                {
+                    b.Navigation("Rows");
+                });
+
             modelBuilder.Entity("HawalaExchange.Domain.Entities.MoneyExchangeOperation", b =>
                 {
                     b.Navigation("LedgerEntries");
@@ -4337,6 +5159,8 @@ namespace HawalaExchange.Infrastructure.Migrations
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.PaymentLocation", b =>
                 {
+                    b.Navigation("Aliases");
+
                     b.Navigation("Hawalas");
                 });
 

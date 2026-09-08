@@ -1,0 +1,42 @@
+@using HawalaExchange.Application.DTOs
+
+<div class="card border-info mb-3" dir="rtl">
+    <div class="card-header bg-info-subtle">
+        <strong><i class="bi bi-person-check ms-1"></i>کمیشن عامل پرداخت</strong>
+        <span class="text-muted small me-1">(اختیاری)</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">مقدار کمیشن</label>
+                <NullableMoneyInput class="form-control"
+                                    @bind-Value="Model.AgentCommissionAmount"
+                                    placeholder="مثلاً 200" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">
+                    ارز کمیشن
+                    @if (Model.AgentCommissionAmount > 0)
+                    {
+                        <span class="text-danger">*</span>
+                    }
+                </label>
+                <select class="form-select" @bind="Model.AgentCommissionCurrencyId">
+                    <option value="">انتخاب ارز...</option>
+                    @foreach (var currency in Currencies.Where(x => x.IsActive).OrderBy(x => x.Code))
+                    {
+                        <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+        <div class="form-text mt-2">
+            این مبلغ جدا از اصل حواله، در حساب هزینه کمیشن ثبت و به حساب عامل پرداخت اضافه می‌شود.
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PayHawalaDto Model { get; set; } = new();
+    [Parameter, EditorRequired] public IReadOnlyList<CurrencyDto> Currencies { get; set; } = [];
+}

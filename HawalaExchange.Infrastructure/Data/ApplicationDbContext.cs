@@ -110,11 +110,18 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<Document> Documents { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Hawala> Hawalas { get; set; }
+        public DbSet<HawalaImportBatch> HawalaImportBatches { get; set; }
+        public DbSet<HawalaImportRow> HawalaImportRows { get; set; }
         public DbSet<CorrespondentSettlementConversion> CorrespondentSettlementConversions { get; set; }
         public DbSet<CorrespondentSettlementConversionItem> CorrespondentSettlementConversionItems { get; set; }
         public DbSet<CorrespondentSettlementConversionHawala> CorrespondentSettlementConversionHawalas { get; set; }
         public DbSet<CorrespondentSettlementConversionHawalaItem> CorrespondentSettlementConversionHawalaItems { get; set; }
+        public DbSet<AedDeal> AedDeals { get; set; }
+        public DbSet<AedDealConversion> AedDealConversions { get; set; }
+        public DbSet<CorrespondentCommissionBatch> CorrespondentCommissionBatches { get; set; }
+        public DbSet<CorrespondentCommissionBatchItem> CorrespondentCommissionBatchItems { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
+        public DbSet<PaymentLocationAlias> PaymentLocationAliases { get; set; }
 
         public DbSet<CapitalInvestment> CapitalInvestments { get; set; }
         public DbSet<AccountMoneyOperation> AccountMoneyOperations { get; set; }
@@ -907,7 +914,8 @@ namespace HawalaExchange.Infrastructure.Data
         {
             "Hawalas" => 0,
             "MoneyExchangeOperations" or "AccountMoneyOperations" or "Transfers" or
-                "CapitalInvestments" or "Expenses" or "CorrespondentSettlementConversions" => 1,
+                "CapitalInvestments" or "Expenses" or "CorrespondentSettlementConversions" or
+                "AedDeals" or "AedDealConversions" => 1,
             "Customers" or "Correspondents" or "Accounts" or "Branches" or "Users" or
                 "CashBalanceAlertSettings" => 2,
             "Transactions" => 3,
@@ -1592,6 +1600,21 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<CorrespondentSettlementConversionHawalaItem>()
                 .HasIndex(x => new { x.TenantId, x.HawalaId, x.SourceCurrencyId })
                 .IsUnique();
+            modelBuilder.Entity<CorrespondentCommissionBatch>()
+                .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.CreatedAt });
+            modelBuilder.Entity<CorrespondentCommissionBatchItem>()
+                .HasIndex(x => new { x.TenantId, x.HawalaId, x.IsActive })
+                .IsUnique()
+                .HasFilter("[IsActive] = 1");
+            modelBuilder.Entity<AedDeal>()
+                .HasIndex(x => new { x.TenantId, x.DealNumber })
+                .IsUnique();
+            modelBuilder.Entity<AedDeal>()
+                .HasIndex(x => new { x.TenantId, x.DubaiCorrespondentId, x.CreatedAt });
+            modelBuilder.Entity<AedDeal>()
+                .HasIndex(x => new { x.TenantId, x.SourceCorrespondentId, x.CreatedAt });
+            modelBuilder.Entity<AedDealConversion>()
+                .HasIndex(x => new { x.TenantId, x.AedDealId, x.CreatedAt });
             modelBuilder.Entity<Hawala>()
                 .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.Number })
                 .IsUnique();
@@ -1601,6 +1624,21 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasFilter("[SourceHawalaId] IS NOT NULL");
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.ReferenceNumber });
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+            modelBuilder.Entity<HawalaImportBatch>()
+                .HasIndex(x => new { x.TenantId, x.FileHash, x.Status });
+            modelBuilder.Entity<HawalaImportBatch>()
+                .HasIndex(x => new { x.TenantId, x.FileHash })
+                .IsUnique()
+                .HasFilter("[Status] = 'Posted'");
+            modelBuilder.Entity<HawalaImportRow>()
+                .HasIndex(x => new { x.TenantId, x.BatchId, x.ExcelRowNumber })
+                .IsUnique();
+            modelBuilder.Entity<PaymentLocation>()
+                .HasIndex(x => new { x.TenantId, x.NormalizedName })
+                .IsUnique();
+            modelBuilder.Entity<PaymentLocationAlias>()
+                .HasIndex(x => new { x.TenantId, x.NormalizedName })
+                .IsUnique();
             modelBuilder.Entity<CashDailyBalance>()
                 .HasIndex(x => new { x.TenantId, x.JournalDate, x.AccountId, x.CurrencyId })
                 .IsUnique();
@@ -1625,6 +1663,9 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Account>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<Customer>().Property(x => x.IsArchived).HasDefaultValue(false);
             modelBuilder.Entity<Correspondent>().Property(x => x.IsArchived).HasDefaultValue(false);
+            modelBuilder.Entity<Correspondent>().Property(x => x.CommissionMethod).HasDefaultValue("PerTransaction");
+            modelBuilder.Entity<CorrespondentCommissionBatch>().Property(x => x.Status).HasDefaultValue("Posted");
+            modelBuilder.Entity<CorrespondentCommissionBatchItem>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<AccountBadehkarLimit>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<CashBalanceAlertSetting>().Property(x => x.IsActive).HasDefaultValue(true);
             modelBuilder.Entity<CashBalanceAlertSetting>().Property(x => x.NotifyAllUsers).HasDefaultValue(true);
@@ -1638,6 +1679,10 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Hawala>()
                 .Property(x => x.Status)
                 .HasDefaultValue("Pending");
+
+            modelBuilder.Entity<HawalaImportBatch>()
+                .Property(x => x.Status)
+                .HasDefaultValue("Preview");
 
             modelBuilder.Entity<Hawala>()
                 .Property(x => x.CreatedAt)
@@ -1810,10 +1855,52 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureRelationships(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<PaymentLocation>()
-                .HasOne(x => x.Correspondent)
-                .WithMany(x => x.PaymentLocations)
-                .HasForeignKey(x => x.CorrespondentId)
+            modelBuilder.Entity<HawalaImportBatch>(entity =>
+            {
+                entity.HasOne(x => x.Correspondent)
+                    .WithMany()
+                    .HasForeignKey(x => x.CorrespondentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.CreatedBy)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ConfirmedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.ConfirmedBy)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<HawalaImportRow>(entity =>
+            {
+                entity.HasOne(x => x.Batch)
+                    .WithMany(x => x.Rows)
+                    .HasForeignKey(x => x.BatchId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.PaymentLocation)
+                    .WithMany()
+                    .HasForeignKey(x => x.PaymentLocationId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Currency)
+                    .WithMany()
+                    .HasForeignKey(x => x.CurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Hawala)
+                    .WithMany()
+                    .HasForeignKey(x => x.HawalaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<PaymentLocationAlias>()
+                .HasOne(x => x.PaymentLocation)
+                .WithMany(x => x.Aliases)
+                .HasForeignKey(x => x.PaymentLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PaymentLocationAlias>()
+                .HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Correspondent>()
@@ -1821,6 +1908,80 @@ namespace HawalaExchange.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(x => x.SettlementCurrencyId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Correspondent>()
+                .ToTable(t => t.HasCheckConstraint("CK_Correspondents_CommissionMethod_Valid",
+                    "[CommissionMethod] IN ('PerTransaction', 'PeriodicPerLakh')"));
+
+            modelBuilder.Entity<CorrespondentCommissionBatch>(entity =>
+            {
+                entity.HasOne(x => x.Correspondent).WithMany(x => x.CommissionBatches)
+                    .HasForeignKey(x => x.CorrespondentId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.PostingTransaction).WithMany()
+                    .HasForeignKey(x => x.PostingTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversalTransaction).WithMany()
+                    .HasForeignKey(x => x.ReversalTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser).WithMany()
+                    .HasForeignKey(x => x.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversedByUser).WithMany()
+                    .HasForeignKey(x => x.ReversedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(t => t.HasCheckConstraint("CK_CorrespondentCommissionBatches_Status_Valid",
+                    "[Status] IN ('Posted', 'Reversed')"));
+            });
+
+            modelBuilder.Entity<CorrespondentCommissionBatchItem>(entity =>
+            {
+                entity.HasOne(x => x.Batch).WithMany(x => x.Items)
+                    .HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.Hawala).WithMany()
+                    .HasForeignKey(x => x.HawalaId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.SourceCurrency).WithMany()
+                    .HasForeignKey(x => x.SourceCurrencyId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<AedDeal>(entity =>
+            {
+                entity.HasOne(x => x.SourceCorrespondent).WithMany()
+                    .HasForeignKey(x => x.SourceCorrespondentId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.DubaiCorrespondent).WithMany()
+                    .HasForeignKey(x => x.DubaiCorrespondentId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.SourceCurrency).WithMany()
+                    .HasForeignKey(x => x.SourceCurrencyId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.HoldingTransaction).WithMany()
+                    .HasForeignKey(x => x.HoldingTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversalTransaction).WithMany()
+                    .HasForeignKey(x => x.ReversalTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser).WithMany()
+                    .HasForeignKey(x => x.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CancelledByUser).WithMany()
+                    .HasForeignKey(x => x.CancelledBy).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint("CK_AedDeals_Status_Valid", "[Status] IN ('Held', 'PartiallyConverted', 'Converted', 'Cancelled')");
+                    t.HasCheckConstraint("CK_AedDeals_Amount_Valid", "[OriginalAmount] > 0 AND [ConvertedAmount] >= 0 AND [ConvertedAmount] <= [OriginalAmount]");
+                    t.HasCheckConstraint("CK_AedDeals_Correspondents_Different", "[SourceCorrespondentId] <> [DubaiCorrespondentId]");
+                    t.HasCheckConstraint("CK_AedDeals_Rounding_Valid", "[RoundingDecimalPlaces] BETWEEN 0 AND 4");
+                });
+            });
+
+            modelBuilder.Entity<AedDealConversion>(entity =>
+            {
+                entity.HasOne(x => x.Deal).WithMany(x => x.Conversions)
+                    .HasForeignKey(x => x.AedDealId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.PostingTransaction).WithMany()
+                    .HasForeignKey(x => x.PostingTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversalTransaction).WithMany()
+                    .HasForeignKey(x => x.ReversalTransactionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.CreatedByUser).WithMany()
+                    .HasForeignKey(x => x.CreatedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ReversedByUser).WithMany()
+                    .HasForeignKey(x => x.ReversedBy).OnDelete(DeleteBehavior.Restrict);
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint("CK_AedDealConversions_Status_Valid", "[Status] IN ('Posted', 'Reversed')");
+                    t.HasCheckConstraint("CK_AedDealConversions_Amount_Valid", "[SourceAmount] > 0");
+                });
+            });
 
             modelBuilder.Entity<CorrespondentSettlementConversion>(entity =>
             {

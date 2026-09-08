@@ -643,6 +643,8 @@
                 return await MarkAsPaidAsync(id, new PayHawalaDto
                 {
                     PaidFromAccountId = paidFromAccountId,
+                    AgentCommissionAmount = hawala.AgentCommissionAmount,
+                    AgentCommissionCurrencyId = hawala.AgentCommissionCurrencyId,
                     ReceiverName = hawala.ReceiverName ?? string.Empty,
                     ReceiverFatherName = hawala.ReceiverFatherName,
                     ReceiverPhone = hawala.ReceiverPhone,
@@ -773,12 +775,31 @@
                     if (string.IsNullOrWhiteSpace(payment.ReceiverName))
                         throw new InvalidOperationException("نام گیرنده الزامی است.");
 
+                    if (payment.AgentCommissionAmount < 0)
+                        throw new InvalidOperationException("کمیشن عامل پرداخت نمی‌تواند منفی باشد.");
+                    if (payment.AgentCommissionAmount > 0)
+                    {
+                        if (!payment.AgentCommissionCurrencyId.HasValue || payment.AgentCommissionCurrencyId <= 0)
+                            throw new InvalidOperationException("برای کمیشن عامل پرداخت، انتخاب ارز الزامی است.");
+
+                        var commissionCurrencyIsActive = await _context.Currencies
+                            .AnyAsync(x => x.Id == payment.AgentCommissionCurrencyId && x.IsActive);
+                        if (!commissionCurrencyIsActive)
+                            throw new InvalidOperationException("ارز کمیشن عامل پرداخت معتبر یا فعال نیست.");
+                    }
+
                     hawala.ReceiverName = payment.ReceiverName.Trim();
                     hawala.ReceiverFatherName = payment.ReceiverFatherName?.Trim();
                     hawala.ReceiverPhone = payment.ReceiverPhone?.Trim();
                     hawala.ReceiverTazkiraNumber = payment.ReceiverTazkiraNumber?.Trim();
                     hawala.ReceiverTazkiraImagePath = payment.ReceiverTazkiraImagePath;
                     hawala.ReceiverAddress = payment.ReceiverAddress?.Trim();
+                    hawala.AgentCommissionAmount = payment.AgentCommissionAmount > 0
+                        ? payment.AgentCommissionAmount
+                        : null;
+                    hawala.AgentCommissionCurrencyId = payment.AgentCommissionAmount > 0
+                        ? payment.AgentCommissionCurrencyId
+                        : null;
 
                     if (hawala.HawalaType == "HawalaReceive")
                     {
@@ -1238,19 +1259,18 @@
                     description: $"حواله دریافتی {hawala.Id}: پرداخت حواله از حساب انتخاب‌شده");
                 if (hawala.AgentCommissionAmount > 0)
                 {
-                    var commissionAccount = await GetOrCreateCommissionAccountAsync();
+                    var expenseAccount = await GetOrCreatePayoutAgentCommissionExpenseAccountAsync();
                     var agentCommissionCurrencyId =
                         hawala.AgentCommissionCurrencyId ??
-                        hawala.CommissionCurrencyId ??
                         hawala.ToCurrencyId;
 
                     await CreateLedgerEntry(
                         ledgerHawalaId,
-                        commissionAccount.Id,
+                        expenseAccount.Id,
                         agentCommissionCurrencyId,
                         talabKar: 0,
                         badehKar: hawala.AgentCommissionAmount.Value,
-                        description: $"حواله دریافتی {hawala.Id}: سهم حساب پرداخت‌کننده از کمیشن");
+                        description: $"حواله دریافتی {hawala.Id}: هزینه کمیشن عامل پرداخت");
 
                     await CreateLedgerEntry(
                         ledgerHawalaId,
@@ -1258,8 +1278,34 @@
                         agentCommissionCurrencyId,
                         talabKar: hawala.AgentCommissionAmount.Value,
                         badehKar: 0,
-                        description: $"حواله دریافتی {hawala.Id}: کمیشن قابل پرداخت به حساب انتخاب‌شده");
+                        description: $"حواله دریافتی {hawala.Id}: کمیشن قابل پرداخت به عامل پرداخت");
                 }
+            }
+
+            private async Task<Account> GetOrCreatePayoutAgentCommissionExpenseAccountAsync()
+            {
+                const string accountCode = "4002";
+                var account = await _context.Accounts.FirstOrDefaultAsync(a => a.AccountCode == accountCode);
+                if (account != null)
+                {
+                    if (!string.Equals(account.AccountType, "Expense", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("حساب 4002 باید از نوع Expense باشد تا کمیشن عامل پرداخت ثبت شود.");
+                    if (account.IsArchived)
+                        throw new InvalidOperationException("حساب هزینه کمیشن عامل پرداخت آرشیف شده است.");
+                    return account;
+                }
+
+                var newAccount = new Account
+                {
+                    AccountCode = accountCode,
+                    AccountName = "کمیشن عامل پرداخت",
+                    AccountType = "Expense",
+                    IsArchived = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.Accounts.AddAsync(newAccount);
+                await _context.SaveChangesAsync();
+                return newAccount;
             }
             private async Task ProcessHawalaOtherLedgerAsync(Hawala hawala)
             {
@@ -1331,6 +1377,12 @@
                     throw new InvalidOperationException("برای حواله دریافت، نمایندگی فرستنده الزامی است.");
                 if (dto.HawalaType == "HawalaReceive" && (dto.Number <= 0))
                     throw new InvalidOperationException("برای حواله آمد، شماره (نمبر) الزامی است.");
+                if (dto.HawalaType == "HawalaReceive" &&
+                    dto.Status != "Paid" &&
+                    dto.AgentCommissionAmount > 0)
+                {
+                    throw new InvalidOperationException("کمیشن عامل پرداخت برای حواله دریافتی باید هنگام اجرای حواله ثبت شود.");
+                }
                 if (dto.AgentCommissionAmount > 0 &&
                     (!dto.AgentCommissionCurrencyId.HasValue ||
                      dto.AgentCommissionCurrencyId.Value <= 0))

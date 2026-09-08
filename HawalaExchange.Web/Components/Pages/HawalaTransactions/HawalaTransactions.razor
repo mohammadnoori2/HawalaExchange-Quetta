@@ -193,7 +193,7 @@
                                 }
                             </th>
                             <th>کارمزد حواله</th>
-                            <th>کارمزد نمایندگی</th>
+                            <th>کمیشن عامل/نمایندگی</th>
                             <th>محل پرداخت</th>
                             <th>نماینده</th>
                             <th>نرخ توافقی</th>
@@ -448,12 +448,11 @@
                         </small>
                     </div>
 
+                    <PayoutAgentCommissionFields Model="payDetails" Currencies="currencies" />
+
                     <div class="alert alert-warning mb-0">
                         <strong>سند حسابداری پرداخت:</strong>
-                        <div class="mt-2" dir="ltr">
-                            Pending Hawala Account: BadehKar |
-                            Selected Payment Account: TalabKar
-                        </div>
+                        <div class="mt-2">اصل حواله و کمیشن عامل پرداخت جداگانه ثبت می‌شوند؛ کمیشن در حساب هزینه قرار می‌گیرد.</div>
                     </div>
                 </div>
 
@@ -1478,7 +1477,9 @@
         ReceiverPhone = hawala?.ReceiverPhone,
         ReceiverTazkiraNumber = hawala?.ReceiverTazkiraNumber,
         ReceiverTazkiraImagePath = hawala?.ReceiverTazkiraImagePath,
-        ReceiverAddress = hawala?.ReceiverAddress
+        ReceiverAddress = hawala?.ReceiverAddress,
+        AgentCommissionAmount = hawala?.AgentCommissionAmount,
+        AgentCommissionCurrencyId = hawala?.AgentCommissionCurrencyId ?? hawala?.ToCurrencyId
     };
 
     private async Task ConfirmCancel()

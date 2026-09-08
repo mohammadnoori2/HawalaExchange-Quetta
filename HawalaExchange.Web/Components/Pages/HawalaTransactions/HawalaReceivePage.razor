@@ -10,6 +10,7 @@
 @inject IHawalaService HawalaService
 @inject IAccountService AccountService
 @inject ICustomerService CustomerService
+@inject ICurrencyService CurrencyService
 @inject ICompanySettingService CompanySettingService
 @inject IFileService FileService
 @inject IJSRuntime JS
@@ -94,6 +95,7 @@
                             <th>نماینده</th>
                             <th>مبلغ</th>
                             <th>کارمزد</th>
+                            <th>کمیشن عامل پرداخت</th>
                             <th>وضعیت</th>
                             <th>تاریخ</th>
                             <th>زمان اجرا</th>
@@ -106,7 +108,7 @@
                         @if (isLoading)
                         {
                             <tr>
-                                <td colspan="13" class="text-center py-5">
+                                <td colspan="14" class="text-center py-5">
                                     <div class="spinner-border text-primary"></div>
                                     <p class="text-muted mt-2">در حال بارگذاری...</p>
                                 </td>
@@ -115,7 +117,7 @@
                         else if (!pagedHawalas.Any())
                         {
                             <tr>
-                                <td colspan="13" class="text-center py-5">
+                                <td colspan="14" class="text-center py-5">
                                     هیچ حواله دریافتی یافت نشد.
                                 </td>
                             </tr>
@@ -148,6 +150,11 @@
                                     <td dir="ltr">
                                         @(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")
                                         @hawala.CommissionCurrencyCode
+                                    </td>
+
+                                    <td dir="ltr">
+                                        @(hawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) : "-")
+                                        @hawala.AgentCommissionCurrencyCode
                                     </td>
 
                                     <td>
@@ -256,12 +263,11 @@
                         </small>
                     </div>
 
+                    <PayoutAgentCommissionFields Model="payDetails" Currencies="currencies" />
+
                     <div class="alert alert-warning mb-0">
                         <strong>سند حسابداری:</strong>
-                        <div class="mt-2" dir="ltr">
-                            Pending Hawala Account: BadehKar |
-                            Selected Payment Account: TalabKar
-                        </div>
+                        <div class="mt-2">اصل حواله و کمیشن عامل پرداخت جداگانه ثبت می‌شوند؛ کمیشن در حساب هزینه قرار می‌گیرد.</div>
                     </div>
                 </div>
 
@@ -416,7 +422,7 @@
 
                         <div class="col-md-6">
                             <div class="info-card">
-                                <span class="info-label">کارمزد نماینده</span>
+                                <span class="info-label">کمیشن عامل پرداخت</span>
                                 <span class="info-value" dir="ltr">
                                     @(selectedHawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.AgentCommissionAmount.Value) : "-")
                                     @selectedHawala.AgentCommissionCurrencyCode
@@ -668,6 +674,7 @@
     private List<HawalaDto> hawalas = new();
     private List<HawalaDto> filteredHawalas = new();
     private List<AccountDto> accounts = new();
+    private List<CurrencyDto> currencies = new();
 
     private HawalaDto? selectedHawala;
     private HawalaDto? receiptHawala;
@@ -722,6 +729,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
         await LoadAccounts();
         await LoadCustomers();
         await LoadData();
@@ -996,7 +1004,9 @@
         ReceiverPhone = hawala?.ReceiverPhone,
         ReceiverTazkiraNumber = hawala?.ReceiverTazkiraNumber,
         ReceiverTazkiraImagePath = hawala?.ReceiverTazkiraImagePath,
-        ReceiverAddress = hawala?.ReceiverAddress
+        ReceiverAddress = hawala?.ReceiverAddress,
+        AgentCommissionAmount = hawala?.AgentCommissionAmount,
+        AgentCommissionCurrencyId = hawala?.AgentCommissionCurrencyId ?? hawala?.ToCurrencyId
     };
 
     private async Task OpenReceipt(long hawalaId)

@@ -61,7 +61,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>نمبر معامله</th><th>طرف کویته</th><th>طرف دبی</th><th>مبلغ اصل</th>
-                            <th>تبدیل‌شده</th><th>باقی‌مانده</th><th>دالر نهایی</th><th>مفاد / زیان</th><th>وضعیت</th><th>عملیات</th>
+                            <th>تبدیل‌شده</th><th>باقی‌مانده</th><th>دالر نهایی</th><th>اعلامی به کویته</th><th>مفاد / زیان</th><th>وضعیت</th><th>عملیات</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -75,6 +75,7 @@
                                 <td>@Money(deal.ConvertedAmount) @deal.SourceCurrencyCode</td>
                                 <td><strong>@Money(deal.RemainingAmount) @deal.SourceCurrencyCode</strong></td>
                                 <td>@Money(deal.TotalFinalUsd) USD</td>
+                                <td><strong>@Money(deal.TotalDeclaredUsd) USD</strong></td>
                                 <td class="@(deal.TotalProfitUsd >= 0 ? "text-success" : "text-danger")">@SignedMoney(deal.TotalProfitUsd) USD</td>
                                 <td><span class="badge @StatusClass(deal.Status)">@StatusText(deal.Status)</span></td>
                                 <td>
@@ -94,7 +95,7 @@
                             @if (expandedDealId == deal.Id)
                             {
                                 <tr class="table-light">
-                                    <td colspan="10">
+                                    <td colspan="11">
                                         <div class="p-2">
                                             <div class="mb-2"><strong>نرخ:</strong> @deal.AedPerUsdRate &nbsp; | &nbsp; <strong>گردکردن:</strong> @RoundingText(deal.RoundingDecimalPlaces)</div>
                                             @if (!string.IsNullOrWhiteSpace(deal.Note))
@@ -109,7 +110,7 @@
                                             {
                                                 <div class="table-responsive">
                                                     <table class="table table-sm mb-0 bg-white">
-                                                        <thead><tr><th>تاریخ</th><th>مبلغ تبدیل</th><th>دالر نهایی</th><th>مفاد / زیان</th><th>وضعیت</th><th></th></tr></thead>
+                                                        <thead><tr><th>تاریخ</th><th>مبلغ تبدیل</th><th>دالر نهایی</th><th>اعلامی به کویته</th><th>مفاد / زیان</th><th>وضعیت</th><th></th></tr></thead>
                                                         <tbody>
                                                             @foreach (var conversion in deal.Conversions)
                                                             {
@@ -117,6 +118,7 @@
                                                                     <td>@conversion.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
                                                                     <td>@Money(conversion.SourceAmount) @deal.SourceCurrencyCode</td>
                                                                     <td>@Money(conversion.FinalUsdAmount) USD</td>
+                                                                    <td><strong>@Money(conversion.DeclaredUsdAmount) USD</strong></td>
                                                                     <td class="@(conversion.ProfitUsd >= 0 ? "text-success" : "text-danger")">@SignedMoney(conversion.ProfitUsd) USD</td>
                                                                     <td>@(conversion.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</td>
                                                                     <td>
@@ -180,8 +182,9 @@
                 @if (preview != null)
                 {
                     <div class="row g-2 mt-3">
-                        <div class="col-md-6"><div class="alert alert-primary mb-0"><small>مبلغ نهایی قابل دریافت</small><div class="fs-5 fw-bold">@Money(preview.FinalUsdAmount) USD</div></div></div>
-                        <div class="col-md-6"><div class="alert @(preview.ProfitUsd >= 0 ? "alert-success" : "alert-danger") mb-0"><small>@(preview.ProfitUsd >= 0 ? "مفاد" : "زیان")</small><div class="fs-5 fw-bold">@Money(Math.Abs(preview.ProfitUsd)) USD</div></div></div>
+                        <div class="col-md-4"><div class="alert alert-primary mb-0"><small>مبلغ نهایی قابل دریافت</small><div class="fs-5 fw-bold">@Money(preview.FinalUsdAmount) USD</div></div></div>
+                        <div class="col-md-4"><div class="alert alert-warning mb-0"><small>مبلغ اعلامی به کویته</small><div class="fs-5 fw-bold">@Money(preview.DeclaredUsdAmount) USD</div></div></div>
+                        <div class="col-md-4"><div class="alert @(preview.ProfitUsd >= 0 ? "alert-success" : "alert-danger") mb-0"><small>@(preview.ProfitUsd >= 0 ? "مفاد" : "زیان")</small><div class="fs-5 fw-bold">@Money(Math.Abs(preview.ProfitUsd)) USD</div></div></div>
                     </div>
                 }
             </div>
@@ -268,7 +271,7 @@
         {
             isSaving = true; errorMessage = string.Empty;
             var current = await AedDealService.PreviewConversionAsync(conversionModel);
-            if (preview == null || current.SourceAmount != preview.SourceAmount || current.FinalUsdAmount != preview.FinalUsdAmount || current.ProfitUsd != preview.ProfitUsd) { preview = current; throw new InvalidOperationException("محاسبه به‌روز شد؛ نتیجه را دوباره بررسی و تأیید کنید."); }
+            if (preview == null || current.SourceAmount != preview.SourceAmount || current.FinalUsdAmount != preview.FinalUsdAmount || current.DeclaredUsdAmount != preview.DeclaredUsdAmount || current.ProfitUsd != preview.ProfitUsd) { preview = current; throw new InvalidOperationException("محاسبه به‌روز شد؛ نتیجه را دوباره بررسی و تأیید کنید."); }
             await AedDealService.ConvertAsync(conversionModel); showConvert = false; preview = null; successMessage = "تبدیل معامله با موفقیت در حسابداری ثبت شد."; await LoadAsync();
         }
         catch (Exception ex) { errorMessage = ex.Message; }

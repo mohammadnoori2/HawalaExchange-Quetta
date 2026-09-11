@@ -32,6 +32,7 @@ public sealed class AedConversionPreviewDto
     public decimal ActualMarker { get; set; }
     public decimal DeclaredMarker { get; set; }
     public decimal FinalUsdAmount { get; set; }
+    public decimal DeclaredUsdAmount { get; set; }
     public decimal ProfitUsd { get; set; }
     public int RoundingDecimalPlaces { get; set; }
 }
@@ -50,6 +51,7 @@ public sealed class AedDealDto
     public decimal ConvertedAmount { get; set; }
     public decimal RemainingAmount => OriginalAmount - ConvertedAmount;
     public decimal TotalFinalUsd { get; set; }
+    public decimal TotalDeclaredUsd { get; set; }
     public decimal TotalProfitUsd { get; set; }
     public decimal AedPerUsdRate { get; set; }
     public int RoundingDecimalPlaces { get; set; }
@@ -67,6 +69,7 @@ public sealed class AedDealConversionDto
     public decimal ActualMarker { get; set; }
     public decimal DeclaredMarker { get; set; }
     public decimal FinalUsdAmount { get; set; }
+    public decimal DeclaredUsdAmount { get; set; }
     public decimal ProfitUsd { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }

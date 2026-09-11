@@ -888,6 +888,7 @@ public class JournalService : IJournalService
                 Add(operation, "طرف دبی", aedConversion.Deal.DubaiCorrespondent.Name);
                 Add(operation, "مبلغ تبدیل", Money(aedConversion.SourceAmount, aedConversion.Deal.SourceCurrency.Code));
                 Add(operation, "مبلغ نهایی", Money(aedConversion.FinalUsdAmount, "USD"));
+                Add(operation, "مبلغ اعلامی به کویته", Money(aedConversion.DeclaredUsdAmount, "USD"));
                 Add(operation, aedConversion.ProfitUsd >= 0 ? "مفاد" : "زیان",
                     Money(Math.Abs(aedConversion.ProfitUsd), "USD"));
                 Add(operation, "وضعیت تبدیل", aedConversion.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده");

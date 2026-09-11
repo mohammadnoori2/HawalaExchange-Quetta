@@ -282,7 +282,8 @@ public sealed class AedDealService(ApplicationDbContext context) : IAedDealServi
             SourceAmount = dto.SourceAmount, RemainingAmountBefore = remaining,
             AedPerUsdRate = deal.AedPerUsdRate, ActualMarker = dto.ActualMarker,
             DeclaredMarker = dto.DeclaredMarker, FinalUsdAmount = finalUsd,
-            ProfitUsd = finalUsd - declaredUsd, RoundingDecimalPlaces = deal.RoundingDecimalPlaces
+            DeclaredUsdAmount = declaredUsd, ProfitUsd = finalUsd - declaredUsd,
+            RoundingDecimalPlaces = deal.RoundingDecimalPlaces
         };
     }
 
@@ -309,14 +310,17 @@ public sealed class AedDealService(ApplicationDbContext context) : IAedDealServi
         DubaiCorrespondentId = x.DubaiCorrespondentId, DubaiCorrespondentName = x.DubaiCorrespondent.Name,
         SourceCurrencyId = x.SourceCurrencyId, SourceCurrencyCode = x.SourceCurrency.Code,
         OriginalAmount = x.OriginalAmount, ConvertedAmount = x.ConvertedAmount,
-        TotalFinalUsd = x.TotalFinalUsd, TotalProfitUsd = x.TotalProfitUsd,
+        TotalFinalUsd = x.TotalFinalUsd,
+        TotalDeclaredUsd = x.Conversions.Where(c => c.Status == "Posted").Sum(c => c.DeclaredUsdAmount),
+        TotalProfitUsd = x.TotalProfitUsd,
         AedPerUsdRate = x.AedPerUsdRate, RoundingDecimalPlaces = x.RoundingDecimalPlaces,
         Status = x.Status, Note = x.Note, CreatedAt = x.CreatedAt,
         Conversions = x.Conversions.OrderByDescending(c => c.CreatedAt).Select(c => new AedDealConversionDto
         {
             Id = c.Id, SourceAmount = c.SourceAmount, AedPerUsdRate = c.AedPerUsdRate,
             ActualMarker = c.ActualMarker, DeclaredMarker = c.DeclaredMarker,
-            FinalUsdAmount = c.FinalUsdAmount, ProfitUsd = c.ProfitUsd,
+            FinalUsdAmount = c.FinalUsdAmount, DeclaredUsdAmount = c.DeclaredUsdAmount,
+            ProfitUsd = c.ProfitUsd,
             Status = c.Status, CreatedAt = c.CreatedAt
         }).ToList()
     };

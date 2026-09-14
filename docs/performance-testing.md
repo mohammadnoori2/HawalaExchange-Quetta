@@ -98,3 +98,11 @@ The measurement used 10,000 imported rows, which produced 18,000 Hawala records.
 The daily operational report is **51.51% faster** in this sample while returning corrected, currency-aware totals. All nine correctness and performance tests passed.
 
 The unchanged bulk-write path was also rechecked in three fresh databases: 5,551.44 ms, 5,826.87 ms, and 6,206.86 ms for 10,000 input rows. Its 5,826.87 ms median is within 10% of the phase-two 5,320.12 ms verification result; no bulk-write code changed in this phase.
+
+## Phase-four result — 2026-09-14
+
+Periodic correspondent commission preview and posting now use `usp_ProcessPeriodicCommission_v1` with the versioned `CommissionRateTableType_v1` table-valued parameter. The procedure performs the eligible-Hawala selection, currency conversion, per-lakh calculation, whole-number rounding, batch/item inserts, double-entry ledger posting, and audit insert as one database operation. Posting runs in a transaction and locks eligible rows; the existing filtered unique index remains the final safeguard against duplicate active commission items.
+
+Correctness tests cover mixed AFN/USD input, the default 200 AFN per lakh, partial-lakh calculation, whole-number midpoint rounding, cancelled and per-transaction-commission exclusions, missing-rate rollback, duplicate posting, concurrent posting, balanced accounting, reversal, and re-eligibility after reversal. All thirteen performance-suite tests passed.
+
+For 10,000 eligible Hawalas on the local SQL Server, a single measured run completed preview in **590.05 ms** and atomic posting in **408.44 ms**. The data-seeding time is excluded from those values. Unlike the previous EF implementation, posting does not materialize and track all eligible Hawalas or issue per-entity inserts.

@@ -3,7 +3,9 @@ using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HawalaExchange.Infrastructure.Services;
 
@@ -13,88 +15,38 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
     public async Task<CorrespondentCommissionPreviewDto> PreviewAsync(
         CorrespondentCommissionPreviewRequestDto request,
         CancellationToken cancellationToken = default) =>
-        await CalculateAsync(request, requireAllRates: false, cancellationToken);
+        await ExecutePreviewAsync(request, cancellationToken);
 
     public async Task<CorrespondentCommissionBatchDto> PostAsync(
         CorrespondentCommissionPreviewRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        context.ChangeTracker.Clear();
-        await using var dbTransaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
-
-        var preview = await CalculateAsync(request, requireAllRates: true, cancellationToken);
-        if (preview.HawalaCount == 0)
-            throw new InvalidOperationException("حواله محاسبه‌نشده‌ای در این دوره وجود ندارد.");
-        if (preview.TotalCommissionUsd <= 0)
-            throw new InvalidOperationException("کمیشن نهایی پس از گردکردن کمتر از یک دالر است و قابل ثبت نیست.");
-
-        var correspondent = await GetPeriodicCorrespondentAsync(request.CorrespondentId, cancellationToken);
-        var usd = await context.Currencies.SingleOrDefaultAsync(x => x.Code == "USD" && x.IsActive, cancellationToken)
-                  ?? throw new InvalidOperationException("ارز فعال USD در سیستم یافت نشد.");
-        var correspondentAccount = await context.Accounts.SingleOrDefaultAsync(
-            x => x.CorrespondentId == correspondent.Id && !x.IsArchived, cancellationToken)
-            ?? throw new InvalidOperationException("حساب فعال نمایندگی یافت نشد.");
-        var incomeAccount = await GetOrCreateCommissionIncomeAccountAsync(cancellationToken);
-        var transaction = new Transaction
-        {
-            TransactionNo = await GenerateTransactionNumberAsync("PC", cancellationToken),
-            TransactionType = "PeriodicCorrespondentCommission",
-            BranchId = await context.GetDefaultBranchIdAsync(cancellationToken),
-            Status = "Paid",
-            Remarks = $"کمیشن دوره‌ای نمایندگی {correspondent.Name} از {request.PeriodFrom:yyyy-MM-dd} تا {request.PeriodTo:yyyy-MM-dd}",
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow
-        };
-        context.Transactions.Add(transaction);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var batch = new CorrespondentCommissionBatch
-        {
-            CorrespondentId = correspondent.Id,
-            PeriodFrom = request.PeriodFrom.Date,
-            PeriodTo = request.PeriodTo.Date,
-            CommissionPerLakhAfn = request.CommissionPerLakhAfn,
-            UsdToAfnRate = request.UsdToAfnRate,
-            TotalBaseAfn = preview.TotalBaseAfn,
-            TotalCommissionAfn = preview.TotalCommissionAfn,
-            TotalCommissionUsd = preview.TotalCommissionUsd,
-            PostingTransactionId = transaction.Id,
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow,
-            Status = "Posted"
-        };
-        foreach (var item in preview.Items)
-        {
-            batch.Items.Add(new CorrespondentCommissionBatchItem
+        ValidateRequest(request, requireUsdRate: true);
+        var rates = CreateRatesTable(request.Rates);
+        return await WithProcedureAsync(
+            "Post", request, rates,
+            async reader =>
             {
-                HawalaId = item.HawalaId,
-                SourceCurrencyId = item.CurrencyId,
-                SourceAmount = item.SourceAmount,
-                SourceToAfnRate = item.SourceToAfnRate,
-                AfnEquivalent = item.AfnEquivalent,
-                CommissionAfn = item.CommissionAfn,
-                IsActive = true
-            });
-        }
-        context.CorrespondentCommissionBatches.Add(batch);
+                if (!await reader.ReadAsync(cancellationToken))
+                    throw new InvalidOperationException("نتیجه ثبت کمیشن از دیتابیس دریافت نشد.");
 
-        var description = $"کمیشن دوره‌ای نمایندگی {correspondent.Name}، {preview.HawalaCount} حواله";
-        context.LedgerEntries.AddRange(
-            NewEntry(transaction.Id, correspondentAccount.Id, usd.Id, 0, preview.TotalCommissionUsd, description),
-            NewEntry(transaction.Id, incomeAccount.Id, usd.Id, preview.TotalCommissionUsd, 0, description));
-        await context.SaveChangesAsync(cancellationToken);
-
-        context.AuditLogs.Add(new AuditLog
-        {
-            UserId = context.RequireCurrentUserId(), Action = "POST_PERIODIC_COMMISSION",
-            TableName = "CorrespondentCommissionBatches", RecordId = batch.Id,
-            NewValue = $"کمیشن {preview.HawalaCount} حواله به مبلغ {preview.TotalCommissionUsd} USD ثبت شد.",
-            CreatedAt = DateTime.UtcNow
-        });
-        await context.SaveChangesAsync(cancellationToken);
-        await dbTransaction.CommitAsync(cancellationToken);
-        return Map(batch, correspondent.Name);
+                return new CorrespondentCommissionBatchDto
+                {
+                    Id = reader.GetInt64(0),
+                    CorrespondentId = reader.GetInt64(1),
+                    CorrespondentName = reader.GetString(2),
+                    PeriodFrom = reader.GetDateTime(3),
+                    PeriodTo = reader.GetDateTime(4),
+                    HawalaCount = reader.GetInt32(5),
+                    CommissionPerLakhAfn = reader.GetDecimal(6),
+                    UsdToAfnRate = reader.GetDecimal(7),
+                    TotalBaseAfn = reader.GetDecimal(8),
+                    TotalCommissionAfn = reader.GetDecimal(9),
+                    TotalCommissionUsd = reader.GetDecimal(10),
+                    Status = reader.GetString(11),
+                    CreatedAt = reader.GetDateTime(12)
+                };
+            }, cancellationToken);
     }
 
     public async Task<IReadOnlyList<CorrespondentCommissionBatchDto>> GetHistoryAsync(
@@ -171,95 +123,133 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         await dbTransaction.CommitAsync(cancellationToken);
     }
 
-    private async Task<CorrespondentCommissionPreviewDto> CalculateAsync(
+    private async Task<CorrespondentCommissionPreviewDto> ExecutePreviewAsync(
         CorrespondentCommissionPreviewRequestDto request,
-        bool requireAllRates,
         CancellationToken cancellationToken)
     {
+        ValidateRequest(request, requireUsdRate: false);
+        var rates = CreateRatesTable(request.Rates);
+        return await WithProcedureAsync(
+            "Preview", request, rates,
+            async reader =>
+            {
+                if (!await reader.ReadAsync(cancellationToken))
+                    throw new InvalidOperationException("نتیجه محاسبه کمیشن از دیتابیس دریافت نشد.");
+
+                var result = new CorrespondentCommissionPreviewDto
+                {
+                    CorrespondentId = reader.GetInt64(0),
+                    CorrespondentName = reader.GetString(1),
+                    PeriodFrom = reader.GetDateTime(2),
+                    PeriodTo = reader.GetDateTime(3),
+                    HawalaCount = reader.GetInt32(4),
+                    TotalBaseAfn = reader.GetDecimal(5),
+                    TotalCommissionAfn = reader.GetDecimal(6),
+                    TotalCommissionUsd = reader.GetDecimal(7)
+                };
+
+                await reader.NextResultAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                    result.Rates.Add(new CorrespondentCommissionRateDto
+                    {
+                        CurrencyId = reader.GetInt64(0),
+                        CurrencyCode = reader.GetString(1),
+                        TotalAmount = reader.GetDecimal(2),
+                        SourceToAfnRate = reader.GetDecimal(3)
+                    });
+
+                await reader.NextResultAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                    result.Items.Add(new CorrespondentCommissionItemDto
+                    {
+                        HawalaId = reader.GetInt64(0),
+                        HawalaNumber = reader.GetInt64(1),
+                        HawalaDate = reader.GetDateTime(2),
+                        CurrencyId = reader.GetInt64(3),
+                        CurrencyCode = reader.GetString(4),
+                        SourceAmount = reader.GetDecimal(5),
+                        SourceToAfnRate = reader.GetDecimal(6),
+                        AfnEquivalent = reader.GetDecimal(7),
+                        CommissionAfn = reader.GetDecimal(8)
+                    });
+                return result;
+            }, cancellationToken);
+    }
+
+    private async Task<T> WithProcedureAsync<T>(
+        string mode,
+        CorrespondentCommissionPreviewRequestDto request,
+        DataTable rates,
+        Func<SqlDataReader, Task<T>> readResult,
+        CancellationToken cancellationToken)
+    {
+        var connection = (SqlConnection)context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync(cancellationToken);
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "dbo.usp_ProcessPeriodicCommission_v1";
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandTimeout = 180;
+            command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction;
+            ConfigureCommand(command, mode, request, rates);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            return await readResult(reader);
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    private void ConfigureCommand(
+        SqlCommand command,
+        string mode,
+        CorrespondentCommissionPreviewRequestDto request,
+        DataTable rates)
+    {
+        command.Parameters.Add(new SqlParameter("@Mode", SqlDbType.NVarChar, 10) { Value = mode });
+        command.Parameters.Add(new SqlParameter("@TenantId", SqlDbType.BigInt) { Value = context.CurrentTenantId });
+        command.Parameters.Add(new SqlParameter("@CurrentUserId", SqlDbType.BigInt) { Value = context.RequireCurrentUserId() });
+        command.Parameters.Add(new SqlParameter("@CorrespondentId", SqlDbType.BigInt) { Value = request.CorrespondentId });
+        command.Parameters.Add(new SqlParameter("@PeriodFrom", SqlDbType.Date) { Value = request.PeriodFrom.Date });
+        command.Parameters.Add(new SqlParameter("@PeriodTo", SqlDbType.Date) { Value = request.PeriodTo.Date });
+        command.Parameters.Add(new SqlParameter("@FromUtc", SqlDbType.DateTime2) { Value = request.PeriodFrom.Date.ToUniversalTime() });
+        command.Parameters.Add(new SqlParameter("@ToUtcExclusive", SqlDbType.DateTime2) { Value = request.PeriodTo.Date.AddDays(1).ToUniversalTime() });
+        command.Parameters.Add(new SqlParameter("@CommissionPerLakhAfn", SqlDbType.Decimal)
+            { Precision = 18, Scale = 4, Value = request.CommissionPerLakhAfn });
+        command.Parameters.Add(new SqlParameter("@UsdToAfnRate", SqlDbType.Decimal)
+            { Precision = 18, Scale = 8, Value = request.UsdToAfnRate });
+        command.Parameters.Add(new SqlParameter("@Rates", SqlDbType.Structured)
+            { TypeName = "dbo.CommissionRateTableType_v1", Value = rates });
+    }
+
+    private static DataTable CreateRatesTable(IEnumerable<CorrespondentCommissionRateDto> suppliedRates)
+    {
+        var table = new DataTable();
+        table.Columns.Add("CurrencyId", typeof(long));
+        table.Columns.Add("SourceToAfnRate", typeof(decimal));
+        foreach (var rate in suppliedRates.Where(x => x.CurrencyId > 0)
+                     .GroupBy(x => x.CurrencyId).Select(x => x.Last()))
+            table.Rows.Add(rate.CurrencyId, rate.SourceToAfnRate);
+        return table;
+    }
+
+    private static void ValidateRequest(CorrespondentCommissionPreviewRequestDto request, bool requireUsdRate)
+    {
+        if (request.CorrespondentId <= 0)
+            throw new InvalidOperationException("نمایندگی معتبر انتخاب نشده است.");
         if (request.PeriodTo.Date < request.PeriodFrom.Date)
             throw new InvalidOperationException("تاریخ پایان نمی‌تواند قبل از تاریخ آغاز باشد.");
         if (request.CommissionPerLakhAfn <= 0)
             throw new InvalidOperationException("کمیشن هر لک باید بزرگ‌تر از صفر باشد.");
-        if (request.UsdToAfnRate <= 0 && requireAllRates)
+        if (requireUsdRate && request.UsdToAfnRate <= 0)
             throw new InvalidOperationException("نرخ تبدیل USD به AFN الزامی است.");
-
-        var correspondent = await GetPeriodicCorrespondentAsync(request.CorrespondentId, cancellationToken);
-        var endExclusive = request.PeriodTo.Date.AddDays(1);
-        var hawalas = await context.Hawalas.AsNoTracking()
-            .Where(x => x.CorrespondentId == request.CorrespondentId && x.HawalaType == "HawalaReceive" &&
-                        x.Status != "Cancel" && x.CreatedAt >= request.PeriodFrom.Date && x.CreatedAt < endExclusive &&
-                        (!x.CommissionAmount.HasValue || x.CommissionAmount == 0) &&
-                        !context.CorrespondentCommissionBatchItems.Any(i => i.HawalaId == x.Id && i.IsActive))
-            .Select(x => new { x.Id, x.Number, x.CreatedAt, x.FromCurrencyId, CurrencyCode = x.FromCurrency!.Code, x.FromAmount })
-            .OrderBy(x => x.CreatedAt).ThenBy(x => x.Number).ToListAsync(cancellationToken);
-
-        var suppliedRates = request.Rates.Where(x => x.CurrencyId > 0)
-            .GroupBy(x => x.CurrencyId).ToDictionary(x => x.Key, x => x.Last().SourceToAfnRate);
-        var afnId = await context.Currencies.Where(x => x.Code == "AFN" && x.IsActive)
-            .Select(x => (long?)x.Id).SingleOrDefaultAsync(cancellationToken);
-        var rates = hawalas.GroupBy(x => new { x.FromCurrencyId, x.CurrencyCode })
-            .Select(x => new CorrespondentCommissionRateDto
-            {
-                CurrencyId = x.Key.FromCurrencyId, CurrencyCode = x.Key.CurrencyCode,
-                TotalAmount = x.Sum(y => y.FromAmount),
-                SourceToAfnRate = x.Key.FromCurrencyId == afnId
-                    ? 1
-                    : Math.Max(0, suppliedRates.GetValueOrDefault(x.Key.FromCurrencyId))
-            }).ToList();
-        if (requireAllRates && rates.Any(x => x.SourceToAfnRate <= 0))
-            throw new InvalidOperationException($"نرخ تبدیل به افغانی برای {string.Join("، ", rates.Where(x => x.SourceToAfnRate <= 0).Select(x => x.CurrencyCode))} وارد نشده است.");
-
-        var rateMap = rates.ToDictionary(x => x.CurrencyId, x => x.SourceToAfnRate);
-        var items = hawalas.Select(x =>
-        {
-            var rate = rateMap[x.FromCurrencyId];
-            var afn = x.FromAmount * rate;
-            return new CorrespondentCommissionItemDto
-            {
-                HawalaId = x.Id, HawalaNumber = x.Number, HawalaDate = x.CreatedAt,
-                CurrencyId = x.FromCurrencyId, CurrencyCode = x.CurrencyCode, SourceAmount = x.FromAmount, SourceToAfnRate = rate,
-                AfnEquivalent = afn,
-                CommissionAfn = afn / 100_000m * request.CommissionPerLakhAfn
-            };
-        }).ToList();
-        var totalBase = items.Sum(x => x.AfnEquivalent);
-        var totalCommissionAfn = RoundWhole(totalBase / 100_000m * request.CommissionPerLakhAfn);
-        var totalCommissionUsd = request.UsdToAfnRate > 0
-            ? RoundWhole(totalCommissionAfn / request.UsdToAfnRate) : 0;
-
-        return new CorrespondentCommissionPreviewDto
-        {
-            CorrespondentId = correspondent.Id, CorrespondentName = correspondent.Name,
-            PeriodFrom = request.PeriodFrom.Date, PeriodTo = request.PeriodTo.Date,
-            HawalaCount = items.Count, Rates = rates, Items = items,
-            TotalBaseAfn = totalBase, TotalCommissionAfn = totalCommissionAfn,
-            TotalCommissionUsd = totalCommissionUsd
-        };
-    }
-
-    private async Task<Correspondent> GetPeriodicCorrespondentAsync(long id, CancellationToken cancellationToken)
-    {
-        var correspondent = await context.Correspondents.SingleOrDefaultAsync(x => x.Id == id && !x.IsArchived, cancellationToken)
-            ?? throw new KeyNotFoundException("نمایندگی فعال یافت نشد.");
-        if (correspondent.CommissionMethod != "PeriodicPerLakh")
-            throw new InvalidOperationException("روش کمیشن این نمایندگی دوره‌ای بر اساس هر لک نیست.");
-        return correspondent;
-    }
-
-    private async Task<Account> GetOrCreateCommissionIncomeAccountAsync(CancellationToken cancellationToken)
-    {
-        const string code = "3001";
-        var account = await context.Accounts.SingleOrDefaultAsync(x => x.AccountCode == code, cancellationToken);
-        if (account != null)
-        {
-            if (account.IsArchived || account.AccountType != "Income")
-                throw new InvalidOperationException("حساب 3001 باید یک حساب درآمد فعال باشد.");
-            return account;
-        }
-        account = new Account { AccountCode = code, AccountName = "کارمزد حواله", AccountType = "Income", CreatedAt = DateTime.UtcNow };
-        context.Accounts.Add(account);
-        await context.SaveChangesAsync(cancellationToken);
-        return account;
+        if (request.Rates.Any(x => x.SourceToAfnRate < 0))
+            throw new InvalidOperationException("نرخ تبدیل ارز نمی‌تواند منفی باشد.");
     }
 
     private static LedgerEntry NewEntry(long transactionId, long accountId, long currencyId,
@@ -277,13 +267,4 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         return $"{start}{next:D4}";
     }
 
-    private static decimal RoundWhole(decimal value) => decimal.Round(value, 0, MidpointRounding.AwayFromZero);
-    private static CorrespondentCommissionBatchDto Map(CorrespondentCommissionBatch x, string name) => new()
-    {
-        Id = x.Id, CorrespondentId = x.CorrespondentId, CorrespondentName = name,
-        PeriodFrom = x.PeriodFrom, PeriodTo = x.PeriodTo, HawalaCount = x.Items.Count,
-        CommissionPerLakhAfn = x.CommissionPerLakhAfn, UsdToAfnRate = x.UsdToAfnRate,
-        TotalBaseAfn = x.TotalBaseAfn, TotalCommissionAfn = x.TotalCommissionAfn,
-        TotalCommissionUsd = x.TotalCommissionUsd, Status = x.Status, CreatedAt = x.CreatedAt
-    };
 }

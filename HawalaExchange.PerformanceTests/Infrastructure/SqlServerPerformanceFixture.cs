@@ -3,6 +3,7 @@ using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using HawalaExchange.Infrastructure.Services;
 using HawalaSystem.Mappings;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -139,6 +140,7 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
     }
 
     public ReportService CreateReportService(ApplicationDbContext context) => new(context);
+    public CorrespondentCommissionService CreateCommissionService(ApplicationDbContext context) => new(context);
 
     public Correspondent SourceCorrespondent { get; private set; } = null!;
     public Correspondent DestinationCorrespondent { get; private set; } = null!;

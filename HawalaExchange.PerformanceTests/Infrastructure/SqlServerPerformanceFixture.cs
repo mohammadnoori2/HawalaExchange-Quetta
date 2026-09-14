@@ -141,6 +141,7 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
 
     public ReportService CreateReportService(ApplicationDbContext context) => new(context);
     public CorrespondentCommissionService CreateCommissionService(ApplicationDbContext context) => new(context);
+    public CorrespondentSettlementService CreateSettlementService(ApplicationDbContext context) => new(context);
 
     public Correspondent SourceCorrespondent { get; private set; } = null!;
     public Correspondent DestinationCorrespondent { get; private set; } = null!;

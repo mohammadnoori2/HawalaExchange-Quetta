@@ -106,3 +106,13 @@ Periodic correspondent commission preview and posting now use `usp_ProcessPeriod
 Correctness tests cover mixed AFN/USD input, the default 200 AFN per lakh, partial-lakh calculation, whole-number midpoint rounding, cancelled and per-transaction-commission exclusions, missing-rate rollback, duplicate posting, concurrent posting, balanced accounting, reversal, and re-eligibility after reversal. All thirteen performance-suite tests passed.
 
 For 10,000 eligible Hawalas on the local SQL Server, a single measured run completed preview in **590.05 ms** and atomic posting in **408.44 ms**. The data-seeding time is excluded from those values. Unlike the previous EF implementation, posting does not materialize and track all eligible Hawalas or issue per-entity inserts.
+
+## Phase-five result — 2026-09-14
+
+Both correspondent settlement workflows now use `usp_ProcessCorrespondentSettlement_v1`: conversion of explicitly selected Hawalas and conversion of selected account-currency balances. Hawala identifiers and per-Hawala/per-currency rates are passed with versioned table-valued parameters, and all validation, quotation-direction calculation, conversion/item/link creation, four-sided currency ledger posting, and auditing are performed set-wise in one transaction.
+
+An application lock serializes settlement for the same tenant and correspondent, while the existing unique Hawala-conversion indexes remain database-level safeguards. A failed or repeated conversion leaves no partial transaction, conversion, link, item, ledger, or audit records.
+
+Correctness coverage verifies multiply and divide quotation directions, target-currency rounding, creditor and debtor balances, per-currency double-entry balance, selected-Hawala conversion, post-conversion rate editing, whole-account conversion, missing-rate rollback, duplicate-conversion rejection, and concurrent-request serialization. All eighteen performance-suite tests passed.
+
+For 10,000 selected Hawalas, the procedure created 10,000 conversion items and 40,000 balanced ledger entries in **5,489.95 ms** (**1,821.51 Hawalas/second**) on the local SQL Server. Data seeding is excluded from this measurement.

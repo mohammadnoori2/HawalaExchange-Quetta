@@ -60,3 +60,18 @@ The `SqlBulkCopy` batch size was increased from 2,000 to 10,000. Database constr
 | 10,000 | 4,978.33 | 4,988.94 | 5,397.27 | 4,988.94 | 7,973.43 | -37.4% |
 
 At 10,000 rows, median throughput increased from about 1,254 to 2,004 input rows per second. The test also enforces a maximum of 15 EF commands so that a future per-row query regression is detected.
+
+## Phase-two result — 2026-09-14
+
+The Hawala statistics endpoint previously loaded every Hawala entity, including all text and identity fields, into application memory and then counted the records in C#. It now calls the tenant-scoped `usp_GetHawalaStatistics_v1` procedure, which calculates all five totals in one indexed database scan and returns one row.
+
+The measurement used 18,000 Hawala records: 10,000 received Hawalas and 8,000 generated sends.
+
+| Implementation | Median of three reads |
+| --- | ---: |
+| Previous entity materialization and in-memory counting | 1,034.71 ms |
+| Stored procedure aggregation | 29.53 ms |
+
+The statistics read is **97.15% faster** in this sample and no longer allocates thousands of Hawala entities. The procedure requires `TenantId`, does not use dirty reads, and uses the existing `(TenantId, HawalaType, Status)` index.
+
+A stored-procedure implementation was also evaluated for the bulk-write path. It was rejected because its 10,000-row result was slower than the phase-one `SqlBulkCopy` implementation. Bulk posting therefore remains on the verified 4,988.94 ms median path; stored procedures are used only where measurements show a benefit.

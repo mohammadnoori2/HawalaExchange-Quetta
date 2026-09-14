@@ -346,16 +346,40 @@
 
             public async Task<HawalaStatisticsDto> GetStatisticsAsync()
             {
-                var all = await _context.Hawalas.ToListAsync();
+                var connection = (SqlConnection)_context.Database.GetDbConnection();
+                var shouldClose = connection.State != ConnectionState.Open;
+                if (shouldClose)
+                    await connection.OpenAsync();
 
-                return new HawalaStatisticsDto
+                try
                 {
-                    HawalaSendCount = all.Count(h => h.HawalaType == "HawalaSend"),
-                    HawalaReceiveCount = all.Count(h => h.HawalaType == "HawalaReceive"),
-                    HawalaOtherCount = all.Count(h => h.HawalaType == "HawalaOther"),
-                    PendingCount = all.Count(h => h.Status == "Pending"),
-                    PaidCount = all.Count(h => h.Status == "Paid")
-                };
+                    var transaction = _context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction;
+                    await using var command = new SqlCommand(
+                        "[dbo].[usp_GetHawalaStatistics_v1]", connection, transaction)
+                    {
+                        CommandType = CommandType.StoredProcedure,
+                        CommandTimeout = 30
+                    };
+                    command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+
+                    await using var reader = await command.ExecuteReaderAsync();
+                    if (!await reader.ReadAsync())
+                        return new HawalaStatisticsDto();
+
+                    return new HawalaStatisticsDto
+                    {
+                        HawalaSendCount = checked((int)reader.GetInt64(0)),
+                        HawalaReceiveCount = checked((int)reader.GetInt64(1)),
+                        HawalaOtherCount = checked((int)reader.GetInt64(2)),
+                        PendingCount = checked((int)reader.GetInt64(3)),
+                        PaidCount = checked((int)reader.GetInt64(4))
+                    };
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await connection.CloseAsync();
+                }
             }
 
             public async Task<HawalaDto> UpdateHawalaAsync(long id, UpdateHawalaDto dto)

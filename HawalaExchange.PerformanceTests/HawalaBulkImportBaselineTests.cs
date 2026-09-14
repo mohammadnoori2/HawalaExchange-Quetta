@@ -141,6 +141,92 @@ public sealed class HawalaBulkImportBaselineTests(
     }
 
     [Fact]
+    public async Task Hawala_statistics_match_tenant_filtered_database_counts()
+    {
+        await using var context = fixture.CreateContext();
+        var service = fixture.CreateService(context);
+
+        var expected = new HawalaStatisticsDto
+        {
+            HawalaSendCount = await context.Hawalas.CountAsync(x => x.HawalaType == "HawalaSend"),
+            HawalaReceiveCount = await context.Hawalas.CountAsync(x => x.HawalaType == "HawalaReceive"),
+            HawalaOtherCount = await context.Hawalas.CountAsync(x => x.HawalaType == "HawalaOther"),
+            PendingCount = await context.Hawalas.CountAsync(x => x.Status == "Pending"),
+            PaidCount = await context.Hawalas.CountAsync(x => x.Status == "Paid")
+        };
+
+        var actual = await service.GetStatisticsAsync();
+
+        Assert.Equal(expected.HawalaSendCount, actual.HawalaSendCount);
+        Assert.Equal(expected.HawalaReceiveCount, actual.HawalaReceiveCount);
+        Assert.Equal(expected.HawalaOtherCount, actual.HawalaOtherCount);
+        Assert.Equal(expected.PendingCount, actual.PendingCount);
+        Assert.Equal(expected.PaidCount, actual.PaidCount);
+    }
+
+    [Fact]
+    public async Task Measure_hawala_statistics_stored_procedure()
+    {
+        if (!string.Equals(Environment.GetEnvironmentVariable("RUN_HAWALA_PERF"), "1", StringComparison.Ordinal))
+        {
+            output.WriteLine("Statistics performance sample was not run. Set RUN_HAWALA_PERF=1 to enable it.");
+            return;
+        }
+
+        const int rowCount = 10_000;
+        const long numberBase = 70_000_000;
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var service = fixture.CreateService(context);
+        await service.CreateHawalasAsync(BuildItems(rowCount, numberBase));
+        context.ChangeTracker.Clear();
+
+        var oldDurations = new List<double>();
+        var procedureDurations = new List<double>();
+        HawalaStatisticsDto? expected = null;
+        HawalaStatisticsDto? actual = null;
+        for (var run = 0; run < 3; run++)
+        {
+            context.ChangeTracker.Clear();
+            var oldStopwatch = Stopwatch.StartNew();
+            var all = await context.Hawalas.ToListAsync();
+            expected = new HawalaStatisticsDto
+            {
+                HawalaSendCount = all.Count(x => x.HawalaType == "HawalaSend"),
+                HawalaReceiveCount = all.Count(x => x.HawalaType == "HawalaReceive"),
+                HawalaOtherCount = all.Count(x => x.HawalaType == "HawalaOther"),
+                PendingCount = all.Count(x => x.Status == "Pending"),
+                PaidCount = all.Count(x => x.Status == "Paid")
+            };
+            oldStopwatch.Stop();
+            oldDurations.Add(oldStopwatch.Elapsed.TotalMilliseconds);
+
+            var procedureStopwatch = Stopwatch.StartNew();
+            actual = await service.GetStatisticsAsync();
+            procedureStopwatch.Stop();
+            procedureDurations.Add(procedureStopwatch.Elapsed.TotalMilliseconds);
+        }
+
+        Assert.NotNull(expected);
+        Assert.NotNull(actual);
+        Assert.Equal(expected.HawalaSendCount, actual.HawalaSendCount);
+        Assert.Equal(expected.HawalaReceiveCount, actual.HawalaReceiveCount);
+        Assert.Equal(expected.HawalaOtherCount, actual.HawalaOtherCount);
+        Assert.Equal(expected.PendingCount, actual.PendingCount);
+        Assert.Equal(expected.PaidCount, actual.PaidCount);
+
+        oldDurations.Sort();
+        procedureDurations.Sort();
+        output.WriteLine(JsonSerializer.Serialize(new
+        {
+            rowsInTenant = expected.HawalaSendCount + expected.HawalaReceiveCount + expected.HawalaOtherCount,
+            previousMedianMilliseconds = Math.Round(oldDurations[1], 2),
+            storedProcedureMedianMilliseconds = Math.Round(procedureDurations[1], 2),
+            improvementPercent = Math.Round((1 - procedureDurations[1] / oldDurations[1]) * 100, 2)
+        }));
+    }
+
+    [Fact]
     public async Task Measure_bulk_import_for_100_1000_and_10000_rows()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("RUN_HAWALA_PERF"), "1", StringComparison.Ordinal))

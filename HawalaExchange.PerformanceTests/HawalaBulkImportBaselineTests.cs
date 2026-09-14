@@ -29,6 +29,8 @@ public sealed class HawalaBulkImportBaselineTests(
         var result = await service.CreateHawalasAsync(items);
         stopwatch.Stop();
         var commandCount = fixture.Commands.Count;
+        var efDuration = fixture.Commands.TotalDuration;
+        var slowestEf = fixture.Commands.Slowest;
 
         context.ChangeTracker.Clear();
         var received = await InRange(context.Hawalas.AsNoTracking(), "HawalaReceive", numberBase, rowCount)
@@ -60,6 +62,7 @@ public sealed class HawalaBulkImportBaselineTests(
             .SingleAsync();
 
         Assert.Equal(rowCount, result.Count);
+        Assert.InRange(commandCount, 1, 15);
         Assert.Equal(rowCount, received.Count);
         Assert.Equal(remoteItems.Count, generated.Count);
         Assert.All(received, x =>
@@ -77,7 +80,8 @@ public sealed class HawalaBulkImportBaselineTests(
         Assert.Equal(commissionAmount,
             ledger.Where(x => x.AccountId == commissionExpenseAccountId).Sum(x => x.BadehKar));
 
-        WriteResult(rowCount, stopwatch.Elapsed, commandCount, received.Count, generated.Count, ledger.Count);
+        WriteResult(rowCount, stopwatch.Elapsed, commandCount, efDuration, slowestEf,
+            received.Count, generated.Count, ledger.Count);
     }
 
     [Fact]
@@ -159,6 +163,9 @@ public sealed class HawalaBulkImportBaselineTests(
             await service.CreateHawalasAsync(items);
             stopwatch.Stop();
             var commandCount = fixture.Commands.Count;
+            var efDuration = fixture.Commands.TotalDuration;
+            var slowestEf = fixture.Commands.Slowest;
+            Assert.InRange(commandCount, 1, 15);
 
             context.ChangeTracker.Clear();
             var received = await InRange(context.Hawalas.AsNoTracking(), "HawalaReceive", numberBase, rowCount)
@@ -173,7 +180,8 @@ public sealed class HawalaBulkImportBaselineTests(
                     (receivedIds.Contains(x.HawalaId.Value) ||
                      context.Hawalas.Any(h => h.Id == x.HawalaId.Value && h.SourceHawalaId.HasValue && receivedIds.Contains(h.SourceHawalaId.Value))));
 
-            WriteResult(rowCount, stopwatch.Elapsed, commandCount, received, generated, ledger);
+            WriteResult(rowCount, stopwatch.Elapsed, commandCount, efDuration, slowestEf,
+                received, generated, ledger);
         }
     }
 
@@ -227,6 +235,8 @@ public sealed class HawalaBulkImportBaselineTests(
         int rows,
         TimeSpan elapsed,
         long commands,
+        TimeSpan efDuration,
+        CommandTiming? slowestEf,
         int received,
         int generated,
         int ledger)
@@ -238,6 +248,9 @@ public sealed class HawalaBulkImportBaselineTests(
             elapsedMilliseconds = Math.Round(elapsed.TotalMilliseconds, 2),
             rowsPerSecond = Math.Round(rows / elapsed.TotalSeconds, 2),
             efCommands = commands,
+            efMilliseconds = Math.Round(efDuration.TotalMilliseconds, 2),
+            slowestEfMilliseconds = Math.Round(slowestEf?.Duration.TotalMilliseconds ?? 0, 2),
+            slowestEfCommand = slowestEf?.CommandSummary,
             received,
             generated,
             ledger

@@ -46,3 +46,17 @@ Environment: Windows, .NET SDK 10.0.400, .NET runtime 10.0.11, local SQL Server,
 The first 100-row result in run 1 was warm because the correctness test had already created the two system accounts. Runs 2 and 3 used fresh databases, which explains the cold 100-row cost. The 10,000-row acceptance reference for the next phase is **7,973.43 ms median**.
 
 All four phase-zero tests passed: accounting/link integrity, full transaction rollback, tenant isolation, and the three-size measurement scenario.
+
+## Phase-one result — 2026-09-14
+
+Profiling showed that EF validation and lookup queries accounted for roughly 0.5 seconds of a 10,000-row run. Adding another index would therefore offer little benefit to this write-heavy path and would add index-maintenance work to every insert.
+
+The `SqlBulkCopy` batch size was increased from 2,000 to 10,000. Database constraints, the outer SQL transaction, tenant filters, and all accounting rules remain enabled.
+
+| Input rows | Run 1 (ms) | Run 2 (ms) | Run 3 (ms) | Median (ms) | Previous median (ms) | Change |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 100 | 618.50 | 646.47 | 650.72 | 646.47 | 885.82 | -27.0% |
+| 1,000 | 1,341.71 | 1,469.21 | 1,351.42 | 1,351.42 | 1,704.13 | -20.7% |
+| 10,000 | 4,978.33 | 4,988.94 | 5,397.27 | 4,988.94 | 7,973.43 | -37.4% |
+
+At 10,000 rows, median throughput increased from about 1,254 to 2,004 input rows per second. The test also enforces a maximum of 15 EF commands so that a future per-row query regression is detected.

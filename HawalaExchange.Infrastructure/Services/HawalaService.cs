@@ -13,6 +13,7 @@
     {
         public class HawalaService : IHawalaService
         {
+            private const int BulkCopyBatchSize = 10_000;
             private readonly ApplicationDbContext _context;
             private readonly IMapper _mapper;
             private readonly ILedgerService _ledgerService;
@@ -1038,7 +1039,7 @@
                     dbTransaction)
                 {
                     DestinationTableName = destinationTable,
-                    BatchSize = 2_000,
+                    BatchSize = BulkCopyBatchSize,
                     BulkCopyTimeout = 120,
                     EnableStreaming = true
                 };

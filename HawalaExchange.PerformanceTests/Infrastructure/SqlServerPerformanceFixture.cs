@@ -138,6 +138,8 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
             Mock.Of<IFileService>());
     }
 
+    public ReportService CreateReportService(ApplicationDbContext context) => new(context);
+
     public Correspondent SourceCorrespondent { get; private set; } = null!;
     public Correspondent DestinationCorrespondent { get; private set; } = null!;
     public Account SourceAccount { get; private set; } = null!;

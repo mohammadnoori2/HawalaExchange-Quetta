@@ -13,8 +13,11 @@ namespace HawalaExchange.Application.DTOs
         public decimal TotalSendAmount { get; set; }
         public decimal TotalReceiveAmount { get; set; }
         public decimal TotalCommission { get; set; }
+        public decimal TotalAgentCommission { get; set; }
         public decimal TotalExpenses { get; set; }
         public decimal NetIncome { get; set; }
+        public long? CurrencyId { get; set; }
+        public string? CurrencyCode { get; set; }
     }
 
     public class TransactionReportDto
@@ -30,6 +33,7 @@ namespace HawalaExchange.Application.DTOs
         public string ToCurrency { get; set; }
         public decimal ToAmount { get; set; }
         public decimal Commission { get; set; }
+        public string CommissionCurrency { get; set; } = "N/A";
         public string Status { get; set; }
     }
 
@@ -41,6 +45,8 @@ namespace HawalaExchange.Application.DTOs
         public decimal TotalCommission { get; set; }
         public decimal TotalAgentCommission { get; set; }
         public decimal NetCommission { get; set; }
+        public long? CurrencyId { get; set; }
+        public string? CurrencyCode { get; set; }
     }
 
     public class TrialBalanceDto

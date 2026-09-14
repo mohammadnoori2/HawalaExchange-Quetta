@@ -75,3 +75,26 @@ The measurement used 18,000 Hawala records: 10,000 received Hawalas and 8,000 ge
 The statistics read is **97.15% faster** in this sample and no longer allocates thousands of Hawala entities. The procedure requires `TenantId`, does not use dirty reads, and uses the existing `(TenantId, HawalaType, Status)` index.
 
 A stored-procedure implementation was also evaluated for the bulk-write path. It was rejected because its 10,000-row result was slower than the phase-one `SqlBulkCopy` implementation. Bulk posting therefore remains on the verified 4,988.94 ms median path; stored procedures are used only where measurements show a benefit.
+
+## Phase-three result — 2026-09-14
+
+The operational reports previously loaded full transaction graphs into application memory and then repeatedly filtered and grouped them in C#. Date-range reports also issued one report call per day, the all-branches daily option silently selected the first branch, and the operational report did not include Hawalas stored in the dedicated `Hawalas` table.
+
+Three tenant-scoped procedures now provide the daily summary, transaction listing, and commission summary:
+
+- `usp_GetDailyOperationalReport_v1`
+- `usp_GetTransactionReport_v1`
+- `usp_GetCommissionReport_v1`
+
+The reports now include both dedicated Hawalas and legacy transaction rows, exclude cancelled operations from financial totals, include payout-agent commission and posted periodic correspondent commission, support real all-branch filtering, and allow an optional currency filter. The transaction report also returns the commission currency so amounts are no longer displayed without their unit.
+
+The measurement used 10,000 imported rows, which produced 18,000 Hawala records.
+
+| Implementation | Median of three daily-report reads |
+| --- | ---: |
+| Previous entity materialization and in-memory aggregation | 350.81 ms |
+| Stored-procedure aggregation | 170.12 ms |
+
+The daily operational report is **51.51% faster** in this sample while returning corrected, currency-aware totals. All nine correctness and performance tests passed.
+
+The unchanged bulk-write path was also rechecked in three fresh databases: 5,551.44 ms, 5,826.87 ms, and 6,206.86 ms for 10,000 input rows. Its 5,826.87 ms median is within 10% of the phase-two 5,320.12 ms verification result; no bulk-write code changed in this phase.

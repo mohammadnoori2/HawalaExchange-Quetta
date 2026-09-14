@@ -1,5 +1,11 @@
 namespace HawalaExchange.Application.DTOs
 {
+    public class HawalaImportProgressDto
+    {
+        public int Percent { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
     public class HawalaImportRowDto
     {
         public long Id { get; set; }

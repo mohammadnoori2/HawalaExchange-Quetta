@@ -36,7 +36,14 @@
     </div></div></div>
 
     @if (isBusy)
-    { <div class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2">لطفاً منتظر بمانید...</div></div> }
+    {
+        <div class="card shadow-sm mt-3"><div class="card-body py-4">
+            <div class="d-flex justify-content-between align-items-center mb-2"><strong>@progressMessage</strong><span dir="ltr">@progressPercent%</span></div>
+            <div class="progress" style="height: 1.25rem;" role="progressbar" aria-valuenow="@progressPercent" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: @($"{progressPercent}%")">@progressPercent%</div>
+            </div>
+        </div></div>
+    }
     else if (preview is not null)
     {
         <div class="alert alert-info mt-3 mb-0">محل پرداخت دفتر خود صرافی: <strong>@preview.OwnPaymentLocationName</strong>. ردیف‌های این محل فقط دریافتی ثبت می‌شوند؛ سایر ردیف‌ها یک حواله ارسالی جفت‌شده نیز می‌سازند.</div>
@@ -49,7 +56,7 @@
 
         @if (preview.MissingLocations.Count > 0)
         {
-            <div class="card shadow-sm mt-3 border-warning"><div class="card-header bg-warning-subtle"><strong>محل‌های پرداخت جدید</strong></div><div class="card-body">
+            <div class="card shadow-sm mt-3 border-warning"><div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center"><strong>محل‌های پرداخت جدید</strong><button type="button" class="btn btn-sm btn-outline-dark" @onclick="ToggleAllLocations">@(AllLocationsSelected ? "لغو انتخاب همه" : "انتخاب همه")</button></div><div class="card-body">
                 <p class="mb-2">ایجاد این محل‌های پرداخت را تأیید کنید:</p><div class="row g-2">
                 @foreach (var location in preview.MissingLocations)
                 { <div class="col-md-4"><label class="form-check border rounded p-2 pe-5 w-100"><input class="form-check-input" type="checkbox" checked="@locationsToCreate.Contains(location)" @onchange="args => ToggleSet(locationsToCreate, location, args)" /><span class="form-check-label">@location</span></label></div> }
@@ -59,7 +66,7 @@
 
         @if (preview.MissingCorrespondents.Count > 0)
         {
-            <div class="card shadow-sm mt-3 border-warning"><div class="card-header bg-warning-subtle"><strong>نمایندگی‌های محل پرداخت جدید</strong></div><div class="card-body">
+            <div class="card shadow-sm mt-3 border-warning"><div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center"><strong>نمایندگی‌های محل پرداخت جدید</strong><button type="button" class="btn btn-sm btn-outline-dark" @onclick="ToggleAllCorrespondents">@(AllCorrespondentsSelected ? "لغو انتخاب همه" : "انتخاب همه")</button></div><div class="card-body">
                 <p class="mb-2">برای ساخت حواله ارسالی، ایجاد نمایندگی‌های زیر را جداگانه تأیید کنید:</p><div class="row g-2">
                 @foreach (var correspondent in preview.MissingCorrespondents)
                 { <div class="col-md-4"><label class="form-check border rounded p-2 pe-5 w-100"><input class="form-check-input" type="checkbox" checked="@correspondentsToCreate.Contains(correspondent)" @onchange="args => ToggleSet(correspondentsToCreate, correspondent, args)" /><span class="form-check-label">@correspondent</span></label></div> }
@@ -109,22 +116,40 @@
     private long bulkCommissionCurrencyId;
     private string? errorMessage;
     private bool isBusy;
+    private int progressPercent;
+    private string progressMessage = "در حال آماده‌سازی...";
 
     private bool CanConfirm => preview is not null && preview.InvalidRowCount == 0 && preview.MissingLocations.All(locationsToCreate.Contains) && preview.MissingCorrespondents.All(correspondentsToCreate.Contains) && preview.Rows.Where(x => x.RequiresOutgoingHawala && x.AgentCommissionAmount is > 0).All(x => x.AgentCommissionCurrencyId is > 0) && !isBusy;
+    private bool AllLocationsSelected => preview is not null && preview.MissingLocations.All(locationsToCreate.Contains);
+    private bool AllCorrespondentsSelected => preview is not null && preview.MissingCorrespondents.All(correspondentsToCreate.Contains);
 
     protected override async Task OnInitializedAsync()
     { try { currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); } catch (Exception ex) { errorMessage = ex.Message; } }
 
     private async Task PreviewFileAsync(InputFileChangeEventArgs args)
     {
-        errorMessage = null; result = null; isBusy = true;
-        try { await using var stream = args.File.OpenReadStream(MaximumFileSize); preview = await HawalaImportService.PreviewAsync(stream, args.File.Name, CorrespondentId); locationsToCreate.Clear(); correspondentsToCreate.Clear(); }
+        errorMessage = null; result = null; isBusy = true; progressPercent = 1; progressMessage = "در حال آپلود فایل...";
+        try { await using var stream = args.File.OpenReadStream(MaximumFileSize); preview = await HawalaImportService.PreviewAsync(stream, args.File.Name, CorrespondentId, CreateProgressReporter()); locationsToCreate.Clear(); correspondentsToCreate.Clear(); }
         catch (Exception ex) { errorMessage = ex.Message; preview = null; }
         finally { isBusy = false; }
     }
 
     private static void ToggleSet(HashSet<string> set, string value, ChangeEventArgs args)
     { if (args.Value is bool selected && selected) set.Add(value); else set.Remove(value); }
+
+    private void ToggleAllLocations()
+    {
+        if (preview is null) return;
+        if (AllLocationsSelected) locationsToCreate.Clear();
+        else foreach (var value in preview.MissingLocations) locationsToCreate.Add(value);
+    }
+
+    private void ToggleAllCorrespondents()
+    {
+        if (preview is null) return;
+        if (AllCorrespondentsSelected) correspondentsToCreate.Clear();
+        else foreach (var value in preview.MissingCorrespondents) correspondentsToCreate.Add(value);
+    }
 
     private void ApplyBulkCommission()
     {
@@ -135,16 +160,23 @@
     private async Task ConfirmAsync()
     {
         if (!CanConfirm || preview is null) return;
-        errorMessage = null; isBusy = true;
+        errorMessage = null; isBusy = true; progressPercent = 1; progressMessage = "در حال آغاز ثبت گروهی...";
         try
         {
-            result = await HawalaImportService.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId, LocationsToCreate = locationsToCreate.ToList(), CorrespondentsToCreate = correspondentsToCreate.ToList(), Commissions = preview.Rows.Where(x => x.RequiresOutgoingHawala).Select(x => new HawalaImportCommissionDto { RowId = x.Id, Amount = x.AgentCommissionAmount, CurrencyId = x.AgentCommissionCurrencyId }).ToList() });
+            result = await HawalaImportService.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId, LocationsToCreate = locationsToCreate.ToList(), CorrespondentsToCreate = correspondentsToCreate.ToList(), Commissions = preview.Rows.Where(x => x.RequiresOutgoingHawala).Select(x => new HawalaImportCommissionDto { RowId = x.Id, Amount = x.AgentCommissionAmount, CurrencyId = x.AgentCommissionCurrencyId }).ToList() }, CreateProgressReporter());
             preview = null; locationsToCreate.Clear(); correspondentsToCreate.Clear();
         }
         catch (Exception ex) { errorMessage = ex.Message; }
         finally { isBusy = false; }
     }
 
-    private void Reset() { preview = null; result = null; errorMessage = null; locationsToCreate.Clear(); correspondentsToCreate.Clear(); bulkCommissionAmount = null; bulkCommissionCurrencyId = 0; }
+    private IProgress<HawalaImportProgressDto> CreateProgressReporter() => new Progress<HawalaImportProgressDto>(update =>
+    {
+        progressPercent = update.Percent;
+        progressMessage = update.Message;
+        _ = InvokeAsync(StateHasChanged);
+    });
+
+    private void Reset() { preview = null; result = null; errorMessage = null; locationsToCreate.Clear(); correspondentsToCreate.Clear(); bulkCommissionAmount = null; bulkCommissionCurrencyId = 0; progressPercent = 0; progressMessage = "در حال آماده‌سازی..."; }
     private void BackToCorrespondent() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}");
 }

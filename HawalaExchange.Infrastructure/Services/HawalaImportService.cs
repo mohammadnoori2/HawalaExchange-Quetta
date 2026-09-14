@@ -38,8 +38,10 @@ public sealed class HawalaImportService : IHawalaImportService
         Stream file,
         string fileName,
         long correspondentId,
+        IProgress<HawalaImportProgressDto>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        Report(progress, 5, "بررسی فایل و نمایندگی...");
         if (!string.Equals(Path.GetExtension(fileName), ".xlsx", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("تنها فایل Excel با پسوند .xlsx قابل قبول است.");
 
@@ -56,6 +58,7 @@ public sealed class HawalaImportService : IHawalaImportService
 
         await using var memory = new MemoryStream();
         await file.CopyToAsync(memory, cancellationToken);
+        Report(progress, 20, "فایل دریافت شد؛ در حال خواندن ردیف‌ها...");
         if (memory.Length == 0)
             throw new InvalidOperationException("فایل انتخاب‌شده خالی است.");
         if (memory.Length > MaximumFileSize)
@@ -69,7 +72,7 @@ public sealed class HawalaImportService : IHawalaImportService
             throw new InvalidOperationException("این فایل قبلاً به‌طور کامل ثبت شده است.");
 
         memory.Position = 0;
-        var rows = await ParseRowsAsync(memory, correspondentId, ownLocation.Id, cancellationToken);
+        var rows = await ParseRowsAsync(memory, correspondentId, ownLocation.Id, progress, cancellationToken);
         if (rows.Count == 0)
             throw new InvalidOperationException("هیچ ردیف قابل خواندن در فایل پیدا نشد.");
         if (rows.Count > MaximumRows)
@@ -88,6 +91,7 @@ public sealed class HawalaImportService : IHawalaImportService
             Rows = rows
         };
         _context.HawalaImportBatches.Add(batch);
+        Report(progress, 85, "در حال ذخیره پیش‌نمایش...");
         await _context.SaveChangesAsync(cancellationToken);
         await _context.HawalaImportRows
             .Where(x => x.BatchId == batch.Id)
@@ -95,13 +99,16 @@ public sealed class HawalaImportService : IHawalaImportService
             .Include(x => x.DestinationCorrespondent)
             .LoadAsync(cancellationToken);
 
+        Report(progress, 100, "پیش‌نمایش آماده شد.");
         return BuildPreview(batch, correspondent.Name, ownLocation.Id, ownLocation.Name);
     }
 
     public async Task<HawalaImportResultDto> ConfirmAsync(
         ConfirmHawalaImportDto request,
+        IProgress<HawalaImportProgressDto>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        Report(progress, 5, "در حال بارگذاری و اعتبارسنجی پیش‌نمایش...");
         await using var transaction = await _context.Database.BeginTransactionAsync(
             System.Data.IsolationLevel.Serializable,
             cancellationToken);
@@ -146,6 +153,7 @@ public sealed class HawalaImportService : IHawalaImportService
                 foreach (var row in group)
                     row.PaymentLocationId = location.Id;
             }
+            Report(progress, 25, "محل‌های پرداخت آماده شدند.");
 
             var ownLocationId = batch.OwnPaymentLocationId
                 ?? throw new InvalidOperationException("محل پرداخت دفتر خود صرافی در این پیش‌نمایش مشخص نیست؛ فایل را دوباره انتخاب کنید.");
@@ -190,6 +198,7 @@ public sealed class HawalaImportService : IHawalaImportService
                 foreach (var row in group)
                     row.DestinationCorrespondentId = destination.Id;
             }
+            Report(progress, 45, "نمایندگی‌ها و حساب‌های مقصد آماده شدند.");
 
             var submittedCommissions = request.Commissions
                 .GroupBy(x => x.RowId)
@@ -215,8 +224,10 @@ public sealed class HawalaImportService : IHawalaImportService
                     (!row.AgentCommissionCurrencyId.HasValue || !activeCurrencies.ContainsKey(row.AgentCommissionCurrencyId.Value)))
                     throw new InvalidOperationException($"ارز کمیشن ردیف {row.ExcelRowNumber} معتبر نیست.");
             }
+            Report(progress, 55, "کمیشن‌ها و ارزها بررسی شدند.");
 
             await RevalidateBeforePostingAsync(batch, ownLocationId, cancellationToken);
+            Report(progress, 65, "در حال آماده‌سازی ثبت گروهی...");
 
             var orderedRows = batch.Rows.OrderBy(x => x.ExcelRowNumber).ToList();
             var destinationIds = orderedRows.Where(x => x.DestinationCorrespondentId.HasValue)
@@ -262,7 +273,9 @@ public sealed class HawalaImportService : IHawalaImportService
                 };
             }).ToList();
 
+            Report(progress, 72, "ثبت سریع حواله‌ها و حسابداری با SqlBulkCopy...");
             var created = await _hawalaService.CreateHawalasAsync(createItems);
+            Report(progress, 92, "حواله‌ها ثبت شدند؛ در حال نهایی‌سازی...");
             for (var index = 0; index < orderedRows.Count; index++)
                 orderedRows[index].HawalaId = created[index].Id;
             var receivedIds = created.Select(x => x.Id).ToList();
@@ -284,6 +297,7 @@ public sealed class HawalaImportService : IHawalaImportService
                 $"{created.Count} حواله از فایل '{batch.FileName}' به‌صورت گروهی ثبت شد.",
                 batch.ConfirmedBy.Value);
             await transaction.CommitAsync(cancellationToken);
+            Report(progress, 100, "ثبت گروهی تکمیل شد.");
 
             return new HawalaImportResultDto
             {
@@ -306,6 +320,7 @@ public sealed class HawalaImportService : IHawalaImportService
         Stream stream,
         long correspondentId,
         long ownPaymentLocationId,
+        IProgress<HawalaImportProgressDto>? progress,
         CancellationToken cancellationToken)
     {
         using var workbook = new XLWorkbook(stream);
@@ -394,6 +409,9 @@ public sealed class HawalaImportService : IHawalaImportService
                 DestinationCorrespondentId = requiresOutgoing ? destinationCorrespondent?.Id : null,
                 ValidationErrors = JoinErrors(errors)
             });
+            if (rowNumber == lastRow || rowNumber % 50 == 0)
+                Report(progress, 20 + (int)Math.Round(rowNumber * 55d / Math.Max(1, lastRow)),
+                    $"در حال خواندن ردیف {rowNumber:N0} از {lastRow:N0}...");
         }
 
         AddDuplicateErrors(parsed);
@@ -416,6 +434,9 @@ public sealed class HawalaImportService : IHawalaImportService
 
         return parsed;
     }
+
+    private static void Report(IProgress<HawalaImportProgressDto>? progress, int percent, string message) =>
+        progress?.Report(new HawalaImportProgressDto { Percent = Math.Clamp(percent, 0, 100), Message = message });
 
     private async Task RevalidateBeforePostingAsync(
         HawalaImportBatch batch,

@@ -9,6 +9,7 @@
 @inject IAccountService AccountService
 @inject ICustomerService CustomerService
 @inject ICompanySettingService CompanySettingService
+@inject ICurrencyService CurrencyService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 
@@ -19,6 +20,12 @@
             <span>@totalCount حواله</span>
         </div>
         <div class="d-flex gap-2">
+            @if (CanCreate && HawalaType == "HawalaReceive")
+            {
+                <button type="button" class="btn btn-sm btn-outline-success" @onclick="OpenBulkImport">
+                    <i class="bi bi-file-earmark-spreadsheet ms-1"></i>آپلود گروهی
+                </button>
+            }
             @if (totalCount > 0 || selectedSettlementIds.Count > 0)
             {
                 <button type="button"
@@ -104,7 +111,7 @@
                     <th>فرستنده</th>
                     <th>گیرنده</th>
                     <th>مبلغ</th>
-                    <th>کارمزد</th>
+                    <th>@(HawalaType == "HawalaSend" ? "کمیشن نمایندگی" : "کارمزد")</th>
                     <th>نرخ توافقی</th>
                     <th>وضعیت</th>
                     <th>تاریخ</th>
@@ -139,8 +146,25 @@
                             <td>@(hawala.ReceiverName ?? "—")</td>
                             <td class="fw-bold text-primary" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount) @hawala.FromCurrencyCode</td>
                             <td dir="ltr">
-                                @(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "—")
-                                @hawala.CommissionCurrencyCode
+                                @if (HawalaType == "HawalaSend")
+                                {
+                                    @if (hawala.AgentCommissionAmount is > 0)
+                                    {
+                                        <span>@MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) @hawala.AgentCommissionCurrencyCode</span>
+                                    }
+                                    else if (CanCreate && hawala.Status != "Cancel")
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="() => OpenAddCommission(hawala)">افزودن کمیشن</button>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span>@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "—") @hawala.CommissionCurrencyCode</span>
+                                }
                             </td>
                             <td class="text-nowrap">
                                 @if (hawala.SettlementRates.Count > 0)
@@ -377,6 +401,30 @@
     </div>
 }
 
+@if (showCommissionModal && commissionHawala is not null)
+{
+    <div class="modal show d-block correspondent-hawala-overlay" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content correspondent-hawala-modal">
+                <div class="modal-header">
+                    <div><h5 class="modal-title">افزودن کمیشن نمایندگی</h5><small>حواله ارسالی نمبر @commissionHawala.Number</small></div>
+                    <button type="button" class="btn-close" @onclick="CloseAddCommission"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(commissionError))
+                    { <div class="alert alert-danger">@commissionError</div> }
+                    <div class="row g-3">
+                        <div class="col-md-6"><label class="form-label">مبلغ کمیشن <span class="text-danger">*</span></label><InputNumber class="form-control" @bind-Value="commissionAmount" /></div>
+                        <div class="col-md-6"><label class="form-label">ارز کمیشن <span class="text-danger">*</span></label><select class="form-select" @bind="commissionCurrencyId"><option value="0">انتخاب ارز...</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code - @currency.Name</option>}</select></div>
+                    </div>
+                    <div class="form-text mt-2">پس از ثبت، کمیشن به طلب نمایندگی اضافه و در حسابداری ثبت می‌شود.</div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-light border" @onclick="CloseAddCommission">انصراف</button><button class="btn btn-success" disabled="@(actionLoading || commissionAmount is not > 0 || commissionCurrencyId <= 0)" @onclick="SaveAgentCommissionAsync">ثبت کمیشن</button></div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter, EditorRequired] public long CorrespondentId { get; set; }
     [Parameter, EditorRequired] public string HawalaType { get; set; } = string.Empty;
@@ -387,6 +435,7 @@
     private List<HawalaDto> hawalas = new();
     private List<AccountDto> paymentAccounts = new();
     private List<CustomerDto> customers = new();
+    private List<CurrencyDto> currencies = new();
     private CompanySettingDto companySetting = new();
     private readonly List<string> errors = new();
     private string successMessage = string.Empty;
@@ -431,11 +480,23 @@
     private bool showDeleteModal;
     private long deleteId;
     private long deleteHawalaNumber;
+    private bool showCommissionModal;
+    private HawalaDto? commissionHawala;
+    private decimal? commissionAmount;
+    private long commissionCurrencyId;
+    private string? commissionError;
+    private bool currenciesLoaded;
 
     private string ReceiptPrintId => $"correspondentHawalaReceipt-{CorrespondentId}-{HawalaType}";
 
     protected override async Task OnParametersSetAsync()
     {
+        if (!currenciesLoaded)
+        {
+            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList();
+            currenciesLoaded = true;
+        }
+
         var key = $"{CorrespondentId}:{HawalaType}";
         if (loadedKey == key)
             return;
@@ -479,6 +540,42 @@
         editId = 0;
         editData = null;
         showHawalaModal = true;
+    }
+
+    private void OpenBulkImport() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/hawala-import");
+
+    private void OpenAddCommission(HawalaDto hawala)
+    {
+        commissionHawala = hawala;
+        commissionAmount = null;
+        commissionCurrencyId = hawala.ToCurrencyId;
+        commissionError = null;
+        showCommissionModal = true;
+    }
+
+    private void CloseAddCommission()
+    {
+        showCommissionModal = false;
+        commissionHawala = null;
+        commissionAmount = null;
+        commissionCurrencyId = 0;
+        commissionError = null;
+    }
+
+    private async Task SaveAgentCommissionAsync()
+    {
+        if (commissionHawala is null || commissionAmount is not > 0 || commissionCurrencyId <= 0) return;
+        try
+        {
+            actionLoading = true;
+            commissionError = null;
+            await HawalaService.AddAgentCommissionAsync(commissionHawala.Id, new AddHawalaAgentCommissionDto { Amount = commissionAmount.Value, CurrencyId = commissionCurrencyId });
+            successMessage = "کمیشن نمایندگی ثبت و به حسابداری اضافه شد.";
+            CloseAddCommission();
+            await LoadHawalasAsync();
+        }
+        catch (Exception ex) { commissionError = ex.Message; }
+        finally { actionLoading = false; }
     }
 
     private async Task OpenEditAsync(long id)

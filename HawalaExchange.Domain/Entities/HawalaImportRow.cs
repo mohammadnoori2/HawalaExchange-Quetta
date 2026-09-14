@@ -21,12 +21,20 @@ namespace HawalaExchange.Domain.Entities
         [Column(TypeName = "decimal(18,2)")] public decimal? Amount { get; set; }
         [MaxLength(10)] public string? CurrencyCode { get; set; }
         public long? CurrencyId { get; set; }
+        [Column(TypeName = "decimal(18,2)")] public decimal? AgentCommissionAmount { get; set; }
+        public long? AgentCommissionCurrencyId { get; set; }
+        [MaxLength(10)] public string? AgentCommissionCurrencyCode { get; set; }
+        public long? DestinationCorrespondentId { get; set; }
         [MaxLength(1000)] public string? ValidationErrors { get; set; }
         public long? HawalaId { get; set; }
+        public long? GeneratedSendHawalaId { get; set; }
 
         [ForeignKey(nameof(BatchId))] public virtual HawalaImportBatch? Batch { get; set; }
         [ForeignKey(nameof(PaymentLocationId))] public virtual PaymentLocation? PaymentLocation { get; set; }
         [ForeignKey(nameof(CurrencyId))] public virtual Currency? Currency { get; set; }
+        [ForeignKey(nameof(AgentCommissionCurrencyId))] public virtual Currency? AgentCommissionCurrency { get; set; }
+        [ForeignKey(nameof(DestinationCorrespondentId))] public virtual Correspondent? DestinationCorrespondent { get; set; }
         [ForeignKey(nameof(HawalaId))] public virtual Hawala? Hawala { get; set; }
+        [ForeignKey(nameof(GeneratedSendHawalaId))] public virtual Hawala? GeneratedSendHawala { get; set; }
     }
 }

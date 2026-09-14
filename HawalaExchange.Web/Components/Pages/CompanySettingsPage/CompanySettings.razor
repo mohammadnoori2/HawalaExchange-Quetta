@@ -7,6 +7,7 @@
 
 @inject ICompanySettingService CompanySettingService
 @inject ICurrencyService CurrencyService
+@inject IPaymentLocationService PaymentLocationService
 @inject IFileService FileService
 
 @rendermode InteractiveServer
@@ -84,6 +85,17 @@
                                class="form-control"
                                @bind="setting.PhoneNumber"
                                placeholder="مثلاً 0700000000" />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label fw-bold">محل پرداخت دفتر خود صرافی <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="setting.OwnPaymentLocationId">
+                            <option value="">انتخاب محل پرداخت</option>
+                            @foreach (var location in paymentLocations)
+                            {
+                                <option value="@location.Id">@location.Name</option>
+                            }
+                        </select>
+                        <small class="text-muted">برای تشخیص حواله‌هایی که باید حوالهٔ ارسالی مرتبط داشته باشند استفاده می‌شود.</small>
                     </div>
                 </div>
 
@@ -255,6 +267,7 @@
 @code {
     private CompanySettingDto setting = new();
     private List<CurrencyDto> activeCurrencies = new();
+    private List<PaymentLocationDto> paymentLocations = new();
 
     private List<string> validationErrors = new();
 
@@ -279,6 +292,7 @@
             activeCurrencies = (await CurrencyService.GetActiveCurrenciesAsync())
                 .OrderBy(x => x.Code)
                 .ToList();
+            paymentLocations = (await PaymentLocationService.GetActiveAsync()).OrderBy(x => x.Name).ToList();
             setting = await CompanySettingService.GetAsync();
 
             if (!setting.DefaultProfitCurrencyId.HasValue)
@@ -312,6 +326,12 @@
             activeCurrencies.All(x => x.Id != setting.DefaultProfitCurrencyId.Value))
         {
             validationErrors.Add("انتخاب یک ارز فعال به عنوان ارز اصلی محاسبه مفاد و ضرر الزامی است.");
+        }
+
+        if (!setting.OwnPaymentLocationId.HasValue ||
+            paymentLocations.All(x => x.Id != setting.OwnPaymentLocationId.Value))
+        {
+            validationErrors.Add("انتخاب محل پرداخت دفتر خود صرافی الزامی است.");
         }
 
         if (validationErrors.Any())

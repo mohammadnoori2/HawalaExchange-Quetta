@@ -135,7 +135,9 @@ namespace HawalaExchange.Application.Services
         // ===== بازنویسی متد CreateAsync با پشتیبانی از موجودی اولیه =====
         public override async Task<CorrespondentDto> CreateAsync(CreateCorrespondentDto createDto)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await using var transaction = _context.Database.CurrentTransaction == null
+                ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+                : null;
 
             try
             {
@@ -165,13 +167,15 @@ namespace HawalaExchange.Application.Services
                     newValue: $"نماینده {correspondentDto.Name} با کد {correspondentDto.Code} ایجاد شد"
                 );
 
-                await transaction.CommitAsync();
+                if (transaction != null)
+                    await transaction.CommitAsync();
 
                 return correspondentDto;
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
+                if (transaction != null)
+                    await transaction.RollbackAsync();
                 _logger.LogError(ex, "خطا در ایجاد نماینده و حساب مرتبط");
                 throw;
             }

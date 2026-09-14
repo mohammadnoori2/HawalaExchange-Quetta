@@ -17,17 +17,20 @@ public sealed class HawalaImportService : IHawalaImportService
     private readonly ApplicationDbContext _context;
     private readonly IHawalaService _hawalaService;
     private readonly IPaymentLocationService _paymentLocationService;
+    private readonly ICorrespondentService _correspondentService;
     private readonly IAuditLogService _auditLogService;
 
     public HawalaImportService(
         ApplicationDbContext context,
         IHawalaService hawalaService,
         IPaymentLocationService paymentLocationService,
+        ICorrespondentService correspondentService,
         IAuditLogService auditLogService)
     {
         _context = context;
         _hawalaService = hawalaService;
         _paymentLocationService = paymentLocationService;
+        _correspondentService = correspondentService;
         _auditLogService = auditLogService;
     }
 
@@ -44,6 +47,12 @@ public sealed class HawalaImportService : IHawalaImportService
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == correspondentId && !x.IsArchived, cancellationToken)
             ?? throw new InvalidOperationException("نمایندگی انتخاب‌شده یافت نشد یا غیرفعال است.");
+        var ownLocation = await _context.CompanySettings
+            .AsNoTracking()
+            .Where(x => x.OwnPaymentLocationId.HasValue)
+            .Select(x => new { Id = x.OwnPaymentLocationId!.Value, Name = x.OwnPaymentLocation!.Name })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("ابتدا در تنظیمات شرکت، محل پرداخت دفتر خود صرافی را تعیین کنید.");
 
         await using var memory = new MemoryStream();
         await file.CopyToAsync(memory, cancellationToken);
@@ -60,7 +69,7 @@ public sealed class HawalaImportService : IHawalaImportService
             throw new InvalidOperationException("این فایل قبلاً به‌طور کامل ثبت شده است.");
 
         memory.Position = 0;
-        var rows = await ParseRowsAsync(memory, correspondentId, cancellationToken);
+        var rows = await ParseRowsAsync(memory, correspondentId, ownLocation.Id, cancellationToken);
         if (rows.Count == 0)
             throw new InvalidOperationException("هیچ ردیف قابل خواندن در فایل پیدا نشد.");
         if (rows.Count > MaximumRows)
@@ -69,6 +78,7 @@ public sealed class HawalaImportService : IHawalaImportService
         var batch = new HawalaImportBatch
         {
             CorrespondentId = correspondentId,
+            OwnPaymentLocationId = ownLocation.Id,
             FileName = Path.GetFileName(fileName),
             FileHash = fileHash,
             Status = "Preview",
@@ -79,8 +89,13 @@ public sealed class HawalaImportService : IHawalaImportService
         };
         _context.HawalaImportBatches.Add(batch);
         await _context.SaveChangesAsync(cancellationToken);
+        await _context.HawalaImportRows
+            .Where(x => x.BatchId == batch.Id)
+            .Include(x => x.PaymentLocation)
+            .Include(x => x.DestinationCorrespondent)
+            .LoadAsync(cancellationToken);
 
-        return BuildPreview(batch, correspondent.Name);
+        return BuildPreview(batch, correspondent.Name, ownLocation.Id, ownLocation.Name);
     }
 
     public async Task<HawalaImportResultDto> ConfirmAsync(
@@ -132,30 +147,130 @@ public sealed class HawalaImportService : IHawalaImportService
                     row.PaymentLocationId = location.Id;
             }
 
-            await RevalidateBeforePostingAsync(batch, cancellationToken);
+            var ownLocationId = batch.OwnPaymentLocationId
+                ?? throw new InvalidOperationException("محل پرداخت دفتر خود صرافی در این پیش‌نمایش مشخص نیست؛ فایل را دوباره انتخاب کنید.");
+            var locationIds = batch.Rows.Where(x => x.PaymentLocationId.HasValue)
+                .Select(x => x.PaymentLocationId!.Value).Distinct().ToList();
+            var locations = await _context.PaymentLocations
+                .Where(x => locationIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, cancellationToken);
+            var activeCorrespondents = (await _context.Correspondents
+                    .Where(x => !x.IsArchived)
+                    .ToListAsync(cancellationToken))
+                .GroupBy(x => PaymentLocationNameNormalizer.Normalize(x.Name))
+                .ToDictionary(x => x.Key, x => x.First(), StringComparer.Ordinal);
+            var confirmedCorrespondents = request.CorrespondentsToCreate
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(PaymentLocationNameNormalizer.Normalize)
+                .ToHashSet(StringComparer.Ordinal);
+
+            foreach (var group in batch.Rows
+                         .Where(x => x.PaymentLocationId != ownLocationId)
+                         .GroupBy(x => PaymentLocationNameNormalizer.Normalize(
+                             locations[x.PaymentLocationId!.Value].Name)))
+            {
+                if (!activeCorrespondents.TryGetValue(group.Key, out var destination))
+                {
+                    var locationName = locations[group.First().PaymentLocationId!.Value].Name;
+                    var originalKey = PaymentLocationNameNormalizer.Normalize(group.First().PaymentLocationText);
+                    if (!confirmedCorrespondents.Contains(group.Key) && !confirmedCorrespondents.Contains(originalKey))
+                        throw new InvalidOperationException($"ایجاد نمایندگی «{locationName}» باید تأیید شود.");
+
+                    var createdCorrespondent = await _correspondentService.CreateAsync(new CreateCorrespondentDto
+                    {
+                        Name = locationName,
+                        City = locationName,
+                        CommissionMethod = "PerTransaction"
+                    });
+                    destination = await _context.Correspondents
+                        .SingleAsync(x => x.Id == createdCorrespondent.Id, cancellationToken);
+                    activeCorrespondents[group.Key] = destination;
+                }
+
+                foreach (var row in group)
+                    row.DestinationCorrespondentId = destination.Id;
+            }
+
+            var submittedCommissions = request.Commissions
+                .GroupBy(x => x.RowId)
+                .ToDictionary(x => x.Key, x => x.Last());
+            var activeCurrencies = await _context.Currencies.Where(x => x.IsActive)
+                .ToDictionaryAsync(x => x.Id, cancellationToken);
+            foreach (var row in batch.Rows.Where(x => x.PaymentLocationId != ownLocationId))
+            {
+                if (submittedCommissions.TryGetValue(row.Id, out var submitted))
+                {
+                    if (submitted.Amount.HasValue && submitted.Amount <= 0)
+                        throw new InvalidOperationException($"کمیشن ردیف {row.ExcelRowNumber} باید بزرگتر از صفر باشد.");
+                    row.AgentCommissionAmount = submitted.Amount;
+                    row.AgentCommissionCurrencyId = submitted.Amount.HasValue
+                        ? submitted.CurrencyId ?? row.CurrencyId
+                        : null;
+                    row.AgentCommissionCurrencyCode = row.AgentCommissionCurrencyId.HasValue &&
+                        activeCurrencies.TryGetValue(row.AgentCommissionCurrencyId.Value, out var selectedCurrency)
+                            ? selectedCurrency.Code
+                            : null;
+                }
+                if (row.AgentCommissionAmount.HasValue &&
+                    (!row.AgentCommissionCurrencyId.HasValue || !activeCurrencies.ContainsKey(row.AgentCommissionCurrencyId.Value)))
+                    throw new InvalidOperationException($"ارز کمیشن ردیف {row.ExcelRowNumber} معتبر نیست.");
+            }
+
+            await RevalidateBeforePostingAsync(batch, ownLocationId, cancellationToken);
 
             var orderedRows = batch.Rows.OrderBy(x => x.ExcelRowNumber).ToList();
-            var createItems = orderedRows.Select(row => new CreateHawalaDto
+            var destinationIds = orderedRows.Where(x => x.DestinationCorrespondentId.HasValue)
+                .Select(x => x.DestinationCorrespondentId!.Value).Distinct().ToList();
+            var destinationAccounts = await _context.Accounts
+                .Where(x => x.CorrespondentId.HasValue && destinationIds.Contains(x.CorrespondentId.Value) && !x.IsArchived)
+                .ToDictionaryAsync(x => x.CorrespondentId!.Value, x => x.Id, cancellationToken);
+            var createItems = orderedRows.Select(row =>
             {
-                Number = row.HawalaNumber!.Value,
-                HawalaType = "HawalaReceive",
-                CorrespondentId = batch.CorrespondentId,
-                PaymentLocationId = row.PaymentLocationId,
-                SenderName = row.SenderName,
-                ReceiverName = row.ReceiverName,
-                FromCurrencyId = row.CurrencyId!.Value,
-                FromAmount = row.Amount!.Value,
-                ToCurrencyId = row.CurrencyId.Value,
-                ToAmount = row.Amount.Value,
-                ExchangeRate = 1m,
-                ReferenceNumber = row.ReferenceNumber,
-                Status = "Pending",
-                Notes = $"آپلود گروهی از فایل {batch.FileName}"
+                var requiresOutgoing = row.PaymentLocationId != ownLocationId;
+                long? destinationAccountId = null;
+                if (requiresOutgoing && (!row.DestinationCorrespondentId.HasValue ||
+                    !destinationAccounts.TryGetValue(row.DestinationCorrespondentId.Value, out var accountId)))
+                    throw new InvalidOperationException($"حساب نمایندگی مقصد برای ردیف {row.ExcelRowNumber} پیدا نشد.");
+                if (requiresOutgoing)
+                    destinationAccountId = destinationAccounts[row.DestinationCorrespondentId!.Value];
+
+                return new CreateHawalaDto
+                {
+                    Number = row.HawalaNumber!.Value,
+                    HawalaType = "HawalaReceive",
+                    CorrespondentId = batch.CorrespondentId,
+                    PaymentLocationId = row.PaymentLocationId,
+                    FromAccountId = destinationAccountId,
+                    SenderName = row.SenderName,
+                    ReceiverName = row.ReceiverName,
+                    FromCurrencyId = row.CurrencyId!.Value,
+                    FromAmount = row.Amount!.Value,
+                    ToCurrencyId = row.CurrencyId.Value,
+                    ToAmount = row.Amount.Value,
+                    ExchangeRate = 1m,
+                    CommissionAmount = null,
+                    CommissionCurrencyId = null,
+                    AgentCommissionAmount = null,
+                    AgentCommissionCurrencyId = null,
+                    ReferenceNumber = row.ReferenceNumber,
+                    Status = requiresOutgoing ? "Paid" : "Pending",
+                    GeneratedSendHawalaNumber = requiresOutgoing ? row.HawalaNumber : null,
+                    GeneratedSendAgentCommissionAmount = requiresOutgoing ? row.AgentCommissionAmount : null,
+                    GeneratedSendAgentCommissionCurrencyId = requiresOutgoing ? row.AgentCommissionCurrencyId : null,
+                    GeneratedSendReferenceNumber = requiresOutgoing ? row.ReferenceNumber : null,
+                    Notes = $"آپلود گروهی از فایل {batch.FileName}"
+                };
             }).ToList();
 
             var created = await _hawalaService.CreateHawalasAsync(createItems);
             for (var index = 0; index < orderedRows.Count; index++)
                 orderedRows[index].HawalaId = created[index].Id;
+            var receivedIds = created.Select(x => x.Id).ToList();
+            var generatedBySource = await _context.Hawalas
+                .Where(x => x.SourceHawalaId.HasValue && receivedIds.Contains(x.SourceHawalaId.Value))
+                .ToDictionaryAsync(x => x.SourceHawalaId!.Value, x => x.Id, cancellationToken);
+            foreach (var row in orderedRows.Where(x => x.HawalaId.HasValue && generatedBySource.ContainsKey(x.HawalaId.Value)))
+                row.GeneratedSendHawalaId = generatedBySource[row.HawalaId!.Value];
 
             batch.Status = "Posted";
             batch.ConfirmedAt = DateTime.UtcNow;
@@ -174,6 +289,8 @@ public sealed class HawalaImportService : IHawalaImportService
             {
                 BatchId = batch.Id,
                 ImportedCount = created.Count,
+                GeneratedSendCount = generatedBySource.Count,
+                MissingCommissionCount = orderedRows.Count(x => x.GeneratedSendHawalaId.HasValue && !x.AgentCommissionAmount.HasValue),
                 Totals = BuildTotals(orderedRows)
             };
         }
@@ -188,6 +305,7 @@ public sealed class HawalaImportService : IHawalaImportService
     private async Task<List<HawalaImportRow>> ParseRowsAsync(
         Stream stream,
         long correspondentId,
+        long ownPaymentLocationId,
         CancellationToken cancellationToken)
     {
         using var workbook = new XLWorkbook(stream);
@@ -210,12 +328,17 @@ public sealed class HawalaImportService : IHawalaImportService
             foreach (var alias in location.Aliases)
                 locationByName.TryAdd(alias.NormalizedName, location);
         }
+        var correspondentByName = (await _context.Correspondents.AsNoTracking()
+                .Where(x => !x.IsArchived)
+                .ToListAsync(cancellationToken))
+            .GroupBy(x => PaymentLocationNameNormalizer.Normalize(x.Name))
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.Ordinal);
 
         var parsed = new List<HawalaImportRow>();
         for (var rowNumber = 1; rowNumber <= lastRow; rowNumber++)
         {
             var excelRow = worksheet.Row(rowNumber);
-            if (Enumerable.Range(1, 7).All(column => excelRow.Cell(column).IsEmpty()))
+            if (Enumerable.Range(1, 9).All(column => excelRow.Cell(column).IsEmpty()))
                 continue;
 
             var errors = new List<string>();
@@ -226,6 +349,9 @@ public sealed class HawalaImportService : IHawalaImportService
             var locationText = CleanText(ReadCellText(excelRow.Cell(5)));
             var amount = ReadDecimal(excelRow.Cell(6));
             var currencyCode = CleanText(ReadCellText(excelRow.Cell(7))).ToUpperInvariant();
+            var commissionText = CleanText(ReadCellText(excelRow.Cell(8)));
+            var commissionAmount = string.IsNullOrWhiteSpace(commissionText) ? null : ReadDecimal(excelRow.Cell(8));
+            var commissionCurrencyCode = CleanText(ReadCellText(excelRow.Cell(9))).ToUpperInvariant();
 
             if (!number.HasValue || number <= 0) errors.Add("شماره حواله معتبر نیست.");
             if (string.IsNullOrEmpty(reference)) errors.Add("رفرنس الزامی است.");
@@ -234,8 +360,18 @@ public sealed class HawalaImportService : IHawalaImportService
             if (string.IsNullOrEmpty(locationText)) errors.Add("محل پرداخت الزامی است.");
             if (!amount.HasValue || amount <= 0) errors.Add("مبلغ معتبر نیست.");
             if (!currencyByCode.TryGetValue(currencyCode, out var currency)) errors.Add($"ارز «{currencyCode}» تعریف یا فعال نیست.");
+            if (!string.IsNullOrWhiteSpace(commissionText) && (!commissionAmount.HasValue || commissionAmount <= 0))
+                errors.Add("کمیشن عامل پرداخت معتبر نیست.");
+            Currency? commissionCurrency = null;
+            if (!string.IsNullOrWhiteSpace(commissionCurrencyCode) &&
+                !currencyByCode.TryGetValue(commissionCurrencyCode, out commissionCurrency))
+                errors.Add($"ارز کمیشن «{commissionCurrencyCode}» تعریف یا فعال نیست.");
 
-            locationByName.TryGetValue(PaymentLocationNameNormalizer.Normalize(locationText), out var location);
+            var normalizedLocation = PaymentLocationNameNormalizer.Normalize(locationText);
+            locationByName.TryGetValue(normalizedLocation, out var location);
+            var destinationKey = location?.NormalizedName ?? normalizedLocation;
+            correspondentByName.TryGetValue(destinationKey, out var destinationCorrespondent);
+            var requiresOutgoing = location?.Id != ownPaymentLocationId;
             parsed.Add(new HawalaImportRow
             {
                 ExcelRowNumber = rowNumber,
@@ -248,6 +384,14 @@ public sealed class HawalaImportService : IHawalaImportService
                 Amount = amount,
                 CurrencyCode = NullIfEmpty(currencyCode),
                 CurrencyId = currency?.Id,
+                AgentCommissionAmount = requiresOutgoing && commissionAmount is > 0 ? commissionAmount : null,
+                AgentCommissionCurrencyId = requiresOutgoing && commissionAmount is > 0
+                    ? commissionCurrency?.Id ?? currency?.Id
+                    : null,
+                AgentCommissionCurrencyCode = requiresOutgoing && commissionAmount is > 0
+                    ? commissionCurrency?.Code ?? currency?.Code
+                    : null,
+                DestinationCorrespondentId = requiresOutgoing ? destinationCorrespondent?.Id : null,
                 ValidationErrors = JoinErrors(errors)
             });
         }
@@ -273,7 +417,10 @@ public sealed class HawalaImportService : IHawalaImportService
         return parsed;
     }
 
-    private async Task RevalidateBeforePostingAsync(HawalaImportBatch batch, CancellationToken cancellationToken)
+    private async Task RevalidateBeforePostingAsync(
+        HawalaImportBatch batch,
+        long ownLocationId,
+        CancellationToken cancellationToken)
     {
         var numbers = batch.Rows.Select(x => x.HawalaNumber!.Value).ToList();
         var references = batch.Rows.Select(x => x.ReferenceNumber!).ToList();
@@ -282,6 +429,17 @@ public sealed class HawalaImportService : IHawalaImportService
                      (numbers.Contains(x.Number) || (x.ReferenceNumber != null && references.Contains(x.ReferenceNumber))),
                 cancellationToken))
             throw new InvalidOperationException("در فاصلهٔ پیش‌نمایش تا ثبت، شماره یا رفرنس یکی از حواله‌ها قبلاً ثبت شده است. فایل را دوباره پیش‌نمایش کنید.");
+
+        foreach (var row in batch.Rows.Where(x => x.PaymentLocationId != ownLocationId))
+        {
+            if (!row.DestinationCorrespondentId.HasValue)
+                throw new InvalidOperationException($"نمایندگی مقصد ردیف {row.ExcelRowNumber} مشخص نیست.");
+            if (await _context.Hawalas.AsNoTracking().AnyAsync(x =>
+                    x.CorrespondentId == row.DestinationCorrespondentId &&
+                    x.HawalaType == "HawalaSend" &&
+                    x.Number == row.HawalaNumber, cancellationToken))
+                throw new InvalidOperationException($"نمبر حواله ارسالی ردیف {row.ExcelRowNumber} قبلاً برای نمایندگی مقصد ثبت شده است.");
+        }
 
         var currencyIds = batch.Rows.Select(x => x.CurrencyId!.Value).Distinct().ToList();
         var activeCurrencyCount = await _context.Currencies.AsNoTracking()
@@ -292,7 +450,11 @@ public sealed class HawalaImportService : IHawalaImportService
             throw new InvalidOperationException("برای همهٔ ردیف‌ها باید محل پرداخت مشخص باشد.");
     }
 
-    private static HawalaImportPreviewDto BuildPreview(HawalaImportBatch batch, string correspondentName)
+    private static HawalaImportPreviewDto BuildPreview(
+        HawalaImportBatch batch,
+        string correspondentName,
+        long ownLocationId,
+        string ownLocationName)
     {
         var rows = batch.Rows.OrderBy(x => x.ExcelRowNumber).ToList();
         return new HawalaImportPreviewDto
@@ -300,11 +462,21 @@ public sealed class HawalaImportService : IHawalaImportService
             BatchId = batch.Id,
             FileName = batch.FileName,
             CorrespondentName = correspondentName,
+            OwnPaymentLocationName = ownLocationName,
             RowCount = rows.Count,
             ValidRowCount = rows.Count(x => string.IsNullOrWhiteSpace(x.ValidationErrors)),
             InvalidRowCount = rows.Count(x => !string.IsNullOrWhiteSpace(x.ValidationErrors)),
             MissingLocations = rows.Where(x => !x.PaymentLocationId.HasValue && !string.IsNullOrWhiteSpace(x.PaymentLocationText))
                 .Select(x => x.PaymentLocationText!)
+                .GroupBy(PaymentLocationNameNormalizer.Normalize)
+                .Select(x => x.First())
+                .OrderBy(x => x)
+                .ToList(),
+            MissingCorrespondents = rows
+                .Where(x => x.PaymentLocationId != ownLocationId &&
+                            !x.DestinationCorrespondentId.HasValue &&
+                            !string.IsNullOrWhiteSpace(x.PaymentLocationText))
+                .Select(x => x.PaymentLocation?.Name ?? x.PaymentLocationText!)
                 .GroupBy(PaymentLocationNameNormalizer.Normalize)
                 .Select(x => x.First())
                 .OrderBy(x => x)
@@ -323,6 +495,13 @@ public sealed class HawalaImportService : IHawalaImportService
                 PaymentLocationName = x.PaymentLocation?.Name,
                 Amount = x.Amount,
                 CurrencyCode = x.CurrencyCode,
+                CurrencyId = x.CurrencyId,
+                RequiresOutgoingHawala = x.PaymentLocationId != ownLocationId,
+                DestinationCorrespondentId = x.DestinationCorrespondentId,
+                DestinationCorrespondentName = x.PaymentLocationId != ownLocationId ? x.PaymentLocationText : null,
+                AgentCommissionAmount = x.AgentCommissionAmount,
+                AgentCommissionCurrencyId = x.AgentCommissionCurrencyId,
+                AgentCommissionCurrencyCode = x.AgentCommissionCurrencyCode,
                 ValidationErrors = x.ValidationErrors
             }).ToList()
         };

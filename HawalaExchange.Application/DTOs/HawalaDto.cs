@@ -128,6 +128,9 @@ namespace HawalaExchange.Application.DTOs
         public string Status { get; set; } = "Pending";
         public string? PaymentLocation { get; set; }
         public long? GeneratedSendHawalaNumber { get; set; }
+        public decimal? GeneratedSendAgentCommissionAmount { get; set; }
+        public long? GeneratedSendAgentCommissionCurrencyId { get; set; }
+        public string? GeneratedSendReferenceNumber { get; set; }
     }
 
     public class UpdateHawalaDto
@@ -174,6 +177,12 @@ namespace HawalaExchange.Application.DTOs
         public string? ReceiverTazkiraNumber { get; set; }
         public string? ReceiverTazkiraImagePath { get; set; }
         public string? ReceiverAddress { get; set; }
+    }
+
+    public class AddHawalaAgentCommissionDto
+    {
+        public decimal Amount { get; set; }
+        public long CurrencyId { get; set; }
     }
 
     public class CancelHawalaDto

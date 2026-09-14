@@ -20,6 +20,7 @@ public class CompanySettingService : ICompanySettingService
         var setting = await _context.CompanySettings
             .AsNoTracking()
             .Include(x => x.DefaultProfitCurrency)
+            .Include(x => x.OwnPaymentLocation)
             .FirstOrDefaultAsync();
 
         var fallbackCurrency = setting?.DefaultProfitCurrencyId == null
@@ -51,7 +52,9 @@ public class CompanySettingService : ICompanySettingService
             DefaultProfitCurrencyCode =
                 setting.DefaultProfitCurrency?.Code ??
                 fallbackCurrency?.Code ??
-                string.Empty
+                string.Empty,
+            OwnPaymentLocationId = setting.OwnPaymentLocationId,
+            OwnPaymentLocationName = setting.OwnPaymentLocation?.Name ?? string.Empty
         };
     }
 
@@ -71,6 +74,10 @@ public class CompanySettingService : ICompanySettingService
 
         if (profitCurrency == null)
             throw new InvalidOperationException("ارز اصلی محاسبه مفاد و ضرر معتبر یا فعال نیست.");
+
+        if (!dto.OwnPaymentLocationId.HasValue ||
+            !await _context.PaymentLocations.AnyAsync(x => x.Id == dto.OwnPaymentLocationId.Value && x.IsActive))
+            throw new InvalidOperationException("انتخاب محل پرداخت دفتر خود صرافی الزامی است.");
 
         var setting = await _context.CompanySettings
             .FirstOrDefaultAsync();
@@ -93,6 +100,7 @@ public class CompanySettingService : ICompanySettingService
         setting.Address = dto.Address;
         setting.FooterNote = dto.FooterNote;
         setting.DefaultProfitCurrencyId = profitCurrency.Id;
+        setting.OwnPaymentLocationId = dto.OwnPaymentLocationId;
         setting.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -108,7 +116,12 @@ public class CompanySettingService : ICompanySettingService
             Address = setting.Address,
             FooterNote = setting.FooterNote,
             DefaultProfitCurrencyId = profitCurrency.Id,
-            DefaultProfitCurrencyCode = profitCurrency.Code
+            DefaultProfitCurrencyCode = profitCurrency.Code,
+            OwnPaymentLocationId = setting.OwnPaymentLocationId,
+            OwnPaymentLocationName = await _context.PaymentLocations
+                .Where(x => x.Id == setting.OwnPaymentLocationId)
+                .Select(x => x.Name)
+                .SingleAsync()
         };
     }
 

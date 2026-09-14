@@ -1885,9 +1885,21 @@ namespace HawalaExchange.Infrastructure.Data
                     .WithMany()
                     .HasForeignKey(x => x.CurrencyId)
                     .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.AgentCommissionCurrency)
+                    .WithMany()
+                    .HasForeignKey(x => x.AgentCommissionCurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.DestinationCorrespondent)
+                    .WithMany()
+                    .HasForeignKey(x => x.DestinationCorrespondentId)
+                    .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.Hawala)
                     .WithMany()
                     .HasForeignKey(x => x.HawalaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.GeneratedSendHawala)
+                    .WithMany()
+                    .HasForeignKey(x => x.GeneratedSendHawalaId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
@@ -1907,6 +1919,12 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasOne(x => x.SettlementCurrency)
                 .WithMany()
                 .HasForeignKey(x => x.SettlementCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CompanySetting>()
+                .HasOne(x => x.OwnPaymentLocation)
+                .WithMany()
+                .HasForeignKey(x => x.OwnPaymentLocationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Correspondent>()

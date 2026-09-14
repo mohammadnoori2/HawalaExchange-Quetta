@@ -1,264 +1,150 @@
-@page "/hawala-import"
+@page "/correspondents/{CorrespondentId:long}/hawala-import"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @inject IHawalaImportService HawalaImportService
-@inject ICorrespondentService CorrespondentService
+@inject ICurrencyService CurrencyService
+@inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<PageTitle>آپلود گروهی حواله‌ها</PageTitle>
+<PageTitle>آپلود گروهی حواله‌های دریافتی</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
-    <AppPageHeader Title="آپلود گروهی حواله‌ها"
-                   Subtitle="بررسی فایل Excel پیش از ثبت حواله‌های دریافتی"
-                   Icon="bi-file-earmark-spreadsheet" />
+    <AppPageHeader Title="آپلود گروهی حواله‌های دریافتی" Subtitle="بررسی فایل Excel و ساخت حواله ارسالی برای محل‌های پرداخت بیرون از دفتر صرافی" Icon="bi-file-earmark-spreadsheet" />
+    <button class="btn btn-outline-secondary mt-3" @onclick="BackToCorrespondent"><i class="bi bi-arrow-right ms-1"></i>بازگشت به نمایندگی</button>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
-    {
-        <div class="alert alert-danger mt-3"><i class="bi bi-exclamation-triangle ms-2"></i>@errorMessage</div>
-    }
+    { <div class="alert alert-danger mt-3"><i class="bi bi-exclamation-triangle ms-2"></i>@errorMessage</div> }
     @if (result is not null)
     {
         <div class="alert alert-success mt-3">
             <h5 class="alert-heading">آپلود با موفقیت ثبت شد</h5>
-            <div>@result.ImportedCount.ToString("N0") حواله به‌صورت یک‌جا ثبت گردید.</div>
+            <div>@result.ImportedCount.ToString("N0") حواله دریافتی و @result.GeneratedSendCount.ToString("N0") حواله ارسالی ثبت گردید.</div>
+            @if (result.MissingCommissionCount > 0)
+            { <div class="mt-1">@result.MissingCommissionCount.ToString("N0") حواله ارسالی بدون کمیشن و در حالت انتظار قرار گرفت.</div> }
             @foreach (var total in result.Totals)
-            {
-                <span class="badge bg-success ms-2 mt-2">@total.Amount.ToString("N0") @total.CurrencyCode (@total.RowCount.ToString("N0") ردیف)</span>
-            }
+            { <span class="badge bg-success ms-2 mt-2">@total.Amount.ToString("N0") @total.CurrencyCode (@total.RowCount.ToString("N0") ردیف)</span> }
         </div>
     }
 
-    <div class="card shadow-sm mt-3">
-        <div class="card-body">
-            <div class="row g-3 align-items-end">
-                <div class="col-lg-4">
-                    <label class="form-label">نمایندگی فرستنده</label>
-                    <select class="form-select" @bind="selectedCorrespondentId" disabled="@(isBusy || preview is not null)">
-                        <option value="0">انتخاب نمایندگی...</option>
-                        @foreach (var correspondent in correspondents)
-                        {
-                            <option value="@correspondent.Id">@correspondent.Name (@correspondent.Code)</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-lg-5">
-                    <label class="form-label">فایل Excel بدون عنوان ستون</label>
-                    <InputFile class="form-control" OnChange="PreviewFileAsync" accept=".xlsx" disabled="@(isBusy || preview is not null)" />
-                    <div class="form-text">ترتیب ستون‌ها: شماره، رفرنس، فرستنده، گیرنده، محل پرداخت، مبلغ و ارز</div>
-                </div>
-                <div class="col-lg-3">
-                    @if (preview is not null)
-                    {
-                        <button class="btn btn-outline-secondary w-100" @onclick="Reset" disabled="@isBusy">
-                            <i class="bi bi-arrow-repeat ms-1"></i>انتخاب فایل دیگر
-                        </button>
-                    }
-                </div>
-            </div>
+    <div class="card shadow-sm mt-3"><div class="card-body"><div class="row g-3 align-items-end">
+        <div class="col-lg-9">
+            <label class="form-label">فایل Excel بدون عنوان ستون</label>
+            <InputFile class="form-control" OnChange="PreviewFileAsync" accept=".xlsx" disabled="@(isBusy || preview is not null)" />
+            <div class="form-text">ستون‌ها: شماره، رفرنس، فرستنده، گیرنده، محل پرداخت، مبلغ، ارز، کمیشن عامل پرداخت (اختیاری)، ارز کمیشن (اختیاری). اگر ارز کمیشن خالی باشد، ارز حواله استفاده می‌شود.</div>
         </div>
-    </div>
+        <div class="col-lg-3">@if (preview is not null){<button class="btn btn-outline-secondary w-100" @onclick="Reset" disabled="@isBusy"><i class="bi bi-arrow-repeat ms-1"></i>انتخاب فایل دیگر</button>}</div>
+    </div></div></div>
 
     @if (isBusy)
-    {
-        <div class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2">لطفاً منتظر بمانید...</div></div>
-    }
+    { <div class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2">لطفاً منتظر بمانید...</div></div> }
     else if (preview is not null)
     {
+        <div class="alert alert-info mt-3 mb-0">محل پرداخت دفتر خود صرافی: <strong>@preview.OwnPaymentLocationName</strong>. ردیف‌های این محل فقط دریافتی ثبت می‌شوند؛ سایر ردیف‌ها یک حواله ارسالی جفت‌شده نیز می‌سازند.</div>
         <div class="row g-3 mt-1">
             <div class="col-md-3"><div class="card card-body"><small class="text-muted">تمام ردیف‌ها</small><strong class="fs-4">@preview.RowCount.ToString("N0")</strong></div></div>
             <div class="col-md-3"><div class="card card-body border-success"><small class="text-muted">معتبر</small><strong class="fs-4 text-success">@preview.ValidRowCount.ToString("N0")</strong></div></div>
             <div class="col-md-3"><div class="card card-body border-danger"><small class="text-muted">دارای خطا</small><strong class="fs-4 text-danger">@preview.InvalidRowCount.ToString("N0")</strong></div></div>
-            <div class="col-md-3">
-                <div class="card card-body">
-                    <small class="text-muted">مجموع‌ها</small>
-                    @foreach (var total in preview.Totals)
-                    {
-                        <strong>@total.Amount.ToString("N0") @total.CurrencyCode</strong>
-                    }
-                </div>
-            </div>
+            <div class="col-md-3"><div class="card card-body"><small class="text-muted">حواله‌های ارسالی</small><strong class="fs-4">@preview.Rows.Count(x => x.RequiresOutgoingHawala).ToString("N0")</strong></div></div>
         </div>
 
         @if (preview.MissingLocations.Count > 0)
         {
-            <div class="card shadow-sm mt-3 border-warning">
-                <div class="card-header bg-warning-subtle"><strong>محل‌های پرداخت جدید</strong></div>
-                <div class="card-body">
-                    <p class="mb-2">این نام‌ها در سیستم پیدا نشدند. فقط مواردی را علامت بزنید که اجازه دارید به‌عنوان محل پرداخت جدید ایجاد شوند:</p>
-                    <div class="row g-2">
-                        @foreach (var location in preview.MissingLocations)
-                        {
-                            <div class="col-md-4">
-                                <label class="form-check border rounded p-2 pe-5 w-100">
-                                    <input class="form-check-input" type="checkbox"
-                                           checked="@locationsToCreate.Contains(location)"
-                                           @onchange="args => ToggleLocation(location, args)" />
-                                    <span class="form-check-label">@location</span>
-                                </label>
-                            </div>
-                        }
-                    </div>
+            <div class="card shadow-sm mt-3 border-warning"><div class="card-header bg-warning-subtle"><strong>محل‌های پرداخت جدید</strong></div><div class="card-body">
+                <p class="mb-2">ایجاد این محل‌های پرداخت را تأیید کنید:</p><div class="row g-2">
+                @foreach (var location in preview.MissingLocations)
+                { <div class="col-md-4"><label class="form-check border rounded p-2 pe-5 w-100"><input class="form-check-input" type="checkbox" checked="@locationsToCreate.Contains(location)" @onchange="args => ToggleSet(locationsToCreate, location, args)" /><span class="form-check-label">@location</span></label></div> }
                 </div>
-            </div>
+            </div></div>
+        }
+
+        @if (preview.MissingCorrespondents.Count > 0)
+        {
+            <div class="card shadow-sm mt-3 border-warning"><div class="card-header bg-warning-subtle"><strong>نمایندگی‌های محل پرداخت جدید</strong></div><div class="card-body">
+                <p class="mb-2">برای ساخت حواله ارسالی، ایجاد نمایندگی‌های زیر را جداگانه تأیید کنید:</p><div class="row g-2">
+                @foreach (var correspondent in preview.MissingCorrespondents)
+                { <div class="col-md-4"><label class="form-check border rounded p-2 pe-5 w-100"><input class="form-check-input" type="checkbox" checked="@correspondentsToCreate.Contains(correspondent)" @onchange="args => ToggleSet(correspondentsToCreate, correspondent, args)" /><span class="form-check-label">@correspondent</span></label></div> }
+                </div>
+            </div></div>
+        }
+
+        @if (preview.Rows.Any(x => x.RequiresOutgoingHawala))
+        {
+            <div class="card shadow-sm mt-3"><div class="card-header"><strong>اعمال کمیشن یکسان روی تمام حواله‌های ارسالی</strong></div><div class="card-body row g-2 align-items-end">
+                <div class="col-md-4"><label class="form-label">مبلغ کمیشن</label><InputNumber class="form-control" @bind-Value="bulkCommissionAmount" /></div>
+                <div class="col-md-4"><label class="form-label">ارز کمیشن</label><select class="form-select" @bind="bulkCommissionCurrencyId"><option value="0">ارز خود هر حواله</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code - @currency.Name</option>}</select></div>
+                <div class="col-md-4"><button class="btn btn-outline-primary w-100" @onclick="ApplyBulkCommission" disabled="@(bulkCommissionAmount is not > 0)">اعمال به همه حواله‌های ارسالی</button></div>
+            </div></div>
         }
 
         <div class="card shadow-sm mt-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <div><strong>پیش‌نمایش فایل</strong> — @preview.CorrespondentName</div>
-                <button class="btn btn-success" @onclick="ConfirmAsync" disabled="@(!CanConfirm)">
-                    <i class="bi bi-check2-circle ms-1"></i>تأیید و ثبت @preview.RowCount.ToString("N0") حواله
-                </button>
-            </div>
-            @if (!CanConfirm)
-            {
-                <div class="alert alert-warning rounded-0 mb-0">
-                    @if (preview.InvalidRowCount > 0)
-                    {
-                        <span>فایل دارای ردیف نامعتبر است؛ ابتدا فایل را اصلاح و دوباره انتخاب کنید.</span>
-                    }
-                    else
-                    {
-                        <span>برای ادامه، ایجاد همهٔ محل‌های پرداخت ناشناخته را تأیید کنید.</span>
-                    }
-                </div>
-            }
-            <div class="table-responsive" style="max-height: 560px;">
-                <table class="table table-sm table-hover align-middle mb-0">
-                    <thead class="table-light sticky-top">
-                        <tr><th>ردیف</th><th>شماره</th><th>رفرنس</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>ارز</th><th>نتیجه بررسی</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in preview.Rows)
-                        {
-                            <tr class="@(row.IsValid ? string.Empty : "table-danger")">
-                                <td>@row.ExcelRowNumber</td>
-                                <td>@row.HawalaNumber</td>
-                                <td>@row.ReferenceNumber</td>
-                                <td>@row.SenderName</td>
-                                <td>@row.ReceiverName</td>
-                                <td>
-                                    @row.PaymentLocationText
-                                    @if (row.PaymentLocationId.HasValue)
-                                    {
-                                        <span class="badge bg-success me-1">موجود</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-warning text-dark me-1">جدید</span>
-                                    }
-                                </td>
-                                <td>@row.Amount?.ToString("N0")</td>
-                                <td>@row.CurrencyCode</td>
-                                <td>
-                                    @if (row.IsValid)
-                                    {
-                                        <span class="text-success"><i class="bi bi-check-circle"></i> معتبر</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-danger">@row.ValidationErrors</span>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+            <div class="card-header d-flex justify-content-between align-items-center"><div><strong>پیش‌نمایش فایل</strong> — @preview.CorrespondentName</div><button class="btn btn-success" @onclick="ConfirmAsync" disabled="@(!CanConfirm)"><i class="bi bi-check2-circle ms-1"></i>تأیید و ثبت</button></div>
+            @if (!CanConfirm){<div class="alert alert-warning rounded-0 mb-0">فایل نباید خطا داشته باشد و ایجاد تمام محل‌ها و نمایندگی‌های جدید باید تأیید شود. برای کمیشن واردشده نیز ارز لازم است.</div>}
+            <div class="table-responsive" style="max-height: 560px;"><table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light sticky-top"><tr><th>ردیف</th><th>شماره / رفرنس</th><th>فرستنده / گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>نوع ثبت</th><th>کمیشن عامل پرداخت</th><th>ارز کمیشن</th><th>بررسی</th></tr></thead>
+                <tbody>@foreach (var row in preview.Rows)
+                {
+                    <tr class="@(row.IsValid ? string.Empty : "table-danger")">
+                        <td>@row.ExcelRowNumber</td><td><strong>@row.HawalaNumber</strong><br/><small>@row.ReferenceNumber</small></td><td>@row.SenderName<br/><small>@row.ReceiverName</small></td>
+                        <td>@row.PaymentLocationText @if (!row.PaymentLocationId.HasValue){<span class="badge bg-warning text-dark">جدید</span>}</td><td dir="ltr">@row.Amount?.ToString("N0") @row.CurrencyCode</td>
+                        <td>@if (row.RequiresOutgoingHawala){<span class="badge bg-primary">دریافتی + ارسالی</span><div class="small mt-1">به @(row.DestinationCorrespondentName ?? row.PaymentLocationText)</div>}else{<span class="badge bg-secondary">فقط دریافتی</span>}</td>
+                        <td>@if (row.RequiresOutgoingHawala){<InputNumber class="form-control form-control-sm" @bind-Value="row.AgentCommissionAmount" placeholder="اختیاری"/>}else{<span>—</span>}</td>
+                        <td>@if (row.RequiresOutgoingHawala){<select class="form-select form-select-sm" @bind="row.AgentCommissionCurrencyId"><option value="">انتخاب ارز</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code</option>}</select>}else{<span>—</span>}</td>
+                        <td>@if (row.IsValid){<span class="text-success"><i class="bi bi-check-circle"></i> معتبر</span>}else{<span class="text-danger">@row.ValidationErrors</span>}</td>
+                    </tr>
+                }</tbody>
+            </table></div>
         </div>
     }
 </div>
 
 @code {
+    [Parameter] public long CorrespondentId { get; set; }
     private const long MaximumFileSize = 10 * 1024 * 1024;
-    private List<CorrespondentDto> correspondents = [];
-    private long selectedCorrespondentId;
+    private List<CurrencyDto> currencies = [];
     private HawalaImportPreviewDto? preview;
     private HawalaImportResultDto? result;
     private readonly HashSet<string> locationsToCreate = new(StringComparer.Ordinal);
+    private readonly HashSet<string> correspondentsToCreate = new(StringComparer.Ordinal);
+    private decimal? bulkCommissionAmount;
+    private long bulkCommissionCurrencyId;
     private string? errorMessage;
     private bool isBusy;
 
-    private bool CanConfirm => preview is not null && preview.InvalidRowCount == 0 &&
-        preview.MissingLocations.All(locationsToCreate.Contains) && !isBusy;
+    private bool CanConfirm => preview is not null && preview.InvalidRowCount == 0 && preview.MissingLocations.All(locationsToCreate.Contains) && preview.MissingCorrespondents.All(correspondentsToCreate.Contains) && preview.Rows.Where(x => x.RequiresOutgoingHawala && x.AgentCommissionAmount is > 0).All(x => x.AgentCommissionCurrencyId is > 0) && !isBusy;
 
     protected override async Task OnInitializedAsync()
-    {
-        try
-        {
-            correspondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList();
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-        }
-    }
+    { try { currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); } catch (Exception ex) { errorMessage = ex.Message; } }
 
     private async Task PreviewFileAsync(InputFileChangeEventArgs args)
     {
-        errorMessage = null;
-        result = null;
-        if (selectedCorrespondentId <= 0)
-        {
-            errorMessage = "ابتدا نمایندگی فرستنده را انتخاب کنید.";
-            return;
-        }
-
-        isBusy = true;
-        try
-        {
-            await using var stream = args.File.OpenReadStream(MaximumFileSize);
-            preview = await HawalaImportService.PreviewAsync(stream, args.File.Name, selectedCorrespondentId);
-            locationsToCreate.Clear();
-        }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-            preview = null;
-        }
-        finally
-        {
-            isBusy = false;
-        }
+        errorMessage = null; result = null; isBusy = true;
+        try { await using var stream = args.File.OpenReadStream(MaximumFileSize); preview = await HawalaImportService.PreviewAsync(stream, args.File.Name, CorrespondentId); locationsToCreate.Clear(); correspondentsToCreate.Clear(); }
+        catch (Exception ex) { errorMessage = ex.Message; preview = null; }
+        finally { isBusy = false; }
     }
 
-    private void ToggleLocation(string location, ChangeEventArgs args)
+    private static void ToggleSet(HashSet<string> set, string value, ChangeEventArgs args)
+    { if (args.Value is bool selected && selected) set.Add(value); else set.Remove(value); }
+
+    private void ApplyBulkCommission()
     {
-        if (args.Value is bool selected && selected)
-            locationsToCreate.Add(location);
-        else
-            locationsToCreate.Remove(location);
+        if (preview is null || bulkCommissionAmount is not > 0) return;
+        foreach (var row in preview.Rows.Where(x => x.RequiresOutgoingHawala)) { row.AgentCommissionAmount = bulkCommissionAmount; row.AgentCommissionCurrencyId = bulkCommissionCurrencyId > 0 ? bulkCommissionCurrencyId : row.CurrencyId; }
     }
 
     private async Task ConfirmAsync()
     {
         if (!CanConfirm || preview is null) return;
-        errorMessage = null;
-        isBusy = true;
+        errorMessage = null; isBusy = true;
         try
         {
-            result = await HawalaImportService.ConfirmAsync(new ConfirmHawalaImportDto
-            {
-                BatchId = preview.BatchId,
-                LocationsToCreate = locationsToCreate.ToList()
-            });
-            preview = null;
-            locationsToCreate.Clear();
+            result = await HawalaImportService.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId, LocationsToCreate = locationsToCreate.ToList(), CorrespondentsToCreate = correspondentsToCreate.ToList(), Commissions = preview.Rows.Where(x => x.RequiresOutgoingHawala).Select(x => new HawalaImportCommissionDto { RowId = x.Id, Amount = x.AgentCommissionAmount, CurrencyId = x.AgentCommissionCurrencyId }).ToList() });
+            preview = null; locationsToCreate.Clear(); correspondentsToCreate.Clear();
         }
-        catch (Exception ex)
-        {
-            errorMessage = ex.Message;
-        }
-        finally
-        {
-            isBusy = false;
-        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isBusy = false; }
     }
 
-    private void Reset()
-    {
-        preview = null;
-        result = null;
-        errorMessage = null;
-        locationsToCreate.Clear();
-    }
+    private void Reset() { preview = null; result = null; errorMessage = null; locationsToCreate.Clear(); correspondentsToCreate.Clear(); bulkCommissionAmount = null; bulkCommissionCurrencyId = 0; }
+    private void BackToCorrespondent() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}");
 }

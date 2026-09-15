@@ -1570,7 +1570,7 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasFilter("[IsActive] = 1");
             modelBuilder.Entity<CashBalanceAlert>()
                 .HasIndex(x => new { x.TenantId, x.TriggeredAt });
-            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId, x.CreatedAt });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.CreatedAt });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.TransactionId });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.HawalaId });

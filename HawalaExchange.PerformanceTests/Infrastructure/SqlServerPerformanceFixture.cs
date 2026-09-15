@@ -142,6 +142,14 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
     public ReportService CreateReportService(ApplicationDbContext context) => new(context);
     public CorrespondentCommissionService CreateCommissionService(ApplicationDbContext context) => new(context);
     public CorrespondentSettlementService CreateSettlementService(ApplicationDbContext context) => new(context);
+    public BalanceService CreateBalanceService(ApplicationDbContext context)
+    {
+        var mapperConfig = new MapperConfiguration(
+            cfg => cfg.AddProfile<MappingProfile>(),
+            NullLoggerFactory.Instance);
+        var mapper = mapperConfig.CreateMapper();
+        return new BalanceService(context, new LedgerService(context, mapper), mapper);
+    }
 
     public Correspondent SourceCorrespondent { get; private set; } = null!;
     public Correspondent DestinationCorrespondent { get; private set; } = null!;

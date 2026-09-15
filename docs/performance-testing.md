@@ -133,3 +133,20 @@ For 10,000 Hawalas and a 100-row correspondent page, the median of three local r
 | Server-side DTO projection | 38.03 ms |
 
 The projected query was **18.55% faster** in this sample and transfers fewer columns while preserving the returned page and total count.
+
+## Original-plan phase two — account-balance stored procedure — 2026-09-15
+
+Account, customer, correspondent, cash, branch-summary, and overdraft-limit balance reads now use the tenant-scoped `usp_GetAccountBalances_v1` procedure. It aggregates debit and credit values by account and currency in SQL and accepts optional account, customer, correspondent, owner type, account type, and as-of-date filters. Zero balances, including fully reversed activity, are omitted exactly as in the previous ledger implementation.
+
+The all-customer, all-correspondent, all-cash, branch, and account-limit paths no longer execute one ledger query per owner or account. Owner metadata is read once and combined with one set-based balance call. Owners without an account or without ledger activity remain visible with an empty balance list. Read-only metadata queries use projections and no tracking.
+
+The supporting ledger index is extended from `(TenantId, AccountId, CurrencyId)` to `(TenantId, AccountId, CurrencyId, CreatedAt)` so both current and historical balance reads use the same tenant-first index. Correctness tests cover multiple currencies, creditor and debtor values, an as-of date, zero/reversed activity, empty owners, overdraft limits, tenant isolation, and bounded database round trips.
+
+For 500 correspondent accounts and 10,000 ledger entries, one local comparison produced:
+
+| Implementation | Database calls | Elapsed time |
+| --- | ---: | ---: |
+| Previous per-account ledger loop | 500 | 595.36 ms |
+| Owner query plus balance procedure | 2 | 333.12 ms |
+
+The set-based path reduced database calls by **99.6%** and elapsed time by **44.05%** in this sample.

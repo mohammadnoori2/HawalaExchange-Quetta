@@ -11,7 +11,7 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<IEnumerable<CashBalanceDto>> GetAllCashBalancesAsync(long branchId);
         Task<CashBalanceDto?> GetCashBalanceAsync(long accountId);
         Task<BranchBalanceDto?> GetBranchBalanceAsync(long branchId);
-        Task<IEnumerable<BalanceDto>> GetAccountBalanceAsync(long accountId);
+        Task<IEnumerable<BalanceDto>> GetAccountBalanceAsync(long accountId, DateTime? asOfDate = null);
         Task<bool> ValidateBadehkarLimitAsync(long accountId, long currencyId, decimal amount);
         Task<IEnumerable<AccountBalanceDto>> GetAccountsWithLimitsAsync();
     }

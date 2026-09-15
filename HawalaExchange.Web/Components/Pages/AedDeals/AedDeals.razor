@@ -8,7 +8,7 @@
 @rendermode InteractiveServer
 @inject IAedDealService AedDealService
 @inject ICorrespondentService CorrespondentService
-@inject ICurrencyService CurrencyService
+@inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject NavigationManager NavigationManager
 
 <PageTitle>معاملات درهم</PageTitle>
@@ -26,7 +26,7 @@
                     <i class="bi bi-arrow-right"></i> بازگشت به نمایندگی
                 </button>
             }
-            <button class="btn btn-primary" disabled="@(isLoading || correspondents.Count < 2 || currencies.Count == 0)" @onclick="OpenCreate">
+            <button class="btn btn-primary" disabled="@(isLoading || correspondents.Count < 2 || currencies.Count == 0)" title="@CreateDisabledReason" @onclick="OpenCreate">
                 <i class="bi bi-plus-lg"></i> معامله جدید
             </button>
         </div>
@@ -216,17 +216,38 @@
     private AedDealConversionDto? selectedConversion;
     private long? expandedDealId;
     private bool isLoading = true, isSaving, showCreate, showConvert, showReason;
+    private bool lookupsLoaded, parameterLoaded;
+    private long? loadedCorrespondentId;
     private string reason = string.Empty, successMessage = string.Empty, errorMessage = string.Empty;
 
-    protected override async Task OnParametersSetAsync() => await LoadAsync();
+    private string? CreateDisabledReason => isLoading
+        ? "اطلاعات صفحه هنوز در حال بارگذاری است."
+        : correspondents.Count < 2
+            ? "برای ثبت معامله حداقل دو نمایندگی فعال لازم است."
+            : currencies.Count == 0
+                ? "ارز فعال AED یا USD در سیستم تعریف نشده است."
+                : null;
 
-    private async Task LoadAsync()
+    protected override async Task OnParametersSetAsync()
+    {
+        if (parameterLoaded && loadedCorrespondentId == CorrespondentId)
+            return;
+        parameterLoaded = true;
+        loadedCorrespondentId = CorrespondentId;
+        await LoadAsync(loadLookups: true);
+    }
+
+    private async Task LoadAsync(bool loadLookups = false)
     {
         try
         {
             isLoading = true; errorMessage = string.Empty;
-            correspondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList();
-            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).Where(x => x.Code is "AED" or "USD").OrderBy(x => x.Code).ToList();
+            if (loadLookups || !lookupsLoaded)
+            {
+                correspondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList();
+                currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).Where(x => x.Code is "AED" or "USD").OrderBy(x => x.Code).ToList();
+                lookupsLoaded = true;
+            }
             deals = (await AedDealService.GetAllAsync(CorrespondentId)).ToList();
         }
         catch (Exception ex) { errorMessage = $"بارگذاری معاملات انجام نشد: {ex.Message}"; }
@@ -247,6 +268,7 @@
     private void CloseCreate() => showCreate = false;
     private async Task CreateAsync()
     {
+        if (isSaving) return;
         try { isSaving = true; errorMessage = string.Empty; await AedDealService.CreateAsync(createModel); showCreate = false; successMessage = "معامله با موفقیت ثبت و نزد طرف دبی نگهداری شد."; await LoadAsync(); }
         catch (Exception ex) { errorMessage = ex.Message; }
         finally { isSaving = false; }
@@ -261,12 +283,14 @@
     private void CloseConvert() { showConvert = false; preview = null; }
     private async Task PreviewAsync()
     {
+        if (isSaving) return;
         try { isSaving = true; errorMessage = string.Empty; preview = await AedDealService.PreviewConversionAsync(conversionModel); }
         catch (Exception ex) { preview = null; errorMessage = ex.Message; }
         finally { isSaving = false; }
     }
     private async Task ConvertAsync()
     {
+        if (isSaving) return;
         try
         {
             isSaving = true; errorMessage = string.Empty;
@@ -283,6 +307,7 @@
     private void CloseReason() => showReason = false;
     private async Task ConfirmReasonAsync()
     {
+        if (isSaving) return;
         try
         {
             isSaving = true; errorMessage = string.Empty;

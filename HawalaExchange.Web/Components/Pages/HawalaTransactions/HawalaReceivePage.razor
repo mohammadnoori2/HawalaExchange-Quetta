@@ -10,14 +10,14 @@
 @inject IHawalaService HawalaService
 @inject IAccountService AccountService
 @inject ICustomerService CustomerService
-@inject ICurrencyService CurrencyService
-@inject ICompanySettingService CompanySettingService
+@inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject IFileService FileService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 
 @rendermode InteractiveServer
 @attribute [Authorize]
+@implements IDisposable
 
 <div class="page-wrapper" dir="rtl">
     <div class="page-header">
@@ -33,7 +33,7 @@
             <PageHeaderStat Label="اجرا شده" Value="@totalCount" Icon="bi-check-circle" Tone="success" />
         </PageHeaderStats>
         <div class="page-actions">
-            <button class="btn-modern btn-light-modern btn-rounded" @onclick="LoadData">
+            <button class="btn-modern btn-light-modern btn-rounded" @onclick="() => LoadData()">
                 <i class="bi bi-arrow-clockwise"></i>
                 تازه‌سازی
             </button>
@@ -623,7 +623,7 @@
                         انصراف
                     </button>
 
-                    <button class="btn-modern btn-danger-modern" @onclick="ConfirmCancel">
+                    <button class="btn-modern btn-danger-modern" disabled="@isLoading" @onclick="ConfirmCancel">
                         تأیید لغو
                     </button>
                 </div>
@@ -662,7 +662,7 @@
                         انصراف
                     </button>
 
-                    <button class="btn-modern btn-danger-modern" @onclick="ConfirmDelete">
+                    <button class="btn-modern btn-danger-modern" disabled="@isLoading" @onclick="ConfirmDelete">
                         تأیید حذف
                     </button>
                 </div>
@@ -707,6 +707,7 @@
 
     private string searchTerm = string.Empty;
     private CancellationTokenSource? searchChangeCts;
+    private int dataLoadVersion;
     private int pageSize = 10;
     private int currentPage = 1;
     private int totalCount;
@@ -722,7 +723,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
+        currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).ToList();
         await LoadAccounts();
         await LoadCustomers();
         await LoadData();
@@ -751,8 +752,9 @@
             .ToList();
     }
 
-    private async Task LoadData()
+    private async Task LoadData(CancellationToken cancellationToken = default)
     {
+        var loadVersion = ++dataLoadVersion;
         try
         {
             isLoading = true;
@@ -785,10 +787,15 @@
                 SortDirection = "desc"
             };
 
-            var result = await HawalaService.GetHawalasAsync(filter);
+            var result = await HawalaService.GetHawalasAsync(filter, cancellationToken);
+            if (loadVersion != dataLoadVersion)
+                return;
             hawalas = result.Items.ToList();
             totalCount = result.TotalCount;
             totalPages = Math.Max(1, result.TotalPages);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
@@ -796,13 +803,17 @@
         }
         finally
         {
-            isLoading = false;
-            StateHasChanged();
+            if (loadVersion == dataLoadVersion)
+            {
+                isLoading = false;
+                StateHasChanged();
+            }
         }
     }
 
     private async Task ResetFilter()
     {
+        CancelPendingSearchChange();
         searchTerm = string.Empty;
         currentPage = 1;
         await LoadData();
@@ -810,12 +821,12 @@
 
     private async Task OnSearchChangedAsync()
     {
-        searchChangeCts?.Cancel();
-        searchChangeCts?.Dispose();
-        searchChangeCts = new CancellationTokenSource();
+        CancelPendingSearchChange();
+        var debounceCts = new CancellationTokenSource();
+        searchChangeCts = debounceCts;
         try
         {
-            await Task.Delay(150, searchChangeCts.Token);
+            await Task.Delay(300, debounceCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -823,17 +834,19 @@
         }
 
         currentPage = 1;
-        await LoadData();
+        await LoadData(debounceCts.Token);
     }
 
     private async Task OnPageSizeChangedAsync()
     {
+        CancelPendingSearchChange();
         currentPage = 1;
         await LoadData();
     }
 
     private async Task GoToPage(int page)
     {
+        CancelPendingSearchChange();
         if (page >= 1 && page <= totalPages)
         {
             currentPage = page;
@@ -1035,7 +1048,7 @@
             }
 
             receiptHawala = hawala;
-            companySetting = await CompanySettingService.GetAsync();
+            companySetting = await ReferenceDataCache.GetCompanySettingAsync();
 
             showReceiptModal = true;
         }
@@ -1158,6 +1171,7 @@
 
     private async Task ConfirmCancel()
     {
+        if (isLoading) return;
         validationErrors.Clear();
         successMessage = string.Empty;
 
@@ -1209,6 +1223,7 @@
 
     private async Task ConfirmDelete()
     {
+        if (isLoading) return;
         validationErrors.Clear();
         successMessage = string.Empty;
 
@@ -1253,6 +1268,18 @@
             "Cancel" => "badge-danger",
             _ => "badge-secondary"
         };
+    }
+
+    public void Dispose()
+    {
+        CancelPendingSearchChange();
+    }
+
+    private void CancelPendingSearchChange()
+    {
+        searchChangeCts?.Cancel();
+        searchChangeCts?.Dispose();
+        searchChangeCts = null;
     }
 
     private static string GetExecutionAccountText(HawalaDto hawala)

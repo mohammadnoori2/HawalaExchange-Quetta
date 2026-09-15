@@ -8,10 +8,10 @@
 @inject IHawalaService HawalaService
 @inject IAccountService AccountService
 @inject ICustomerService CustomerService
-@inject ICompanySettingService CompanySettingService
-@inject ICurrencyService CurrencyService
+@inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
+@implements IDisposable
 
 <section class="correspondent-hawala-panel">
     <header class="panel-header">
@@ -219,7 +219,7 @@
                            PageChanged="GoToPageAsync" />
         <PageSizeSelector @bind-Value="pageSize"
                           @bind-CurrentPage="currentPage"
-                          Changed="LoadHawalasAsync"
+                          Changed="() => LoadHawalasAsync()"
                           AriaLabel="تعداد حواله در هر صفحه" />
     </footer>
 </section>
@@ -442,6 +442,7 @@
     private string searchTerm = string.Empty;
     private string statusFilter = string.Empty;
     private CancellationTokenSource? filterChangeCts;
+    private int panelLoadVersion;
     private int currentPage = 1;
     private int pageSize = 10;
     private int totalCount;
@@ -493,7 +494,7 @@
     {
         if (!currenciesLoaded)
         {
-            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList();
+            currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList();
             currenciesLoaded = true;
         }
 
@@ -506,13 +507,17 @@
         await LoadHawalasAsync();
     }
 
-    private async Task LoadHawalasAsync()
+    private async Task LoadHawalasAsync(CancellationToken cancellationToken = default)
     {
+        var loadVersion = ++panelLoadVersion;
         try
         {
             isLoading = true;
             errors.Clear();
-            var result = await HawalaService.GetHawalasAsync(BuildFilter(currentPage, pageSize));
+            var result = await HawalaService.GetHawalasAsync(
+                BuildFilter(currentPage, pageSize), cancellationToken);
+            if (loadVersion != panelLoadVersion)
+                return;
 
             hawalas = result.Items.ToList();
             foreach (var invalid in hawalas.Where(x => x.SettlementState != "Pending" && selectedSettlementIds.Contains(x.Id)))
@@ -524,13 +529,17 @@
             totalCount = result.TotalCount;
             totalPages = Math.Max(1, result.TotalPages);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
         catch (Exception ex)
         {
             errors.Add($"بارگذاری حواله‌ها انجام نشد: {ex.Message}");
         }
         finally
         {
-            isLoading = false;
+            if (loadVersion == panelLoadVersion)
+                isLoading = false;
         }
     }
 
@@ -564,7 +573,7 @@
 
     private async Task SaveAgentCommissionAsync()
     {
-        if (commissionHawala is null || commissionAmount is not > 0 || commissionCurrencyId <= 0) return;
+        if (actionLoading || commissionHawala is null || commissionAmount is not > 0 || commissionCurrencyId <= 0) return;
         try
         {
             actionLoading = true;
@@ -687,7 +696,7 @@
             errors.Add("حواله یافت نشد.");
             return;
         }
-        companySetting = await CompanySettingService.GetAsync();
+        companySetting = await ReferenceDataCache.GetCompanySettingAsync();
         showDetailModal = false;
         showReceiptModal = true;
     }
@@ -791,6 +800,7 @@
 
     private async Task ConfirmPayAsync()
     {
+        if (actionLoading) return;
         if (selectedPaymentAccountId <= 0)
         {
             errors.Add("انتخاب حساب پرداخت‌کننده الزامی است.");
@@ -832,6 +842,7 @@
 
     private async Task ConfirmCancelAsync()
     {
+        if (actionLoading) return;
         if (string.IsNullOrWhiteSpace(cancelReason))
         {
             errors.Add("دلیل لغو را وارد کنید.");
@@ -870,6 +881,7 @@
 
     private async Task ConfirmDeleteAsync()
     {
+        if (actionLoading) return;
         try
         {
             actionLoading = true;
@@ -890,13 +902,13 @@
 
     private async Task OnFilterChangedAsync()
     {
-        filterChangeCts?.Cancel();
-        filterChangeCts?.Dispose();
-        filterChangeCts = new CancellationTokenSource();
+        CancelPendingFilterChange();
+        var debounceCts = new CancellationTokenSource();
+        filterChangeCts = debounceCts;
 
         try
         {
-            await Task.Delay(150, filterChangeCts.Token);
+            await Task.Delay(300, debounceCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -905,7 +917,7 @@
 
         currentPage = 1;
         allMatchingSettlementSelected = false;
-        await LoadHawalasAsync();
+        await LoadHawalasAsync(debounceCts.Token);
     }
 
     private IReadOnlyList<HawalaDto> SelectedSettlementHawalas => selectedSettlementHawalas.Values.ToList();
@@ -1045,6 +1057,7 @@
 
     private async Task ResetFiltersAsync()
     {
+        CancelPendingFilterChange();
         searchTerm = string.Empty;
         statusFilter = string.Empty;
         currentPage = 1;
@@ -1054,6 +1067,7 @@
 
     private async Task GoToPageAsync(int page)
     {
+        CancelPendingFilterChange();
         var targetPage = Math.Clamp(page, 1, Math.Max(totalPages, 1));
         if (targetPage == currentPage)
             return;
@@ -1070,6 +1084,18 @@
         "Cancel" => "status-cancelled",
         _ => "status-pending"
     };
+
+    public void Dispose()
+    {
+        CancelPendingFilterChange();
+    }
+
+    private void CancelPendingFilterChange()
+    {
+        filterChangeCts?.Cancel();
+        filterChangeCts?.Dispose();
+        filterChangeCts = null;
+    }
 
     private static string GetSettlementRowClass(HawalaDto hawala) => hawala.SettlementState switch
     {

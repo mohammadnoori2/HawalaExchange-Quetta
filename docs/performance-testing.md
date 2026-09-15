@@ -200,3 +200,15 @@ One cold local SQL Server comparison of the same `450,000 AED` scenario produced
 | Convert and return deal | 628.88 ms / 29 EF commands | 112.59 ms / 1 SP + 1 EF read | 82.10% |
 
 The timing is an environment-specific sample; the stable improvement is the reduction to two database round trips per successful write-and-return operation. Failed writes roll back inside SQL and return no partial transaction or ledger rows.
+
+## Original-plan phase eight — UI responsiveness and read caching — 2026-09-15
+
+The Hawala list, received-Hawala page, and correspondent Hawala panel now use a 300 ms debounce with end-to-end cancellation. Cancellation reaches Entity Framework and SQL Server, while a request-version guard prevents a slower obsolete response from replacing newer results. Paging, sorting, reset, and page-size changes cancel any pending search before starting their own load.
+
+The main Hawala list no longer recalculates tenant-wide statistics after every search, filter, sort, or page change. Statistics are refreshed on initial load and after mutations that can change them. A normal filtered load therefore falls from three database operations (count, page data, and statistics) to two (count and page data), a **33.33% round-trip reduction** for that interaction.
+
+Active/all currency lists, payment locations, and company settings use a tenant-aware, scoped two-minute cache with duplicate-load suppression. Repeated reads in the same interactive session require no additional database call during the cache lifetime. AED deal writes refresh only the changed deal list instead of reloading correspondents and currencies each time, and duplicate submit attempts are rejected while a write is running.
+
+The bulk-upload preview now virtualizes its rows instead of rendering as many as 10,000 table rows at once. Existing server-side paging and lazy correspondent-panel rendering are retained. Long-running bulk confirmation continues to show real progress, and disabled create/import actions now explain the blocking condition. Destructive Hawala actions and AED writes are guarded against double clicks.
+
+Automated coverage includes cancellation before database work. The complete performance suite passes with 42 tests, and the Release build completes with zero errors. Browser behavior under deliberately slow networking, a 10,000-row preview, rapid typing/paging, and repeated submit clicks remains the manual acceptance checklist before commit and push.

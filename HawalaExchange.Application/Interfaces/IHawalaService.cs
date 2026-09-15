@@ -9,8 +9,8 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<HawalaDto> UpdateHawalaAsync(long id, UpdateHawalaDto dto);
         Task DeleteHawalaAsync(long id);
         Task<HawalaDto?> GetHawalaByIdAsync(long id);
-        Task<HawalaListResultDto> GetHawalasAsync(HawalaFilterDto filter);
-        Task<HawalaStatisticsDto> GetStatisticsAsync();
+        Task<HawalaListResultDto> GetHawalasAsync(HawalaFilterDto filter, CancellationToken cancellationToken = default);
+        Task<HawalaStatisticsDto> GetStatisticsAsync(CancellationToken cancellationToken = default);
         Task<CorrespondentHawalaRangeResultDto> GetCorrespondentRangeAsync(CorrespondentHawalaRangeFilterDto filter);
        
         Task<HawalaDto> MarkAsPaidAsync(long id, long paidFromAccountId);

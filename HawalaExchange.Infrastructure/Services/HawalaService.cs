@@ -247,7 +247,9 @@
                 return result;
             }
 
-            public async Task<HawalaListResultDto> GetHawalasAsync(HawalaFilterDto filter)
+            public async Task<HawalaListResultDto> GetHawalasAsync(
+                HawalaFilterDto filter,
+                CancellationToken cancellationToken = default)
             {
                 var query = _context.Hawalas
                     .AsNoTracking()
@@ -302,9 +304,9 @@
                     query = query.Where(h => h.CreatedAt < toDateExclusive);
                 }
 
-                var totalCount = await query.CountAsync();
+                var totalCount = await query.CountAsync(cancellationToken);
                 var totalFromAmount = filter.IncludeTotalAmount && totalCount > 0
-                    ? await query.SumAsync(h => h.FromAmount)
+                    ? await query.SumAsync(h => h.FromAmount, cancellationToken)
                     : 0;
                 var pageNumber = Math.Max(1, filter.PageNumber);
 
@@ -323,7 +325,7 @@
                 // that was previously loaded by ten Include calls.
                 var items = await query
                     .Select(GetListProjection())
-                    .ToListAsync();
+                    .ToListAsync(cancellationToken);
                 return new HawalaListResultDto
                 {
                     Items = items,
@@ -422,12 +424,13 @@
                 CanEditSettlementRate = h.SettlementConversionItems.Any(x => x.Conversion.SourceMode == "Hawalas")
             };
 
-            public async Task<HawalaStatisticsDto> GetStatisticsAsync()
+            public async Task<HawalaStatisticsDto> GetStatisticsAsync(
+                CancellationToken cancellationToken = default)
             {
                 var connection = (SqlConnection)_context.Database.GetDbConnection();
                 var shouldClose = connection.State != ConnectionState.Open;
                 if (shouldClose)
-                    await connection.OpenAsync();
+                    await connection.OpenAsync(cancellationToken);
 
                 try
                 {
@@ -440,8 +443,8 @@
                     };
                     command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
 
-                    await using var reader = await command.ExecuteReaderAsync();
-                    if (!await reader.ReadAsync())
+                    await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                    if (!await reader.ReadAsync(cancellationToken))
                         return new HawalaStatisticsDto();
 
                     return new HawalaStatisticsDto

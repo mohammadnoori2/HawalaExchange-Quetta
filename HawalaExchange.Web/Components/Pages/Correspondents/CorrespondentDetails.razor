@@ -7,7 +7,7 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
-@inject ICurrencyService CurrencyService
+@inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject IAccountService AccountService
 @inject NavigationManager NavigationManager
 
@@ -276,7 +276,7 @@
             activeHawalaType = "HawalaSend";
             pageError = string.Empty;
             correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId);
-            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.Code).ToList();
+            currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.Code).ToList();
             if (correspondent == null)
             {
                 pageError = "نمایندگی مورد نظر وجود ندارد یا حذف شده است.";

@@ -15,6 +15,25 @@ public sealed class HawalaQueryPerformanceTests(
     ITestOutputHelper output)
 {
     [Fact]
+    public async Task List_query_honors_cancellation_before_database_work()
+    {
+        await using var context = fixture.CreateContext();
+        var service = fixture.CreateService(context);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        fixture.Commands.Reset();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.GetHawalasAsync(new HawalaFilterDto
+            {
+                PageNumber = 1,
+                PageSize = 10
+            }, cancellation.Token));
+
+        Assert.InRange(fixture.Commands.Count, 0, 1);
+    }
+
+    [Fact]
     public async Task List_query_preserves_filters_paging_and_display_fields_without_tracking()
     {
         const long numberBase = 81_000_000;

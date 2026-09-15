@@ -1,8 +1,9 @@
 @page "/correspondents/{CorrespondentId:long}/hawala-import"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Components.Web.Virtualization
 @inject IHawalaImportService HawalaImportService
-@inject ICurrencyService CurrencyService
+@inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
@@ -84,12 +85,11 @@
         }
 
         <div class="card shadow-sm mt-3">
-            <div class="card-header d-flex justify-content-between align-items-center"><div><strong>پیش‌نمایش فایل</strong> — @preview.CorrespondentName</div><button class="btn btn-success" @onclick="ConfirmAsync" disabled="@(!CanConfirm)"><i class="bi bi-check2-circle ms-1"></i>تأیید و ثبت</button></div>
-            @if (!CanConfirm){<div class="alert alert-warning rounded-0 mb-0">فایل نباید خطا داشته باشد و ایجاد تمام محل‌ها و نمایندگی‌های جدید باید تأیید شود. برای کمیشن واردشده نیز ارز لازم است.</div>}
+            <div class="card-header d-flex justify-content-between align-items-center"><div><strong>پیش‌نمایش فایل</strong> — @preview.CorrespondentName</div><button class="btn btn-success" @onclick="ConfirmAsync" disabled="@(!CanConfirm)" title="@ConfirmDisabledReason"><i class="bi bi-check2-circle ms-1"></i>تأیید و ثبت</button></div>
+            @if (!CanConfirm){<div class="alert alert-warning rounded-0 mb-0">@ConfirmDisabledReason</div>}
             <div class="table-responsive" style="max-height: 560px;"><table class="table table-sm table-hover align-middle mb-0">
                 <thead class="table-light sticky-top"><tr><th>ردیف</th><th>شماره / رفرنس</th><th>فرستنده / گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>نوع ثبت</th><th>کمیشن عامل پرداخت</th><th>ارز کمیشن</th><th>بررسی</th></tr></thead>
-                <tbody>@foreach (var row in preview.Rows)
-                {
+                <tbody><Virtualize Items="@preview.Rows" Context="row" ItemSize="58" SpacerElement="tr">
                     <tr class="@(row.IsValid ? string.Empty : "table-danger")">
                         <td>@row.ExcelRowNumber</td><td><strong>@row.HawalaNumber</strong><br/><small>@row.ReferenceNumber</small></td><td>@row.SenderName<br/><small>@row.ReceiverName</small></td>
                         <td>@row.PaymentLocationText @if (!row.PaymentLocationId.HasValue){<span class="badge bg-warning text-dark">جدید</span>}</td><td dir="ltr">@row.Amount?.ToString("N0") @row.CurrencyCode</td>
@@ -98,7 +98,7 @@
                         <td>@if (row.RequiresOutgoingHawala){<select class="form-select form-select-sm" @bind="row.AgentCommissionCurrencyId"><option value="">انتخاب ارز</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code</option>}</select>}else{<span>—</span>}</td>
                         <td>@if (row.IsValid){<span class="text-success"><i class="bi bi-check-circle"></i> معتبر</span>}else{<span class="text-danger">@row.ValidationErrors</span>}</td>
                     </tr>
-                }</tbody>
+                </Virtualize></tbody>
             </table></div>
         </div>
     }
@@ -120,11 +120,24 @@
     private string progressMessage = "در حال آماده‌سازی...";
 
     private bool CanConfirm => preview is not null && preview.InvalidRowCount == 0 && preview.MissingLocations.All(locationsToCreate.Contains) && preview.MissingCorrespondents.All(correspondentsToCreate.Contains) && preview.Rows.Where(x => x.RequiresOutgoingHawala && x.AgentCommissionAmount is > 0).All(x => x.AgentCommissionCurrencyId is > 0) && !isBusy;
+    private string? ConfirmDisabledReason => preview is null
+        ? "ابتدا فایل را انتخاب و بررسی کنید."
+        : isBusy
+            ? progressMessage
+            : preview.InvalidRowCount > 0
+                ? $"فایل دارای {preview.InvalidRowCount:N0} ردیف نامعتبر است؛ خطاهای جدول را اصلاح کنید."
+                : preview.MissingLocations.Any(x => !locationsToCreate.Contains(x))
+                    ? "ایجاد تمام محل‌های پرداخت جدید را تأیید کنید."
+                    : preview.MissingCorrespondents.Any(x => !correspondentsToCreate.Contains(x))
+                        ? "ایجاد تمام نمایندگی‌های جدید را تأیید کنید."
+                        : preview.Rows.Any(x => x.RequiresOutgoingHawala && x.AgentCommissionAmount is > 0 && x.AgentCommissionCurrencyId is not > 0)
+                            ? "برای تمام کمیشن‌های واردشده، ارز کمیشن را انتخاب کنید."
+                            : null;
     private bool AllLocationsSelected => preview is not null && preview.MissingLocations.All(locationsToCreate.Contains);
     private bool AllCorrespondentsSelected => preview is not null && preview.MissingCorrespondents.All(correspondentsToCreate.Contains);
 
     protected override async Task OnInitializedAsync()
-    { try { currencies = (await CurrencyService.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); } catch (Exception ex) { errorMessage = ex.Message; } }
+    { try { currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); } catch (Exception ex) { errorMessage = ex.Message; } }
 
     private async Task PreviewFileAsync(InputFileChangeEventArgs args)
     {

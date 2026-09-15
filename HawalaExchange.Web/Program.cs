@@ -140,6 +140,7 @@ public partial class Program
         builder.Services.AddScoped<ICurrencyCostService, CurrencyCostService>();
         builder.Services.AddScoped<IJournalService, JournalService>();
         builder.Services.AddScoped<ICompanySettingService, CompanySettingService>();
+        builder.Services.AddScoped<UiReferenceDataCache>();
         builder.Services.AddScoped<ITenantAdministrationService, TenantAdministrationService>();
         builder.Services.AddScoped<ISaasAdministrationService, SaasAdministrationService>();
         builder.Services.AddScoped<ISaasBillingService, SaasBillingService>();

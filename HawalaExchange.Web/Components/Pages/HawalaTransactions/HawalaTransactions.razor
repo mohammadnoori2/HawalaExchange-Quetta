@@ -9,18 +9,17 @@
 @using HawalaExchange.Application.Services
 @using HawalaExchange.Domain.Entities
 @inject IJSRuntime JS
-@inject ICompanySettingService CompanySettingService
 @inject IHawalaService HawalaService
 @inject ICorrespondentService CorrespondentService
-@inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject ICustomerService CustomerService
-@inject IPaymentLocationService PaymentLocationService
+@inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject IWebHostEnvironment WebHostEnvironment
 @inject IFileService FileService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 @attribute [Authorize]
+@implements IDisposable
 
 <div class="page-wrapper">
     <!-- هدر صفحه -->
@@ -734,7 +733,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseCancelModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmCancel()">
+                    <button type="button" class="btn-modern btn-danger-modern" disabled="@destructiveActionLoading" @onclick="() => ConfirmCancel()">
                         <i class="bi bi-check-circle"></i> تأیید لغو
                     </button>
                 </div>
@@ -764,7 +763,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseDeleteModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmDelete()">
+                    <button type="button" class="btn-modern btn-danger-modern" disabled="@destructiveActionLoading" @onclick="() => ConfirmDelete()">
                         <i class="bi bi-check-circle"></i> تأیید حذف
                     </button>
                 </div>
@@ -794,6 +793,7 @@
     private DateTime filterToDate = DateTime.MinValue;
     private string filterValidationError = string.Empty;
     private CancellationTokenSource? filterChangeCts;
+    private int hawalaLoadVersion;
 
     private int AdvancedFilterCount =>
         (!string.IsNullOrWhiteSpace(filterStatus) ? 1 : 0) +
@@ -837,6 +837,7 @@
     private bool showCancelModal = false;
     private bool showDeleteModal = false;
     private bool isLoading = false;
+    private bool destructiveActionLoading;
     private long cancelId = 0;
     private long deleteId = 0;
     private string cancelReason = "";
@@ -934,7 +935,7 @@
             }
 
             receiptHawala = hawala;
-            companySetting = await CompanySettingService.GetAsync();
+            companySetting = await ReferenceDataCache.GetCompanySettingAsync();
 
             showReceiptModal = true;
             StateHasChanged();
@@ -1048,7 +1049,7 @@
         await LoadLookupData();
         await LoadAccounts();
         await LoadCustomers();
-        await LoadHawalas();
+        await LoadHawalas(refreshStatistics: true);
         await LoadPaymentLocations();
     }
 
@@ -1059,7 +1060,7 @@
             correspondents = (await CorrespondentService.GetAllAsync())
                 .Where(x => !x.IsArchived)
                 .ToList();
-            currencies = (await CurrencyService.GetAllAsync())
+            currencies = (await ReferenceDataCache.GetAllCurrenciesAsync())
                 .OrderBy(x => x.Code)
                 .ToList();
             var afn = currencies.FirstOrDefault(x => x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
@@ -1091,8 +1092,11 @@
             .ToList();
     }
 
-    private async Task LoadHawalas()
+    private async Task LoadHawalas(
+        bool refreshStatistics = false,
+        CancellationToken cancellationToken = default)
     {
+        var loadVersion = ++hawalaLoadVersion;
         try
         {
             isLoading = true;
@@ -1132,18 +1136,28 @@
                 SortDirection = sortAscending ? "asc" : "desc"
             };
 
-            var result = await HawalaService.GetHawalasAsync(filter);
+            var result = await HawalaService.GetHawalasAsync(filter, cancellationToken);
+            if (loadVersion != hawalaLoadVersion)
+                return;
 
             filteredHawalas = result.Items.ToList();
             totalCount = result.TotalCount;
             totalPages = result.TotalPages;
 
-            var stats = await HawalaService.GetStatisticsAsync();
-            hawalaSendCount = stats.HawalaSendCount;
-            hawalaReceiveCount = stats.HawalaReceiveCount;
-            hawalaOtherCount = stats.HawalaOtherCount;
-            pendingCount = stats.PendingCount;
-            paidCount = stats.PaidCount;
+            if (refreshStatistics)
+            {
+                var stats = await HawalaService.GetStatisticsAsync(cancellationToken);
+                if (loadVersion != hawalaLoadVersion)
+                    return;
+                hawalaSendCount = stats.HawalaSendCount;
+                hawalaReceiveCount = stats.HawalaReceiveCount;
+                hawalaOtherCount = stats.HawalaOtherCount;
+                pendingCount = stats.PendingCount;
+                paidCount = stats.PaidCount;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
@@ -1151,8 +1165,11 @@
         }
         finally
         {
-            isLoading = false;
-            StateHasChanged();
+            if (loadVersion == hawalaLoadVersion)
+            {
+                isLoading = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -1160,7 +1177,7 @@
     {
         try
         {
-            var result = await PaymentLocationService.GetAllAsync();
+            var result = await ReferenceDataCache.GetPaymentLocationsAsync();
             paymentLocations = result.OrderBy(x => x.Name).ToList();
         }
         catch (Exception ex)
@@ -1173,13 +1190,13 @@
 
     private async Task OnFilterChangedAsync()
     {
-        filterChangeCts?.Cancel();
-        filterChangeCts?.Dispose();
-        filterChangeCts = new CancellationTokenSource();
+        CancelPendingFilterChange();
+        var debounceCts = new CancellationTokenSource();
+        filterChangeCts = debounceCts;
 
         try
         {
-            await Task.Delay(150, filterChangeCts.Token);
+            await Task.Delay(300, debounceCts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -1203,11 +1220,12 @@
         }
 
         currentPage = 1;
-        await LoadHawalas();
+        await LoadHawalas(cancellationToken: debounceCts.Token);
     }
 
     private async Task ResetFilters()
     {
+        CancelPendingFilterChange();
         searchTerm = "";
         filterHawalaType = "";
         filterStatus = "";
@@ -1225,12 +1243,14 @@
 
     private async Task OnPageSizeChangedAsync()
     {
+        CancelPendingFilterChange();
         currentPage = 1;
         await LoadHawalas();
     }
 
     private async Task GoToPageAsync(int page)
     {
+        CancelPendingFilterChange();
         if (page >= 1 && page <= totalPages && page != currentPage)
         {
             currentPage = page;
@@ -1238,8 +1258,9 @@
         }
     }
 
-    private void SortBy(string column)
+    private async Task SortBy(string column)
     {
+        CancelPendingFilterChange();
         if (sortColumn == column)
         {
             sortAscending = !sortAscending;
@@ -1250,7 +1271,7 @@
             sortAscending = true;
         }
         currentPage = 1;
-        _ = LoadHawalas();
+        await LoadHawalas();
     }
 
     // ===== متدهای مودال ایجاد/ویرایش =====
@@ -1334,13 +1355,13 @@
 
     private async Task OnHawalaSaved(CreateHawalaDto newHawala)
     {
-        await LoadHawalas();
+        await LoadHawalas(refreshStatistics: true);
         StateHasChanged();
     }
 
     private async Task OnHawalaEdited(long id)
     {
-        await LoadHawalas();
+        await LoadHawalas(refreshStatistics: true);
         StateHasChanged();
     }
 
@@ -1457,7 +1478,7 @@
             payHawala = null;
             selectedPaymentAccountId = 0;
 
-            await LoadHawalas();
+            await LoadHawalas(refreshStatistics: true);
         }
         catch (Exception ex)
         {
@@ -1484,8 +1505,10 @@
 
     private async Task ConfirmCancel()
     {
+        if (destructiveActionLoading) return;
         try
         {
+            destructiveActionLoading = true;
             if (string.IsNullOrWhiteSpace(cancelReason))
             {
                 validationErrors.Add("لطفاً دلیل لغو را وارد کنید.");
@@ -1500,7 +1523,7 @@
             });
             successMessage = "حواله با موفقیت لغو شد.";
             showCancelModal = false;
-            await LoadHawalas();
+            await LoadHawalas(refreshStatistics: true);
         }
         catch (Exception ex)
         {
@@ -1509,18 +1532,21 @@
         }
         finally
         {
+            destructiveActionLoading = false;
             StateHasChanged();
         }
     }
 
     private async Task ConfirmDelete()
     {
+        if (destructiveActionLoading) return;
         try
         {
+            destructiveActionLoading = true;
             await HawalaService.DeleteHawalaAsync(deleteId);
             successMessage = "حواله با موفقیت حذف شد.";
             showDeleteModal = false;
-            await LoadHawalas();
+            await LoadHawalas(refreshStatistics: true);
         }
         catch (Exception ex)
         {
@@ -1529,6 +1555,7 @@
         }
         finally
         {
+            destructiveActionLoading = false;
             StateHasChanged();
         }
     }
@@ -1555,6 +1582,18 @@
             "Cancel" => "badge-danger",
             _ => "badge-secondary"
         };
+    }
+
+    public void Dispose()
+    {
+        CancelPendingFilterChange();
+    }
+
+    private void CancelPendingFilterChange()
+    {
+        filterChangeCts?.Cancel();
+        filterChangeCts?.Dispose();
+        filterChangeCts = null;
     }
 
     private static string GetListHawalaType(HawalaDto hawala) => hawala.HawalaType switch

@@ -3,16 +3,13 @@ using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace HawalaExchange.Infrastructure.Services;
 
 public sealed class AedDealService(ApplicationDbContext context) : IAedDealService
 {
-    private const decimal FixedAedPerUsdRate = 3.67m;
-    private const string ProfitAccountCode = "3003";
-    private const string LossAccountCode = "4003";
-
     public async Task<IReadOnlyList<AedDealDto>> GetAllAsync(
         long? correspondentId = null,
         CancellationToken cancellationToken = default)
@@ -35,58 +32,18 @@ public sealed class AedDealService(ApplicationDbContext context) : IAedDealServi
         CreateAedDealDto dto,
         CancellationToken cancellationToken = default)
     {
-        context.ChangeTracker.Clear();
         ValidateCreate(dto);
-        await using var dbTransaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
-
-        var dealNumber = dto.DealNumber.Trim();
-        if (await context.AedDeals.AnyAsync(x => x.DealNumber == dealNumber, cancellationToken))
-            throw new InvalidOperationException("نمبر معامله قبلاً ثبت شده است.");
-
-        var (sourceCorrespondent, sourceAccount) = await GetCorrespondentAsync(dto.SourceCorrespondentId, cancellationToken);
-        var (dubaiCorrespondent, dubaiAccount) = await GetCorrespondentAsync(dto.DubaiCorrespondentId, cancellationToken);
-        var currency = await GetDealCurrencyAsync(dto.SourceCurrencyId, cancellationToken);
-        var transaction = new Transaction
+        var dealId = await ExecuteDealProcedureAsync("[dbo].[usp_CreateAedDeal_v1]", parameters =>
         {
-            TransactionNo = await GenerateTransactionNumberAsync("AEDH", cancellationToken),
-            TransactionType = "AedDealHolding",
-            BranchId = await context.GetDefaultBranchIdAsync(cancellationToken),
-            Status = "Paid",
-            Remarks = $"ثبت معامله درهم {dealNumber}: {sourceCorrespondent.Name} به {dubaiCorrespondent.Name}",
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow
-        };
-        context.Transactions.Add(transaction);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var description = $"نگهداری معامله {dealNumber} نزد {dubaiCorrespondent.Name}";
-        context.LedgerEntries.AddRange(
-            NewEntry(transaction.Id, dubaiAccount.Id, currency.Id, 0, dto.Amount, description),
-            NewEntry(transaction.Id, sourceAccount.Id, currency.Id, dto.Amount, 0, description));
-
-        var deal = new AedDeal
-        {
-            DealNumber = dealNumber,
-            SourceCorrespondentId = sourceCorrespondent.Id,
-            DubaiCorrespondentId = dubaiCorrespondent.Id,
-            SourceCurrencyId = currency.Id,
-            OriginalAmount = dto.Amount,
-            AedPerUsdRate = FixedAedPerUsdRate,
-            RoundingDecimalPlaces = dto.RoundingDecimalPlaces,
-            Status = "Held",
-            HoldingTransactionId = transaction.Id,
-            Note = dto.Note?.Trim(),
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow
-        };
-        context.AedDeals.Add(deal);
-        await context.SaveChangesAsync(cancellationToken);
-        AddAudit("CREATE_AED_DEAL", "AedDeals", deal.Id,
-            $"معامله {deal.DealNumber} به مبلغ {deal.OriginalAmount} {currency.Code} ثبت شد.");
-        await context.SaveChangesAsync(cancellationToken);
-        await dbTransaction.CommitAsync(cancellationToken);
-        return await GetByIdAsync(deal.Id, cancellationToken);
+            parameters.Add("@DealNumber", SqlDbType.NVarChar, 50).Value = dto.DealNumber.Trim();
+            parameters.Add("@SourceCorrespondentId", SqlDbType.BigInt).Value = dto.SourceCorrespondentId;
+            parameters.Add("@DubaiCorrespondentId", SqlDbType.BigInt).Value = dto.DubaiCorrespondentId;
+            parameters.Add("@SourceCurrencyId", SqlDbType.BigInt).Value = dto.SourceCurrencyId;
+            AddDecimal(parameters, "@Amount", dto.Amount, 18, 4);
+            parameters.Add("@RoundingDecimalPlaces", SqlDbType.Int).Value = dto.RoundingDecimalPlaces;
+            parameters.Add("@Note", SqlDbType.NVarChar, 500).Value = Db(dto.Note?.Trim());
+        }, cancellationToken);
+        return await GetByIdAsync(dealId, cancellationToken);
     }
 
     public async Task<AedConversionPreviewDto> PreviewConversionAsync(
@@ -101,81 +58,17 @@ public sealed class AedDealService(ApplicationDbContext context) : IAedDealServi
         PreviewAedConversionDto dto,
         CancellationToken cancellationToken = default)
     {
-        context.ChangeTracker.Clear();
-        await using var dbTransaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
-        var deal = await GetDealForCalculationAsync(dto.DealId, cancellationToken, tracked: true);
-        var preview = Calculate(deal, dto);
-        var sourceAccountId = await GetCorrespondentAccountIdAsync(deal.SourceCorrespondentId, cancellationToken);
-        var dubaiAccountId = await GetCorrespondentAccountIdAsync(deal.DubaiCorrespondentId, cancellationToken);
-        var usd = await context.Currencies.SingleOrDefaultAsync(x => x.Code == "USD" && x.IsActive, cancellationToken)
-                  ?? throw new InvalidOperationException("ارز فعال USD در سیستم یافت نشد.");
-        var transaction = new Transaction
+        if (dto.DealId <= 0 || dto.SourceAmount <= 0)
+            throw new InvalidOperationException("معامله و مبلغ تبدیل معتبر الزامی است.");
+        var dealId = await ExecuteDealProcedureAsync("[dbo].[usp_ConvertAedDeal_v1]", parameters =>
         {
-            TransactionNo = await GenerateTransactionNumberAsync("AEDC", cancellationToken),
-            TransactionType = "AedDealConversion",
-            BranchId = await context.GetDefaultBranchIdAsync(cancellationToken),
-            Status = "Paid",
-            Remarks = $"تبدیل {dto.SourceAmount} {deal.SourceCurrency.Code} از معامله {deal.DealNumber} به USD",
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow
-        };
-        context.Transactions.Add(transaction);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var conversion = new AedDealConversion
-        {
-            SourceAmount = dto.SourceAmount,
-            AedPerUsdRate = deal.AedPerUsdRate,
-            ActualMarker = dto.ActualMarker,
-            DeclaredMarker = dto.DeclaredMarker,
-            ActualAdjustmentSource = Round(dto.SourceAmount / 100_000m * dto.ActualMarker, 4),
-            DeclaredAdjustmentSource = Round(dto.SourceAmount / 100_000m * dto.DeclaredMarker, 4),
-            FinalUsdAmount = preview.FinalUsdAmount,
-            DeclaredUsdAmount = Round(ToUsd(deal.SourceCurrency.Code,
-                dto.SourceAmount + dto.SourceAmount / 100_000m * dto.DeclaredMarker, deal.AedPerUsdRate),
-                deal.RoundingDecimalPlaces),
-            ProfitUsd = preview.ProfitUsd,
-            PostingTransactionId = transaction.Id,
-            Status = "Posted",
-            Note = dto.Note?.Trim(),
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow
-        };
-        deal.Conversions.Add(conversion);
-        deal.ConvertedAmount += dto.SourceAmount;
-        deal.TotalFinalUsd += preview.FinalUsdAmount;
-        deal.TotalProfitUsd += preview.ProfitUsd;
-        deal.Status = deal.ConvertedAmount == deal.OriginalAmount ? "Converted" : "PartiallyConverted";
-
-        var description = $"تبدیل معامله {deal.DealNumber} به USD";
-        context.LedgerEntries.AddRange(
-            NewEntry(transaction.Id, sourceAccountId, deal.SourceCurrencyId, 0, dto.SourceAmount, description),
-            NewEntry(transaction.Id, dubaiAccountId, deal.SourceCurrencyId, dto.SourceAmount, 0, description),
-            NewEntry(transaction.Id, dubaiAccountId, usd.Id, 0, preview.FinalUsdAmount, description),
-            NewEntry(transaction.Id, sourceAccountId, usd.Id, conversion.DeclaredUsdAmount, 0, description));
-
-        if (conversion.ProfitUsd > 0)
-        {
-            var profitAccount = await GetOrCreateAccountAsync(
-                ProfitAccountCode, "مفاد معاملات درهم", "Income", cancellationToken);
-            context.LedgerEntries.Add(NewEntry(transaction.Id, profitAccount.Id, usd.Id,
-                conversion.ProfitUsd, 0, description));
-        }
-        else if (conversion.ProfitUsd < 0)
-        {
-            var lossAccount = await GetOrCreateAccountAsync(
-                LossAccountCode, "زیان معاملات درهم", "Expense", cancellationToken);
-            context.LedgerEntries.Add(NewEntry(transaction.Id, lossAccount.Id, usd.Id,
-                0, Math.Abs(conversion.ProfitUsd), description));
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-        AddAudit("CONVERT_AED_DEAL", "AedDealConversions", conversion.Id,
-            $"معامله {deal.DealNumber}: {conversion.SourceAmount} {deal.SourceCurrency.Code} به {conversion.FinalUsdAmount} USD تبدیل شد.");
-        await context.SaveChangesAsync(cancellationToken);
-        await dbTransaction.CommitAsync(cancellationToken);
-        return await GetByIdAsync(deal.Id, cancellationToken);
+            parameters.Add("@DealId", SqlDbType.BigInt).Value = dto.DealId;
+            AddDecimal(parameters, "@Amount", dto.SourceAmount, 18, 4);
+            AddDecimal(parameters, "@ActualMarker", dto.ActualMarker, 18, 4);
+            AddDecimal(parameters, "@DeclaredMarker", dto.DeclaredMarker, 18, 4);
+            parameters.Add("@Note", SqlDbType.NVarChar, 500).Value = Db(dto.Note?.Trim());
+        }, cancellationToken);
+        return await GetByIdAsync(dealId, cancellationToken);
     }
 
     public async Task ReverseConversionAsync(
@@ -184,73 +77,25 @@ public sealed class AedDealService(ApplicationDbContext context) : IAedDealServi
         CancellationToken cancellationToken = default)
     {
         ValidateReason(reason);
-        context.ChangeTracker.Clear();
-        await using var dbTransaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
-        var conversion = await context.AedDealConversions
-            .Include(x => x.Deal).ThenInclude(x => x.SourceCurrency)
-            .SingleOrDefaultAsync(x => x.Id == conversionId, cancellationToken)
-            ?? throw new KeyNotFoundException("تبدیل معامله یافت نشد.");
-        if (conversion.Status != "Posted")
-            throw new InvalidOperationException("این تبدیل قبلاً برگشت داده شده است.");
-        var originalEntries = await context.LedgerEntries.AsNoTracking()
-            .Where(x => x.TransactionId == conversion.PostingTransactionId)
-            .ToListAsync(cancellationToken);
-        if (originalEntries.Count == 0)
-            throw new InvalidOperationException("سند حسابداری تبدیل یافت نشد.");
-
-        var reversal = await CreateReversalTransactionAsync(
-            conversion.PostingTransactionId, "AEDCR", $"برگشت تبدیل معامله {conversion.Deal.DealNumber}: {reason.Trim()}", cancellationToken);
-        foreach (var entry in originalEntries)
-            context.LedgerEntries.Add(NewEntry(reversal.Id, entry.AccountId, entry.CurrencyId,
-                entry.BadehKar, entry.TalabKar, $"برگشت: {entry.Description}"));
-
-        conversion.Status = "Reversed";
-        conversion.ReversalTransactionId = reversal.Id;
-        conversion.ReversalReason = reason.Trim();
-        conversion.ReversedAt = DateTime.UtcNow;
-        conversion.ReversedBy = context.RequireCurrentUserId();
-        conversion.Deal.ConvertedAmount -= conversion.SourceAmount;
-        conversion.Deal.TotalFinalUsd -= conversion.FinalUsdAmount;
-        conversion.Deal.TotalProfitUsd -= conversion.ProfitUsd;
-        conversion.Deal.Status = conversion.Deal.ConvertedAmount <= 0 ? "Held" : "PartiallyConverted";
-        await CancelOriginalTransactionAsync(conversion.PostingTransactionId, reason, cancellationToken);
-        AddAudit("REVERSE_AED_CONVERSION", "AedDealConversions", conversion.Id,
-            $"تبدیل معامله {conversion.Deal.DealNumber} برگشت داده شد.");
-        await context.SaveChangesAsync(cancellationToken);
-        await dbTransaction.CommitAsync(cancellationToken);
+        if (conversionId <= 0)
+            throw new InvalidOperationException("تبدیل معامله معتبر نیست.");
+        await ExecuteDealProcedureAsync("[dbo].[usp_ReverseAedDealConversion_v1]", parameters =>
+        {
+            parameters.Add("@ConversionId", SqlDbType.BigInt).Value = conversionId;
+            parameters.Add("@Reason", SqlDbType.NVarChar, 500).Value = reason.Trim();
+        }, cancellationToken);
     }
 
     public async Task CancelAsync(long dealId, string reason, CancellationToken cancellationToken = default)
     {
         ValidateReason(reason);
-        context.ChangeTracker.Clear();
-        await using var dbTransaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
-        var deal = await context.AedDeals.Include(x => x.Conversions)
-            .SingleOrDefaultAsync(x => x.Id == dealId, cancellationToken)
-            ?? throw new KeyNotFoundException("معامله یافت نشد.");
-        if (deal.Status == "Cancelled")
-            throw new InvalidOperationException("معامله قبلاً لغو شده است.");
-        if (deal.Conversions.Any(x => x.Status == "Posted"))
-            throw new InvalidOperationException("ابتدا تمام تبدیل‌های فعال این معامله را برگشت دهید.");
-        var originalEntries = await context.LedgerEntries.AsNoTracking()
-            .Where(x => x.TransactionId == deal.HoldingTransactionId).ToListAsync(cancellationToken);
-        var reversal = await CreateReversalTransactionAsync(
-            deal.HoldingTransactionId, "AEDR", $"لغو معامله {deal.DealNumber}: {reason.Trim()}", cancellationToken);
-        foreach (var entry in originalEntries)
-            context.LedgerEntries.Add(NewEntry(reversal.Id, entry.AccountId, entry.CurrencyId,
-                entry.BadehKar, entry.TalabKar, $"لغو: {entry.Description}"));
-
-        deal.Status = "Cancelled";
-        deal.ReversalTransactionId = reversal.Id;
-        deal.CancelReason = reason.Trim();
-        deal.CancelledAt = DateTime.UtcNow;
-        deal.CancelledBy = context.RequireCurrentUserId();
-        await CancelOriginalTransactionAsync(deal.HoldingTransactionId, reason, cancellationToken);
-        AddAudit("CANCEL_AED_DEAL", "AedDeals", deal.Id, $"معامله {deal.DealNumber} لغو شد.");
-        await context.SaveChangesAsync(cancellationToken);
-        await dbTransaction.CommitAsync(cancellationToken);
+        if (dealId <= 0)
+            throw new InvalidOperationException("معامله معتبر نیست.");
+        await ExecuteDealProcedureAsync("[dbo].[usp_CancelAedDeal_v1]", parameters =>
+        {
+            parameters.Add("@DealId", SqlDbType.BigInt).Value = dealId;
+            parameters.Add("@Reason", SqlDbType.NVarChar, 500).Value = reason.Trim();
+        }, cancellationToken);
     }
 
     private static void ValidateCreate(CreateAedDealDto dto)
@@ -325,87 +170,53 @@ public sealed class AedDealService(ApplicationDbContext context) : IAedDealServi
         }).ToList()
     };
 
-    private async Task<(Correspondent Correspondent, Account Account)> GetCorrespondentAsync(long id, CancellationToken cancellationToken)
+    private async Task<long> ExecuteDealProcedureAsync(
+        string procedureName,
+        Action<SqlParameterCollection> configure,
+        CancellationToken cancellationToken)
     {
-        var correspondent = await context.Correspondents.SingleOrDefaultAsync(x => x.Id == id && !x.IsArchived, cancellationToken)
-            ?? throw new InvalidOperationException("نمایندگی فعال یافت نشد.");
-        var accountId = await GetCorrespondentAccountIdAsync(id, cancellationToken);
-        var account = await context.Accounts.SingleAsync(x => x.Id == accountId, cancellationToken);
-        return (correspondent, account);
-    }
-
-    private async Task<long> GetCorrespondentAccountIdAsync(long id, CancellationToken cancellationToken) =>
-        await context.Accounts.Where(x => x.CorrespondentId == id && !x.IsArchived).Select(x => (long?)x.Id)
-            .SingleOrDefaultAsync(cancellationToken)
-        ?? throw new InvalidOperationException("حساب فعال نمایندگی یافت نشد.");
-
-    private async Task<Currency> GetDealCurrencyAsync(long id, CancellationToken cancellationToken)
-    {
-        var currency = await context.Currencies.SingleOrDefaultAsync(x => x.Id == id && x.IsActive, cancellationToken)
-            ?? throw new InvalidOperationException("ارز فعال یافت نشد.");
-        if (currency.Code is not ("AED" or "USD"))
-            throw new InvalidOperationException("ارز معامله فقط می‌تواند AED یا USD باشد.");
-        return currency;
-    }
-
-    private async Task<Account> GetOrCreateAccountAsync(string code, string name, string type, CancellationToken cancellationToken)
-    {
-        var account = await context.Accounts.SingleOrDefaultAsync(x => x.AccountCode == code, cancellationToken);
-        if (account != null)
+        context.ChangeTracker.Clear();
+        var connection = (SqlConnection)context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync(cancellationToken);
+        try
         {
-            if (account.IsArchived || account.AccountType != type)
-                throw new InvalidOperationException($"حساب {code} باید حساب فعال {name} باشد.");
-            return account;
+            await using var command = connection.CreateCommand();
+            command.CommandText = procedureName;
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandTimeout = 60;
+            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = context.CurrentTenantId;
+            command.Parameters.Add("@CurrentUserId", SqlDbType.BigInt).Value = context.RequireCurrentUserId();
+            configure(command.Parameters);
+            var result = await command.ExecuteScalarAsync(cancellationToken)
+                ?? throw new InvalidOperationException("عملیات معامله درهم نتیجه معتبر برنگرداند.");
+            context.ChangeTracker.Clear();
+            return Convert.ToInt64(result);
         }
-        account = new Account { AccountCode = code, AccountName = name, AccountType = type, CreatedAt = DateTime.UtcNow };
-        context.Accounts.Add(account);
-        await context.SaveChangesAsync(cancellationToken);
-        return account;
-    }
-
-    private async Task<Transaction> CreateReversalTransactionAsync(long originalId, string prefix, string remarks, CancellationToken cancellationToken)
-    {
-        var transaction = new Transaction
+        finally
         {
-            TransactionNo = await GenerateTransactionNumberAsync(prefix, cancellationToken), TransactionType = "AedDealReversal",
-            BranchId = await context.GetDefaultBranchIdAsync(cancellationToken), Status = "Paid", Remarks = remarks,
-            CreatedBy = context.RequireCurrentUserId(), CreatedAt = DateTime.UtcNow, ReversedTransactionId = originalId
-        };
-        context.Transactions.Add(transaction);
-        await context.SaveChangesAsync(cancellationToken);
-        return transaction;
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
     }
 
-    private async Task CancelOriginalTransactionAsync(long id, string reason, CancellationToken cancellationToken)
+    private static void AddDecimal(
+        SqlParameterCollection parameters,
+        string name,
+        decimal value,
+        byte precision,
+        byte scale)
     {
-        var original = await context.Transactions.SingleAsync(x => x.Id == id, cancellationToken);
-        original.Status = "Cancel";
-        original.CancelReason = reason.Trim();
-        original.CancelledAt = DateTime.UtcNow;
-        original.CancelledBy = context.RequireCurrentUserId();
+        parameters.Add(new SqlParameter(name, SqlDbType.Decimal)
+        {
+            Precision = precision,
+            Scale = scale,
+            Value = value
+        });
     }
 
-    private void AddAudit(string action, string table, long id, string value) => context.AuditLogs.Add(new AuditLog
-    {
-        UserId = context.RequireCurrentUserId(), Action = action, TableName = table,
-        RecordId = id, NewValue = value, CreatedAt = DateTime.UtcNow
-    });
-
-    private async Task<string> GenerateTransactionNumberAsync(string prefix, CancellationToken cancellationToken)
-    {
-        var start = $"{prefix}-{DateTime.Now:yyyyMMdd}-";
-        var last = await context.Transactions.Where(x => x.TransactionNo.StartsWith(start))
-            .OrderByDescending(x => x.TransactionNo).Select(x => x.TransactionNo).FirstOrDefaultAsync(cancellationToken);
-        var next = last != null && int.TryParse(last[(last.LastIndexOf('-') + 1)..], out var value) ? value + 1 : 1;
-        return $"{start}{next:D4}";
-    }
-
-    private static LedgerEntry NewEntry(long transactionId, long accountId, long currencyId,
-        decimal talabKar, decimal badehKar, string description) => new()
-    {
-        TransactionId = transactionId, AccountId = accountId, CurrencyId = currencyId,
-        TalabKar = talabKar, BadehKar = badehKar, Description = description, CreatedAt = DateTime.UtcNow
-    };
+    private static object Db(object? value) => value ?? DBNull.Value;
 
     private static decimal ToUsd(string sourceCode, decimal amount, decimal rate) =>
         sourceCode == "AED" ? amount / rate : amount;

@@ -185,3 +185,18 @@ One local 10,000-row measurement produced:
 | New confirmation and accounting posting | 9,279.71 ms |
 
 Even though the new measurement includes Excel parsing, SQL validation, and reading the complete preview while the legacy value measures persistence only, the preview path was **58.21% faster**. All database changes remain tenant-scoped and transactional.
+
+## Original-plan phase seven — AED deal posting — 2026-09-15
+
+Create, full/partial conversion, conversion reversal, and deal cancellation now enter SQL through four dedicated stored-procedure endpoints. A shared transactional core keeps the accounting rules identical across those endpoints. Every write is tenant-scoped, verifies the current user, obtains an application lock for the deal or deal number, and commits the transaction, ledger entries, AED records, totals, statuses, and audit log atomically. Transaction-number generation is serialized per tenant and operation prefix to prevent duplicate numbers during concurrent requests.
+
+The fixed `3.67` AED-per-USD rate and `MidpointRounding.AwayFromZero` behavior are preserved by the SQL calculation. Tests cover AED and USD deals, positive and negative actual/declared markers, zero-decimal `.50`/`.49` rounding boundaries, full and partial conversion, profit and loss ledger entries, reversal, cancellation, failed-operation rollback, tenant isolation, and two simultaneous full-conversion attempts.
+
+One cold local SQL Server comparison of the same `450,000 AED` scenario produced:
+
+| Operation | Previous EF path | Stored-procedure path | Reduction |
+| --- | ---: | ---: | ---: |
+| Create and return deal | 1,429.15 ms / 25 EF commands | 656.46 ms / 1 SP + 1 EF read | 54.07% |
+| Convert and return deal | 628.88 ms / 29 EF commands | 112.59 ms / 1 SP + 1 EF read | 82.10% |
+
+The timing is an environment-specific sample; the stable improvement is the reduction to two database round trips per successful write-and-return operation. Failed writes roll back inside SQL and return no partial transaction or ledger rows.

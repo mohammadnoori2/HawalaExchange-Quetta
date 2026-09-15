@@ -20,6 +20,7 @@
         </div>
 
         <PageHeaderStats AriaLabel="آمار روزنامچه">
+            <PageHeaderStat Label="تمام عملیات" Value="@filteredOperations.Count" Icon="bi-journal-check" Tone="primary" />
             <PageHeaderStat Label="رسید" Value="@receiptRows.Count" Icon="bi-box-arrow-in-down" Tone="success" />
             <PageHeaderStat Label="برد" Value="@withdrawalRows.Count" Icon="bi-box-arrow-up" Tone="danger" />
             <PageHeaderStat Label="ارزها" Value="@journal.CurrencySummaries.Count" Icon="bi-coin" Tone="success" />
@@ -54,8 +55,8 @@
     }
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر روزنامچه"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterSourceType) || !string.IsNullOrWhiteSpace(filterAccountName) || !string.IsNullOrWhiteSpace(filterCurrencyCode) || filterFromDate.Date != DateTime.Today || filterToDate.Date != DateTime.Today)"
-                      ActiveFilterCount="@((!string.IsNullOrWhiteSpace(filterAccountName) ? 1 : 0) + (filterFromDate.Date != DateTime.Today ? 1 : 0) + (filterToDate.Date != DateTime.Today ? 1 : 0))"
+                      HasActiveFilters="@(ActiveFilterCount > 0)"
+                      ActiveFilterCount="@ActiveFilterCount"
                       Reset="ResetFilters">
         <SearchContent>
             <input type="text"
@@ -69,8 +70,13 @@
                 <option value="">همه عملیات</option>
                 @foreach (var source in sourceTypes)
                 {
-                    <option value="@source">@GetSourceTypeName(source)</option>
+                    <option value="@source">@source</option>
                 }
+            </select>
+            <select class="form-select compact-quick-filter" aria-label="نوع جریان پول" @bind="filterCashScope" @bind:event="oninput">
+                <option value="">نقدی و غیرنقدی</option>
+                <option value="Cash">فقط عملیات نقدی</option>
+                <option value="NonCash">فقط عملیات غیرنقدی</option>
             </select>
             <select class="form-select compact-quick-filter" aria-label="ارز" @bind="filterCurrencyCode" @bind:event="oninput">
                 <option value="">همه ارزها</option>
@@ -105,6 +111,13 @@
                 </div>
         </AdvancedFilters>
     </CompactFilterBar>
+
+    <div class="alert alert-light border d-flex flex-wrap gap-3 align-items-center mb-4">
+        <strong><i class="bi bi-info-circle text-primary"></i> راهنمای روزنامچه:</strong>
+        <span>جدول «تمام عملیات مالی» هر سند را فقط یک‌بار نشان می‌دهد.</span>
+        <span>بخش‌های «رسید» و «برد» فقط حرکت نقدی صندوق را نشان می‌دهند.</span>
+        <span>برای دیدن بدهکار، طلبکار و تمام حساب‌ها، دکمهٔ <i class="bi bi-eye"></i> را بزنید.</span>
+    </div>
 
     <div class="table-card cash-day-card mb-4">
         <div class="table-card-header">
@@ -250,7 +263,7 @@
                             <th>تعداد ثبت</th>
                             <th>مجموع طلبکار</th>
                             <th>مجموع بدهکار</th>
-                            <th>تفاوت</th>
+                            <th>وضعیت</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -271,7 +284,16 @@
                                     <td>@item.EntriesCount</td>
                                     <td dir="ltr" class="fw-bold text-success">@MoneyFormatHelper.Format(item.TotalTalabKar)</td>
                                     <td dir="ltr" class="fw-bold text-danger">@MoneyFormatHelper.Format(item.TotalBadehKar)</td>
-                                    <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(item.TotalTalabKar - item.TotalBadehKar)</td>
+                                    <td>
+                                        @if (item.TotalTalabKar == item.TotalBadehKar)
+                                        {
+                                            <span class="badge-modern badge-success"><i class="bi bi-check-circle"></i> متوازن</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge-modern badge-danger"><i class="bi bi-exclamation-triangle"></i> نیاز به بررسی</span>
+                                        }
+                                    </td>
                                 </tr>
                                 summaryIndex++;
                             }
@@ -279,6 +301,100 @@
                     </tbody>
                 </GlobalDataGrid>
             </div>
+        </div>
+    </div>
+
+    <div class="table-card mb-4">
+        <div class="table-card-header">
+            <div class="table-card-header-left">
+                <h6 class="mb-0 text-primary">
+                    <i class="bi bi-journal-check"></i>
+                    تمام عملیات مالی
+                    <small>هر سند حسابداری در یک ردیف</small>
+                </h6>
+            </div>
+            <div class="table-card-header-right">
+                <span class="badge-modern badge-info">@filteredOperations.Count مورد</span>
+            </div>
+        </div>
+        <div class="table-card-body">
+            <div class="table-scroll-wrapper">
+                <GlobalDataGrid class="table-modern table-striped-modern journal-movement-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>تاریخ</th>
+                            <th>نوع عملیات</th>
+                            <th>شماره سند</th>
+                            <th>شرح</th>
+                            <th>حساب‌های درگیر</th>
+                            <th>مبلغ سند</th>
+                            <th>جزئیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (isLoading)
+                        {
+                            <tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+                        }
+                        else if (!pagedOperations.Any())
+                        {
+                            <tr><td colspan="8" class="text-center py-5 text-muted">عملیات مالی برای بازهٔ انتخاب‌شده یافت نشد.</td></tr>
+                        }
+                        else
+                        {
+                            var operationIndex = GetFirstRowNumber(operationCurrentPage);
+                            @foreach (var operation in pagedOperations)
+                            {
+                                <tr>
+                                    <td class="text-muted fw-bold">@operationIndex</td>
+                                    <td class="journal-row-date"><AppDateTime Value="@operation.CreatedAt" ShowSeconds="true" /></td>
+                                    <td>
+                                        <span class="badge-modern @GetSourceBadge(operation.SourceType)">@GetOperationTypeName(operation)</span>
+                                        <small class="d-block text-muted mt-1">@(IsCashOperation(operation) ? "نقدی" : "غیرنقدی")</small>
+                                    </td>
+                                    <td dir="ltr" class="fw-bold">@operation.DocumentNumber</td>
+                                    <td class="journal-sentence">@HighlightImportantText(operation, operation.SummarySentence)</td>
+                                    <td>
+                                        @if (operation.AccountNames.Count > 0)
+                                        {
+                                            <span>@string.Join("، ", operation.AccountNames.Take(3))</span>
+                                            @if (operation.AccountNames.Count > 3)
+                                            {
+                                                <small class="d-block text-muted">+ @(operation.AccountNames.Count - 3) حساب دیگر</small>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td class="journal-movement-amount">
+                                        @foreach (var amount in operation.CurrencySummaries)
+                                        {
+                                            <span dir="ltr">
+                                                <strong>@MoneyFormatHelper.Format(GetDocumentAmount(amount))</strong> @amount.CurrencyCode
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary journal-icon-button" title="مشاهده جزئیات" @onclick="() => ShowDetails(operation)">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                operationIndex++;
+                            }
+                        }
+                    </tbody>
+                </GlobalDataGrid>
+            </div>
+        </div>
+        <div class="table-card-footer journal-movement-footer">
+            <span class="text-muted small">نمایش <strong>@pagedOperations.Count</strong> از <strong>@filteredOperations.Count</strong></span>
+            <CompactPagination CurrentPage="operationCurrentPage"
+                               TotalPages="operationTotalPages"
+                               PageChanged="GoToOperationPage" />
         </div>
     </div>
 
@@ -333,9 +449,9 @@
                                                     <li>
                                                         @if (descriptionIndex == 0)
                                                         {
-                                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetSourceTypeName(row.Operation.SourceType)</span>
+                                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetOperationTypeName(row.Operation)</span>
                                                         }
-                                                        <span>@receiptDescriptions[descriptionIndex]</span>
+                                                        <span>@HighlightImportantText(row.Operation, receiptDescriptions[descriptionIndex])</span>
                                                     </li>
                                                 }
                                                 <li class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</li>
@@ -420,9 +536,9 @@
                                                     <li>
                                                         @if (descriptionIndex == 0)
                                                         {
-                                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetSourceTypeName(row.Operation.SourceType)</span>
+                                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetOperationTypeName(row.Operation)</span>
                                                         }
-                                                        <span>@withdrawalDescriptions[descriptionIndex]</span>
+                                                        <span>@HighlightImportantText(row.Operation, withdrawalDescriptions[descriptionIndex])</span>
                                                     </li>
                                                 }
                                                 <li class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</li>
@@ -478,7 +594,7 @@
                 <div>
                     <h5>
                         <i class="bi bi-receipt-cutoff"></i>
-                        جزئیات کامل @GetSourceTypeName(selectedOperation.SourceType)
+                        جزئیات کامل @GetOperationTypeName(selectedOperation)
                     </h5>
                     <div class="journal-modal-subtitle d-flex align-items-center gap-2">
                         <span>سند @selectedOperation.DocumentNumber ·</span>
@@ -490,7 +606,7 @@
 
             <div class="journal-modal-body">
                 <div class="journal-overview-grid">
-                    <div><span>نوع عملیات</span><strong>@GetSourceTypeName(selectedOperation.SourceType)</strong></div>
+                    <div><span>نوع عملیات</span><strong>@GetOperationTypeName(selectedOperation)</strong></div>
                     <div><span>شماره سند</span><strong>@selectedOperation.DocumentNumber</strong></div>
                     <div><span>تعداد حساب</span><strong>@selectedOperation.AccountNames.Count</strong></div>
                     <div><span>تعداد ثبت حسابداری</span><strong>@selectedOperation.LedgerEntriesCount</strong></div>
@@ -511,6 +627,7 @@
                 }
 
                 <h6 class="journal-section-title">خلاصهٔ گردش به تفکیک ارز</h6>
+                <p class="text-muted small">در یک سند درست، مجموع بدهکار و طلبکار هر ارز باید برابر باشد.</p>
                 <div class="table-responsive">
                     <GlobalDataGrid class="table table-bordered table-sm align-middle">
                         <thead>
@@ -518,7 +635,7 @@
                                 <th>ارز</th>
                                 <th>مجموع طلبکار</th>
                                 <th>مجموع بدهکار</th>
-                                <th>تفاوت</th>
+                                <th>وضعیت</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -528,7 +645,11 @@
                                     <td><span class="badge-modern badge-info">@currency.CurrencyCode</span></td>
                                     <td dir="ltr" class="text-success fw-bold">@MoneyFormatHelper.Format(currency.TotalTalabKar)</td>
                                     <td dir="ltr" class="text-danger fw-bold">@MoneyFormatHelper.Format(currency.TotalBadehKar)</td>
-                                    <td dir="ltr">@MoneyFormatHelper.Format(currency.TotalTalabKar - currency.TotalBadehKar)</td>
+                                    <td>
+                                        <span class="badge-modern @(currency.TotalTalabKar == currency.TotalBadehKar ? "badge-success" : "badge-danger")">
+                                            @(currency.TotalTalabKar == currency.TotalBadehKar ? "متوازن" : "نیاز به بررسی")
+                                        </span>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -567,7 +688,7 @@
                                         <ul class="journal-description-list journal-description-list-compact">
                                             @foreach (var item in GetDescriptionItems(entry.Description))
                                             {
-                                                <li>@item</li>
+                                                <li>@HighlightImportantText(selectedOperation, item)</li>
                                             }
                                         </ul>
                                     </td>
@@ -582,7 +703,7 @@
                     <ul class="journal-description-list">
                         @foreach (var item in GetDescriptionItems(selectedOperation.Description))
                         {
-                            <li>@item</li>
+                            <li>@HighlightImportantText(selectedOperation, item)</li>
                         }
                     </ul>
                 </div>
@@ -643,6 +764,7 @@
     private List<CashJournalRow> receiptRows = new();
     private List<CashJournalRow> withdrawalRows = new();
     private int pageSize = 20;
+    private int operationCurrentPage = 1;
     private int receiptCurrentPage = 1;
     private int withdrawalCurrentPage = 1;
     private bool isCashLoading;
@@ -652,6 +774,14 @@
     private DateTime SelectedCashDate => filterFromDate.Date;
     private bool IsCashDayClosed =>
         cashDailyBalances.Count > 0 && cashDailyBalances.All(x => x.IsClosed);
+    private int ActiveFilterCount =>
+        (!string.IsNullOrWhiteSpace(_searchTerm) ? 1 : 0) +
+        (!string.IsNullOrWhiteSpace(_filterSourceType) ? 1 : 0) +
+        (!string.IsNullOrWhiteSpace(_filterCashScope) ? 1 : 0) +
+        (!string.IsNullOrWhiteSpace(_filterAccountName) ? 1 : 0) +
+        (!string.IsNullOrWhiteSpace(_filterCurrencyCode) ? 1 : 0) +
+        (filterFromDate.Date != DateTime.Today ? 1 : 0) +
+        (filterToDate.Date != DateTime.Today ? 1 : 0);
 
     private string _searchTerm = string.Empty;
     private string searchTerm
@@ -676,6 +806,20 @@
             if (_filterSourceType != value)
             {
                 _filterSourceType = value;
+                ApplyFilters();
+            }
+        }
+    }
+
+    private string _filterCashScope = string.Empty;
+    private string filterCashScope
+    {
+        get => _filterCashScope;
+        set
+        {
+            if (_filterCashScope != value)
+            {
+                _filterCashScope = value;
                 ApplyFilters();
             }
         }
@@ -709,8 +853,10 @@
         }
     }
 
+    private List<JournalOperationDto> pagedOperations => GetOperationPage(filteredOperations, operationCurrentPage);
     private List<CashJournalRow> pagedReceiptRows => GetPage(receiptRows, receiptCurrentPage);
     private List<CashJournalRow> pagedWithdrawalRows => GetPage(withdrawalRows, withdrawalCurrentPage);
+    private int operationTotalPages => GetTotalPages(filteredOperations.Count);
     private int receiptTotalPages => GetTotalPages(receiptRows.Count);
     private int withdrawalTotalPages => GetTotalPages(withdrawalRows.Count);
 
@@ -743,7 +889,7 @@
             else
                 cashDailyBalances.Clear();
             sourceTypes = journal.Operations
-                .Select(x => x.SourceType)
+                .Select(GetOperationTypeName)
                 .Distinct()
                 .OrderBy(x => x)
                 .ToList();
@@ -862,6 +1008,7 @@
             var term = _searchTerm.Trim();
             query = query.Where(operation =>
                 Contains(operation.SourceType, term) ||
+                Contains(GetOperationTypeName(operation), term) ||
                 Contains(operation.DocumentNumber, term) ||
                 Contains(operation.SummarySentence, term) ||
                 Contains(operation.Description, term) ||
@@ -875,7 +1022,12 @@
         }
 
         if (!string.IsNullOrWhiteSpace(_filterSourceType))
-            query = query.Where(x => x.SourceType == _filterSourceType);
+            query = query.Where(x => GetOperationTypeName(x) == _filterSourceType);
+
+        if (_filterCashScope == "Cash")
+            query = query.Where(IsCashOperation);
+        else if (_filterCashScope == "NonCash")
+            query = query.Where(x => !IsCashOperation(x));
 
         if (!string.IsNullOrWhiteSpace(_filterAccountName))
             query = query.Where(x => x.AccountNames.Contains(_filterAccountName));
@@ -909,6 +1061,7 @@
         filterToDate = DateTime.Today;
         _searchTerm = string.Empty;
         _filterSourceType = string.Empty;
+        _filterCashScope = string.Empty;
         _filterAccountName = string.Empty;
         _filterCurrencyCode = string.Empty;
         await LoadJournal();
@@ -920,6 +1073,12 @@
             receiptCurrentPage = page;
     }
 
+    private void GoToOperationPage(int page)
+    {
+        if (page >= 1 && page <= operationTotalPages)
+            operationCurrentPage = page;
+    }
+
     private void GoToWithdrawalPage(int page)
     {
         if (page >= 1 && page <= withdrawalTotalPages)
@@ -928,6 +1087,7 @@
 
     private void ResetMovementPages()
     {
+        operationCurrentPage = 1;
         receiptCurrentPage = 1;
         withdrawalCurrentPage = 1;
     }
@@ -939,6 +1099,14 @@
         : Math.Max(1, (int)Math.Ceiling((double)count / pageSize));
 
     private List<CashJournalRow> GetPage(List<CashJournalRow> rows, int page)
+    {
+        if (pageSize == 0)
+            return rows;
+
+        return rows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private List<JournalOperationDto> GetOperationPage(List<JournalOperationDto> rows, int page)
     {
         if (pageSize == 0)
             return rows;
@@ -1010,6 +1178,95 @@
 
     private static string GetSourceTypeName(string sourceType) =>
         sourceType == "واریز / برداشت / پرداخت" ? "رسید / برد" : sourceType;
+
+    private static string GetOperationTypeName(JournalOperationDto operation)
+    {
+        if (operation.SourceType == "تراکنش")
+        {
+            var transactionType = operation.SourceDetails
+                .FirstOrDefault(x => x.Label == "نوع تراکنش")?.Value;
+            if (!string.IsNullOrWhiteSpace(transactionType))
+                return transactionType;
+        }
+
+        return GetSourceTypeName(operation.SourceType);
+    }
+
+    private static bool IsCashOperation(JournalOperationDto operation) =>
+        operation.LedgerEntries.Any(x => x.IsCashAccount);
+
+    private static decimal GetDocumentAmount(JournalOperationCurrencySummaryDto amount) =>
+        Math.Max(amount.TotalTalabKar, amount.TotalBadehKar);
+
+    private static MarkupString HighlightImportantText(JournalOperationDto operation, string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return new MarkupString("—");
+
+        var operationType = GetOperationTypeName(operation);
+        var currencies = operation.CurrencySummaries
+            .Select(x => x.CurrencyCode)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var namesAndAccounts = operation.AccountNames
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var importantLabels = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "فرستنده", "گیرنده", "مشتری", "نمایندگی", "از حساب", "به حساب",
+            "حساب طرف", "صندوق / بانک", "پرداخت از حساب", "حساب دریافت‌کننده",
+            "حساب ارز فروش", "حساب ارز خرید"
+        };
+        foreach (var detail in operation.SourceDetails.Where(x => importantLabels.Contains(x.Label)))
+        {
+            if (!string.IsNullOrWhiteSpace(detail.Value) && detail.Value.Length <= 100)
+                namesAndAccounts.Add(detail.Value.Trim());
+        }
+
+        var terms = namesAndAccounts
+            .Concat(currencies)
+            .Append(operationType)
+            .Append(operation.DocumentNumber)
+            .Where(x => !string.IsNullOrWhiteSpace(x) && x.Trim().Length > 1)
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(x => x.Length)
+            .ToList();
+        var termPattern = terms.Count == 0
+            ? string.Empty
+            : string.Join("|", terms.Select(System.Text.RegularExpressions.Regex.Escape)) + "|";
+        var pattern = $"(?:{termPattern}(?<![\\p{{L}}\\p{{N}}])[+-]?\\d[\\d,.٬]*(?![\\p{{L}}\\p{{N}}]))";
+        var matches = System.Text.RegularExpressions.Regex.Matches(
+            text,
+            pattern,
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (matches.Count == 0)
+            return new MarkupString(System.Net.WebUtility.HtmlEncode(text));
+
+        var html = new System.Text.StringBuilder();
+        var position = 0;
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            html.Append(System.Net.WebUtility.HtmlEncode(text[position..match.Index]));
+            var value = match.Value;
+            var encoded = System.Net.WebUtility.HtmlEncode(value);
+            if (string.Equals(value, operationType, StringComparison.OrdinalIgnoreCase))
+                html.Append($"<strong class=\"text-primary\">{encoded}</strong>");
+            else if (string.Equals(value, operation.DocumentNumber, StringComparison.OrdinalIgnoreCase))
+                html.Append($"<mark class=\"px-1 rounded bg-info-subtle fw-bold\">{encoded}</mark>");
+            else if (currencies.Contains(value))
+                html.Append($"<mark class=\"px-1 rounded bg-warning-subtle fw-bold\">{encoded}</mark>");
+            else if (namesAndAccounts.Contains(value))
+                html.Append($"<strong class=\"text-primary\">{encoded}</strong>");
+            else
+                html.Append($"<mark class=\"px-1 rounded bg-warning-subtle fw-bold\">{encoded}</mark>");
+            position = match.Index + match.Length;
+        }
+
+        html.Append(System.Net.WebUtility.HtmlEncode(text[position..]));
+        return new MarkupString(html.ToString());
+    }
 
     private sealed class CashJournalRow
     {

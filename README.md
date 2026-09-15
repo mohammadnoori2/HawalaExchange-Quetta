@@ -1,6 +1,6 @@
 # HawalaExchange Quetta
 
-Customer-specific edition of HawalaExchange for Quetta-origin remittances, bulk Excel import, payout-agent accounting, periodic correspondent commission, daily USD settlement, and AED transactions.
+Customer-specific edition of HawalaExchange for Quetta-origin remittances, bulk Excel import, payout-agent accounting, periodic correspondent commission, correspondent balance settlement, and AED transactions.
 
 ## Local isolation
 

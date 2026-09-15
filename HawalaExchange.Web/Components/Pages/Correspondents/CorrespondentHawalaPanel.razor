@@ -19,6 +19,24 @@
             <span>@totalCount حواله</span>
         </div>
         <div class="d-flex gap-2">
+            @if (totalCount > 0 || selectedSettlementIds.Count > 0)
+            {
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        disabled="@(isLoading || settlementSelectionLoading)"
+                        title="انتخاب تمام حواله‌های قابل تبدیل در نتیجهٔ فیلتر فعلی"
+                        @onclick="ToggleAllSettlementSelectionAsync">
+                    @if (settlementSelectionLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                    }
+                    else
+                    {
+                        <i class="bi @(allMatchingSettlementSelected ? "bi-square" : "bi-check2-square")"></i>
+                    }
+                    @(allMatchingSettlementSelected ? "لغو انتخاب همه" : "انتخاب همه")
+                </button>
+            }
             @if (selectedSettlementIds.Count > 0)
             {
                 <button type="button" class="btn btn-sm btn-success" @onclick="OpenSettlement">
@@ -382,6 +400,8 @@
     private bool isLoading;
     private bool actionLoading;
     private bool showSettlementModal;
+    private bool settlementSelectionLoading;
+    private bool allMatchingSettlementSelected;
     private readonly HashSet<long> selectedSettlementIds = [];
     private readonly Dictionary<long, HawalaDto> selectedSettlementHawalas = [];
     private bool showRateEditModal;
@@ -431,34 +451,14 @@
         {
             isLoading = true;
             errors.Clear();
-            decimal? amount = null;
-            long number = 0;
-            if (MoneyFormatHelper.TryParse(searchTerm, out var parsed))
-            {
-                amount = parsed;
-                if (parsed > 0 && parsed == decimal.Truncate(parsed) && parsed <= long.MaxValue)
-                    number = (long)parsed;
-            }
-
-            var result = await HawalaService.GetHawalasAsync(new HawalaFilterDto
-            {
-                CorrespondentId = CorrespondentId,
-                HawalaType = HawalaType,
-                Status = string.IsNullOrWhiteSpace(statusFilter) ? null : statusFilter,
-                SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm.Trim(),
-                SearchAmount = amount,
-                Number = number,
-                PageNumber = currentPage,
-                PageSize = pageSize,
-                SortColumn = "CreatedAt",
-                SortDirection = "desc"
-            });
+            var result = await HawalaService.GetHawalasAsync(BuildFilter(currentPage, pageSize));
 
             hawalas = result.Items.ToList();
             foreach (var invalid in hawalas.Where(x => x.SettlementState != "Pending" && selectedSettlementIds.Contains(x.Id)))
             {
                 selectedSettlementIds.Remove(invalid.Id);
                 selectedSettlementHawalas.Remove(invalid.Id);
+                allMatchingSettlementSelected = false;
             }
             totalCount = result.TotalCount;
             totalPages = Math.Max(1, result.TotalPages);
@@ -807,6 +807,7 @@
         }
 
         currentPage = 1;
+        allMatchingSettlementSelected = false;
         await LoadHawalasAsync();
     }
 
@@ -814,6 +815,7 @@
 
     private void ToggleSettlementSelection(HawalaDto hawala, bool selected)
     {
+        allMatchingSettlementSelected = false;
         if (selected)
         {
             selectedSettlementIds.Add(hawala.Id);
@@ -824,6 +826,78 @@
             selectedSettlementIds.Remove(hawala.Id);
             selectedSettlementHawalas.Remove(hawala.Id);
         }
+    }
+
+    private async Task ToggleAllSettlementSelectionAsync()
+    {
+        if (settlementSelectionLoading)
+            return;
+
+        if (allMatchingSettlementSelected)
+        {
+            selectedSettlementIds.Clear();
+            selectedSettlementHawalas.Clear();
+            allMatchingSettlementSelected = false;
+            return;
+        }
+
+        try
+        {
+            settlementSelectionLoading = true;
+            errors.Clear();
+            var result = await HawalaService.GetHawalasAsync(BuildFilter(1, int.MaxValue));
+            var eligible = result.Items
+                .Where(x => x.SettlementState == "Pending")
+                .ToList();
+
+            if (eligible.Count == 0)
+            {
+                errors.Add("حوالهٔ قابل تبدیلی در نتیجهٔ فیلتر فعلی وجود ندارد.");
+                return;
+            }
+
+            foreach (var hawala in eligible)
+            {
+                selectedSettlementIds.Add(hawala.Id);
+                selectedSettlementHawalas[hawala.Id] = hawala;
+            }
+
+            allMatchingSettlementSelected = true;
+        }
+        catch (Exception ex)
+        {
+            errors.Add($"انتخاب همه حواله‌ها انجام نشد: {ex.Message}");
+        }
+        finally
+        {
+            settlementSelectionLoading = false;
+        }
+    }
+
+    private HawalaFilterDto BuildFilter(int pageNumber, int requestedPageSize)
+    {
+        decimal? amount = null;
+        long number = 0;
+        if (MoneyFormatHelper.TryParse(searchTerm, out var parsed))
+        {
+            amount = parsed;
+            if (parsed > 0 && parsed == decimal.Truncate(parsed) && parsed <= long.MaxValue)
+                number = (long)parsed;
+        }
+
+        return new HawalaFilterDto
+        {
+            CorrespondentId = CorrespondentId,
+            HawalaType = HawalaType,
+            Status = string.IsNullOrWhiteSpace(statusFilter) ? null : statusFilter,
+            SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm.Trim(),
+            SearchAmount = amount,
+            Number = number,
+            PageNumber = pageNumber,
+            PageSize = requestedPageSize,
+            SortColumn = "CreatedAt",
+            SortDirection = "desc"
+        };
     }
 
     private void OpenSettlement() => showSettlementModal = true;
@@ -862,6 +936,7 @@
     {
         selectedSettlementIds.Clear();
         selectedSettlementHawalas.Clear();
+        allMatchingSettlementSelected = false;
         var details = result.Items.Count == 0
             ? "تبدیل به ارز توافقی ثبت شد."
             : string.Join("؛ ", result.Items.Select(item =>
@@ -876,6 +951,7 @@
         searchTerm = string.Empty;
         statusFilter = string.Empty;
         currentPage = 1;
+        allMatchingSettlementSelected = false;
         await LoadHawalasAsync();
     }
 

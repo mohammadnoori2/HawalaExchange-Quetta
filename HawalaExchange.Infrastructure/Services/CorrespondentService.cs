@@ -109,11 +109,21 @@ namespace HawalaExchange.Application.Services
         protected override async Task ValidateCreateAsync(Correspondent entity, CreateCorrespondentDto dto)
         {
             await ValidateSettlementCurrencyAsync(entity.SettlementCurrencyId);
+            ValidateCommissionMethod(entity.CommissionMethod);
             entity.Code = await GenerateCorrespondentCodeAsync();
         }
 
-        protected override Task ValidateUpdateAsync(Correspondent entity, UpdateCorrespondentDto dto) =>
-            ValidateSettlementCurrencyAsync(entity.SettlementCurrencyId);
+        protected override async Task ValidateUpdateAsync(Correspondent entity, UpdateCorrespondentDto dto)
+        {
+            await ValidateSettlementCurrencyAsync(entity.SettlementCurrencyId);
+            ValidateCommissionMethod(entity.CommissionMethod);
+        }
+
+        private static void ValidateCommissionMethod(string method)
+        {
+            if (method is not ("PerTransaction" or "PeriodicPerLakh"))
+                throw new InvalidOperationException("روش محاسبه کمیشن معتبر نیست.");
+        }
 
         private async Task ValidateSettlementCurrencyAsync(long? currencyId)
         {

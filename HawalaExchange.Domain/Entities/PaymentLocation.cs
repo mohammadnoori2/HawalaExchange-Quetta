@@ -12,11 +12,13 @@ namespace HawalaExchange.Domain.Entities
 
         public long TenantId { get; set; }
 
-        public long? CorrespondentId { get; set; }
-
         [Required]
         [MaxLength(200)]
         public string Name { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(200)]
+        public string NormalizedName { get; set; } = string.Empty;
 
         [Required]
         [MaxLength(500)]
@@ -45,10 +47,8 @@ namespace HawalaExchange.Domain.Entities
         [ForeignKey(nameof(UpdatedBy))]
         public virtual ApplicationUser? UpdatedByUser { get; set; }
 
-        [ForeignKey(nameof(CorrespondentId))]
-        public virtual Correspondent? Correspondent { get; set; }
-
         // ارتباط با حواله‌ها (یک آدرس می‌تواند در چند حواله استفاده شود)
         public virtual ICollection<Hawala>? Hawalas { get; set; }
+        public virtual ICollection<PaymentLocationAlias> Aliases { get; set; } = [];
     }
 }

@@ -6,8 +6,8 @@ namespace HawalaExchange.Application.Interfaces.Services
     {
         Task<IEnumerable<PaymentLocationDto>> GetAllAsync();
         Task<IEnumerable<PaymentLocationDto>> GetActiveAsync();
-        Task<IEnumerable<PaymentLocationDto>> GetByCorrespondentAsync(long correspondentId, bool includeInactive = false);
         Task<PaymentLocationDto?> GetByIdAsync(long id);
+        Task<PaymentLocationDto?> FindByNameOrAliasAsync(string name, bool activeOnly = true);
         Task<PaymentLocationDto> CreateAsync(CreatePaymentLocationDto dto);
         Task<PaymentLocationDto> UpdateAsync(long id, UpdatePaymentLocationDto dto);
         Task DeleteAsync(long id);

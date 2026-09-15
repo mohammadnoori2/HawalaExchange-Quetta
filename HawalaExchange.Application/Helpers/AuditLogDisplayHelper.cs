@@ -36,6 +36,8 @@ public static class AuditLogDisplayHelper
             ["CorrespondentSettlementConversionItems"] = "جزئیات تبدیل مانده نمایندگی",
             ["CorrespondentSettlementConversionHawalas"] = "حواله تبدیل‌شده به ارز توافقی",
             ["CorrespondentSettlementConversionHawalaItems"] = "نرخ ارز توافقی حواله",
+            ["AedDeals"] = "معاملات درهم",
+            ["AedDealConversions"] = "تبدیل‌های معامله درهم",
             ["Users"] = "کاربر",
             ["CashDailyBalances"] = "مانده روزانه صندوق",
             ["ApplicationUsers"] = "کاربر",

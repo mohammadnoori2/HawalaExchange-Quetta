@@ -37,6 +37,10 @@ namespace HawalaExchange.Domain.Entities
 
         public long? SettlementCurrencyId { get; set; }
 
+        [Required]
+        [MaxLength(30)]
+        public string CommissionMethod { get; set; } = "PerTransaction";
+
         [ForeignKey(nameof(SettlementCurrencyId))]
         public virtual Currency? SettlementCurrency { get; set; }
 
@@ -51,6 +55,6 @@ namespace HawalaExchange.Domain.Entities
         // Navigation Properties
         public virtual ICollection<TransactionDetail>? TransactionDetails { get; set; }
         public virtual ICollection<CorrespondentSettlementConversion> SettlementConversions { get; set; } = [];
-        public virtual ICollection<PaymentLocation> PaymentLocations { get; set; } = [];
+        public virtual ICollection<CorrespondentCommissionBatch> CommissionBatches { get; set; } = [];
     }
 }

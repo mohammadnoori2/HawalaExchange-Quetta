@@ -2,7 +2,6 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @inject IPaymentLocationService PaymentLocationService
-@inject ICorrespondentService CorrespondentService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
@@ -10,7 +9,7 @@
 
 <div class="page-wrapper">
     <AppPageHeader Title="مدیریت محل‌های پرداخت"
-                   Subtitle="لیست و جستجوی آدرس‌های پرداخت حواله"
+                   Subtitle="محل‌های جغرافیایی پرداخت، مستقل از نمایندگی‌ها"
                    Icon="bi-geo-alt">
         <Stats>
             <PageHeaderStats AriaLabel="آمار محل‌های پرداخت">
@@ -70,7 +69,7 @@
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
-                            <th style="min-width:150px;">نمایندگی</th>
+                            <th style="min-width:180px;">نام‌های جایگزین</th>
                             <th style="min-width:250px;">آدرس</th>
                             <th style="min-width:120px;">تلفن</th>
                             <th style="min-width:120px;">مسئول</th>
@@ -109,7 +108,7 @@
                                 <tr>
                                     <td>@rowIndex</td>
                                     <td><span class="fw-bold">@location.Name</span></td>
-                                    <td>@(location.CorrespondentName ?? "تخصیص‌نیافته")</td>
+                                    <td>@(location.Aliases.Count == 0 ? "-" : string.Join("، ", location.Aliases))</td>
                                     <td>@location.Address</td>
                                     <td>@location.Phone</td>
                                     <td>@location.ContactPerson</td>
@@ -169,7 +168,7 @@
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
-                        @(isEditMode ? "ویرایش آدرس" : "ایجاد آدرس جدید")
+                        @(isEditMode ? "ویرایش محل پرداخت" : "ایجاد محل پرداخت جدید")
                     </h5>
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseModal()"></button>
                 </div>
@@ -188,22 +187,17 @@
 
                     <div class="row g-3">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">نمایندگی <span class="text-danger">*</span></label>
-                            <select class="form-select" @bind="currentLocation.CorrespondentId">
-                                <option value="">انتخاب نمایندگی</option>
-                                @foreach (var correspondent in availableCorrespondents)
-                                {
-                                    <option value="@correspondent.Id">@correspondent.Name</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">نام محل <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" @bind="currentLocation.Name" placeholder="مثال: دفتر مرکزی" />
+                            <input type="text" class="form-control" @bind="currentLocation.Name" placeholder="مثال: غزنی" />
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">آدرس <span class="text-danger">*</span></label>
-                            <textarea class="form-control" @bind="currentLocation.Address" rows="2" placeholder="آدرس کامل"></textarea>
+                            <label class="form-label fw-bold">نام‌های جایگزین</label>
+                            <input type="text" class="form-control" @bind="aliasesText" placeholder="مثال: غزنی شهر، مرکز غزنی" />
+                            <small class="text-muted">نام‌ها را با ویرگول فارسی یا انگلیسی جدا کنید.</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">جزئیات آدرس</label>
+                            <textarea class="form-control" @bind="currentLocation.Address" rows="2" placeholder="آدرس دقیق (اختیاری)"></textarea>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">تلفن</label>
@@ -270,7 +264,6 @@
 @code {
     private List<PaymentLocationDto> paymentLocations = new();
     private List<PaymentLocationDto> filteredLocations = new();
-    private List<CorrespondentDto> correspondents = new();
     private string _searchTerm = "";
     private string statusFilter = string.Empty;
     private int pageSize = 10;
@@ -319,12 +312,10 @@
     private List<string> validationErrors = new();
     private string successMessage = "";
     private CreatePaymentLocationDto currentLocation = new();
-    private IEnumerable<CorrespondentDto> availableCorrespondents =>
-        correspondents.Where(x => !x.IsArchived || x.Id == currentLocation.CorrespondentId);
+    private string aliasesText = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        correspondents = (await CorrespondentService.GetAllAsync()).ToList();
         await LoadLocations();
     }
 
@@ -353,7 +344,7 @@
             var term = _searchTerm.Trim();
             query = query.Where(location =>
                 location.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                (location.CorrespondentName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                location.Aliases.Any(alias => alias.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
                 location.Address.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 (location.Phone?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (location.ContactPerson?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
@@ -406,6 +397,7 @@
     private void OpenCreateModal()
     {
         currentLocation = new CreatePaymentLocationDto { IsActive = true };
+        aliasesText = string.Empty;
         isEditMode = false;
         editId = 0;
         validationErrors.Clear();
@@ -422,13 +414,13 @@
             {
                 currentLocation = new CreatePaymentLocationDto
                 {
-                    CorrespondentId = location.CorrespondentId,
                     Name = location.Name,
                     Address = location.Address,
                     Phone = location.Phone,
                     ContactPerson = location.ContactPerson,
                     IsActive = location.IsActive
                 };
+                aliasesText = string.Join("، ", location.Aliases);
                 isEditMode = true;
                 editId = id;
                 validationErrors.Clear();
@@ -457,10 +449,7 @@
 
         if (string.IsNullOrWhiteSpace(currentLocation.Name))
             validationErrors.Add("نام محل الزامی است.");
-        if (string.IsNullOrWhiteSpace(currentLocation.Address))
-            validationErrors.Add("آدرس الزامی است.");
-        if (!currentLocation.CorrespondentId.HasValue)
-            validationErrors.Add("انتخاب نمایندگی الزامی است.");
+        currentLocation.Aliases = ParseAliases(aliasesText);
 
         if (validationErrors.Any())
         {
@@ -477,12 +466,12 @@
             {
                 var updateDto = new UpdatePaymentLocationDto
                 {
-                    CorrespondentId = currentLocation.CorrespondentId,
                     Name = currentLocation.Name,
                     Address = currentLocation.Address,
                     Phone = currentLocation.Phone,
                     ContactPerson = currentLocation.ContactPerson,
-                    IsActive = currentLocation.IsActive
+                    IsActive = currentLocation.IsActive,
+                    Aliases = currentLocation.Aliases
                 };
                 await PaymentLocationService.UpdateAsync(editId, updateDto);
             }
@@ -514,6 +503,13 @@
         }
         catch { }
     }
+
+    private static List<string> ParseAliases(string value) =>
+        (value ?? string.Empty)
+            .Split([',', '،'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     private void ShowDeleteConfirm(long id)
     {

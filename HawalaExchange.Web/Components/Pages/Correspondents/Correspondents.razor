@@ -150,6 +150,13 @@
                                                 <i class="bi bi-eye text-primary"></i>
                                                 مشاهده نمایندگی
                                             </button>
+                                            @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
+                                            {
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenCommissionPage(correspondent.Id)">
+                                                    <i class="bi bi-calculator text-success"></i>
+                                                    محاسبه کمیشن دوره‌ای
+                                                </button>
+                                            }
                                             @if (correspondent.IsArchived)
                                             {
                                                 <div class="operation-menu-divider"></div>
@@ -293,6 +300,16 @@
                                         <i class="bi bi-chat text-muted me-1"></i> توضیحات
                                     </label>
                                     <textarea class="form-control" @bind="currentCorrespondent.Remarks" rows="2" placeholder="توضیحات اضافی"></textarea>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-percent text-muted me-1"></i> روش محاسبه کمیشن
+                                    </label>
+                                    <select class="form-select" @bind="currentCorrespondent.CommissionMethod">
+                                        <option value="PerTransaction">برای هر معامله</option>
+                                        <option value="PeriodicPerLakh">دوره‌ای بر اساس هر لک</option>
+                                    </select>
+                                    <div class="form-text">در روش دوره‌ای، کمیشن داخل حواله دریافتی ثبت نمی‌شود.</div>
                                 </div>
                             </div>
 
@@ -969,7 +986,8 @@
                     PhoneNumber = correspondent.PhoneNumber,
                     Address = correspondent.Address,
                     Remarks = correspondent.Remarks,
-                    SettlementCurrencyId = correspondent.SettlementCurrencyId
+                    SettlementCurrencyId = correspondent.SettlementCurrencyId,
+                    CommissionMethod = correspondent.CommissionMethod
                 };
 
                 isEditMode = true;
@@ -1009,6 +1027,11 @@
     private void ViewCorrespondent(long correspondentId)
     {
         NavigationManager.NavigateTo($"/correspondents/{correspondentId}");
+    }
+
+    private void OpenCommissionPage(long correspondentId)
+    {
+        NavigationManager.NavigateTo($"/correspondents/{correspondentId}/commission");
     }
 
     private void OpenRangeModal(CorrespondentDto correspondent)
@@ -1194,6 +1217,7 @@
                     Address = currentCorrespondent.Address,
                     Remarks = currentCorrespondent.Remarks,
                     SettlementCurrencyId = currentCorrespondent.SettlementCurrencyId,
+                    CommissionMethod = currentCorrespondent.CommissionMethod,
                     IsArchived = false
                 };
                 await CorrespondentService.UpdateAsync(editId, updateRequest);

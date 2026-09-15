@@ -5,6 +5,7 @@ namespace HawalaExchange.Application.Interfaces.Services
     public interface IHawalaService
     {
         Task<HawalaDto> CreateHawalaAsync(CreateHawalaDto dto);
+        Task<IReadOnlyList<HawalaDto>> CreateHawalasAsync(IReadOnlyCollection<CreateHawalaDto> items);
         Task<HawalaDto> UpdateHawalaAsync(long id, UpdateHawalaDto dto);
         Task DeleteHawalaAsync(long id);
         Task<HawalaDto?> GetHawalaByIdAsync(long id);

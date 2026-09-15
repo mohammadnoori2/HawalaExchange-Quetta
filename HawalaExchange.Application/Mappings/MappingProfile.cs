@@ -352,10 +352,14 @@ namespace HawalaSystem.Mappings
             // در MappingProfile.cs
             CreateMap<PaymentLocation, PaymentLocationDto>()
                 .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedByUser != null ? src.CreatedByUser.FullName : null))
-                .ForMember(dest => dest.CorrespondentName, opt => opt.MapFrom(src => src.Correspondent != null ? src.Correspondent.Name : null));
+                .ForMember(dest => dest.Aliases, opt => opt.MapFrom(src => src.Aliases.Select(x => x.Name)));
 
-            CreateMap<CreatePaymentLocationDto, PaymentLocation>();
-            CreateMap<UpdatePaymentLocationDto, PaymentLocation>();
+            CreateMap<CreatePaymentLocationDto, PaymentLocation>()
+                .ForMember(dest => dest.Aliases, opt => opt.Ignore())
+                .ForMember(dest => dest.NormalizedName, opt => opt.Ignore());
+            CreateMap<UpdatePaymentLocationDto, PaymentLocation>()
+                .ForMember(dest => dest.Aliases, opt => opt.Ignore())
+                .ForMember(dest => dest.NormalizedName, opt => opt.Ignore());
 
 
         }

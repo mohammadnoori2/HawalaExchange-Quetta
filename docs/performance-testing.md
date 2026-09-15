@@ -150,3 +150,20 @@ For 500 correspondent accounts and 10,000 ledger entries, one local comparison p
 | Owner query plus balance procedure | 2 | 333.12 ms |
 
 The set-based path reduced database calls by **99.6%** and elapsed time by **44.05%** in this sample.
+
+## Original-plan phase three — reports, dashboard, and journal — 2026-09-15
+
+The three operational report procedures from the earlier report phase remain in use; they already cover incoming/outgoing Hawala summaries, commission, expenses, date ranges, branches, correspondents, and currencies. This phase therefore avoids duplicating those procedures and closes the remaining dashboard and journal gaps.
+
+`usp_GetDashboardData_v1` replaces six entity-loading queries and the full historical ledger materialization used by the dashboard. In one tenant-scoped call it returns daily activity counts, account/currency balance aggregates, and date/account/currency profit aggregates. The application still applies the existing currency-conversion and warning rules, but now does so over grouped rows rather than every ledger entry. `usp_GetDailyJournal_v1` returns only the ledger, account, and currency columns needed by the readable journal while preserving its operation grouping, source details, cash receipt/withdrawal sections, and debit/credit summaries.
+
+Correctness tests cover cancelled-Hawala exclusion, exact activity counts and last-activity time, ledger-based net profit, debtor balances, local-day journal boundaries, balanced journal currency totals, readable summaries, no EF tracking, and tenant isolation.
+
+For 50,000 ledger entries on the local SQL Server, one measured dashboard comparison produced:
+
+| Implementation | Elapsed time |
+| --- | ---: |
+| Loading raw ledger entities with account/currency includes | 3,204.88 ms |
+| Aggregated dashboard stored procedure | 757.53 ms |
+
+The aggregated dashboard path was **76.36% faster** in this sample and reduced 50,000 raw ledger rows to grouped result rows before crossing the database boundary.

@@ -1,8 +1,11 @@
+using System.Data;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HawalaExchange.Application.Services;
 
@@ -30,14 +33,7 @@ public class JournalService : IJournalService
         var utcStart = localStart.ToUniversalTime();
         var utcEnd = localEnd.ToUniversalTime();
 
-        var ledgerEntries = await _context.LedgerEntries
-            .AsNoTracking()
-            .Include(x => x.Account)
-            .Include(x => x.Currency)
-            .Where(x => x.CreatedAt >= utcStart && x.CreatedAt < utcEnd)
-            .OrderByDescending(x => x.CreatedAt)
-            .ThenByDescending(x => x.Id)
-            .ToListAsync();
+        var ledgerEntries = await ReadJournalEntriesAsync(utcStart, utcEnd);
 
         var entries = ledgerEntries.Select(ToEntryDto).ToList();
         var operations = ledgerEntries
@@ -317,6 +313,73 @@ public class JournalService : IJournalService
         }
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task<List<LedgerEntry>> ReadJournalEntriesAsync(DateTime utcStart, DateTime utcEnd)
+    {
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync();
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "[dbo].[usp_GetDailyJournal_v1]";
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandTimeout = 120;
+            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+            command.Parameters.Add("@FromDate", SqlDbType.DateTime2).Value = utcStart;
+            command.Parameters.Add("@ToDateExclusive", SqlDbType.DateTime2).Value = utcEnd;
+            var transaction = _context.Database.CurrentTransaction?.GetDbTransaction();
+            if (transaction is SqlTransaction sqlTransaction)
+                command.Transaction = sqlTransaction;
+
+            var rows = new List<LedgerEntry>();
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var accountId = reader.GetInt64(9);
+                var currencyId = reader.GetInt64(13);
+                rows.Add(new LedgerEntry
+                {
+                    Id = reader.GetInt64(0),
+                    CreatedAt = reader.GetDateTime(1),
+                    HawalaId = reader.IsDBNull(2) ? null : reader.GetInt64(2),
+                    CapitalInvestmentId = reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                    ExpenseId = reader.IsDBNull(4) ? null : reader.GetInt64(4),
+                    AccountMoneyOperationId = reader.IsDBNull(5) ? null : reader.GetInt64(5),
+                    MoneyExchangeOperationId = reader.IsDBNull(6) ? null : reader.GetInt64(6),
+                    TransferId = reader.IsDBNull(7) ? null : reader.GetInt64(7),
+                    TransactionId = reader.IsDBNull(8) ? null : reader.GetInt64(8),
+                    AccountId = accountId,
+                    CurrencyId = currencyId,
+                    TalabKar = reader.GetDecimal(15),
+                    BadehKar = reader.GetDecimal(16),
+                    Description = reader.IsDBNull(17) ? null : reader.GetString(17),
+                    Account = new Account
+                    {
+                        Id = accountId,
+                        AccountCode = reader.GetString(10),
+                        AccountName = reader.GetString(11),
+                        AccountType = reader.GetString(12)
+                    },
+                    Currency = new Currency
+                    {
+                        Id = currencyId,
+                        Code = reader.GetString(14),
+                        Name = reader.GetString(14)
+                    }
+                });
+            }
+
+            return rows;
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
     }
 
     private async Task<List<CashDailyBalance>> EnsureCashDailyBalancesAsync(DateTime date)

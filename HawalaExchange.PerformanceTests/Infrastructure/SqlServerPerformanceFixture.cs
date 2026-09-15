@@ -140,6 +140,8 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
     }
 
     public ReportService CreateReportService(ApplicationDbContext context) => new(context);
+    public FinancialReportService CreateFinancialReportService(ApplicationDbContext context) => new(context);
+    public JournalService CreateJournalService(ApplicationDbContext context) => new(context);
     public CorrespondentCommissionService CreateCommissionService(ApplicationDbContext context) => new(context);
     public CorrespondentSettlementService CreateSettlementService(ApplicationDbContext context) => new(context);
     public BalanceService CreateBalanceService(ApplicationDbContext context)

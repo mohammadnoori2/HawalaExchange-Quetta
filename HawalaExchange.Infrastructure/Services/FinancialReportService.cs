@@ -1,9 +1,12 @@
+using System.Data;
 using System.Globalization;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HawalaExchange.Application.Services;
 
@@ -51,60 +54,16 @@ public class FinancialReportService : IFinancialReportService
         var start = fromDate.Date;
         var endExclusive = toDate.Date.AddDays(1);
         var reporting = await GetReportingContextAsync(endExclusive, reportingCurrencyId);
-        var openingReporting = await GetReportingContextAsync(start, reportingCurrencyId);
-        var entries = await GetLedgerEntriesAsync(endExclusive);
-        var rangeEntries = entries
-            .Where(x => x.CreatedAt >= start && x.CreatedAt < endExclusive)
-            .ToList();
-
-        var hawalas = await _context.Hawalas
-            .AsNoTracking()
-            .Where(x => x.CreatedAt >= start &&
-                        x.CreatedAt < endExclusive &&
-                        x.Status != "Cancel")
-            .Select(x => new { x.CreatedAt })
-            .ToListAsync();
-
-        var exchanges = await _context.MoneyExchangeOperations
-            .AsNoTracking()
-            .Where(x => !x.IsDeleted &&
-                        x.ExchangeDate >= start &&
-                        x.ExchangeDate < endExclusive)
-            .Select(x => new { x.ExchangeDate })
-            .ToListAsync();
-
-        var accountOperations = await _context.AccountMoneyOperations
-            .AsNoTracking()
-            .Where(x => !x.IsDeleted &&
-                        x.OperationDate >= start &&
-                        x.OperationDate < endExclusive)
-            .Select(x => new { x.OperationDate })
-            .ToListAsync();
-
-        var expenses = await _context.Expenses
-            .AsNoTracking()
-            .Where(x => !x.IsDeleted &&
-                        x.ExpenseDate >= start &&
-                        x.ExpenseDate < endExclusive)
-            .Select(x => new { x.ExpenseDate })
-            .ToListAsync();
-
-        var capitalInvestments = await _context.CapitalInvestments
-            .AsNoTracking()
-            .Where(x => !x.IsDeleted &&
-                        x.InvestmentDate >= start &&
-                        x.InvestmentDate < endExclusive)
-            .Select(x => new { x.InvestmentDate })
-            .ToListAsync();
+        var data = await ReadDashboardDataAsync(start, endExclusive);
 
         var result = new DashboardSummaryDto
         {
             ReportingCurrencyCode = reporting.Currency.Code,
-            HawalaCount = hawalas.Count,
-            ExchangeCount = exchanges.Count,
-            AccountOperationCount = accountOperations.Count,
-            ExpenseCount = expenses.Count,
-            CapitalInvestmentCount = capitalInvestments.Count
+            HawalaCount = data.Activities.Sum(x => x.HawalaCount),
+            ExchangeCount = data.Activities.Sum(x => x.ExchangeCount),
+            AccountOperationCount = data.Activities.Sum(x => x.AccountOperationCount),
+            ExpenseCount = data.Activities.Sum(x => x.ExpenseCount),
+            CapitalInvestmentCount = data.Activities.Sum(x => x.CapitalInvestmentCount)
         };
 
         result.TotalActivityCount =
@@ -114,47 +73,137 @@ public class FinancialReportService : IFinancialReportService
             result.ExpenseCount +
             result.CapitalInvestmentCount;
 
-        result.LastActivityAt = new DateTime?[]
-            {
-                hawalas.Select(x => (DateTime?)x.CreatedAt).Max(),
-                exchanges.Select(x => (DateTime?)x.ExchangeDate).Max(),
-                accountOperations.Select(x => (DateTime?)x.OperationDate).Max(),
-                expenses.Select(x => (DateTime?)x.ExpenseDate).Max(),
-                capitalInvestments.Select(x => (DateTime?)x.InvestmentDate).Max()
-            }
-            .Where(x => x.HasValue)
-            .Select(x => x!.Value)
-            .DefaultIfEmpty()
-            .Max();
+        result.LastActivityAt = data.Activities.Count == 0
+            ? null
+            : data.Activities.Max(x => x.LastActivityAt);
 
-        if (result.LastActivityAt == default)
-            result.LastActivityAt = null;
-
-        var profitLoss = BuildProfitLoss(
-            entries,
-            reporting,
-            start,
-            toDate.Date,
-            openingReporting);
-        result.NetProfit = profitLoss.NetProfit;
-        result.Warnings.AddRange(profitLoss.Header.Warnings);
+        var profitWarnings = new List<string>();
+        result.NetProfit = CalculateNetProfit(data.RangeEntries, reporting, profitWarnings);
+        result.Warnings.AddRange(profitWarnings);
 
         result.Rates = await GetLatestRatesAsync(reporting.Currency.Id, endExclusive);
-        BuildDashboardDebtorsAndLiquidity(entries, reporting, result);
-        BuildDashboardSeries(
-            start,
-            toDate.Date,
-            hawalas.Select(x => x.CreatedAt),
-            exchanges.Select(x => x.ExchangeDate),
-            accountOperations.Select(x => x.OperationDate),
-            expenses.Select(x => x.ExpenseDate),
-            capitalInvestments.Select(x => x.InvestmentDate),
-            rangeEntries,
-            reporting,
-            result);
+        BuildDashboardDebtorsAndLiquidity(data.BalanceEntries, reporting, result);
+        BuildDashboardSeriesFromAggregates(start, toDate.Date, data, reporting, result);
 
         result.Warnings = result.Warnings.Distinct().ToList();
         return result;
+    }
+
+    private async Task<DashboardData> ReadDashboardDataAsync(DateTime fromDate, DateTime toDateExclusive)
+    {
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync();
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "[dbo].[usp_GetDashboardData_v1]";
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandTimeout = 120;
+            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+            command.Parameters.Add("@FromDate", SqlDbType.DateTime2).Value = fromDate;
+            command.Parameters.Add("@ToDateExclusive", SqlDbType.DateTime2).Value = toDateExclusive;
+            var transaction = _context.Database.CurrentTransaction?.GetDbTransaction();
+            if (transaction is SqlTransaction sqlTransaction)
+                command.Transaction = sqlTransaction;
+
+            var data = new DashboardData();
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                data.Activities.Add(new DashboardActivityRow(
+                    reader.GetDateTime(0), reader.GetDateTime(1), reader.GetInt32(2),
+                    reader.GetInt32(3), reader.GetInt32(4), reader.GetInt32(5), reader.GetInt32(6)));
+            }
+
+            await reader.NextResultAsync();
+            while (await reader.ReadAsync())
+                data.BalanceEntries.Add(ReadAggregateLedgerEntry(reader, hasDate: false));
+
+            await reader.NextResultAsync();
+            while (await reader.ReadAsync())
+                data.RangeEntries.Add(ReadAggregateLedgerEntry(reader, hasDate: true));
+
+            return data;
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    private static LedgerEntry ReadAggregateLedgerEntry(SqlDataReader reader, bool hasDate)
+    {
+        var offset = hasDate ? 1 : 0;
+        var accountId = reader.GetInt64(offset);
+        var currencyId = reader.GetInt64(offset + 4);
+        return new LedgerEntry
+        {
+            CreatedAt = hasDate ? reader.GetDateTime(0) : DateTime.MinValue,
+            AccountId = accountId,
+            CurrencyId = currencyId,
+            TalabKar = reader.GetDecimal(offset + 6),
+            BadehKar = reader.GetDecimal(offset + 7),
+            Account = new Account
+            {
+                Id = accountId,
+                AccountCode = reader.GetString(offset + 1),
+                AccountName = reader.GetString(offset + 2),
+                AccountType = reader.GetString(offset + 3)
+            },
+            Currency = new Currency
+            {
+                Id = currencyId,
+                Code = reader.GetString(offset + 5),
+                Name = reader.GetString(offset + 5)
+            }
+        };
+    }
+
+    private static void BuildDashboardSeriesFromAggregates(
+        DateTime fromDate,
+        DateTime toDate,
+        DashboardData data,
+        ReportingContext reporting,
+        DashboardSummaryDto result)
+    {
+        var activitiesByDate = data.Activities.ToDictionary(
+            x => x.ActivityDate.Date,
+            x => x.HawalaCount + x.ExchangeCount + x.AccountOperationCount +
+                 x.ExpenseCount + x.CapitalInvestmentCount);
+        var visibleStart = toDate.AddDays(-6) > fromDate ? toDate.AddDays(-6) : fromDate;
+        for (var date = visibleStart; date <= toDate; date = date.AddDays(1))
+        {
+            result.DailyActivities.Add(new DashboardSeriesPointDto
+            {
+                Date = date,
+                Label = ToPersianMonthDay(date),
+                Value = activitiesByDate.GetValueOrDefault(date.Date)
+            });
+        }
+
+        for (var index = 3; index >= 0; index--)
+        {
+            var weekEnd = toDate.AddDays(-(index * 7));
+            var weekStart = weekEnd.AddDays(-6);
+            if (weekStart < fromDate)
+                weekStart = fromDate;
+            var warnings = new List<string>();
+            var profit = CalculateNetProfit(
+                data.RangeEntries.Where(x => x.CreatedAt >= weekStart && x.CreatedAt < weekEnd.AddDays(1)),
+                reporting,
+                warnings);
+            result.Warnings.AddRange(warnings);
+            result.WeeklyProfit.Add(new DashboardSeriesPointDto
+            {
+                Date = weekEnd,
+                Label = $"هفته {4 - index}",
+                Value = profit
+            });
+        }
     }
 
     private BalanceSheetDto BuildBalanceSheet(
@@ -844,6 +893,22 @@ public class FinancialReportService : IFinancialReportService
         public decimal DebitBalance => Math.Max(Debit - Credit, 0);
         public decimal CreditBalance => Math.Max(Credit - Debit, 0);
     }
+
+    private sealed class DashboardData
+    {
+        public List<DashboardActivityRow> Activities { get; } = [];
+        public List<LedgerEntry> BalanceEntries { get; } = [];
+        public List<LedgerEntry> RangeEntries { get; } = [];
+    }
+
+    private sealed record DashboardActivityRow(
+        DateTime ActivityDate,
+        DateTime LastActivityAt,
+        int HawalaCount,
+        int ExchangeCount,
+        int AccountOperationCount,
+        int ExpenseCount,
+        int CapitalInvestmentCount);
 
     private sealed class ReportingContext
     {

@@ -21,6 +21,20 @@ namespace HawalaExchange.Application.DTOs
         public DateTime CreatedAt { get; set; }
     }
 
+    public sealed class CorrespondentDetailsPageDto
+    {
+        public CorrespondentDto Correspondent { get; set; } = new();
+        public long? AccountId { get; set; }
+    }
+
+    public sealed class CorrespondentStatusPageDto
+    {
+        public CorrespondentDto Correspondent { get; set; } = new();
+        public long? AccountId { get; set; }
+        public List<BalanceDto> Balances { get; set; } = [];
+        public AccountOperationsPageDto Operations { get; set; } = new();
+    }
+
     public class CreateCorrespondentDto
     {
         public string Name { get; set; }

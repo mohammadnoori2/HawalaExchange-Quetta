@@ -8,8 +8,8 @@
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
 @inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
-@inject IAccountService AccountService
 @inject NavigationManager NavigationManager
+@implements IDisposable
 
 <PageTitle>@(correspondent == null ? "مشاهده نمایندگی" : correspondent.Name)</PageTitle>
 
@@ -59,7 +59,7 @@
                     </button>
                 }
                 <CorrespondentActionsMenu IsArchived="@correspondent.IsArchived"
-                                           CanUseFinancialActions="@(correspondentAccount != null && !correspondent.IsArchived)"
+                                           CanUseFinancialActions="@(correspondentAccountId.HasValue && !correspondent.IsArchived)"
                                            SettlementCurrencyCode="@correspondent.SettlementCurrencyCode"
                                            OnViewStatus="ViewStatus"
                                            OnViewRange="ViewRange"
@@ -123,17 +123,17 @@
 
 <MoneyExchangeModal IsVisible="@showExchangeModal"
                     IsVisibleChanged="@((bool value) => showExchangeModal = value)"
-                    InitialAccountId="@correspondentAccount?.Id"
+                    InitialAccountId="@correspondentAccountId"
                     OnSaveSuccess="@HandleExchangeSavedAsync" />
 
 <TransferModal IsVisible="@showTransferModal"
                IsVisibleChanged="@((bool value) => showTransferModal = value)"
-               InitialAccountId="@correspondentAccount?.Id"
+               InitialAccountId="@correspondentAccountId"
                OnSaveSuccess="@HandleTransferSavedAsync" />
 
 <DepositWithdrawModal IsVisible="@showAccountOperationModal"
                       IsVisibleChanged="@((bool value) => showAccountOperationModal = value)"
-                      InitialAccountId="@correspondentAccount?.Id"
+                      InitialAccountId="@correspondentAccountId"
                       OnSaveSuccess="@HandleAccountOperationSavedAsync" />
 
 @if (showEditModal && correspondent != null)
@@ -243,7 +243,7 @@
     [Parameter] public long CorrespondentId { get; set; }
 
     private CorrespondentDto? correspondent;
-    private AccountDto? correspondentAccount;
+    private long? correspondentAccountId;
     private List<CurrencyDto> currencies = [];
     private UpdateCorrespondentDto editModel = new();
     private readonly List<string> editErrors = new();
@@ -259,32 +259,45 @@
     private string successMessage = string.Empty;
     private long? loadedCorrespondentId;
     private string activeHawalaType = "HawalaSend";
+    private bool currenciesLoaded;
+    private CancellationTokenSource? pageLoadCts;
+    private int pageLoadVersion;
 
     protected override async Task OnParametersSetAsync()
     {
         if (loadedCorrespondentId == CorrespondentId)
             return;
+        pageLoadCts?.Cancel();
+        pageLoadCts?.Dispose();
+        pageLoadCts = new CancellationTokenSource();
         loadedCorrespondentId = CorrespondentId;
-        await LoadCorrespondentAsync();
+        await LoadCorrespondentAsync(pageLoadCts.Token);
     }
 
-    private async Task LoadCorrespondentAsync()
+    private async Task LoadCorrespondentAsync(CancellationToken cancellationToken = default)
     {
+        var loadVersion = ++pageLoadVersion;
         try
         {
             isLoading = true;
             activeHawalaType = "HawalaSend";
             pageError = string.Empty;
-            correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId);
-            currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.Code).ToList();
-            if (correspondent == null)
+            var page = await CorrespondentService.GetDetailsPageAsync(CorrespondentId, cancellationToken);
+            if (loadVersion != pageLoadVersion)
+                return;
+            if (page == null)
             {
+                correspondent = null;
                 pageError = "نمایندگی مورد نظر وجود ندارد یا حذف شده است.";
-                correspondentAccount = null;
+                correspondentAccountId = null;
                 return;
             }
 
-            correspondentAccount = (await AccountService.GetByReferenceAsync("Correspondent", CorrespondentId)).FirstOrDefault();
+            correspondent = page.Correspondent;
+            correspondentAccountId = page.AccountId;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
@@ -293,7 +306,8 @@
         }
         finally
         {
-            isLoading = false;
+            if (loadVersion == pageLoadVersion)
+                isLoading = false;
         }
     }
 
@@ -304,7 +318,7 @@
 
     private void OpenBalanceSettlement()
     {
-        if (correspondentAccount != null && correspondent?.SettlementCurrencyId.HasValue == true)
+        if (correspondentAccountId.HasValue && correspondent?.SettlementCurrencyId.HasValue == true)
             showBalanceSettlementModal = true;
     }
 
@@ -322,19 +336,19 @@
 
     private void OpenExchange()
     {
-        if (correspondentAccount != null)
+        if (correspondentAccountId.HasValue)
             showExchangeModal = true;
     }
 
     private void OpenTransfer()
     {
-        if (correspondentAccount != null)
+        if (correspondentAccountId.HasValue)
             showTransferModal = true;
     }
 
     private void OpenAccountOperation()
     {
-        if (correspondentAccount != null)
+        if (correspondentAccountId.HasValue)
             showAccountOperationModal = true;
     }
 
@@ -366,10 +380,27 @@
             $"با نرخ {AmountValueHelper.Format(item.ExchangeRate)} به {MoneyFormatHelper.Format(item.TargetAmount)} {item.TargetCurrencyCode} تبدیل شد"));
     }
 
-    private void OpenEdit()
+    private async Task OpenEdit()
     {
         if (correspondent == null)
             return;
+
+        if (!currenciesLoaded)
+        {
+            try
+            {
+                currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync())
+                    .OrderBy(x => x.Code)
+                    .ToList();
+                currenciesLoaded = true;
+            }
+            catch (Exception ex)
+            {
+                pageError = $"بارگذاری ارزها انجام نشد: {ex.Message}";
+                return;
+            }
+        }
+
         editErrors.Clear();
         editModel = new UpdateCorrespondentDto
         {
@@ -457,5 +488,11 @@
         {
             isSaving = false;
         }
+    }
+
+    public void Dispose()
+    {
+        pageLoadCts?.Cancel();
+        pageLoadCts?.Dispose();
     }
 }

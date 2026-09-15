@@ -154,7 +154,7 @@
                                     }
                                     else if (CanCreate && hawala.Status != "Cancel")
                                     {
-                                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="() => OpenAddCommission(hawala)">افزودن کمیشن</button>
+                                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="() => OpenAddCommissionAsync(hawala)">افزودن کمیشن</button>
                                     }
                                     else
                                     {
@@ -492,12 +492,6 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (!currenciesLoaded)
-        {
-            currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList();
-            currenciesLoaded = true;
-        }
-
         var key = $"{CorrespondentId}:{HawalaType}";
         if (loadedKey == key)
             return;
@@ -553,8 +547,25 @@
 
     private void OpenBulkImport() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/hawala-import");
 
-    private void OpenAddCommission(HawalaDto hawala)
+    private async Task OpenAddCommissionAsync(HawalaDto hawala)
     {
+        if (!currenciesLoaded)
+        {
+            try
+            {
+                currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync())
+                    .OrderBy(x => x.QuotationPriority)
+                    .ThenBy(x => x.Code)
+                    .ToList();
+                currenciesLoaded = true;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"بارگذاری ارزها انجام نشد: {ex.Message}");
+                return;
+            }
+        }
+
         commissionHawala = hawala;
         commissionAmount = null;
         commissionCurrencyId = hawala.ToCurrencyId;

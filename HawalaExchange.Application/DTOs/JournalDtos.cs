@@ -97,6 +97,28 @@ public class JournalOperationDto
     public int LedgerEntriesCount => LedgerEntries.Count;
 }
 
+public sealed class AccountOperationsFilterDto
+{
+    public long AccountId { get; set; }
+    public string? SearchTerm { get; set; }
+    public string? SourceType { get; set; }
+    public string? CurrencyCode { get; set; }
+    public DateTime? FromDate { get; set; }
+    public DateTime? ToDate { get; set; }
+    public int PageNumber { get; set; } = 1;
+    public int PageSize { get; set; } = 20;
+}
+
+public sealed class AccountOperationsPageDto
+{
+    public List<JournalOperationDto> Items { get; set; } = new();
+    public List<string> AvailableCurrencyCodes { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+    public int TotalPages => PageSize <= 0 ? 0 : (int)Math.Ceiling(TotalCount / (double)PageSize);
+}
+
 public class JournalOperationCurrencySummaryDto
 {
     public long CurrencyId { get; set; }

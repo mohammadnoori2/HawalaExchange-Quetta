@@ -212,3 +212,40 @@ Active/all currency lists, payment locations, and company settings use a tenant-
 The bulk-upload preview now virtualizes its rows instead of rendering as many as 10,000 table rows at once. Existing server-side paging and lazy correspondent-panel rendering are retained. Long-running bulk confirmation continues to show real progress, and disabled create/import actions now explain the blocking condition. Destructive Hawala actions and AED writes are guarded against double clicks.
 
 Automated coverage includes cancellation before database work. The complete performance suite passes with 42 tests, and the Release build completes with zero errors. Browser behavior under deliberately slow networking, a 10,000-row preview, rapid typing/paging, and repeated submit clicks remains the manual acceptance checklist before commit and push.
+
+## Correspondent-details page optimization — 2026-09-15
+
+The initial correspondent-details route now reads the correspondent header, settlement-currency code, and linked active account identifier through one no-tracking projection. Currency lookup data is no longer part of initial navigation: it loads only when the user opens correspondent editing or adds a missing Hawala commission. The active Hawala tab remains independently paged and lazy-rendered, and obsolete header requests are cancelled when navigation changes.
+
+The repeatable SQL integration test measures the complete initial data path, including the first Hawala page:
+
+| Path | Database commands |
+| --- | ---: |
+| Previous sequential header, currency, account, count, and page reads | 5 |
+| Combined header/account plus Hawala count and page reads | 3 |
+
+This is a **40% reduction in initial database round trips**. The dedicated details query also preserves tenant isolation, returns the same header/account values, leaves the EF change tracker empty, and honors cancellation. No schema or accounting behavior changes in this optimization.
+
+## Correspondent-status page optimization — 2026-09-15
+
+The initial status route now uses one tenant-scoped call to `usp_GetAccountOperationsPage_v1` to return the correspondent header, active account identifier, balance by currency, first operations page, total count, and available currency codes. It replaces the previous sequential header query, balance procedure, and operations procedure. Later page and filter changes reuse the operations-only mode of the same procedure. Temporary operation rows are indexed and joined by typed source key rather than repeatedly constructing string keys.
+
+The first visit now loads 10 recent operations instead of the account's complete history. Page sizes of 10, 20, 50, and 100 are available. This screen intentionally does not restore a larger page size from browser storage, so every new visit remains bounded to 10 operations. Full source metadata and all balanced ledger entries for an operation are fetched only after **Show operation details** is selected. Search has a 300 ms debounce, obsolete database reads are cancelled, and a request-version guard prevents an older response from replacing a newer page. Accounts that do not yet exist do not issue balance or journal queries.
+
+SQL integration coverage executes the migration against a disposable database and verifies ordering, three-page boundaries, search/type/currency filters, lazy details, account visibility, cancellation, and tenant rejection. For 1,000 transfer operations, one local comparison produced:
+
+| Path | Rows returned initially | Elapsed time |
+| --- | ---: | ---: |
+| Previous complete-history read with source details | 1,000 | 994.76 ms |
+| Stored-procedure first page | 20 | 248.98 ms |
+
+The measured first-page read was **74.97% faster** and returned **98% fewer operation rows** to the application. The timing is environment-specific; the bounded result size is the stable improvement as account history grows.
+
+For the complete status-page bootstrap on the disposable SQL database, the combined path returned the same header, balances, operation count, order, and rows as the previous sequence:
+
+| Initial status path | Database calls | Elapsed time |
+| --- | ---: | ---: |
+| Sequential header + balance + operations | 3 | 651.99 ms |
+| Combined status procedure | 1 | 44.85 ms |
+
+This sample reduced the initial database round trips by **66.67%**. Exact elapsed time depends on database and network latency, while the one-call initial path remains deterministic.

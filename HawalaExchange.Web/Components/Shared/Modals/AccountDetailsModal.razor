@@ -1,11 +1,12 @@
 ﻿@* Components/Shared/Modals/AccountDetailsModal.razor *@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
-@inject ILedgerService LedgerService
+@inject IBalanceService BalanceService
 @inject IJournalService JournalService
 @inject IMoneyExchangeOperationService MoneyExchangeOperationService
 @inject IAccountMoneyOperationService AccountMoneyOperationService
 @inject ITransferService TransferService
+@implements IDisposable
 
 @if (IsVisible && Account != null)
 {
@@ -231,15 +232,17 @@
                                     <input type="text"
                                            class="form-control"
                                            aria-label="جستجوی معاملات حساب"
-                                           placeholder="جستجو با شماره، شرح، حساب یا جزئیات معامله..."
+                                           placeholder="جستجو با شماره یا شرح عملیات..."
                                            @bind="OperationSearchTerm"
-                                           @bind:event="oninput" />
+                                           @bind:event="oninput"
+                                           @bind:after="OnOperationSearchChangedAsync" />
                                 </SearchContent>
                                 <QuickFilters>
                                     <select class="form-select compact-quick-filter"
                                             aria-label="نوع معامله"
                                             @bind="OperationFilter"
-                                            @bind:event="oninput">
+                                            @bind:event="oninput"
+                                            @bind:after="OnOperationFilterChangedAsync">
                                         <option value="All">همه معاملات</option>
                                         <option value="تبدیل پول">تبادله اسعار</option>
                                         <option value="انتقال">انتقال بین حساب</option>
@@ -250,9 +253,9 @@
                                 <AdvancedFilters>
                                     <div class="compact-filter-field">
                                         <label class="form-label">ارز</label>
-                                        <select class="form-select" @bind="OperationCurrencyFilter" @bind:event="oninput">
+                                        <select class="form-select" @bind="OperationCurrencyFilter" @bind:event="oninput" @bind:after="OnOperationFilterChangedAsync">
                                             <option value="">همه ارزها</option>
-                                            @foreach (var currencyCode in OperationCurrencyCodes)
+                                            @foreach (var currencyCode in operationCurrencyCodes)
                                             {
                                                 <option value="@currencyCode">@currencyCode</option>
                                             }
@@ -260,14 +263,14 @@
                                     </div>
                                     <div class="compact-filter-field">
                                         <label class="form-label">از تاریخ</label>
-                                        <PersianDatePicker @bind-Value="OperationFromDate"
+                                        <PersianDatePicker @bind-Value="OperationFromDate" @bind-Value:after="OnOperationFilterChangedAsync"
                                                            IncludeTime="false"
                                                            AllowEmpty="true"
                                                            Placeholder="انتخاب تاریخ" />
                                     </div>
                                     <div class="compact-filter-field">
                                         <label class="form-label">تا تاریخ</label>
-                                        <PersianDatePicker @bind-Value="OperationToDate"
+                                        <PersianDatePicker @bind-Value="OperationToDate" @bind-Value:after="OnOperationFilterChangedAsync"
                                                            IncludeTime="false"
                                                            AllowEmpty="true"
                                                            Placeholder="انتخاب تاریخ" />
@@ -283,10 +286,10 @@
                                     </div>
                                 </div>
                             }
-                            else if (FilteredOperations.Any())
+                            else if (Operations.Any())
                             {
                                 <div class="account-operation-list d-flex flex-column gap-2">
-                                    @foreach (var operation in FilteredOperations)
+                                    @foreach (var operation in Operations)
                                     {
                                         <article class="account-operation-row border rounded-3 p-2 bg-white">
                                             <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
@@ -317,7 +320,11 @@
 
                                             <p class="mb-1 fw-semibold">@operation.SummarySentence</p>
 
-                                            @if (operation.SourceDetails.Any())
+                                            @if (operationDetailsLoading.Contains(operation.OperationKey))
+                                            {
+                                                <div class="text-primary small"><span class="spinner-border spinner-border-sm"></span> در حال بارگذاری جزئیات...</div>
+                                            }
+                                            else if (loadedOperationDetails.Contains(operation.OperationKey))
                                             {
                                                 <details>
                                                     <summary class="text-primary small" style="cursor:pointer">نمایش جزئیات عملیات</summary>
@@ -334,8 +341,25 @@
                                                     </div>
                                                 </details>
                                             }
+                                            else
+                                            {
+                                                <button type="button" class="btn btn-link btn-sm p-0" @onclick="() => LoadOperationDetailsAsync(operation)">
+                                                    نمایش جزئیات عملیات
+                                                </button>
+                                            }
                                         </article>
                                     }
+                                </div>
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3">
+                                    <span class="text-muted small">نمایش @Operations.Count از @operationsTotalCount عملیات · صفحه @operationPage از @operationTotalPages</span>
+                                    <CompactPagination CurrentPage="operationPage" TotalPages="operationTotalPages" PageChanged="GoToOperationPageAsync" />
+                                    <PageSizeSelector @bind-Value="operationPageSize"
+                                                      @bind-CurrentPage="operationPage"
+                                                      Changed="OnOperationPageSizeChangedAsync"
+                                                      Sizes="@operationPageSizes"
+                                                      ShowAll="false"
+                                                      PersistPreference="false"
+                                                      AriaLabel="تعداد عملیات در هر صفحه" />
                                 </div>
                             }
                             else
@@ -426,6 +450,8 @@
     [Parameter] public bool ShowTransactionsInActionsMenu { get; set; }
     [Parameter] public bool ShowReportsInActionsMenu { get; set; }
     [Parameter] public bool? ActionEntityArchived { get; set; }
+    [Parameter] public IReadOnlyList<BalanceDto>? InitialBalances { get; set; }
+    [Parameter] public AccountOperationsPageDto? InitialOperationsPage { get; set; }
     [Parameter] public RenderFragment? HeaderActions { get; set; }
     [Parameter] public RenderFragment? ProfileSummary { get; set; }
     [Parameter] public RenderFragment? AdditionalContent { get; set; }
@@ -440,6 +466,17 @@
     private bool IsOperationsLoading { get; set; } = false;
     private List<BalanceDto> BalanceSummary { get; set; } = new();
     private List<JournalOperationDto> Operations { get; set; } = new();
+    private List<string> operationCurrencyCodes = new();
+    private readonly HashSet<string> loadedOperationDetails = new(StringComparer.Ordinal);
+    private readonly HashSet<string> operationDetailsLoading = new(StringComparer.Ordinal);
+    private static readonly IReadOnlyList<int> operationPageSizes = [10, 20, 50, 100];
+    private int operationPage = 1;
+    private int operationPageSize = 10;
+    private int operationsTotalCount;
+    private int operationTotalPages = 1;
+    private int operationLoadVersion;
+    private CancellationTokenSource? operationLoadCts;
+    private CancellationTokenSource? operationSearchCts;
     private string OperationFilter { get; set; } = "All";
     private string OperationSearchTerm { get; set; } = string.Empty;
     private string OperationCurrencyFilter { get; set; } = string.Empty;
@@ -462,14 +499,6 @@
     private bool wasVisible;
     private bool ActionArchived => ActionEntityArchived ?? Account?.IsArchived ?? false;
 
-    private IReadOnlyList<string> OperationCurrencyCodes => Operations
-        .SelectMany(operation => operation.CurrencySummaries)
-        .Select(summary => summary.CurrencyCode)
-        .Where(code => !string.IsNullOrWhiteSpace(code))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(code => code)
-        .ToList();
-
     private bool HasActiveOperationFilters =>
         !string.IsNullOrWhiteSpace(OperationSearchTerm) ||
         OperationFilter != "All" ||
@@ -479,16 +508,6 @@
         (!string.IsNullOrWhiteSpace(OperationCurrencyFilter) ? 1 : 0) +
         (OperationFromDate != DateTime.MinValue ? 1 : 0) +
         (OperationToDate != DateTime.MinValue ? 1 : 0);
-
-    private IReadOnlyList<JournalOperationDto> FilteredOperations => Operations
-        .Where(MatchesOperationType)
-        .Where(MatchesOperationSearch)
-        .Where(operation => string.IsNullOrWhiteSpace(OperationCurrencyFilter) ||
-            operation.CurrencySummaries.Any(summary =>
-                string.Equals(summary.CurrencyCode, OperationCurrencyFilter, StringComparison.OrdinalIgnoreCase)))
-        .Where(operation => OperationFromDate == DateTime.MinValue || operation.CreatedAt.Date >= OperationFromDate.Date)
-        .Where(operation => OperationToDate == DateTime.MinValue || operation.CreatedAt.Date <= OperationToDate.Date)
-        .ToList();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -504,78 +523,214 @@
 
         if (shouldLoad)
         {
-            ResetOperationFilters();
-            await LoadAccountData(Account.Id);
+            ResetOperationFiltersState();
+            if (InitialBalances is not null && InitialOperationsPage is not null)
+                ApplyInitialData();
+            else
+                await LoadAccountData(Account.Id);
         }
+    }
+
+    private void ApplyInitialData()
+    {
+        BalanceSummary = InitialBalances!.ToList();
+        Operations = InitialOperationsPage!.Items.Take(InitialOperationsPage.PageSize).ToList();
+        operationCurrencyCodes = InitialOperationsPage.AvailableCurrencyCodes.ToList();
+        operationsTotalCount = InitialOperationsPage.TotalCount;
+        operationPage = InitialOperationsPage.PageNumber;
+        operationPageSize = InitialOperationsPage.PageSize;
+        operationTotalPages = Math.Max(1, InitialOperationsPage.TotalPages);
+        loadedOperationDetails.Clear();
+        operationDetailsLoading.Clear();
+        IsBalanceLoading = false;
+        IsOperationsLoading = false;
     }
 
     private async Task LoadAccountData(long accountId)
     {
+        if (accountId <= 0)
+        {
+            BalanceSummary.Clear();
+            Operations.Clear();
+            operationCurrencyCodes.Clear();
+            operationsTotalCount = 0;
+            operationTotalPages = 1;
+            return;
+        }
+
         try
         {
             IsBalanceLoading = true;
-            IsOperationsLoading = true;
             ValidationErrors.Clear();
             StateHasChanged();
 
-            var balanceResult = await LedgerService.GetAccountBalancesAsync(accountId);
+            var balanceResult = await BalanceService.GetAccountBalanceAsync(accountId);
             BalanceSummary = balanceResult.ToList();
-
-            var operationsResult = await JournalService.GetAccountOperationsAsync(accountId);
-            Operations = operationsResult.ToList();
         }
         catch (Exception ex)
         {
-            ValidationErrors.Add($"خطا در بارگذاری داده‌های حساب: {ex.Message}");
+            ValidationErrors.Add($"خطا در بارگذاری مانده حساب: {ex.Message}");
         }
         finally
         {
             IsBalanceLoading = false;
-            IsOperationsLoading = false;
             StateHasChanged();
         }
+
+        await StartOperationLoadAsync();
     }
 
-    private bool MatchesOperationType(JournalOperationDto operation)
+    private async Task LoadOperationsAsync(long accountId, CancellationToken cancellationToken = default)
     {
-        if (OperationFilter == "All")
-            return true;
-
-        if (OperationFilter == "Other")
+        var loadVersion = ++operationLoadVersion;
+        try
         {
-            return operation.SourceType is not "تبدیل پول" and
-                                               not "انتقال" and
-                                               not "واریز / برداشت / پرداخت";
+            IsOperationsLoading = true;
+            var result = await JournalService.GetAccountOperationsPageAsync(new AccountOperationsFilterDto
+            {
+                AccountId = accountId,
+                SearchTerm = string.IsNullOrWhiteSpace(OperationSearchTerm) ? null : OperationSearchTerm.Trim(),
+                SourceType = OperationFilter == "All" ? null : OperationFilter,
+                CurrencyCode = string.IsNullOrWhiteSpace(OperationCurrencyFilter) ? null : OperationCurrencyFilter,
+                FromDate = OperationFromDate == DateTime.MinValue ? null : OperationFromDate,
+                ToDate = OperationToDate == DateTime.MinValue ? null : OperationToDate,
+                PageNumber = operationPage,
+                PageSize = operationPageSize
+            }, cancellationToken);
+            if (loadVersion != operationLoadVersion)
+                return;
+
+            Operations = result.Items.Take(result.PageSize).ToList();
+            operationCurrencyCodes = result.AvailableCurrencyCodes;
+            operationsTotalCount = result.TotalCount;
+            operationTotalPages = Math.Max(1, result.TotalPages);
+            loadedOperationDetails.Clear();
+            operationDetailsLoading.Clear();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add($"خطا در بارگذاری عملیات حساب: {ex.Message}");
+        }
+        finally
+        {
+            if (loadVersion == operationLoadVersion)
+            {
+                IsOperationsLoading = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task OnOperationSearchChangedAsync()
+    {
+        operationSearchCts?.Cancel();
+        operationSearchCts?.Dispose();
+        operationLoadCts?.Cancel();
+        operationLoadCts?.Dispose();
+        operationLoadCts = null;
+        operationSearchCts = new CancellationTokenSource();
+        var debounce = operationSearchCts;
+        try
+        {
+            await Task.Delay(300, debounce.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
         }
 
-        return operation.SourceType == OperationFilter;
+        operationPage = 1;
+        await StartOperationLoadAsync(debounce.Token);
     }
 
-    private bool MatchesOperationSearch(JournalOperationDto operation)
+    private async Task OnOperationFilterChangedAsync()
     {
-        var search = OperationSearchTerm.Trim();
-        if (string.IsNullOrWhiteSpace(search))
-            return true;
-
-        return ContainsSearch(operation.DocumentNumber, search) ||
-               ContainsSearch(operation.Description, search) ||
-               ContainsSearch(operation.SummarySentence, search) ||
-               ContainsSearch(GetSourceTypeName(operation.SourceType), search) ||
-               operation.AccountNames.Any(value => ContainsSearch(value, search)) ||
-               operation.SourceDetails.Any(detail =>
-                   ContainsSearch(detail.Label, search) || ContainsSearch(detail.Value, search));
+        CancelPendingOperationLoads();
+        operationPage = 1;
+        await StartOperationLoadAsync();
     }
 
-    private static bool ContainsSearch(string? value, string search) =>
-        value?.Contains(search, StringComparison.OrdinalIgnoreCase) == true;
+    private async Task ResetOperationFilters()
+    {
+        CancelPendingOperationLoads();
+        ResetOperationFiltersState();
+        await StartOperationLoadAsync();
+    }
 
-    private void ResetOperationFilters()
+    private void ResetOperationFiltersState()
     {
         OperationSearchTerm = string.Empty;
         OperationFilter = "All";
         OperationCurrencyFilter = string.Empty;
         OperationFromDate = DateTime.MinValue;
         OperationToDate = DateTime.MinValue;
+        operationPage = 1;
+    }
+
+    private async Task GoToOperationPageAsync(int page)
+    {
+        if (page < 1 || page > operationTotalPages || page == operationPage)
+            return;
+        CancelPendingOperationLoads();
+        operationPage = page;
+        await StartOperationLoadAsync();
+    }
+
+    private async Task OnOperationPageSizeChangedAsync()
+    {
+        CancelPendingOperationLoads();
+        operationPage = 1;
+        await StartOperationLoadAsync();
+    }
+
+    private async Task StartOperationLoadAsync(CancellationToken cancellationToken = default)
+    {
+        if (Account is null || Account.Id <= 0)
+            return;
+        operationLoadCts?.Cancel();
+        operationLoadCts?.Dispose();
+        operationLoadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        await LoadOperationsAsync(Account.Id, operationLoadCts.Token);
+    }
+
+    private async Task LoadOperationDetailsAsync(JournalOperationDto operation)
+    {
+        if (Account is null || operationDetailsLoading.Contains(operation.OperationKey))
+            return;
+        try
+        {
+            operationDetailsLoading.Add(operation.OperationKey);
+            var detailed = await JournalService.GetAccountOperationDetailsAsync(
+                Account.Id, operation.OperationKey);
+            if (detailed is null)
+                throw new InvalidOperationException("جزئیات عملیات یافت نشد.");
+
+            var index = Operations.FindIndex(x => x.OperationKey == operation.OperationKey);
+            if (index >= 0)
+                Operations[index] = detailed;
+            loadedOperationDetails.Add(operation.OperationKey);
+        }
+        catch (Exception ex)
+        {
+            ValidationErrors.Add($"خطا در بارگذاری جزئیات عملیات: {ex.Message}");
+        }
+        finally
+        {
+            operationDetailsLoading.Remove(operation.OperationKey);
+        }
+    }
+
+    private void CancelPendingOperationLoads()
+    {
+        operationSearchCts?.Cancel();
+        operationSearchCts?.Dispose();
+        operationSearchCts = null;
+        operationLoadCts?.Cancel();
+        operationLoadCts?.Dispose();
+        operationLoadCts = null;
     }
 
     private async Task RequestEditAsync()
@@ -748,6 +903,7 @@
 
     private async Task Close()
     {
+        CancelPendingOperationLoads();
         showExchangeModal = false;
         showAccountOperationModal = false;
         showTransferModal = false;
@@ -758,6 +914,8 @@
         await IsVisibleChanged.InvokeAsync(false);
         StateHasChanged();
     }
+
+    public void Dispose() => CancelPendingOperationLoads();
 
     private string GetAccountTypeName(string type) => AppDisplayText.AccountType(type);
 

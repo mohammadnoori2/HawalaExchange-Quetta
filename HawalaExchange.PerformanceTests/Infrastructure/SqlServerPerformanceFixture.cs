@@ -139,6 +139,21 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
             Mock.Of<IFileService>());
     }
 
+    public CorrespondentService CreateCorrespondentService(ApplicationDbContext context)
+    {
+        var mapperConfig = new MapperConfiguration(
+            cfg => cfg.AddProfile<MappingProfile>(),
+            NullLoggerFactory.Instance);
+        var mapper = mapperConfig.CreateMapper();
+        return new CorrespondentService(
+            context,
+            mapper,
+            Mock.Of<IAccountService>(),
+            Mock.Of<ILedgerService>(),
+            Mock.Of<IAuditLogService>(),
+            NullLogger<CorrespondentService>.Instance);
+    }
+
     public ReportService CreateReportService(ApplicationDbContext context) => new(context);
     public FinancialReportService CreateFinancialReportService(ApplicationDbContext context) => new(context);
     public JournalService CreateJournalService(ApplicationDbContext context) => new(context);

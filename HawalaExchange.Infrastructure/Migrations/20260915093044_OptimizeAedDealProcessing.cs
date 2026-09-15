@@ -12,7 +12,7 @@ namespace HawalaExchange.Infrastructure.Migrations
         {
             migrationBuilder.Sql(
                 """
-                CREATE PROCEDURE [dbo].[usp_ProcessAedDeal_v1]
+                CREATE OR ALTER PROCEDURE [dbo].[usp_ProcessAedDeal_v1]
                     @Operation nvarchar(30),
                     @TenantId bigint,
                     @CurrentUserId bigint,
@@ -481,7 +481,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                 """);
 
             migrationBuilder.Sql("""
-                CREATE PROCEDURE [dbo].[usp_CreateAedDeal_v1]
+                CREATE OR ALTER PROCEDURE [dbo].[usp_CreateAedDeal_v1]
                     @TenantId bigint,
                     @CurrentUserId bigint,
                     @DealNumber nvarchar(50),
@@ -505,7 +505,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                 """);
 
             migrationBuilder.Sql("""
-                CREATE PROCEDURE [dbo].[usp_ConvertAedDeal_v1]
+                CREATE OR ALTER PROCEDURE [dbo].[usp_ConvertAedDeal_v1]
                     @TenantId bigint,
                     @CurrentUserId bigint,
                     @DealId bigint,
@@ -525,7 +525,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                 """);
 
             migrationBuilder.Sql("""
-                CREATE PROCEDURE [dbo].[usp_ReverseAedDealConversion_v1]
+                CREATE OR ALTER PROCEDURE [dbo].[usp_ReverseAedDealConversion_v1]
                     @TenantId bigint,
                     @CurrentUserId bigint,
                     @ConversionId bigint,
@@ -541,7 +541,7 @@ namespace HawalaExchange.Infrastructure.Migrations
                 """);
 
             migrationBuilder.Sql("""
-                CREATE PROCEDURE [dbo].[usp_CancelAedDeal_v1]
+                CREATE OR ALTER PROCEDURE [dbo].[usp_CancelAedDeal_v1]
                     @TenantId bigint,
                     @CurrentUserId bigint,
                     @DealId bigint,
@@ -570,4 +570,3 @@ namespace HawalaExchange.Infrastructure.Migrations
         }
     }
 }
-

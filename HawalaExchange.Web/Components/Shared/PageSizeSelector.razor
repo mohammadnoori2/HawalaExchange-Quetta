@@ -50,11 +50,14 @@
     [Parameter]
     public string? PersistenceKey { get; set; }
 
+    [Parameter]
+    public bool PersistPreference { get; set; } = true;
+
     private bool preferenceLoaded;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || preferenceLoaded)
+        if (!firstRender || preferenceLoaded || !PersistPreference)
         {
             return;
         }
@@ -98,7 +101,7 @@
     {
         Value = nextValue;
 
-        if (persist)
+        if (persist && PersistPreference)
         {
             await JS.InvokeVoidAsync("localStorage.setItem", GetStorageKey(), nextValue.ToString());
         }

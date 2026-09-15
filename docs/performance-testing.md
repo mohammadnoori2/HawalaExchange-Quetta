@@ -167,3 +167,21 @@ For 50,000 ledger entries on the local SQL Server, one measured dashboard compar
 | Aggregated dashboard stored procedure | 757.53 ms |
 
 The aggregated dashboard path was **76.36% faster** in this sample and reduced 50,000 raw ledger rows to grouped result rows before crossing the database boundary.
+
+## Original-plan phase six — bulk-import staging pipeline — 2026-09-15
+
+The existing `HawalaImportRows` table already had the required durable staging columns and tenant/batch/row uniqueness, so it is retained instead of introducing a duplicate table. Preview rows are now streamed into it with `SqlBulkCopy` inside the same transaction as batch creation. `usp_ValidateHawalaImportStaging_v1` resolves currencies, defaults a missing commission currency to the Hawala currency, detects duplicates within the file, and checks existing incoming numbers/references set-wise.
+
+Confirmation keeps the already-measured `SqlBulkCopy` Hawala and ledger writer. The former per-outgoing-row duplicate query is replaced by one set-based query. Final staging links, selected locations/correspondents, commission values, and batch status are sent with `HawalaImportResultTableType_v1` and persisted atomically by `usp_FinalizeHawalaImportStaging_v1`; this removes up to 10,000 tracked EF update statements. `usp_CleanupHawalaImportStaging_v1` removes only unposted previews older than seven days for the current tenant. Posted batches are never cleaned by this procedure.
+
+Correctness tests cover 7-, 8-, and 9-column files, default commission currency, duplicate rows, existing numbers and references, duplicate-file rejection, paired incoming/outgoing Hawalas, commission placement, balanced ledger posting, and a bounded query count for 100 outgoing rows.
+
+One local 10,000-row measurement produced:
+
+| Operation | Elapsed time |
+| --- | ---: |
+| Previous EF staging persistence only | 31,356.63 ms |
+| New Excel-to-preview pipeline (parse + bulk + SQL validation + preview read) | 13,102.69 ms |
+| New confirmation and accounting posting | 9,279.71 ms |
+
+Even though the new measurement includes Excel parsing, SQL validation, and reading the complete preview while the legacy value measures persistence only, the preview path was **58.21% faster**. All database changes remain tenant-scoped and transactional.

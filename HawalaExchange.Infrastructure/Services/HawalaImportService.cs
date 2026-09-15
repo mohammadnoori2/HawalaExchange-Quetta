@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using ClosedXML.Excel;
@@ -6,7 +7,9 @@ using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HawalaExchange.Infrastructure.Services;
 
@@ -64,6 +67,7 @@ public sealed class HawalaImportService : IHawalaImportService
         if (memory.Length > MaximumFileSize)
             throw new InvalidOperationException("حجم فایل نباید بیشتر از ۱۰ مگابایت باشد.");
 
+        await CleanupExpiredStagingAsync(cancellationToken);
         var fileHash = Convert.ToHexString(SHA256.HashData(memory.ToArray()));
         var alreadyImported = await _context.HawalaImportBatches
             .AsNoTracking()
@@ -87,17 +91,37 @@ public sealed class HawalaImportService : IHawalaImportService
             Status = "Preview",
             RowCount = rows.Count,
             CreatedBy = _context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow,
-            Rows = rows
+            CreatedAt = DateTime.UtcNow
         };
-        _context.HawalaImportBatches.Add(batch);
-        Report(progress, 85, "در حال ذخیره پیش‌نمایش...");
-        await _context.SaveChangesAsync(cancellationToken);
-        await _context.HawalaImportRows
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            _context.HawalaImportBatches.Add(batch);
+            await _context.SaveChangesAsync(cancellationToken);
+            foreach (var row in rows)
+                row.BatchId = batch.Id;
+
+            Report(progress, 76, "انتقال سریع ردیف‌ها به جدول آماده‌سازی...");
+            await WriteStagingRowsAsync(rows, progress, cancellationToken);
+            Report(progress, 88, "اعتبارسنجی مجموعه‌ای ردیف‌ها در دیتابیس...");
+            await ValidateStagingRowsAsync(batch.Id, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            _context.ChangeTracker.Clear();
+            throw;
+        }
+
+        _context.ChangeTracker.Clear();
+        batch.Rows = await _context.HawalaImportRows
+            .AsNoTracking()
             .Where(x => x.BatchId == batch.Id)
             .Include(x => x.PaymentLocation)
             .Include(x => x.DestinationCorrespondent)
-            .LoadAsync(cancellationToken);
+            .OrderBy(x => x.ExcelRowNumber)
+            .ToListAsync(cancellationToken);
 
         Report(progress, 100, "پیش‌نمایش آماده شد.");
         return BuildPreview(batch, correspondent.Name, ownLocation.Id, ownLocation.Name);
@@ -115,6 +139,7 @@ public sealed class HawalaImportService : IHawalaImportService
         try
         {
             var batch = await _context.HawalaImportBatches
+                .AsNoTracking()
                 .Include(x => x.Correspondent)
                 .Include(x => x.Rows)
                 .FirstOrDefaultAsync(x => x.Id == request.BatchId, cancellationToken)
@@ -285,23 +310,24 @@ public sealed class HawalaImportService : IHawalaImportService
             foreach (var row in orderedRows.Where(x => x.HawalaId.HasValue && generatedBySource.ContainsKey(x.HawalaId.Value)))
                 row.GeneratedSendHawalaId = generatedBySource[row.HawalaId!.Value];
 
-            batch.Status = "Posted";
-            batch.ConfirmedAt = DateTime.UtcNow;
-            batch.ConfirmedBy = _context.RequireCurrentUserId();
-            await _context.SaveChangesAsync(cancellationToken);
+            var confirmedBy = _context.RequireCurrentUserId();
+            var batchId = batch.Id;
+            var batchFileName = batch.FileName;
+            await FinalizeStagingAsync(batchId, confirmedBy, orderedRows, cancellationToken);
+            _context.ChangeTracker.Clear();
             await _auditLogService.LogAsync(
                 "CREATE",
                 "HawalaImportBatches",
-                batch.Id,
+                batchId,
                 null,
-                $"{created.Count} حواله از فایل '{batch.FileName}' به‌صورت گروهی ثبت شد.",
-                batch.ConfirmedBy.Value);
+                $"{created.Count} حواله از فایل '{batchFileName}' به‌صورت گروهی ثبت شد.",
+                confirmedBy);
             await transaction.CommitAsync(cancellationToken);
             Report(progress, 100, "ثبت گروهی تکمیل شد.");
 
             return new HawalaImportResultDto
             {
-                BatchId = batch.Id,
+                BatchId = batchId,
                 ImportedCount = created.Count,
                 GeneratedSendCount = generatedBySource.Count,
                 MissingCommissionCount = orderedRows.Count(x => x.GeneratedSendHawalaId.HasValue && !x.AgentCommissionAmount.HasValue),
@@ -414,26 +440,149 @@ public sealed class HawalaImportService : IHawalaImportService
                     $"در حال خواندن ردیف {rowNumber:N0} از {lastRow:N0}...");
         }
 
-        AddDuplicateErrors(parsed);
-        var numbers = parsed.Where(x => x.HawalaNumber.HasValue).Select(x => x.HawalaNumber!.Value).Distinct().ToList();
-        var references = parsed.Where(x => !string.IsNullOrWhiteSpace(x.ReferenceNumber)).Select(x => x.ReferenceNumber!).Distinct().ToList();
-        var existingNumbers = await _context.Hawalas.AsNoTracking()
-            .Where(x => x.CorrespondentId == correspondentId && x.HawalaType == "HawalaReceive" && numbers.Contains(x.Number))
-            .Select(x => x.Number).ToHashSetAsync(cancellationToken);
-        var existingReferences = await _context.Hawalas.AsNoTracking()
-            .Where(x => x.CorrespondentId == correspondentId && x.HawalaType == "HawalaReceive" &&
-                        x.ReferenceNumber != null && references.Contains(x.ReferenceNumber))
-            .Select(x => x.ReferenceNumber!).ToHashSetAsync(StringComparer.OrdinalIgnoreCase, cancellationToken);
-        foreach (var row in parsed)
-        {
-            if (row.HawalaNumber.HasValue && existingNumbers.Contains(row.HawalaNumber.Value))
-                AppendError(row, "شماره حواله قبلاً برای این نمایندگی ثبت شده است.");
-            if (row.ReferenceNumber != null && existingReferences.Contains(row.ReferenceNumber))
-                AppendError(row, "رفرنس قبلاً برای این نمایندگی ثبت شده است.");
-        }
-
         return parsed;
     }
+
+    private async Task WriteStagingRowsAsync(
+        IReadOnlyCollection<HawalaImportRow> rows,
+        IProgress<HawalaImportProgressDto>? progress,
+        CancellationToken cancellationToken)
+    {
+        var table = new DataTable();
+        AddColumns(table,
+            ("TenantId", typeof(long)), ("BatchId", typeof(long)), ("ExcelRowNumber", typeof(int)),
+            ("HawalaNumber", typeof(long)), ("ReferenceNumber", typeof(string)),
+            ("SenderName", typeof(string)), ("ReceiverName", typeof(string)),
+            ("PaymentLocationText", typeof(string)), ("PaymentLocationId", typeof(long)),
+            ("Amount", typeof(decimal)), ("CurrencyCode", typeof(string)), ("CurrencyId", typeof(long)),
+            ("AgentCommissionAmount", typeof(decimal)), ("AgentCommissionCurrencyId", typeof(long)),
+            ("AgentCommissionCurrencyCode", typeof(string)), ("DestinationCorrespondentId", typeof(long)),
+            ("ValidationErrors", typeof(string)), ("HawalaId", typeof(long)),
+            ("GeneratedSendHawalaId", typeof(long)));
+        foreach (var row in rows)
+        {
+            table.Rows.Add(_context.CurrentTenantId, row.BatchId, row.ExcelRowNumber,
+                Db(row.HawalaNumber), Db(row.ReferenceNumber), Db(row.SenderName), Db(row.ReceiverName),
+                Db(row.PaymentLocationText), Db(row.PaymentLocationId), Db(row.Amount), Db(row.CurrencyCode),
+                Db(row.CurrencyId), Db(row.AgentCommissionAmount), Db(row.AgentCommissionCurrencyId),
+                Db(row.AgentCommissionCurrencyCode), Db(row.DestinationCorrespondentId),
+                Db(row.ValidationErrors), DBNull.Value, DBNull.Value);
+        }
+
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            await connection.OpenAsync(cancellationToken);
+        var sqlTransaction = _context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction
+            ?? throw new InvalidOperationException("جدول آماده‌سازی باید داخل تراکنش SQL تکمیل شود.");
+        using var bulk = new SqlBulkCopy(
+            connection,
+            SqlBulkCopyOptions.TableLock | SqlBulkCopyOptions.CheckConstraints,
+            sqlTransaction)
+        {
+            DestinationTableName = "[dbo].[HawalaImportRows]",
+            BatchSize = 10_000,
+            BulkCopyTimeout = 120,
+            EnableStreaming = true,
+            NotifyAfter = Math.Max(1, Math.Min(250, rows.Count / 20))
+        };
+        foreach (DataColumn column in table.Columns)
+            bulk.ColumnMappings.Add(column.ColumnName, column.ColumnName);
+        bulk.SqlRowsCopied += (_, args) =>
+        {
+            var percent = 76 + (int)Math.Round(args.RowsCopied * 10d / Math.Max(1, rows.Count));
+            Report(progress, percent,
+                $"انتقال {args.RowsCopied:N0} از {rows.Count:N0} ردیف به جدول آماده‌سازی...");
+        };
+        await bulk.WriteToServerAsync(table, cancellationToken);
+    }
+
+    private async Task ValidateStagingRowsAsync(long batchId, CancellationToken cancellationToken)
+    {
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "[dbo].[usp_ValidateHawalaImportStaging_v1]";
+        command.CommandType = CommandType.StoredProcedure;
+        command.CommandTimeout = 120;
+        command.Transaction = _context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction
+            ?? throw new InvalidOperationException("اعتبارسنجی جدول آماده‌سازی باید داخل تراکنش SQL انجام شود.");
+        command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+        command.Parameters.Add("@BatchId", SqlDbType.BigInt).Value = batchId;
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task FinalizeStagingAsync(
+        long batchId,
+        long confirmedBy,
+        IReadOnlyCollection<HawalaImportRow> rows,
+        CancellationToken cancellationToken)
+    {
+        var mappings = new DataTable();
+        AddColumns(mappings,
+            ("RowId", typeof(long)), ("HawalaId", typeof(long)),
+            ("GeneratedSendHawalaId", typeof(long)), ("PaymentLocationId", typeof(long)),
+            ("DestinationCorrespondentId", typeof(long)), ("AgentCommissionAmount", typeof(decimal)),
+            ("AgentCommissionCurrencyId", typeof(long)));
+        foreach (var row in rows)
+        {
+            if (!row.HawalaId.HasValue || !row.PaymentLocationId.HasValue)
+                throw new InvalidOperationException($"نتیجه ثبت ردیف {row.ExcelRowNumber} کامل نیست.");
+            mappings.Rows.Add(row.Id, row.HawalaId.Value, Db(row.GeneratedSendHawalaId),
+                row.PaymentLocationId.Value, Db(row.DestinationCorrespondentId),
+                Db(row.AgentCommissionAmount), Db(row.AgentCommissionCurrencyId));
+        }
+
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "[dbo].[usp_FinalizeHawalaImportStaging_v1]";
+        command.CommandType = CommandType.StoredProcedure;
+        command.CommandTimeout = 120;
+        command.Transaction = _context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction
+            ?? throw new InvalidOperationException("نهایی‌سازی جدول آماده‌سازی باید داخل تراکنش SQL انجام شود.");
+        command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+        command.Parameters.Add("@BatchId", SqlDbType.BigInt).Value = batchId;
+        command.Parameters.Add("@ConfirmedBy", SqlDbType.BigInt).Value = confirmedBy;
+        command.Parameters.Add(new SqlParameter("@Mappings", SqlDbType.Structured)
+        {
+            TypeName = "dbo.HawalaImportResultTableType_v1",
+            Value = mappings
+        });
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task CleanupExpiredStagingAsync(CancellationToken cancellationToken)
+    {
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync(cancellationToken);
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "[dbo].[usp_CleanupHawalaImportStaging_v1]";
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandTimeout = 30;
+            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+            command.Parameters.Add("@CreatedBefore", SqlDbType.DateTime2).Value = DateTime.UtcNow.AddDays(-7);
+            await command.ExecuteScalarAsync(cancellationToken);
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    private static void AddColumns(DataTable table, params (string Name, Type Type)[] columns)
+    {
+        foreach (var column in columns)
+            table.Columns.Add(column.Name, column.Type);
+    }
+
+    private static object Db(object? value) => value ?? DBNull.Value;
 
     private static void Report(IProgress<HawalaImportProgressDto>? progress, int percent, string message) =>
         progress?.Report(new HawalaImportProgressDto { Percent = Math.Clamp(percent, 0, 100), Message = message });
@@ -451,16 +600,28 @@ public sealed class HawalaImportService : IHawalaImportService
                 cancellationToken))
             throw new InvalidOperationException("در فاصلهٔ پیش‌نمایش تا ثبت، شماره یا رفرنس یکی از حواله‌ها قبلاً ثبت شده است. فایل را دوباره پیش‌نمایش کنید.");
 
-        foreach (var row in batch.Rows.Where(x => x.PaymentLocationId != ownLocationId))
-        {
-            if (!row.DestinationCorrespondentId.HasValue)
-                throw new InvalidOperationException($"نمایندگی مقصد ردیف {row.ExcelRowNumber} مشخص نیست.");
-            if (await _context.Hawalas.AsNoTracking().AnyAsync(x =>
-                    x.CorrespondentId == row.DestinationCorrespondentId &&
-                    x.HawalaType == "HawalaSend" &&
-                    x.Number == row.HawalaNumber, cancellationToken))
-                throw new InvalidOperationException($"نمبر حواله ارسالی ردیف {row.ExcelRowNumber} قبلاً برای نمایندگی مقصد ثبت شده است.");
-        }
+        var outgoingRows = batch.Rows.Where(x => x.PaymentLocationId != ownLocationId).ToList();
+        var missingDestination = outgoingRows.FirstOrDefault(x => !x.DestinationCorrespondentId.HasValue);
+        if (missingDestination != null)
+            throw new InvalidOperationException($"نمایندگی مقصد ردیف {missingDestination.ExcelRowNumber} مشخص نیست.");
+
+        var destinationIds = outgoingRows.Select(x => x.DestinationCorrespondentId!.Value).Distinct().ToList();
+        var outgoingNumbers = outgoingRows.Select(x => x.HawalaNumber!.Value).Distinct().ToList();
+        var existingOutgoingKeys = destinationIds.Count == 0
+            ? new HashSet<(long CorrespondentId, long Number)>()
+            : (await _context.Hawalas.AsNoTracking()
+                .Where(x => x.CorrespondentId.HasValue &&
+                            destinationIds.Contains(x.CorrespondentId.Value) &&
+                            x.HawalaType == "HawalaSend" &&
+                            outgoingNumbers.Contains(x.Number))
+                .Select(x => new { CorrespondentId = x.CorrespondentId!.Value, x.Number })
+                .ToListAsync(cancellationToken))
+                .Select(x => (x.CorrespondentId, x.Number))
+                .ToHashSet();
+        var duplicateOutgoing = outgoingRows.FirstOrDefault(x =>
+            existingOutgoingKeys.Contains((x.DestinationCorrespondentId!.Value, x.HawalaNumber!.Value)));
+        if (duplicateOutgoing != null)
+            throw new InvalidOperationException($"نمبر حواله ارسالی ردیف {duplicateOutgoing.ExcelRowNumber} قبلاً برای نمایندگی مقصد ثبت شده است.");
 
         var currencyIds = batch.Rows.Select(x => x.CurrencyId!.Value).Distinct().ToList();
         var activeCurrencyCount = await _context.Currencies.AsNoTracking()
@@ -535,15 +696,6 @@ public sealed class HawalaImportService : IHawalaImportService
         .OrderBy(x => x.CurrencyCode)
         .ToList();
 
-    private static void AddDuplicateErrors(List<HawalaImportRow> rows)
-    {
-        foreach (var group in rows.Where(x => x.HawalaNumber.HasValue).GroupBy(x => x.HawalaNumber).Where(x => x.Count() > 1))
-            foreach (var row in group) AppendError(row, "شماره حواله در همین فایل تکراری است.");
-        foreach (var group in rows.Where(x => !string.IsNullOrWhiteSpace(x.ReferenceNumber))
-                     .GroupBy(x => x.ReferenceNumber!, StringComparer.OrdinalIgnoreCase).Where(x => x.Count() > 1))
-            foreach (var row in group) AppendError(row, "رفرنس در همین فایل تکراری است.");
-    }
-
     private static long? ReadLong(IXLCell cell)
     {
         var text = ReadCellText(cell);
@@ -567,5 +719,4 @@ public sealed class HawalaImportService : IHawalaImportService
     private static string CleanText(string? value) => string.Join(' ', (value ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     private static string? NullIfEmpty(string value) => string.IsNullOrEmpty(value) ? null : value;
     private static string? JoinErrors(IEnumerable<string> errors) => errors.Any() ? string.Join(" | ", errors) : null;
-    private static void AppendError(HawalaImportRow row, string error) => row.ValidationErrors = string.IsNullOrWhiteSpace(row.ValidationErrors) ? error : $"{row.ValidationErrors} | {error}";
 }

@@ -91,14 +91,14 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
         OwnLocation = new PaymentLocation
         {
             Name = "Kabul Performance",
-            NormalizedName = "KABUL PERFORMANCE",
+            NormalizedName = PaymentLocationNameNormalizer.Normalize("Kabul Performance"),
             Address = "Kabul",
             CreatedBy = user.Id
         };
         RemoteLocation = new PaymentLocation
         {
             Name = "Remote Performance",
-            NormalizedName = "REMOTE PERFORMANCE",
+            NormalizedName = PaymentLocationNameNormalizer.Normalize("Remote Performance"),
             Address = "Remote",
             CreatedBy = user.Id
         };
@@ -152,6 +152,13 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
         var mapper = mapperConfig.CreateMapper();
         return new BalanceService(context, new LedgerService(context, mapper), mapper);
     }
+
+    public HawalaImportService CreateImportService(ApplicationDbContext context) => new(
+        context,
+        CreateService(context),
+        Mock.Of<IPaymentLocationService>(),
+        Mock.Of<ICorrespondentService>(),
+        Mock.Of<IAuditLogService>());
 
     public Correspondent SourceCorrespondent { get; private set; } = null!;
     public Correspondent DestinationCorrespondent { get; private set; } = null!;

@@ -209,6 +209,7 @@ namespace HawalaExchange.Application.DTOs
         public int PageSize { get; set; } = 10;
         public string SortColumn { get; set; } = "CreatedAt";
         public string SortDirection { get; set; } = "desc";
+        public bool IncludeTotalAmount { get; set; }
     }
 
     public class HawalaListResultDto
@@ -216,6 +217,7 @@ namespace HawalaExchange.Application.DTOs
         public List<HawalaDto> Items { get; set; } = new();
         public int TotalCount { get; set; }
         public int TotalPages { get; set; }
+        public decimal TotalFromAmount { get; set; }
     }
 
     public class HawalaStatisticsDto

@@ -215,6 +215,8 @@
             public async Task<HawalaDto?> GetHawalaByIdAsync(long id)
             {
                 var hawala = await _context.Hawalas
+                    .AsNoTracking()
+                    .AsSplitQuery()
                     .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
                     .Include(h => h.SettlementConversionLinks).ThenInclude(x => x.Conversion)
                     .Include(h => h.SettlementConversionItems).ThenInclude(x => x.SourceCurrency)
@@ -248,16 +250,7 @@
             public async Task<HawalaListResultDto> GetHawalasAsync(HawalaFilterDto filter)
             {
                 var query = _context.Hawalas
-                    .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
-                    .Include(h => h.SettlementConversionLinks).ThenInclude(x => x.Conversion)
-                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.SourceCurrency)
-                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.Conversion).ThenInclude(x => x.TargetCurrency)
-                    .Include(h => h.FromCurrency)
-                    .Include(h => h.ToCurrency)
-                    .Include(h => h.CommissionCurrency)
-                    .Include(h => h.AgentCommissionCurrency)
-                    .Include(h => h.PaymentLocation)
-                    .Include(h => h.PaidFromAccount)
+                    .AsNoTracking()
                     .AsQueryable();
 
                 if (filter.Number > 0 && string.IsNullOrWhiteSpace(filter.SearchTerm))
@@ -270,6 +263,7 @@
                         (h.SenderName != null && h.SenderName.Contains(term)) ||
                         (h.ReceiverName != null && h.ReceiverName.Contains(term)) ||
                         (h.ReferenceNumber != null && h.ReferenceNumber.Contains(term)) ||
+                        (h.Correspondent != null && h.Correspondent.Name.Contains(term)) ||
                         (filter.Number > 0 && h.Number == filter.Number) ||
                         (filter.SearchAmount.HasValue && h.FromAmount == filter.SearchAmount.Value)
                     );
@@ -308,24 +302,36 @@
                     query = query.Where(h => h.CreatedAt < toDateExclusive);
                 }
 
+                var totalCount = await query.CountAsync();
+                var totalFromAmount = filter.IncludeTotalAmount && totalCount > 0
+                    ? await query.SumAsync(h => h.FromAmount)
+                    : 0;
+                var pageNumber = Math.Max(1, filter.PageNumber);
+
                 query = filter.SortDirection == "asc"
                     ? query.OrderBy(GetSortExpression(filter.SortColumn))
                     : query.OrderByDescending(GetSortExpression(filter.SortColumn));
 
-                var totalCount = await query.CountAsync();
-
                 if (filter.PageSize > 0)
                 {
-                    query = query.Skip((filter.PageNumber - 1) * filter.PageSize)
+                    query = query.Skip((pageNumber - 1) * filter.PageSize)
                                  .Take(filter.PageSize);
                 }
 
-                var items = await query.ToListAsync();
+                // Project in SQL so list pages load only the fields used by HawalaDto.
+                // This avoids tracking and materializing the large navigation graph
+                // that was previously loaded by ten Include calls.
+                var items = await query
+                    .Select(GetListProjection())
+                    .ToListAsync();
                 return new HawalaListResultDto
                 {
-                    Items = _mapper.Map<List<HawalaDto>>(items),
+                    Items = items,
                     TotalCount = totalCount,
-                    TotalPages = (int)Math.Ceiling((double)totalCount / (filter.PageSize > 0 ? filter.PageSize : totalCount))
+                    TotalFromAmount = totalFromAmount,
+                    TotalPages = filter.PageSize > 0
+                        ? (int)Math.Ceiling((double)totalCount / filter.PageSize)
+                        : totalCount > 0 ? 1 : 0
                 };
             }
 
@@ -343,6 +349,78 @@
                     _ => h => h.Id
                 };
             }
+
+            private static Expression<Func<Hawala, HawalaDto>> GetListProjection() => h => new HawalaDto
+            {
+                Id = h.Id,
+                Number = h.Number,
+                HawalaType = h.HawalaType,
+                CorrespondentId = h.CorrespondentId,
+                CorrespondentName = h.Correspondent != null ? h.Correspondent.Name : null,
+                PaymentLocationId = h.PaymentLocationId,
+                PaymentLocationName = h.PaymentLocation != null ? h.PaymentLocation.Name : null,
+                PaymentLocationAddress = h.PaymentLocation != null ? h.PaymentLocation.Address : null,
+                SenderName = h.SenderName,
+                SenderFatherName = h.SenderFatherName,
+                SenderPhone = h.SenderPhone,
+                SenderTazkiraNumber = h.SenderTazkiraNumber,
+                SenderTazkiraImagePath = h.SenderTazkiraImagePath,
+                SenderAddress = h.SenderAddress,
+                ReceiverName = h.ReceiverName,
+                ReceiverFatherName = h.ReceiverFatherName,
+                ReceiverPhone = h.ReceiverPhone,
+                ReceiverTazkiraNumber = h.ReceiverTazkiraNumber,
+                ReceiverTazkiraImagePath = h.ReceiverTazkiraImagePath,
+                ReceiverAddress = h.ReceiverAddress,
+                FromCurrencyId = h.FromCurrencyId,
+                FromCurrencyCode = h.FromCurrency != null ? h.FromCurrency.Code : string.Empty,
+                FromCurrencyName = h.FromCurrency != null ? h.FromCurrency.Name : string.Empty,
+                FromAmount = h.FromAmount,
+                ToCurrencyId = h.ToCurrencyId,
+                ToCurrencyCode = h.ToCurrency != null ? h.ToCurrency.Code : string.Empty,
+                ToCurrencyName = h.ToCurrency != null ? h.ToCurrency.Name : string.Empty,
+                ToAmount = h.ToAmount,
+                ExchangeRate = h.ExchangeRate,
+                CommissionAmount = h.CommissionAmount,
+                CommissionCurrencyId = h.CommissionCurrencyId,
+                CommissionCurrencyCode = h.CommissionCurrency != null ? h.CommissionCurrency.Code : null,
+                CommissionCurrencyName = h.CommissionCurrency != null ? h.CommissionCurrency.Name : null,
+                AgentCommissionAmount = h.AgentCommissionAmount,
+                AgentCommissionCurrencyId = h.AgentCommissionCurrencyId,
+                AgentCommissionCurrencyCode = h.AgentCommissionCurrency != null ? h.AgentCommissionCurrency.Code : null,
+                AgentCommissionCurrencyName = h.AgentCommissionCurrency != null ? h.AgentCommissionCurrency.Name : null,
+                ReferenceNumber = h.ReferenceNumber,
+                Notes = h.Notes,
+                Status = h.Status,
+                CreatedAt = h.CreatedAt,
+                CreatedBy = h.CreatedBy,
+                CreatedByName = h.CreatedByUser != null ? h.CreatedByUser.FullName : string.Empty,
+                PaidAt = h.PaidAt,
+                PaidBy = h.PaidBy,
+                PaidFromAccountId = h.PaidFromAccountId,
+                PaidFromAccountName = h.PaidFromAccount != null ? h.PaidFromAccount.AccountName : null,
+                PaidFromAccountType = h.PaidFromAccount != null ? h.PaidFromAccount.AccountType : null,
+                SourceHawalaId = h.SourceHawalaId,
+                IsSystemGenerated = h.IsSystemGenerated,
+                CancelledAt = h.CancelledAt,
+                CancelledBy = h.CancelledBy,
+                CancelReason = h.CancelReason,
+                SettlementCurrencyId = h.Correspondent != null ? h.Correspondent.SettlementCurrencyId : null,
+                SettlementCurrencyCode = h.Correspondent != null && h.Correspondent.SettlementCurrency != null
+                    ? h.Correspondent.SettlementCurrency.Code
+                    : null,
+                IsSettlementConverted = h.SettlementConversionLinks.Any(),
+                SettlementRates = h.SettlementConversionItems.Select(x => new HawalaSettlementRateInfoDto
+                {
+                    SourceCurrencyId = x.SourceCurrencyId,
+                    SourceCurrencyCode = x.SourceCurrency.Code,
+                    SourceAmount = x.SourceTalabKar > 0 ? x.SourceTalabKar : x.SourceBadehKar,
+                    ExchangeRate = x.ExchangeRate,
+                    TargetAmount = x.TargetTalabKar > 0 ? x.TargetTalabKar : x.TargetBadehKar,
+                    TargetCurrencyCode = x.Conversion.TargetCurrency.Code
+                }).ToList(),
+                CanEditSettlementRate = h.SettlementConversionItems.Any(x => x.Conversion.SourceMode == "Hawalas")
+            };
 
             public async Task<HawalaStatisticsDto> GetStatisticsAsync()
             {

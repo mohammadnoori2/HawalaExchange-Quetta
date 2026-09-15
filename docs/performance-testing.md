@@ -116,3 +116,20 @@ An application lock serializes settlement for the same tenant and correspondent,
 Correctness coverage verifies multiply and divide quotation directions, target-currency rounding, creditor and debtor balances, per-currency double-entry balance, selected-Hawala conversion, post-conversion rate editing, whole-account conversion, missing-rate rollback, duplicate-conversion rejection, and concurrent-request serialization. All eighteen performance-suite tests passed.
 
 For 10,000 selected Hawalas, the procedure created 10,000 conversion items and 40,000 balanced ledger entries in **5,489.95 ms** (**1,821.51 Hawalas/second**) on the local SQL Server. Data seeding is excluded from this measurement.
+
+## Original-plan phase one — Hawala query and index optimization — 2026-09-15
+
+This phase completes the query/index work that was not part of the earlier bulk-copy batching change. Hawala list queries now use server-side filtering, sorting, counting, paging, and an explicit DTO projection. The former ten-`Include` entity graph is no longer materialized or tracked for list pages. The single-record detail query is also no-tracking and split to avoid collection cartesian expansion.
+
+The received and pending Hawala pages no longer request `int.MaxValue` rows and page them in browser memory. Search and filters are sent to SQL, page changes fetch only the requested page, and the pending-page total amount is calculated separately only when that page requests it. Existing display behavior for the payment account, reference number, correspondent, payment location, and currencies is covered by an integration test.
+
+The migration replaces three prefix-only indexes with date-aware composite indexes and adds indexes for tenant-wide Hawala-number lookup and the filters used by correspondent, payment-location, currency, type, status, and date views. Tenant isolation and the presence of all expected indexes are verified against a disposable SQL Server database.
+
+For 10,000 Hawalas and a 100-row correspondent page, the median of three local reads was:
+
+| Implementation | Median |
+| --- | ---: |
+| Legacy tracked navigation shape (ten includes) | 46.69 ms |
+| Server-side DTO projection | 38.03 ms |
+
+The projected query was **18.55% faster** in this sample and transfers fewer columns while preserving the returned page and total count.

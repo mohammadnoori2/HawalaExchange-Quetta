@@ -1588,7 +1588,6 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.TableName, x.RecordId });
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.CreatedAt });
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.ProcessId });
-            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.HawalaType, x.Status });
             modelBuilder.Entity<CorrespondentSettlementConversion>()
                 .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.CreatedAt });
             modelBuilder.Entity<CorrespondentSettlementConversionItem>()
@@ -1624,6 +1623,11 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasFilter("[SourceHawalaId] IS NOT NULL");
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.ReferenceNumber });
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.Number });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.HawalaType, x.Status, x.CreatedAt });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.CreatedAt });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.PaymentLocationId, x.HawalaType, x.CreatedAt });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.FromCurrencyId, x.CreatedAt });
             modelBuilder.Entity<HawalaImportBatch>()
                 .HasIndex(x => new { x.TenantId, x.FileHash, x.Status });
             modelBuilder.Entity<HawalaImportBatch>()

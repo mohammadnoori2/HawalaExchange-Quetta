@@ -91,7 +91,9 @@
         string.IsNullOrWhiteSpace(searchText)
             ? AccountList
             : AccountList.Where(account =>
-                Contains(account.AccountName, searchText));
+                Contains(account.AccountName, searchText) ||
+                Contains(account.AccountCode, searchText) ||
+                Contains(account.ReferenceName, searchText));
 
     private string DisplayText
     {

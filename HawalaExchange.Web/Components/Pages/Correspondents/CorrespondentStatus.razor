@@ -11,7 +11,12 @@
 
 <PageTitle>@(correspondent == null ? "وضعیت نمایندگی" : $"وضعیت {correspondent.Name}")</PageTitle>
 
-<div class="page-wrapper entity-details-page">
+<div class="page-wrapper entity-details-page" dir="rtl">
+    <div class="d-flex justify-content-end mb-3">
+        <button type="button" class="btn btn-outline-secondary" @onclick="BackToCorrespondent">
+            <i class="bi bi-arrow-right ms-1"></i>بازگشت به نمایندگی
+        </button>
+    </div>
     @if (isLoading)
     {
         <div class="entity-page-state">
@@ -152,6 +157,7 @@
     }
 
     private void BackToCorrespondents() => NavigationManager.NavigateTo("/correspondents");
+    private void BackToCorrespondent() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}");
 
     public void Dispose()
     {

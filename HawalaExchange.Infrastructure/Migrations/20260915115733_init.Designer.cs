@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HawalaExchange.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260914120023_AddPeriodicCommissionProcedure")]
-    partial class AddPeriodicCommissionProcedure
+    [Migration("20260915115733_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -2015,13 +2015,11 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "CreatedBy");
 
-                    b.HasIndex("TenantId", "FromCurrencyId");
+                    b.HasIndex("TenantId", "Number");
 
                     b.HasIndex("TenantId", "PaidBy");
 
                     b.HasIndex("TenantId", "PaidFromAccountId");
-
-                    b.HasIndex("TenantId", "PaymentLocationId");
 
                     b.HasIndex("TenantId", "ReferenceNumber");
 
@@ -2031,11 +2029,17 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "ToCurrencyId");
 
-                    b.HasIndex("TenantId", "HawalaType", "Status");
+                    b.HasIndex("TenantId", "FromCurrencyId", "CreatedAt");
+
+                    b.HasIndex("TenantId", "CorrespondentId", "HawalaType", "CreatedAt");
 
                     b.HasIndex("TenantId", "CorrespondentId", "HawalaType", "Number")
                         .IsUnique()
                         .HasFilter("[CorrespondentId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "HawalaType", "Status", "CreatedAt");
+
+                    b.HasIndex("TenantId", "PaymentLocationId", "HawalaType", "CreatedAt");
 
                     b.ToTable("Hawalas", t =>
                         {
@@ -2299,7 +2303,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "TransferId");
 
-                    b.HasIndex("TenantId", "AccountId", "CurrencyId");
+                    b.HasIndex("TenantId", "AccountId", "CurrencyId", "CreatedAt");
 
                     b.ToTable("LedgerEntries", t =>
                         {

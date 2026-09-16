@@ -128,6 +128,9 @@ namespace HawalaExchange.Application.DTOs
         public string Status { get; set; } = "Pending";
         public string? PaymentLocation { get; set; }
         public long? GeneratedSendHawalaNumber { get; set; }
+        public decimal? GeneratedSendAgentCommissionAmount { get; set; }
+        public long? GeneratedSendAgentCommissionCurrencyId { get; set; }
+        public string? GeneratedSendReferenceNumber { get; set; }
     }
 
     public class UpdateHawalaDto
@@ -176,6 +179,12 @@ namespace HawalaExchange.Application.DTOs
         public string? ReceiverAddress { get; set; }
     }
 
+    public class AddHawalaAgentCommissionDto
+    {
+        public decimal Amount { get; set; }
+        public long CurrencyId { get; set; }
+    }
+
     public class CancelHawalaDto
     {
         public string CancelReason { get; set; } = string.Empty;
@@ -200,6 +209,7 @@ namespace HawalaExchange.Application.DTOs
         public int PageSize { get; set; } = 10;
         public string SortColumn { get; set; } = "CreatedAt";
         public string SortDirection { get; set; } = "desc";
+        public bool IncludeTotalAmount { get; set; }
     }
 
     public class HawalaListResultDto
@@ -207,6 +217,7 @@ namespace HawalaExchange.Application.DTOs
         public List<HawalaDto> Items { get; set; } = new();
         public int TotalCount { get; set; }
         public int TotalPages { get; set; }
+        public decimal TotalFromAmount { get; set; }
     }
 
     public class HawalaStatisticsDto

@@ -1,8 +1,12 @@
+using System.Data;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Linq.Expressions;
 
 namespace HawalaExchange.Application.Services;
 
@@ -30,14 +34,7 @@ public class JournalService : IJournalService
         var utcStart = localStart.ToUniversalTime();
         var utcEnd = localEnd.ToUniversalTime();
 
-        var ledgerEntries = await _context.LedgerEntries
-            .AsNoTracking()
-            .Include(x => x.Account)
-            .Include(x => x.Currency)
-            .Where(x => x.CreatedAt >= utcStart && x.CreatedAt < utcEnd)
-            .OrderByDescending(x => x.CreatedAt)
-            .ThenByDescending(x => x.Id)
-            .ToListAsync();
+        var ledgerEntries = await ReadJournalEntriesAsync(utcStart, utcEnd);
 
         var entries = ledgerEntries.Select(ToEntryDto).ToList();
         var operations = ledgerEntries
@@ -153,6 +150,160 @@ public class JournalService : IJournalService
 
         await PopulateSourceDetailsAsync(operations);
         return operations;
+    }
+
+    public async Task<AccountOperationsPageDto> GetAccountOperationsPageAsync(
+        AccountOperationsFilterDto filter,
+        CancellationToken cancellationToken = default)
+    {
+        var pageNumber = Math.Max(1, filter.PageNumber);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync(cancellationToken);
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "[dbo].[usp_GetAccountOperationsPage_v1]";
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandTimeout = 60;
+            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+            command.Parameters.Add("@AccountId", SqlDbType.BigInt).Value = filter.AccountId;
+            command.Parameters.Add("@PageNumber", SqlDbType.Int).Value = pageNumber;
+            command.Parameters.Add("@PageSize", SqlDbType.Int).Value = pageSize;
+            AddNullable(command, "@SearchTerm", SqlDbType.NVarChar, filter.SearchTerm, 200);
+            AddNullable(command, "@SourceType", SqlDbType.NVarChar, filter.SourceType, 50);
+            AddNullable(command, "@CurrencyCode", SqlDbType.NVarChar, filter.CurrencyCode, 20);
+            AddNullable(command, "@FromDate", SqlDbType.DateTime2,
+                filter.FromDate?.Date.ToUniversalTime());
+            AddNullable(command, "@ToDateExclusive", SqlDbType.DateTime2,
+                filter.ToDate?.Date.AddDays(1).ToUniversalTime());
+            if (_context.Database.CurrentTransaction?.GetDbTransaction() is SqlTransaction transaction)
+                command.Transaction = transaction;
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            return await ReadAccountOperationsPageAsync(
+                reader, pageNumber, pageSize, cancellationToken);
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    public async Task<JournalOperationDto?> GetAccountOperationDetailsAsync(
+        long accountId,
+        string operationKey,
+        CancellationToken cancellationToken = default)
+    {
+        var separator = operationKey.IndexOf(':');
+        if (separator <= 0 || !long.TryParse(operationKey[(separator + 1)..], out var operationId))
+            return null;
+
+        var kind = operationKey[..separator];
+        Expression<Func<LedgerEntry, bool>> belongsToOperation = kind switch
+        {
+            "Hawala" => entry => entry.HawalaId == operationId,
+            "CapitalInvestment" => entry => entry.CapitalInvestmentId == operationId,
+            "Expense" => entry => entry.ExpenseId == operationId,
+            "AccountMoneyOperation" => entry => entry.AccountMoneyOperationId == operationId,
+            "MoneyExchangeOperation" => entry => entry.MoneyExchangeOperationId == operationId,
+            "Transfer" => entry => entry.TransferId == operationId,
+            "Transaction" => entry => entry.TransactionId == operationId,
+            "Manual" => entry => entry.Id == operationId,
+            _ => entry => false
+        };
+
+        var isVisibleForAccount = await _context.LedgerEntries
+            .AsNoTracking()
+            .Where(entry => entry.AccountId == accountId)
+            .AnyAsync(belongsToOperation, cancellationToken);
+        if (!isVisibleForAccount)
+            return null;
+
+        var entries = await _context.LedgerEntries
+            .AsNoTracking()
+            .Include(entry => entry.Account)
+            .Include(entry => entry.Currency)
+            .Where(belongsToOperation)
+            .OrderBy(entry => entry.Id)
+            .ToListAsync(cancellationToken);
+        if (entries.Count == 0)
+            return null;
+
+        var operation = BuildOperation(operationKey, entries);
+        await PopulateSourceDetailsAsync([operation]);
+        return operation;
+    }
+
+    private static void AddNullable(
+        SqlCommand command,
+        string name,
+        SqlDbType type,
+        object? value,
+        int? size = null)
+    {
+        var parameter = size.HasValue
+            ? command.Parameters.Add(name, type, size.Value)
+            : command.Parameters.Add(name, type);
+        parameter.Value = value ?? DBNull.Value;
+    }
+
+    internal static async Task<AccountOperationsPageDto> ReadAccountOperationsPageAsync(
+        SqlDataReader reader,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new AccountOperationsPageDto
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+        var byKey = new Dictionary<string, JournalOperationDto>(StringComparer.Ordinal);
+        if (await reader.ReadAsync(cancellationToken))
+            result.TotalCount = checked((int)reader.GetInt64(0));
+
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var key = reader.GetString(0);
+            if (!byKey.TryGetValue(key, out var operation))
+            {
+                operation = new JournalOperationDto
+                {
+                    OperationKey = key,
+                    CreatedAt = reader.GetDateTime(1),
+                    SourceType = reader.GetString(2),
+                    SourceId = reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                    DocumentNumber = reader.GetString(4),
+                    Description = reader.GetString(5),
+                    AccountNames = [reader.GetString(6)]
+                };
+                byKey.Add(key, operation);
+                result.Items.Add(operation);
+            }
+
+            operation.CurrencySummaries.Add(new JournalOperationCurrencySummaryDto
+            {
+                CurrencyId = reader.GetInt64(7),
+                CurrencyCode = reader.GetString(8),
+                TotalTalabKar = reader.GetDecimal(9),
+                TotalBadehKar = reader.GetDecimal(10)
+            });
+        }
+
+        foreach (var operation in result.Items)
+            operation.SummarySentence = BuildAccountPageSummarySentence(operation);
+
+        await reader.NextResultAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            result.AvailableCurrencyCodes.Add(reader.GetString(0));
+
+        return result;
     }
 
     public async Task<IReadOnlyList<CashDailyBalanceDto>> GetCashDailyBalancesAsync(
@@ -317,6 +468,73 @@ public class JournalService : IJournalService
         }
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task<List<LedgerEntry>> ReadJournalEntriesAsync(DateTime utcStart, DateTime utcEnd)
+    {
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync();
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "[dbo].[usp_GetDailyJournal_v1]";
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandTimeout = 120;
+            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+            command.Parameters.Add("@FromDate", SqlDbType.DateTime2).Value = utcStart;
+            command.Parameters.Add("@ToDateExclusive", SqlDbType.DateTime2).Value = utcEnd;
+            var transaction = _context.Database.CurrentTransaction?.GetDbTransaction();
+            if (transaction is SqlTransaction sqlTransaction)
+                command.Transaction = sqlTransaction;
+
+            var rows = new List<LedgerEntry>();
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var accountId = reader.GetInt64(9);
+                var currencyId = reader.GetInt64(13);
+                rows.Add(new LedgerEntry
+                {
+                    Id = reader.GetInt64(0),
+                    CreatedAt = reader.GetDateTime(1),
+                    HawalaId = reader.IsDBNull(2) ? null : reader.GetInt64(2),
+                    CapitalInvestmentId = reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                    ExpenseId = reader.IsDBNull(4) ? null : reader.GetInt64(4),
+                    AccountMoneyOperationId = reader.IsDBNull(5) ? null : reader.GetInt64(5),
+                    MoneyExchangeOperationId = reader.IsDBNull(6) ? null : reader.GetInt64(6),
+                    TransferId = reader.IsDBNull(7) ? null : reader.GetInt64(7),
+                    TransactionId = reader.IsDBNull(8) ? null : reader.GetInt64(8),
+                    AccountId = accountId,
+                    CurrencyId = currencyId,
+                    TalabKar = reader.GetDecimal(15),
+                    BadehKar = reader.GetDecimal(16),
+                    Description = reader.IsDBNull(17) ? null : reader.GetString(17),
+                    Account = new Account
+                    {
+                        Id = accountId,
+                        AccountCode = reader.GetString(10),
+                        AccountName = reader.GetString(11),
+                        AccountType = reader.GetString(12)
+                    },
+                    Currency = new Currency
+                    {
+                        Id = currencyId,
+                        Code = reader.GetString(14),
+                        Name = reader.GetString(14)
+                    }
+                });
+            }
+
+            return rows;
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
     }
 
     private async Task<List<CashDailyBalance>> EnsureCashDailyBalancesAsync(DateTime date)
@@ -888,6 +1106,7 @@ public class JournalService : IJournalService
                 Add(operation, "طرف دبی", aedConversion.Deal.DubaiCorrespondent.Name);
                 Add(operation, "مبلغ تبدیل", Money(aedConversion.SourceAmount, aedConversion.Deal.SourceCurrency.Code));
                 Add(operation, "مبلغ نهایی", Money(aedConversion.FinalUsdAmount, "USD"));
+                Add(operation, "مبلغ اعلامی به کویته", Money(aedConversion.DeclaredUsdAmount, "USD"));
                 Add(operation, aedConversion.ProfitUsd >= 0 ? "مفاد" : "زیان",
                     Money(Math.Abs(aedConversion.ProfitUsd), "USD"));
                 Add(operation, "وضعیت تبدیل", aedConversion.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده");
@@ -975,6 +1194,12 @@ public class JournalService : IJournalService
             _ =>
                 $"عملیات {operation.SourceType} شماره {operation.DocumentNumber} در حساب‌های {accounts} با گردش {CurrencyMovement(operation)} ثبت شد{suffix}"
         };
+    }
+
+    private static string BuildAccountPageSummarySentence(JournalOperationDto operation)
+    {
+        var account = operation.AccountNames.FirstOrDefault() ?? "حساب نامشخص";
+        return $"{operation.SourceType} شماره {operation.DocumentNumber} در حساب {account} با گردش {CurrencyMovement(operation)} ثبت شد.";
     }
 
     private static string Detail(

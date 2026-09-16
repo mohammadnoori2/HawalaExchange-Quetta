@@ -1570,7 +1570,7 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasFilter("[IsActive] = 1");
             modelBuilder.Entity<CashBalanceAlert>()
                 .HasIndex(x => new { x.TenantId, x.TriggeredAt });
-            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId });
+            modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId, x.CreatedAt });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.CreatedAt });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.TransactionId });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.HawalaId });
@@ -1588,7 +1588,6 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.TableName, x.RecordId });
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.CreatedAt });
             modelBuilder.Entity<AuditLog>().HasIndex(x => new { x.TenantId, x.ProcessId });
-            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.HawalaType, x.Status });
             modelBuilder.Entity<CorrespondentSettlementConversion>()
                 .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.CreatedAt });
             modelBuilder.Entity<CorrespondentSettlementConversionItem>()
@@ -1624,6 +1623,11 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasFilter("[SourceHawalaId] IS NOT NULL");
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.ReferenceNumber });
             modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.CreatedAt });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.Number });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.HawalaType, x.Status, x.CreatedAt });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.CreatedAt });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.PaymentLocationId, x.HawalaType, x.CreatedAt });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.FromCurrencyId, x.CreatedAt });
             modelBuilder.Entity<HawalaImportBatch>()
                 .HasIndex(x => new { x.TenantId, x.FileHash, x.Status });
             modelBuilder.Entity<HawalaImportBatch>()
@@ -1885,9 +1889,21 @@ namespace HawalaExchange.Infrastructure.Data
                     .WithMany()
                     .HasForeignKey(x => x.CurrencyId)
                     .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.AgentCommissionCurrency)
+                    .WithMany()
+                    .HasForeignKey(x => x.AgentCommissionCurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.DestinationCorrespondent)
+                    .WithMany()
+                    .HasForeignKey(x => x.DestinationCorrespondentId)
+                    .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(x => x.Hawala)
                     .WithMany()
                     .HasForeignKey(x => x.HawalaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.GeneratedSendHawala)
+                    .WithMany()
+                    .HasForeignKey(x => x.GeneratedSendHawalaId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
@@ -1907,6 +1923,12 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasOne(x => x.SettlementCurrency)
                 .WithMany()
                 .HasForeignKey(x => x.SettlementCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CompanySetting>()
+                .HasOne(x => x.OwnPaymentLocation)
+                .WithMany()
+                .HasForeignKey(x => x.OwnPaymentLocationId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Correspondent>()

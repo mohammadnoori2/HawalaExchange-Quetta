@@ -3,7 +3,9 @@
     using HawalaExchange.Application.Interfaces.Services;
     using HawalaExchange.Domain.Entities;
     using HawalaExchange.Infrastructure.Data;
+    using Microsoft.Data.SqlClient;
     using Microsoft.EntityFrameworkCore;
+    using Microsoft.EntityFrameworkCore.Storage;
     using System.Data;
     using System.Linq.Expressions;
 
@@ -11,6 +13,7 @@
     {
         public class HawalaService : IHawalaService
         {
+            private const int BulkCopyBatchSize = 10_000;
             private readonly ApplicationDbContext _context;
             private readonly IMapper _mapper;
             private readonly ILedgerService _ledgerService;
@@ -94,7 +97,10 @@
                     await ProcessLedgerEntries(
                         hawala,
                         dto.FromAccountId,
-                        dto.GeneratedSendHawalaNumber);
+                        dto.GeneratedSendHawalaNumber,
+                        dto.GeneratedSendAgentCommissionAmount,
+                        dto.GeneratedSendAgentCommissionCurrencyId,
+                        dto.GeneratedSendReferenceNumber);
                     await _context.SaveChangesAsync();
 
                     var hawalaTypeName = hawala.HawalaType switch
@@ -123,6 +129,13 @@
             {
                 if (items.Count == 0)
                     return [];
+
+                if (items.All(x => x.HawalaType == "HawalaReceive" &&
+                                   x.CommissionAmount is null &&
+                                   x.AgentCommissionAmount is null))
+                {
+                    return await CreateImportedReceiveHawalasAsync(items);
+                }
 
                 await using var transaction = _context.Database.CurrentTransaction == null
                     ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable)
@@ -202,6 +215,8 @@
             public async Task<HawalaDto?> GetHawalaByIdAsync(long id)
             {
                 var hawala = await _context.Hawalas
+                    .AsNoTracking()
+                    .AsSplitQuery()
                     .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
                     .Include(h => h.SettlementConversionLinks).ThenInclude(x => x.Conversion)
                     .Include(h => h.SettlementConversionItems).ThenInclude(x => x.SourceCurrency)
@@ -232,19 +247,12 @@
                 return result;
             }
 
-            public async Task<HawalaListResultDto> GetHawalasAsync(HawalaFilterDto filter)
+            public async Task<HawalaListResultDto> GetHawalasAsync(
+                HawalaFilterDto filter,
+                CancellationToken cancellationToken = default)
             {
                 var query = _context.Hawalas
-                    .Include(h => h.Correspondent).ThenInclude(c => c!.SettlementCurrency)
-                    .Include(h => h.SettlementConversionLinks).ThenInclude(x => x.Conversion)
-                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.SourceCurrency)
-                    .Include(h => h.SettlementConversionItems).ThenInclude(x => x.Conversion).ThenInclude(x => x.TargetCurrency)
-                    .Include(h => h.FromCurrency)
-                    .Include(h => h.ToCurrency)
-                    .Include(h => h.CommissionCurrency)
-                    .Include(h => h.AgentCommissionCurrency)
-                    .Include(h => h.PaymentLocation)
-                    .Include(h => h.PaidFromAccount)
+                    .AsNoTracking()
                     .AsQueryable();
 
                 if (filter.Number > 0 && string.IsNullOrWhiteSpace(filter.SearchTerm))
@@ -257,6 +265,7 @@
                         (h.SenderName != null && h.SenderName.Contains(term)) ||
                         (h.ReceiverName != null && h.ReceiverName.Contains(term)) ||
                         (h.ReferenceNumber != null && h.ReferenceNumber.Contains(term)) ||
+                        (h.Correspondent != null && h.Correspondent.Name.Contains(term)) ||
                         (filter.Number > 0 && h.Number == filter.Number) ||
                         (filter.SearchAmount.HasValue && h.FromAmount == filter.SearchAmount.Value)
                     );
@@ -295,24 +304,36 @@
                     query = query.Where(h => h.CreatedAt < toDateExclusive);
                 }
 
+                var totalCount = await query.CountAsync(cancellationToken);
+                var totalFromAmount = filter.IncludeTotalAmount && totalCount > 0
+                    ? await query.SumAsync(h => h.FromAmount, cancellationToken)
+                    : 0;
+                var pageNumber = Math.Max(1, filter.PageNumber);
+
                 query = filter.SortDirection == "asc"
                     ? query.OrderBy(GetSortExpression(filter.SortColumn))
                     : query.OrderByDescending(GetSortExpression(filter.SortColumn));
 
-                var totalCount = await query.CountAsync();
-
                 if (filter.PageSize > 0)
                 {
-                    query = query.Skip((filter.PageNumber - 1) * filter.PageSize)
+                    query = query.Skip((pageNumber - 1) * filter.PageSize)
                                  .Take(filter.PageSize);
                 }
 
-                var items = await query.ToListAsync();
+                // Project in SQL so list pages load only the fields used by HawalaDto.
+                // This avoids tracking and materializing the large navigation graph
+                // that was previously loaded by ten Include calls.
+                var items = await query
+                    .Select(GetListProjection())
+                    .ToListAsync(cancellationToken);
                 return new HawalaListResultDto
                 {
-                    Items = _mapper.Map<List<HawalaDto>>(items),
+                    Items = items,
                     TotalCount = totalCount,
-                    TotalPages = (int)Math.Ceiling((double)totalCount / (filter.PageSize > 0 ? filter.PageSize : totalCount))
+                    TotalFromAmount = totalFromAmount,
+                    TotalPages = filter.PageSize > 0
+                        ? (int)Math.Ceiling((double)totalCount / filter.PageSize)
+                        : totalCount > 0 ? 1 : 0
                 };
             }
 
@@ -331,18 +352,115 @@
                 };
             }
 
-            public async Task<HawalaStatisticsDto> GetStatisticsAsync()
+            private static Expression<Func<Hawala, HawalaDto>> GetListProjection() => h => new HawalaDto
             {
-                var all = await _context.Hawalas.ToListAsync();
-
-                return new HawalaStatisticsDto
+                Id = h.Id,
+                Number = h.Number,
+                HawalaType = h.HawalaType,
+                CorrespondentId = h.CorrespondentId,
+                CorrespondentName = h.Correspondent != null ? h.Correspondent.Name : null,
+                PaymentLocationId = h.PaymentLocationId,
+                PaymentLocationName = h.PaymentLocation != null ? h.PaymentLocation.Name : null,
+                PaymentLocationAddress = h.PaymentLocation != null ? h.PaymentLocation.Address : null,
+                SenderName = h.SenderName,
+                SenderFatherName = h.SenderFatherName,
+                SenderPhone = h.SenderPhone,
+                SenderTazkiraNumber = h.SenderTazkiraNumber,
+                SenderTazkiraImagePath = h.SenderTazkiraImagePath,
+                SenderAddress = h.SenderAddress,
+                ReceiverName = h.ReceiverName,
+                ReceiverFatherName = h.ReceiverFatherName,
+                ReceiverPhone = h.ReceiverPhone,
+                ReceiverTazkiraNumber = h.ReceiverTazkiraNumber,
+                ReceiverTazkiraImagePath = h.ReceiverTazkiraImagePath,
+                ReceiverAddress = h.ReceiverAddress,
+                FromCurrencyId = h.FromCurrencyId,
+                FromCurrencyCode = h.FromCurrency != null ? h.FromCurrency.Code : string.Empty,
+                FromCurrencyName = h.FromCurrency != null ? h.FromCurrency.Name : string.Empty,
+                FromAmount = h.FromAmount,
+                ToCurrencyId = h.ToCurrencyId,
+                ToCurrencyCode = h.ToCurrency != null ? h.ToCurrency.Code : string.Empty,
+                ToCurrencyName = h.ToCurrency != null ? h.ToCurrency.Name : string.Empty,
+                ToAmount = h.ToAmount,
+                ExchangeRate = h.ExchangeRate,
+                CommissionAmount = h.CommissionAmount,
+                CommissionCurrencyId = h.CommissionCurrencyId,
+                CommissionCurrencyCode = h.CommissionCurrency != null ? h.CommissionCurrency.Code : null,
+                CommissionCurrencyName = h.CommissionCurrency != null ? h.CommissionCurrency.Name : null,
+                AgentCommissionAmount = h.AgentCommissionAmount,
+                AgentCommissionCurrencyId = h.AgentCommissionCurrencyId,
+                AgentCommissionCurrencyCode = h.AgentCommissionCurrency != null ? h.AgentCommissionCurrency.Code : null,
+                AgentCommissionCurrencyName = h.AgentCommissionCurrency != null ? h.AgentCommissionCurrency.Name : null,
+                ReferenceNumber = h.ReferenceNumber,
+                Notes = h.Notes,
+                Status = h.Status,
+                CreatedAt = h.CreatedAt,
+                CreatedBy = h.CreatedBy,
+                CreatedByName = h.CreatedByUser != null ? h.CreatedByUser.FullName : string.Empty,
+                PaidAt = h.PaidAt,
+                PaidBy = h.PaidBy,
+                PaidFromAccountId = h.PaidFromAccountId,
+                PaidFromAccountName = h.PaidFromAccount != null ? h.PaidFromAccount.AccountName : null,
+                PaidFromAccountType = h.PaidFromAccount != null ? h.PaidFromAccount.AccountType : null,
+                SourceHawalaId = h.SourceHawalaId,
+                IsSystemGenerated = h.IsSystemGenerated,
+                CancelledAt = h.CancelledAt,
+                CancelledBy = h.CancelledBy,
+                CancelReason = h.CancelReason,
+                SettlementCurrencyId = h.Correspondent != null ? h.Correspondent.SettlementCurrencyId : null,
+                SettlementCurrencyCode = h.Correspondent != null && h.Correspondent.SettlementCurrency != null
+                    ? h.Correspondent.SettlementCurrency.Code
+                    : null,
+                IsSettlementConverted = h.SettlementConversionLinks.Any(),
+                SettlementRates = h.SettlementConversionItems.Select(x => new HawalaSettlementRateInfoDto
                 {
-                    HawalaSendCount = all.Count(h => h.HawalaType == "HawalaSend"),
-                    HawalaReceiveCount = all.Count(h => h.HawalaType == "HawalaReceive"),
-                    HawalaOtherCount = all.Count(h => h.HawalaType == "HawalaOther"),
-                    PendingCount = all.Count(h => h.Status == "Pending"),
-                    PaidCount = all.Count(h => h.Status == "Paid")
-                };
+                    SourceCurrencyId = x.SourceCurrencyId,
+                    SourceCurrencyCode = x.SourceCurrency.Code,
+                    SourceAmount = x.SourceTalabKar > 0 ? x.SourceTalabKar : x.SourceBadehKar,
+                    ExchangeRate = x.ExchangeRate,
+                    TargetAmount = x.TargetTalabKar > 0 ? x.TargetTalabKar : x.TargetBadehKar,
+                    TargetCurrencyCode = x.Conversion.TargetCurrency.Code
+                }).ToList(),
+                CanEditSettlementRate = h.SettlementConversionItems.Any(x => x.Conversion.SourceMode == "Hawalas")
+            };
+
+            public async Task<HawalaStatisticsDto> GetStatisticsAsync(
+                CancellationToken cancellationToken = default)
+            {
+                var connection = (SqlConnection)_context.Database.GetDbConnection();
+                var shouldClose = connection.State != ConnectionState.Open;
+                if (shouldClose)
+                    await connection.OpenAsync(cancellationToken);
+
+                try
+                {
+                    var transaction = _context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction;
+                    await using var command = new SqlCommand(
+                        "[dbo].[usp_GetHawalaStatistics_v1]", connection, transaction)
+                    {
+                        CommandType = CommandType.StoredProcedure,
+                        CommandTimeout = 30
+                    };
+                    command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+
+                    await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                    if (!await reader.ReadAsync(cancellationToken))
+                        return new HawalaStatisticsDto();
+
+                    return new HawalaStatisticsDto
+                    {
+                        HawalaSendCount = checked((int)reader.GetInt64(0)),
+                        HawalaReceiveCount = checked((int)reader.GetInt64(1)),
+                        HawalaOtherCount = checked((int)reader.GetInt64(2)),
+                        PendingCount = checked((int)reader.GetInt64(3)),
+                        PaidCount = checked((int)reader.GetInt64(4))
+                    };
+                }
+                finally
+                {
+                    if (shouldClose)
+                        await connection.CloseAsync();
+                }
             }
 
             public async Task<HawalaDto> UpdateHawalaAsync(long id, UpdateHawalaDto dto)
@@ -382,6 +500,9 @@
                     var generatedHawalaNumber =
                         dto.GeneratedSendHawalaNumber ??
                         generatedHawala?.Number;
+                    var generatedAgentCommissionAmount = generatedHawala?.AgentCommissionAmount;
+                    var generatedAgentCommissionCurrencyId = generatedHawala?.AgentCommissionCurrencyId;
+                    var generatedReferenceNumber = generatedHawala?.ReferenceNumber;
 
                     if (generatedHawala != null)
                     {
@@ -399,7 +520,10 @@
                     await ProcessLedgerEntries(
                         hawala,
                         fromAccountId,
-                        generatedHawalaNumber);
+                        generatedHawalaNumber,
+                        generatedAgentCommissionAmount,
+                        generatedAgentCommissionCurrencyId,
+                        generatedReferenceNumber);
 
                     await _context.SaveChangesAsync();
 
@@ -658,6 +782,402 @@
                     ReceiverAddress = hawala.ReceiverAddress
                 });
             }
+
+            public async Task<HawalaDto> AddAgentCommissionAsync(
+                long id,
+                AddHawalaAgentCommissionDto commission)
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+                try
+                {
+                    var hawala = await _context.Hawalas.FirstOrDefaultAsync(x => x.Id == id)
+                        ?? throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
+                    if (hawala.HawalaType != "HawalaSend")
+                        throw new InvalidOperationException("کمیشن نمایندگی فقط به حواله ارسالی اضافه می‌شود.");
+                    if (hawala.Status == "Cancel")
+                        throw new InvalidOperationException("برای حواله لغوشده نمی‌توان کمیشن اضافه کرد.");
+                    if (hawala.AgentCommissionAmount is > 0)
+                        throw new InvalidOperationException("کمیشن نمایندگی قبلاً ثبت شده است.");
+                    if (commission.Amount <= 0)
+                        throw new InvalidOperationException("مقدار کمیشن باید بزرگتر از صفر باشد.");
+                    if (!await _context.Currencies.AnyAsync(x => x.Id == commission.CurrencyId && x.IsActive))
+                        throw new InvalidOperationException("ارز کمیشن معتبر یا فعال نیست.");
+                    if (!hawala.CorrespondentId.HasValue)
+                        throw new InvalidOperationException("نمایندگی مقصد حواله مشخص نیست.");
+
+                    var correspondentAccount = await _context.Accounts
+                        .FirstOrDefaultAsync(x => x.CorrespondentId == hawala.CorrespondentId && !x.IsArchived)
+                        ?? throw new InvalidOperationException("حساب نمایندگی مقصد پیدا نشد.");
+                    var expenseAccount = await GetOrCreatePayoutAgentCommissionExpenseAccountAsync();
+
+                    hawala.AgentCommissionAmount = commission.Amount;
+                    hawala.AgentCommissionCurrencyId = commission.CurrencyId;
+                    if (hawala.Status == "Pending")
+                    {
+                        hawala.Status = "Paid";
+                        hawala.PaidAt = DateTime.UtcNow;
+                        hawala.PaidBy = GetCurrentUserId();
+                    }
+
+                    await CreateLedgerEntry(
+                        hawala.Id,
+                        expenseAccount.Id,
+                        commission.CurrencyId,
+                        talabKar: 0,
+                        badehKar: commission.Amount,
+                        description: $"حواله ارسالی {hawala.Id}: هزینه کمیشن عامل پرداخت");
+                    await CreateLedgerEntry(
+                        hawala.Id,
+                        correspondentAccount.Id,
+                        commission.CurrencyId,
+                        talabKar: commission.Amount,
+                        badehKar: 0,
+                        description: $"حواله ارسالی {hawala.Id}: کمیشن قابل پرداخت به نمایندگی");
+
+                    await _context.SaveChangesAsync();
+                    await _auditLogService.LogAsync(
+                        "UPDATE",
+                        "Hawalas",
+                        hawala.Id,
+                        null,
+                        $"کمیشن نمایندگی به مقدار {commission.Amount} برای حواله ارسالی {hawala.Number} ثبت شد",
+                        GetCurrentUserId());
+                    await transaction.CommitAsync();
+                    return _mapper.Map<HawalaDto>(hawala);
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
+            }
+
+            private async Task<IReadOnlyList<HawalaDto>> CreateImportedReceiveHawalasAsync(
+                IReadOnlyCollection<CreateHawalaDto> items)
+            {
+                await using var transaction = _context.Database.CurrentTransaction == null
+                    ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+                    : null;
+                try
+                {
+                    var result = await CreateImportedReceiveHawalasCoreAsync(items);
+                    if (transaction != null)
+                        await transaction.CommitAsync();
+                    return result;
+                }
+                catch
+                {
+                    if (transaction != null)
+                        await transaction.RollbackAsync();
+                    throw;
+                }
+            }
+
+            private async Task<IReadOnlyList<HawalaDto>> CreateImportedReceiveHawalasCoreAsync(
+                IReadOnlyCollection<CreateHawalaDto> items)
+            {
+                var currentUserId = GetCurrentUserId();
+                var now = DateTime.UtcNow;
+                var correspondentIds = items.Select(x => x.CorrespondentId!.Value).Distinct().ToList();
+                var paymentLocationIds = items.Where(x => x.PaymentLocationId.HasValue)
+                    .Select(x => x.PaymentLocationId!.Value).Distinct().ToList();
+                var accountIds = items.Where(x => x.FromAccountId.HasValue)
+                    .Select(x => x.FromAccountId!.Value).Distinct().ToList();
+                var currencyIds = items.SelectMany(x => new long?[]
+                    {
+                        x.FromCurrencyId,
+                        x.ToCurrencyId,
+                        x.GeneratedSendAgentCommissionCurrencyId
+                    })
+                    .Where(x => x.HasValue)
+                    .Select(x => x!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (correspondentIds.Count == 0 || correspondentIds.Count !=
+                    await _context.Correspondents.CountAsync(x => correspondentIds.Contains(x.Id) && !x.IsArchived))
+                    throw new InvalidOperationException("یکی از نمایندگی‌های فرستنده معتبر یا فعال نیست.");
+                if (paymentLocationIds.Count != await _context.PaymentLocations
+                    .CountAsync(x => paymentLocationIds.Contains(x.Id) && x.IsActive))
+                    throw new InvalidOperationException("یکی از محل‌های پرداخت معتبر یا فعال نیست.");
+                if (currencyIds.Count != await _context.Currencies
+                    .CountAsync(x => currencyIds.Contains(x.Id) && x.IsActive))
+                    throw new InvalidOperationException("یکی از ارزهای حواله یا کمیشن معتبر یا فعال نیست.");
+
+                var accounts = await _context.Accounts
+                    .Where(x => (accountIds.Contains(x.Id) ||
+                                 (x.CorrespondentId.HasValue && correspondentIds.Contains(x.CorrespondentId.Value))) &&
+                                !x.IsArchived)
+                    .ToListAsync();
+                var sourceAccounts = accounts.Where(x => x.CorrespondentId.HasValue)
+                    .GroupBy(x => x.CorrespondentId!.Value)
+                    .ToDictionary(x => x.Key, x => x.First());
+                var accountsById = accounts.ToDictionary(x => x.Id);
+                foreach (var correspondentId in correspondentIds)
+                    if (!sourceAccounts.ContainsKey(correspondentId))
+                        throw new InvalidOperationException("حساب یکی از نمایندگی‌های فرستنده پیدا نشد.");
+                foreach (var accountId in accountIds)
+                    if (!accountsById.TryGetValue(accountId, out var account) ||
+                        !string.Equals(account.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase) ||
+                        !account.CorrespondentId.HasValue)
+                        throw new InvalidOperationException("یکی از حساب‌های نمایندگی مقصد معتبر نیست.");
+
+                var requestedNumbers = items.Select(x => x.Number).ToHashSet();
+                var existingNumbers = await _context.Hawalas.AsNoTracking()
+                    .Where(x => correspondentIds.Contains(x.CorrespondentId!.Value) &&
+                                x.HawalaType == "HawalaReceive" && requestedNumbers.Contains(x.Number))
+                    .Select(x => new { x.CorrespondentId, x.Number })
+                    .ToListAsync();
+                if (existingNumbers.Count > 0)
+                    throw new InvalidOperationException("شماره یکی از حواله‌های دریافتی قبلاً برای نمایندگی فرستنده ثبت شده است.");
+
+                var outgoingItems = items.Where(x => x.Status == "Paid" && x.FromAccountId.HasValue).ToList();
+                var outgoingCorrespondentIds = outgoingItems
+                    .Select(x => accountsById[x.FromAccountId!.Value].CorrespondentId!.Value)
+                    .Distinct().ToList();
+                var outgoingNumbers = outgoingItems.Select(x => x.GeneratedSendHawalaNumber ?? x.Number).ToHashSet();
+                var existingOutgoingNumbers = outgoingItems.Count == 0
+                    ? []
+                    : await _context.Hawalas.AsNoTracking()
+                        .Where(x => x.CorrespondentId.HasValue && outgoingCorrespondentIds.Contains(x.CorrespondentId.Value) &&
+                                    x.HawalaType == "HawalaSend" && outgoingNumbers.Contains(x.Number))
+                        .Select(x => new { CorrespondentId = x.CorrespondentId!.Value, x.Number })
+                        .ToListAsync();
+                if (outgoingItems.Any(item => existingOutgoingNumbers.Any(existing =>
+                        existing.CorrespondentId == accountsById[item.FromAccountId!.Value].CorrespondentId &&
+                        existing.Number == (item.GeneratedSendHawalaNumber ?? item.Number))))
+                    throw new InvalidOperationException("شماره یکی از حواله‌های ارسالی قبلاً برای نمایندگی مقصد ثبت شده است.");
+
+                var pendingAccount = await GetOrCreatePendingHawalaAccountAsync();
+                var commissionExpenseAccount = items.Any(x => x.GeneratedSendAgentCommissionAmount is > 0)
+                    ? await GetOrCreatePayoutAgentCommissionExpenseAccountAsync()
+                    : null;
+                var receivedHawalas = new List<Hawala>(items.Count);
+                var generatedHawalas = new List<Hawala>(outgoingItems.Count);
+                var ledgerEntries = new List<LedgerEntry>(items.Count * 5);
+
+                foreach (var dto in items)
+                {
+                    ValidateCreateHawala(dto);
+                    var received = _mapper.Map<Hawala>(dto);
+                    received.CreatedAt = now;
+                    received.CreatedBy = currentUserId;
+                    received.Status = dto.Status ?? "Pending";
+                    if (received.Status == "Paid")
+                    {
+                        received.PaidAt = now;
+                        received.PaidBy = currentUserId;
+                    }
+                    receivedHawalas.Add(received);
+
+                    var sourceAccount = sourceAccounts[dto.CorrespondentId!.Value];
+                    var payableAmount = received.ToAmount ?? received.FromAmount;
+                    ledgerEntries.Add(NewLedger(received, sourceAccount.Id, received.FromCurrencyId, 0, received.FromAmount,
+                        $"حواله دریافتی {received.Number}: ثبت حواله در انتظار - بدهکار شدن نماینده فرستنده", now));
+                    ledgerEntries.Add(NewLedger(received, pendingAccount.Id, received.ToCurrencyId, payableAmount, 0,
+                        $"حواله دریافتی {received.Number}: ثبت در حساب حواله‌های اجرا نشده", now));
+
+                    if (received.Status != "Paid" || !dto.FromAccountId.HasValue)
+                        continue;
+
+                    var destinationAccount = accountsById[dto.FromAccountId.Value];
+                    received.PaidFromAccountId = destinationAccount.Id;
+                    var hasCommission = dto.GeneratedSendAgentCommissionAmount is > 0;
+                    var generated = new Hawala
+                    {
+                        Number = dto.GeneratedSendHawalaNumber ?? dto.Number,
+                        HawalaType = "HawalaSend",
+                        Status = hasCommission ? "Paid" : "Pending",
+                        CorrespondentId = destinationAccount.CorrespondentId,
+                        SourceHawala = received,
+                        IsSystemGenerated = true,
+                        PaidFromAccountId = destinationAccount.Id,
+                        PaymentLocationId = received.PaymentLocationId,
+                        SenderName = received.SenderName,
+                        ReceiverName = received.ReceiverName,
+                        FromCurrencyId = received.FromCurrencyId,
+                        FromAmount = received.FromAmount,
+                        ToCurrencyId = received.ToCurrencyId,
+                        ToAmount = received.ToAmount,
+                        ExchangeRate = received.ExchangeRate,
+                        AgentCommissionAmount = hasCommission ? dto.GeneratedSendAgentCommissionAmount : null,
+                        AgentCommissionCurrencyId = hasCommission ? dto.GeneratedSendAgentCommissionCurrencyId : null,
+                        ReferenceNumber = string.IsNullOrWhiteSpace(dto.GeneratedSendReferenceNumber)
+                            ? $"AUTO-RCV-{received.Number}"
+                            : dto.GeneratedSendReferenceNumber.Trim(),
+                        Notes = received.Notes,
+                        CreatedAt = now,
+                        CreatedBy = currentUserId,
+                        PaidAt = hasCommission ? now : null,
+                        PaidBy = hasCommission ? currentUserId : null
+                    };
+                    generatedHawalas.Add(generated);
+                    ledgerEntries.Add(NewLedger(generated, pendingAccount.Id, received.ToCurrencyId, 0, payableAmount,
+                        $"حواله دریافتی {received.Number}: خروج از حساب حواله‌های اجرا نشده", now));
+                    ledgerEntries.Add(NewLedger(generated, destinationAccount.Id, received.ToCurrencyId, payableAmount, 0,
+                        $"حواله دریافتی {received.Number}: پرداخت حواله از حساب انتخاب‌شده", now));
+                    if (hasCommission)
+                    {
+                        var commissionCurrencyId = dto.GeneratedSendAgentCommissionCurrencyId!.Value;
+                        ledgerEntries.Add(NewLedger(generated, commissionExpenseAccount!.Id, commissionCurrencyId, 0,
+                            dto.GeneratedSendAgentCommissionAmount!.Value,
+                            $"حواله دریافتی {received.Number}: هزینه کمیشن عامل پرداخت", now));
+                        ledgerEntries.Add(NewLedger(generated, destinationAccount.Id, commissionCurrencyId,
+                            dto.GeneratedSendAgentCommissionAmount.Value, 0,
+                            $"حواله دریافتی {received.Number}: کمیشن قابل پرداخت به عامل پرداخت", now));
+                    }
+                }
+
+                await BulkCopyHawalasAsync(receivedHawalas);
+                var insertedReceived = await _context.Hawalas.AsNoTracking()
+                    .Where(x => x.HawalaType == "HawalaReceive" && x.CreatedAt == now && x.CreatedBy == currentUserId)
+                    .Select(x => new { x.Id, x.CorrespondentId, x.Number })
+                    .ToListAsync();
+                var receivedIdByKey = insertedReceived.ToDictionary(x => (x.CorrespondentId, x.Number), x => x.Id);
+                foreach (var received in receivedHawalas)
+                {
+                    if (!receivedIdByKey.TryGetValue((received.CorrespondentId, received.Number), out var id))
+                        throw new InvalidOperationException("شناسه یکی از حواله‌های دریافتی پس از ثبت گروهی پیدا نشد.");
+                    received.Id = id;
+                }
+
+                foreach (var generated in generatedHawalas)
+                {
+                    generated.SourceHawalaId = generated.SourceHawala!.Id;
+                    generated.SourceHawala = null;
+                }
+                if (generatedHawalas.Count > 0)
+                {
+                    await BulkCopyHawalasAsync(generatedHawalas);
+                    var insertedGenerated = await _context.Hawalas.AsNoTracking()
+                        .Where(x => x.IsSystemGenerated && x.CreatedAt == now && x.CreatedBy == currentUserId &&
+                                    x.SourceHawalaId.HasValue)
+                        .Select(x => new { x.Id, SourceId = x.SourceHawalaId!.Value })
+                        .ToListAsync();
+                    var generatedIdBySource = insertedGenerated.ToDictionary(x => x.SourceId, x => x.Id);
+                    foreach (var generated in generatedHawalas)
+                    {
+                        if (!generatedIdBySource.TryGetValue(generated.SourceHawalaId!.Value, out var id))
+                            throw new InvalidOperationException("شناسه یکی از حواله‌های ارسالی پس از ثبت گروهی پیدا نشد.");
+                        generated.Id = id;
+                    }
+                }
+
+                foreach (var ledger in ledgerEntries)
+                {
+                    ledger.HawalaId = ledger.Hawala!.Id;
+                    ledger.Hawala = null;
+                }
+                await BulkCopyLedgerEntriesAsync(ledgerEntries);
+                return receivedHawalas.Select(x => _mapper.Map<HawalaDto>(x)).ToList();
+            }
+
+            private async Task BulkCopyHawalasAsync(IReadOnlyCollection<Hawala> hawalas)
+            {
+                if (hawalas.Count == 0) return;
+                var table = new DataTable();
+                AddColumns(table,
+                    ("TenantId", typeof(long)), ("Number", typeof(long)), ("HawalaType", typeof(string)),
+                    ("CorrespondentId", typeof(long)), ("PaymentLocationId", typeof(long)),
+                    ("SenderName", typeof(string)), ("SenderFatherName", typeof(string)),
+                    ("SenderTazkiraImagePath", typeof(string)), ("SenderPhone", typeof(string)),
+                    ("SenderTazkiraNumber", typeof(string)), ("ReceiverName", typeof(string)),
+                    ("ReceiverFatherName", typeof(string)), ("ReceiverTazkiraImagePath", typeof(string)),
+                    ("ReceiverPhone", typeof(string)), ("ReceiverTazkiraNumber", typeof(string)),
+                    ("FromCurrencyId", typeof(long)), ("FromAmount", typeof(decimal)),
+                    ("ToCurrencyId", typeof(long)), ("ToAmount", typeof(decimal)),
+                    ("ExchangeRate", typeof(decimal)), ("CommissionAmount", typeof(decimal)),
+                    ("CommissionCurrencyId", typeof(long)), ("AgentCommissionAmount", typeof(decimal)),
+                    ("AgentCommissionCurrencyId", typeof(long)), ("ReferenceNumber", typeof(string)),
+                    ("SenderAddress", typeof(string)), ("ReceiverAddress", typeof(string)),
+                    ("Notes", typeof(string)), ("Status", typeof(string)), ("CreatedAt", typeof(DateTime)),
+                    ("CreatedBy", typeof(long)), ("PaidAt", typeof(DateTime)), ("PaidBy", typeof(long)),
+                    ("PaidFromAccountId", typeof(long)), ("SourceHawalaId", typeof(long)),
+                    ("IsSystemGenerated", typeof(bool)), ("CancelledAt", typeof(DateTime)),
+                    ("CancelledBy", typeof(long)), ("CancelReason", typeof(string)),
+                    ("ReversedTransactionId", typeof(long)));
+
+                foreach (var h in hawalas)
+                    table.Rows.Add(_context.CurrentTenantId, h.Number, h.HawalaType, Db(h.CorrespondentId),
+                        Db(h.PaymentLocationId), Db(h.SenderName), Db(h.SenderFatherName), Db(h.SenderTazkiraImagePath),
+                        Db(h.SenderPhone), Db(h.SenderTazkiraNumber), Db(h.ReceiverName), Db(h.ReceiverFatherName),
+                        Db(h.ReceiverTazkiraImagePath), Db(h.ReceiverPhone), Db(h.ReceiverTazkiraNumber),
+                        h.FromCurrencyId, h.FromAmount, h.ToCurrencyId, Db(h.ToAmount), Db(h.ExchangeRate),
+                        Db(h.CommissionAmount), Db(h.CommissionCurrencyId), Db(h.AgentCommissionAmount),
+                        Db(h.AgentCommissionCurrencyId), Db(h.ReferenceNumber), Db(h.SenderAddress),
+                        Db(h.ReceiverAddress), Db(h.Notes), h.Status, h.CreatedAt, h.CreatedBy,
+                        Db(h.PaidAt), Db(h.PaidBy), Db(h.PaidFromAccountId), Db(h.SourceHawalaId),
+                        h.IsSystemGenerated, Db(h.CancelledAt), Db(h.CancelledBy), Db(h.CancelReason),
+                        Db(h.ReversedTransactionId));
+                await WriteBulkAsync("[dbo].[Hawalas]", table);
+            }
+
+            private async Task BulkCopyLedgerEntriesAsync(IReadOnlyCollection<LedgerEntry> entries)
+            {
+                if (entries.Count == 0) return;
+                var table = new DataTable();
+                AddColumns(table,
+                    ("TenantId", typeof(long)), ("TransferId", typeof(long)), ("HawalaId", typeof(long)),
+                    ("SettlementHawalaItemId", typeof(long)), ("TransactionId", typeof(long)),
+                    ("CapitalInvestmentId", typeof(long)), ("ExpenseId", typeof(long)),
+                    ("AccountMoneyOperationId", typeof(long)), ("MoneyExchangeOperationId", typeof(long)),
+                    ("AccountId", typeof(long)), ("CurrencyId", typeof(long)),
+                    ("TalabKar", typeof(decimal)), ("BadehKar", typeof(decimal)),
+                    ("Description", typeof(string)), ("CreatedAt", typeof(DateTime)));
+                foreach (var e in entries)
+                    table.Rows.Add(_context.CurrentTenantId, Db(e.TransferId), Db(e.HawalaId),
+                        Db(e.SettlementHawalaItemId), Db(e.TransactionId), Db(e.CapitalInvestmentId),
+                        Db(e.ExpenseId), Db(e.AccountMoneyOperationId), Db(e.MoneyExchangeOperationId),
+                        e.AccountId, e.CurrencyId, e.TalabKar, e.BadehKar, Db(e.Description), e.CreatedAt);
+                await WriteBulkAsync("[dbo].[LedgerEntries]", table);
+            }
+
+            private async Task WriteBulkAsync(string destinationTable, DataTable table)
+            {
+                var connection = (SqlConnection)_context.Database.GetDbConnection();
+                if (connection.State != ConnectionState.Open)
+                    await connection.OpenAsync();
+                var dbTransaction = _context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction
+                    ?? throw new InvalidOperationException("ثبت گروهی باید داخل تراکنش SQL انجام شود.");
+                using var bulk = new SqlBulkCopy(connection,
+                    SqlBulkCopyOptions.TableLock | SqlBulkCopyOptions.CheckConstraints,
+                    dbTransaction)
+                {
+                    DestinationTableName = destinationTable,
+                    BatchSize = BulkCopyBatchSize,
+                    BulkCopyTimeout = 120,
+                    EnableStreaming = true
+                };
+                foreach (DataColumn column in table.Columns)
+                    bulk.ColumnMappings.Add(column.ColumnName, column.ColumnName);
+                await bulk.WriteToServerAsync(table);
+            }
+
+            private static void AddColumns(DataTable table, params (string Name, Type Type)[] columns)
+            {
+                foreach (var column in columns)
+                    table.Columns.Add(column.Name, column.Type);
+            }
+
+            private static object Db(object? value) => value ?? DBNull.Value;
+
+            private static LedgerEntry NewLedger(
+                Hawala hawala,
+                long accountId,
+                long currencyId,
+                decimal talabKar,
+                decimal badehKar,
+                string description,
+                DateTime createdAt) => new()
+            {
+                Hawala = hawala,
+                AccountId = accountId,
+                CurrencyId = currencyId,
+                TalabKar = talabKar,
+                BadehKar = badehKar,
+                Description = description,
+                CreatedAt = createdAt
+            };
 
             public async Task<CorrespondentHawalaRangeResultDto> GetCorrespondentRangeAsync(
                 CorrespondentHawalaRangeFilterDto filter)
@@ -963,7 +1483,10 @@
             private async Task ProcessLedgerEntries(
                 Hawala hawala,
                 long? fromAccountId,
-                long? generatedSendHawalaNumber = null)
+                long? generatedSendHawalaNumber = null,
+                decimal? generatedSendAgentCommissionAmount = null,
+                long? generatedSendAgentCommissionCurrencyId = null,
+                string? generatedSendReferenceNumber = null)
             {
                 if (hawala.HawalaType == "HawalaSend")
                     await ProcessHawalaSendLedgerAsync(hawala, fromAccountId);
@@ -971,7 +1494,10 @@
                     await ProcessHawalaReceiveLedgerAsync(
                         hawala,
                         fromAccountId,
-                        generatedSendHawalaNumber);
+                        generatedSendHawalaNumber,
+                        generatedSendAgentCommissionAmount,
+                        generatedSendAgentCommissionCurrencyId,
+                        generatedSendReferenceNumber);
                 else
                     await ProcessHawalaOtherLedgerAsync(hawala);
             }
@@ -1035,7 +1561,10 @@
             private async Task ProcessHawalaReceiveLedgerAsync(
                 Hawala hawala,
                 long? fromAccountId,
-                long? generatedSendHawalaNumber = null)
+                long? generatedSendHawalaNumber = null,
+                decimal? generatedSendAgentCommissionAmount = null,
+                long? generatedSendAgentCommissionCurrencyId = null,
+                string? generatedSendReferenceNumber = null)
             {
                 await ProcessHawalaReceivePendingLedgerAsync(hawala);
 
@@ -1044,7 +1573,10 @@
                     await ProcessHawalaReceivePaymentAsync(
                         hawala,
                         fromAccountId,
-                        generatedSendHawalaNumber);
+                        generatedSendHawalaNumber,
+                        generatedSendAgentCommissionAmount,
+                        generatedSendAgentCommissionCurrencyId,
+                        generatedSendReferenceNumber);
                 }
             }
             private async Task ProcessHawalaReceivePendingLedgerAsync(Hawala hawala)
@@ -1106,7 +1638,10 @@
             private async Task ProcessHawalaReceivePaymentAsync(
                 Hawala hawala,
                 long? paidFromAccountId,
-                long? generatedSendHawalaNumber = null)
+                long? generatedSendHawalaNumber = null,
+                decimal? generatedSendAgentCommissionAmount = null,
+                long? generatedSendAgentCommissionCurrencyId = null,
+                string? generatedSendReferenceNumber = null)
             {
                 if (!paidFromAccountId.HasValue)
                     throw new InvalidOperationException("برای پرداخت حواله دریافتی، انتخاب حساب پرداخت‌کننده الزامی است.");
@@ -1123,22 +1658,39 @@
                 hawala.PaidFromAccountId = paidFromAccount.Id;
 
                 var ledgerHawalaId = hawala.Id;
+                var paymentCommissionAmount = hawala.AgentCommissionAmount;
+                var paymentCommissionCurrencyId = hawala.AgentCommissionCurrencyId;
                 if (string.Equals(paidFromAccount.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase))
                 {
+                    var outgoingCommissionAmount = generatedSendAgentCommissionAmount ?? hawala.AgentCommissionAmount;
+                    var outgoingCommissionCurrencyId = generatedSendAgentCommissionCurrencyId ?? hawala.AgentCommissionCurrencyId;
                     var generatedSendHawala = await CreateGeneratedSendHawalaAsync(
                         hawala,
                         paidFromAccount,
-                        generatedSendHawalaNumber);
+                        generatedSendHawalaNumber,
+                        outgoingCommissionAmount,
+                        outgoingCommissionCurrencyId,
+                        generatedSendReferenceNumber);
                     ledgerHawalaId = generatedSendHawala.Id;
+                    paymentCommissionAmount = generatedSendHawala.AgentCommissionAmount;
+                    paymentCommissionCurrencyId = generatedSendHawala.AgentCommissionCurrencyId;
                 }
 
-                await ProcessHawalaReceivePaymentLedgerAsync(hawala, paidFromAccount, ledgerHawalaId);
+                await ProcessHawalaReceivePaymentLedgerAsync(
+                    hawala,
+                    paidFromAccount,
+                    ledgerHawalaId,
+                    paymentCommissionAmount,
+                    paymentCommissionCurrencyId);
             }
 
             private async Task<Hawala> CreateGeneratedSendHawalaAsync(
                 Hawala receivedHawala,
                 Account paidFromAccount,
-                long? requestedNumber = null)
+                long? requestedNumber = null,
+                decimal? agentCommissionAmount = null,
+                long? agentCommissionCurrencyId = null,
+                string? referenceNumber = null)
             {
                 if (!paidFromAccount.CorrespondentId.HasValue)
                 {
@@ -1182,11 +1734,15 @@
                 }
 
                 var now = DateTime.UtcNow;
+                var hasCommission = agentCommissionAmount is > 0;
+                if (hasCommission && (!agentCommissionCurrencyId.HasValue ||
+                    !await _context.Currencies.AnyAsync(x => x.Id == agentCommissionCurrencyId.Value && x.IsActive)))
+                    throw new InvalidOperationException("ارز کمیشن نمایندگی معتبر یا فعال نیست.");
                 var generatedHawala = new Hawala
                 {
                     Number = generatedNumber,
                     HawalaType = "HawalaSend",
-                    Status = "Paid",
+                    Status = hasCommission ? "Paid" : "Pending",
                     CorrespondentId = destinationCorrespondentId,
                     SourceHawalaId = receivedHawala.Id,
                     IsSystemGenerated = true,
@@ -1209,16 +1765,18 @@
                     ToCurrencyId = receivedHawala.ToCurrencyId,
                     ToAmount = receivedHawala.ToAmount,
                     ExchangeRate = receivedHawala.ExchangeRate,
-                    CommissionAmount = receivedHawala.CommissionAmount,
-                    CommissionCurrencyId = receivedHawala.CommissionCurrencyId,
-                    AgentCommissionAmount = receivedHawala.AgentCommissionAmount,
-                    AgentCommissionCurrencyId = receivedHawala.AgentCommissionCurrencyId,
-                    ReferenceNumber = $"AUTO-RCV-{receivedHawala.Id}",
+                    CommissionAmount = null,
+                    CommissionCurrencyId = null,
+                    AgentCommissionAmount = hasCommission ? agentCommissionAmount : null,
+                    AgentCommissionCurrencyId = hasCommission ? agentCommissionCurrencyId : null,
+                    ReferenceNumber = string.IsNullOrWhiteSpace(referenceNumber)
+                        ? $"AUTO-RCV-{receivedHawala.Id}"
+                        : referenceNumber.Trim(),
                     Notes = receivedHawala.Notes,
                     CreatedAt = now,
                     CreatedBy = GetCurrentUserId(),
-                    PaidAt = now,
-                    PaidBy = GetCurrentUserId()
+                    PaidAt = hasCommission ? now : null,
+                    PaidBy = hasCommission ? GetCurrentUserId() : null
                 };
 
                 await _context.Hawalas.AddAsync(generatedHawala);
@@ -1238,7 +1796,9 @@
             private async Task ProcessHawalaReceivePaymentLedgerAsync(
                 Hawala hawala,
                 Account paidFromAccount,
-                long ledgerHawalaId)
+                long ledgerHawalaId,
+                decimal? agentCommissionAmount = null,
+                long? agentCommissionCurrencyId = null)
             {
 
                 var pendingHawalaAccount = await GetOrCreatePendingHawalaAccountAsync();
@@ -1262,26 +1822,26 @@
                     talabKar: payableAmount,
                     badehKar: 0,
                     description: $"حواله دریافتی {hawala.Id}: پرداخت حواله از حساب انتخاب‌شده");
-                if (hawala.AgentCommissionAmount > 0)
+                if (agentCommissionAmount > 0)
                 {
                     var expenseAccount = await GetOrCreatePayoutAgentCommissionExpenseAccountAsync();
-                    var agentCommissionCurrencyId =
-                        hawala.AgentCommissionCurrencyId ??
+                    var effectiveCommissionCurrencyId =
+                        agentCommissionCurrencyId ??
                         hawala.ToCurrencyId;
 
                     await CreateLedgerEntry(
                         ledgerHawalaId,
                         expenseAccount.Id,
-                        agentCommissionCurrencyId,
+                        effectiveCommissionCurrencyId,
                         talabKar: 0,
-                        badehKar: hawala.AgentCommissionAmount.Value,
+                        badehKar: agentCommissionAmount.Value,
                         description: $"حواله دریافتی {hawala.Id}: هزینه کمیشن عامل پرداخت");
 
                     await CreateLedgerEntry(
                         ledgerHawalaId,
                         paidFromAccount.Id,
-                        agentCommissionCurrencyId,
-                        talabKar: hawala.AgentCommissionAmount.Value,
+                        effectiveCommissionCurrencyId,
+                        talabKar: agentCommissionAmount.Value,
                         badehKar: 0,
                         description: $"حواله دریافتی {hawala.Id}: کمیشن قابل پرداخت به عامل پرداخت");
                 }
@@ -1394,6 +1954,11 @@
                 {
                     throw new InvalidOperationException("برای کارمزد نمایندگی، انتخاب ارز الزامی است.");
                 }
+                if (dto.GeneratedSendAgentCommissionAmount < 0)
+                    throw new InvalidOperationException("کمیشن حواله ارسالی نمی‌تواند منفی باشد.");
+                if (dto.GeneratedSendAgentCommissionAmount > 0 &&
+                    (!dto.GeneratedSendAgentCommissionCurrencyId.HasValue || dto.GeneratedSendAgentCommissionCurrencyId <= 0))
+                    throw new InvalidOperationException("برای کمیشن حواله ارسالی، انتخاب ارز الزامی است.");
 
                 if (dto.HawalaType == "HawalaReceive" &&
                     dto.Status == "Paid" &&

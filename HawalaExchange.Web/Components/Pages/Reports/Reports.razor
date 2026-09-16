@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Authorization
 @inject IReportService ReportService
 @inject IBranchService BranchService
+@inject ICurrencyService CurrencyService
 @inject ICustomerService CustomerService
 @inject ICorrespondentService CorrespondentService
 @inject NavigationManager NavigationManager
@@ -111,7 +112,17 @@
                                 }
                             </select>
                         </div>
-                        <div class="col-md-6 d-flex align-items-end gap-2">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold"><i class="bi bi-cash-stack text-muted me-1"></i> ارز</label>
+                            <select class="form-select" @bind="dailyCurrencyId" @bind:after="LoadDailyReport">
+                                <option value="0">همه ارزها</option>
+                                @foreach (var currency in currencies)
+                                {
+                                    <option value="@currency.Id">@currency.Code - @currency.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end gap-2">
                             <button class="btn-modern btn-primary-modern" @onclick="LoadDailyReport">
                                 <i class="bi bi-search"></i> نمایش
                             </button>
@@ -158,10 +169,11 @@
                             <GlobalDataGrid class="table-modern table-striped-modern">
                                 <thead>
                                     <tr>
-                                        <th>مبلغ ارسال</th>
-                                        <th>مبلغ دریافت</th>
-                                        <th>کارمزد کل</th>
-                                        <th>هزینه‌ها</th>
+                                        <th>مبلغ ارسال @ReportCurrencyLabel(dailyReport.CurrencyCode)</th>
+                                        <th>مبلغ دریافت @ReportCurrencyLabel(dailyReport.CurrencyCode)</th>
+                                        <th>کارمزد کل @ReportCurrencyLabel(dailyReport.CurrencyCode)</th>
+                                        <th>کمیشن عامل پرداخت @ReportCurrencyLabel(dailyReport.CurrencyCode)</th>
+                                        <th>هزینه‌ها @ReportCurrencyLabel(dailyReport.CurrencyCode)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -169,6 +181,7 @@
                                         <td class="fw-bold text-primary">@MoneyFormatHelper.Format(dailyReport.TotalSendAmount)</td>
                                         <td class="fw-bold text-success">@MoneyFormatHelper.Format(dailyReport.TotalReceiveAmount)</td>
                                         <td class="fw-bold text-warning">@MoneyFormatHelper.Format(dailyReport.TotalCommission)</td>
+                                        <td class="fw-bold text-danger">@MoneyFormatHelper.Format(dailyReport.TotalAgentCommission)</td>
                                         <td class="fw-bold text-danger">@MoneyFormatHelper.Format(dailyReport.TotalExpenses)</td>
                                     </tr>
                                 </tbody>
@@ -219,7 +232,17 @@
                                 <option value="Cancel">لغو شده</option>
                             </select>
                         </div>
-                        <div class="col-md-4 d-flex align-items-end gap-2">
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold"><i class="bi bi-cash-stack text-muted me-1"></i> ارز</label>
+                            <select class="form-select" @bind="txnCurrencyId" @bind:after="LoadTransactionReport">
+                                <option value="0">همه</option>
+                                @foreach (var currency in currencies)
+                                {
+                                    <option value="@currency.Id">@currency.Code</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end gap-2">
                             <button class="btn-modern btn-primary-modern" @onclick="LoadTransactionReport">
                                 <i class="bi bi-search"></i> نمایش
                             </button>
@@ -266,7 +289,7 @@
                                             <td dir="ltr">@MoneyFormatHelper.Format(r.FromAmount)</td>
                                             <td>@r.ToCurrency</td>
                                             <td dir="ltr">@MoneyFormatHelper.Format(r.ToAmount)</td>
-                                            <td dir="ltr">@MoneyFormatHelper.Format(r.Commission)</td>
+                                            <td dir="ltr">@MoneyFormatHelper.Format(r.Commission) @r.CommissionCurrency</td>
                                             <td>@GetStatusBadge(r.Status)</td>
                                             <td><AppDateTime Value="@r.CreatedAt" /></td>
                                         </tr>
@@ -310,7 +333,17 @@
                                 }
                             </select>
                         </div>
-                        <div class="col-md-6 d-flex align-items-end gap-2">
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold"><i class="bi bi-cash-stack text-muted me-1"></i> ارز</label>
+                            <select class="form-select" @bind="commCurrencyId" @bind:after="LoadCommissionReport">
+                                <option value="0">همه</option>
+                                @foreach (var currency in currencies)
+                                {
+                                    <option value="@currency.Id">@currency.Code</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end gap-2">
                             <button class="btn-modern btn-primary-modern" @onclick="LoadCommissionReport">
                                 <i class="bi bi-search"></i> نمایش
                             </button>
@@ -332,9 +365,9 @@
                                     <tr>
                                         <th>تاریخ</th>
                                         <th>شعبه</th>
-                                        <th>کارمزد کل</th>
-                                        <th>کارمزد نماینده</th>
-                                        <th>کارمزد خالص</th>
+                                        <th>کارمزد کل @SelectedCommissionCurrencyLabel</th>
+                                        <th>کارمزد نماینده @SelectedCommissionCurrencyLabel</th>
+                                        <th>کارمزد خالص @SelectedCommissionCurrencyLabel</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -617,6 +650,7 @@
 @code {
     // ===== داده‌های کمکی =====
     private List<BranchDto> branches = new();
+    private List<CurrencyDto> currencies = new();
     private List<CustomerDto> customers = new();
     private List<CorrespondentDto> correspondents = new();
 
@@ -626,6 +660,7 @@
     // ===== فیلدهای گزارش روزانه =====
     private DateTime dailyDate = DateTime.Today;
     private long dailyBranchId = 0;
+    private long dailyCurrencyId = 0;
     private bool isLoadingDaily = false;
     private DailyReportDto? dailyReport = null;
 
@@ -634,6 +669,7 @@
     private DateTime txnToDate = DateTime.Today;
     private long txnBranchId = 0;
     private string txnStatus = "";
+    private long txnCurrencyId = 0;
     private bool isLoadingTransactions = false;
     private List<TransactionReportDto> transactionReports = new();
 
@@ -641,6 +677,7 @@
     private DateTime commFromDate = DateTime.Today.AddDays(-30);
     private DateTime commToDate = DateTime.Today;
     private long commBranchId = 0;
+    private long commCurrencyId = 0;
     private bool isLoadingCommission = false;
     private List<CommissionReportDto> commissionReports = new();
 
@@ -675,6 +712,7 @@
         try
         {
             branches = (await BranchService.GetAllAsync()).ToList();
+            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
             customers = (await CustomerService.GetAllAsync()).ToList();
             correspondents = (await CorrespondentService.GetAllAsync()).ToList();
         }
@@ -699,17 +737,12 @@
     // ===== گزارش روزانه =====
     private async Task LoadDailyReport()
     {
-        if (dailyBranchId == 0)
-        {
-            dailyBranchId = branches.FirstOrDefault()?.Id ?? 0;
-        }
-        if (dailyBranchId == 0) return;
-
         isLoadingDaily = true;
         StateHasChanged();
         try
         {
-            dailyReport = await ReportService.GetDailyReportAsync(dailyDate, dailyBranchId);
+            var currencyId = dailyCurrencyId == 0 ? (long?)null : dailyCurrencyId;
+            dailyReport = await ReportService.GetDailyReportAsync(dailyDate, dailyBranchId, currencyId);
         }
         catch
         {
@@ -726,6 +759,7 @@
     {
         dailyDate = DateTime.Today;
         dailyBranchId = 0;
+        dailyCurrencyId = 0;
         dailyReport = null;
         StateHasChanged();
     }
@@ -739,7 +773,8 @@
         {
             long? branchId = txnBranchId == 0 ? (long?)null : txnBranchId;
             string? status = string.IsNullOrEmpty(txnStatus) ? null : txnStatus;
-            var result = await ReportService.GetTransactionReportAsync(txnFromDate, txnToDate, branchId, status);
+            var currencyId = txnCurrencyId == 0 ? (long?)null : txnCurrencyId;
+            var result = await ReportService.GetTransactionReportAsync(txnFromDate, txnToDate, branchId, status, currencyId);
             transactionReports = result.ToList();
         }
         catch
@@ -759,6 +794,7 @@
         txnToDate = DateTime.Today;
         txnBranchId = 0;
         txnStatus = "";
+        txnCurrencyId = 0;
         transactionReports = new();
         StateHasChanged();
     }
@@ -771,7 +807,8 @@
         try
         {
             long? branchId = commBranchId == 0 ? (long?)null : commBranchId;
-            var result = await ReportService.GetCommissionReportAsync(commFromDate, commToDate, branchId);
+            var currencyId = commCurrencyId == 0 ? (long?)null : commCurrencyId;
+            var result = await ReportService.GetCommissionReportAsync(commFromDate, commToDate, branchId, currencyId);
             commissionReports = result.ToList();
         }
         catch
@@ -790,6 +827,7 @@
         commFromDate = DateTime.Today.AddDays(-30);
         commToDate = DateTime.Today;
         commBranchId = 0;
+        commCurrencyId = 0;
         commissionReports = new();
         StateHasChanged();
     }
@@ -888,6 +926,12 @@
 
     // ===== متدهای کمکی =====
     private string GetTransactionTypeName(string type) => AppDisplayText.TransactionType(type);
+
+    private static string ReportCurrencyLabel(string? currencyCode) =>
+        string.IsNullOrWhiteSpace(currencyCode) ? "(همه ارزها؛ بدون تبدیل)" : $"({currencyCode})";
+
+    private string SelectedCommissionCurrencyLabel =>
+        ReportCurrencyLabel(currencies.FirstOrDefault(x => x.Id == commCurrencyId)?.Code);
 
     private MarkupString GetStatusBadge(string status)
     {

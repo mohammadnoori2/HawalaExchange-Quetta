@@ -21,4 +21,8 @@ public class CompanySettingDto
     public long? DefaultProfitCurrencyId { get; set; }
 
     public string DefaultProfitCurrencyCode { get; set; } = string.Empty;
+
+    public long? OwnPaymentLocationId { get; set; }
+
+    public string OwnPaymentLocationName { get; set; } = string.Empty;
 }

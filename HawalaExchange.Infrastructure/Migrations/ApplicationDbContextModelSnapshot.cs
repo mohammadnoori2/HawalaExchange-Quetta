@@ -1045,6 +1045,9 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<long?>("OwnPaymentLocationId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -1071,6 +1074,8 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("TenantId", "DefaultProfitCurrencyId");
+
+                    b.HasIndex("TenantId", "OwnPaymentLocationId");
 
                     b.ToTable("CompanySettings");
                 });
@@ -2007,13 +2012,11 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "CreatedBy");
 
-                    b.HasIndex("TenantId", "FromCurrencyId");
+                    b.HasIndex("TenantId", "Number");
 
                     b.HasIndex("TenantId", "PaidBy");
 
                     b.HasIndex("TenantId", "PaidFromAccountId");
-
-                    b.HasIndex("TenantId", "PaymentLocationId");
 
                     b.HasIndex("TenantId", "ReferenceNumber");
 
@@ -2023,11 +2026,17 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "ToCurrencyId");
 
-                    b.HasIndex("TenantId", "HawalaType", "Status");
+                    b.HasIndex("TenantId", "FromCurrencyId", "CreatedAt");
+
+                    b.HasIndex("TenantId", "CorrespondentId", "HawalaType", "CreatedAt");
 
                     b.HasIndex("TenantId", "CorrespondentId", "HawalaType", "Number")
                         .IsUnique()
                         .HasFilter("[CorrespondentId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "HawalaType", "Status", "CreatedAt");
+
+                    b.HasIndex("TenantId", "PaymentLocationId", "HawalaType", "CreatedAt");
 
                     b.ToTable("Hawalas", t =>
                         {
@@ -2078,6 +2087,9 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
 
+                    b.Property<long?>("OwnPaymentLocationId")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("RowCount")
                         .HasColumnType("int");
 
@@ -2116,6 +2128,16 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<decimal?>("AgentCommissionAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("AgentCommissionCurrencyCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<long?>("AgentCommissionCurrencyId")
+                        .HasColumnType("bigint");
+
                     b.Property<decimal?>("Amount")
                         .HasColumnType("decimal(18,2)");
 
@@ -2129,8 +2151,14 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.Property<long?>("CurrencyId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("DestinationCorrespondentId")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("ExcelRowNumber")
                         .HasColumnType("int");
+
+                    b.Property<long?>("GeneratedSendHawalaId")
+                        .HasColumnType("bigint");
 
                     b.Property<long?>("HawalaId")
                         .HasColumnType("bigint");
@@ -2168,7 +2196,13 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasAlternateKey("TenantId", "Id");
 
+                    b.HasIndex("TenantId", "AgentCommissionCurrencyId");
+
                     b.HasIndex("TenantId", "CurrencyId");
+
+                    b.HasIndex("TenantId", "DestinationCorrespondentId");
+
+                    b.HasIndex("TenantId", "GeneratedSendHawalaId");
 
                     b.HasIndex("TenantId", "HawalaId");
 
@@ -2266,7 +2300,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "TransferId");
 
-                    b.HasIndex("TenantId", "AccountId", "CurrencyId");
+                    b.HasIndex("TenantId", "AccountId", "CurrencyId", "CreatedAt");
 
                     b.ToTable("LedgerEntries", t =>
                         {
@@ -4061,7 +4095,15 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("HawalaExchange.Domain.Entities.PaymentLocation", "OwnPaymentLocation")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "OwnPaymentLocationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("DefaultProfitCurrency");
+
+                    b.Navigation("OwnPaymentLocation");
 
                     b.Navigation("Tenant");
                 });
@@ -4488,6 +4530,12 @@ namespace HawalaExchange.Infrastructure.Migrations
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.HawalaImportRow", b =>
                 {
+                    b.HasOne("HawalaExchange.Domain.Entities.Currency", "AgentCommissionCurrency")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AgentCommissionCurrencyId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("HawalaExchange.Domain.Entities.HawalaImportBatch", "Batch")
                         .WithMany("Rows")
                         .HasForeignKey("TenantId", "BatchId")
@@ -4498,6 +4546,18 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.HasOne("HawalaExchange.Domain.Entities.Currency", "Currency")
                         .WithMany()
                         .HasForeignKey("TenantId", "CurrencyId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Correspondent", "DestinationCorrespondent")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DestinationCorrespondentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HawalaExchange.Domain.Entities.Hawala", "GeneratedSendHawala")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "GeneratedSendHawalaId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
@@ -4513,9 +4573,15 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("AgentCommissionCurrency");
+
                     b.Navigation("Batch");
 
                     b.Navigation("Currency");
+
+                    b.Navigation("DestinationCorrespondent");
+
+                    b.Navigation("GeneratedSendHawala");
 
                     b.Navigation("Hawala");
 

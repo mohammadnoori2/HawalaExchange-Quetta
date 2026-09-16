@@ -31,8 +31,8 @@
         </div>
 
         <PageHeaderStats AriaLabel="آمار حواله‌های اجرا نشده">
-            <PageHeaderStat Label="اجرا نشده" Value="@hawalas.Count" Icon="bi-clock-history" Tone="danger" />
-            <PageHeaderStat Label="مجموع مبلغ" Value="@(MoneyFormatHelper.Format(hawalas.Sum(x => x.FromAmount)))" Icon="bi-cash-stack" Tone="info" />
+            <PageHeaderStat Label="اجرا نشده" Value="@totalCount" Icon="bi-clock-history" Tone="danger" />
+            <PageHeaderStat Label="مجموع مبلغ" Value="@(MoneyFormatHelper.Format(totalFromAmount))" Icon="bi-cash-stack" Tone="info" />
         </PageHeaderStats>
         <div class="page-actions">
             <button class="btn-modern btn-light-modern btn-rounded" @onclick="LoadData">
@@ -121,7 +121,7 @@
             <div class="table-card-header-left">
                 <span class="badge-modern badge-danger">
                     <i class="bi bi-clock-history"></i>
-                    @filteredHawalas.Count
+                    @totalCount
                 </span>
             </div>
         </div>
@@ -226,7 +226,7 @@
             <div class="table-card-footer-left">
                 <span class="text-muted small">
                     نمایش <strong>@pagedHawalas.Count</strong>
-                    از <strong>@filteredHawalas.Count</strong>
+                    از <strong>@totalCount</strong>
                 </span>
             </div>
 
@@ -237,6 +237,7 @@
             </div>
             <PageSizeSelector @bind-Value="pageSize"
                               @bind-CurrentPage="currentPage"
+                              Changed="OnPageSizeChangedAsync"
                               AriaLabel="تعداد حواله در هر صفحه" />
         </div>
     </div>
@@ -603,7 +604,6 @@
 
 @code {
     private List<HawalaDto> hawalas = new();
-    private List<HawalaDto> filteredHawalas = new();
     private List<AccountDto> accounts = new();
     private List<CorrespondentDto> correspondents = new();
     private List<CurrencyDto> currencies = new();
@@ -648,18 +648,11 @@
 
     private int pageSize = 10;
     private int currentPage = 1;
+    private int totalCount;
+    private int totalPages = 1;
+    private decimal totalFromAmount;
 
-    private List<HawalaDto> pagedHawalas =>
-        filteredHawalas
-            .OrderByDescending(x => x.CreatedAt)
-            .Skip((currentPage - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
-
-    private int totalPages =>
-        filteredHawalas.Count == 0
-            ? 1
-            : (int)Math.Ceiling((double)filteredHawalas.Count / pageSize);
+    private List<HawalaDto> pagedHawalas => hawalas;
 
     private List<AccountDto> paymentAccounts =>
         accounts
@@ -755,17 +748,19 @@
                 MaxAmount = filterMaxAmount,
                 FromDate = filterFromDate == DateTime.MinValue ? null : filterFromDate.Date,
                 ToDate = filterToDate == DateTime.MinValue ? null : filterToDate.Date,
-                PageNumber = 1,
-                PageSize = int.MaxValue,
+                PageNumber = currentPage,
+                PageSize = pageSize == 0 ? int.MaxValue : pageSize,
                 SortColumn = "CreatedAt",
-                SortDirection = "desc"
+                SortDirection = "desc",
+                IncludeTotalAmount = true
             };
 
             var result = await HawalaService.GetHawalasAsync(filter);
 
             hawalas = result.Items.ToList();
-            filteredHawalas = hawalas.ToList();
-            currentPage = 1;
+            totalCount = result.TotalCount;
+            totalPages = Math.Max(1, result.TotalPages);
+            totalFromAmount = result.TotalFromAmount;
         }
         catch (Exception ex)
         {
@@ -809,6 +804,7 @@
             return;
         }
 
+        currentPage = 1;
         await LoadData();
     }
 
@@ -823,13 +819,23 @@
         filterFromDate = DateTime.MinValue;
         filterToDate = DateTime.MinValue;
         filterValidationError = string.Empty;
+        currentPage = 1;
         await LoadData();
     }
 
-    private void GoToPage(int page)
+    private async Task OnPageSizeChangedAsync()
+    {
+        currentPage = 1;
+        await LoadData();
+    }
+
+    private async Task GoToPage(int page)
     {
         if (page >= 1 && page <= totalPages)
+        {
             currentPage = page;
+            await LoadData();
+        }
     }
 
     private async Task ViewHawala(long id)

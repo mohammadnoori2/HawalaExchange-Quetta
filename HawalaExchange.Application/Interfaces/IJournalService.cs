@@ -10,6 +10,15 @@ public interface IJournalService
 
     Task<IReadOnlyList<JournalOperationDto>> GetAccountOperationsAsync(long accountId);
 
+    Task<AccountOperationsPageDto> GetAccountOperationsPageAsync(
+        AccountOperationsFilterDto filter,
+        CancellationToken cancellationToken = default);
+
+    Task<JournalOperationDto?> GetAccountOperationDetailsAsync(
+        long accountId,
+        string operationKey,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<CashDailyBalanceDto>> GetCashDailyBalancesAsync(DateTime journalDate);
 
     Task<IReadOnlyList<CurrentCashBalanceDto>> GetCurrentCashBalancesAsync();

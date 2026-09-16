@@ -6,8 +6,8 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
-@inject IAccountService AccountService
 @inject NavigationManager NavigationManager
+@implements IDisposable
 
 <PageTitle>@(correspondent == null ? "وضعیت نمایندگی" : $"وضعیت {correspondent.Name}")</PageTitle>
 
@@ -39,6 +39,8 @@
                              ShowFinancialActions="false"
                              ShowBackButton="false"
                              ActionEntityArchived="@correspondent.IsArchived"
+                             InitialBalances="@initialBalances"
+                             InitialOperationsPage="@initialOperationsPage"
                              IsVisibleChanged="HandleVisibilityChanged">
             <ProfileSummary>
                 @if (correspondentAccount == null)
@@ -56,33 +58,49 @@
     private CorrespondentDto? correspondent;
     private AccountDto? correspondentAccount;
     private AccountDto? accountForView;
+    private IReadOnlyList<BalanceDto>? initialBalances;
+    private AccountOperationsPageDto? initialOperationsPage;
     private bool isLoading = true;
     private string pageError = string.Empty;
     private long? loadedCorrespondentId;
+    private CancellationTokenSource? pageLoadCts;
+    private int pageLoadVersion;
 
     protected override async Task OnParametersSetAsync()
     {
         if (loadedCorrespondentId == CorrespondentId)
             return;
 
+        pageLoadCts?.Cancel();
+        pageLoadCts?.Dispose();
+        pageLoadCts = new CancellationTokenSource();
         loadedCorrespondentId = CorrespondentId;
-        await LoadCorrespondentAsync();
+        await LoadCorrespondentAsync(pageLoadCts.Token);
     }
 
-    private async Task LoadCorrespondentAsync()
+    private async Task LoadCorrespondentAsync(CancellationToken cancellationToken = default)
     {
+        var loadVersion = ++pageLoadVersion;
         try
         {
             isLoading = true;
             pageError = string.Empty;
-            correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId);
-            if (correspondent == null)
+            var page = await CorrespondentService.GetStatusPageAsync(CorrespondentId, cancellationToken);
+            if (loadVersion != pageLoadVersion)
+                return;
+            if (page == null)
             {
+                correspondent = null;
                 pageError = "نمایندگی مورد نظر وجود ندارد یا حذف شده است.";
                 return;
             }
 
-            correspondentAccount = (await AccountService.GetByReferenceAsync("Correspondent", CorrespondentId)).FirstOrDefault();
+            correspondent = page.Correspondent;
+            initialBalances = page.Balances;
+            initialOperationsPage = page.Operations;
+            correspondentAccount = page.AccountId.HasValue
+                ? CreateAccountForView(page.AccountId.Value, correspondent)
+                : null;
             accountForView = correspondentAccount ?? new AccountDto
             {
                 Id = 0,
@@ -96,6 +114,9 @@
                 CreatedAt = correspondent.CreatedAt
             };
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
         catch (Exception ex)
         {
             correspondent = null;
@@ -104,9 +125,23 @@
         }
         finally
         {
-            isLoading = false;
+            if (loadVersion == pageLoadVersion)
+                isLoading = false;
         }
     }
+
+    private static AccountDto CreateAccountForView(long accountId, CorrespondentDto source) => new()
+    {
+        Id = accountId,
+        AccountCode = source.Code,
+        AccountName = source.Name,
+        AccountType = "Correspondent",
+        ReferenceType = "Correspondent",
+        ReferenceId = source.Id,
+        IsActive = !source.IsArchived,
+        IsArchived = source.IsArchived,
+        CreatedAt = source.CreatedAt
+    };
 
     private Task HandleVisibilityChanged(bool visible)
     {
@@ -117,4 +152,10 @@
     }
 
     private void BackToCorrespondents() => NavigationManager.NavigateTo("/correspondents");
+
+    public void Dispose()
+    {
+        pageLoadCts?.Cancel();
+        pageLoadCts?.Dispose();
+    }
 }

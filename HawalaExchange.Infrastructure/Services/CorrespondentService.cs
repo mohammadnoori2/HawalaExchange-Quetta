@@ -3,7 +3,9 @@ using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using System.Data;
 
@@ -36,10 +38,120 @@ namespace HawalaExchange.Application.Services
         public override async Task<CorrespondentDto?> GetByIdAsync(long id)
         {
             var entity = await _dbSet
+                .AsNoTracking()
                 .Include(x => x.SettlementCurrency)
                 .FirstOrDefaultAsync(x => x.Id == id);
             return entity == null ? null : _mapper.Map<CorrespondentDto>(entity);
         }
+
+        public Task<CorrespondentDetailsPageDto?> GetDetailsPageAsync(
+            long id,
+            CancellationToken cancellationToken = default) =>
+            _dbSet
+                .AsNoTracking()
+                .Where(x => x.Id == id)
+                .Select(x => new CorrespondentDetailsPageDto
+                {
+                    Correspondent = new CorrespondentDto
+                    {
+                        Id = x.Id,
+                        Code = x.Code,
+                        Name = x.Name,
+                        Country = x.Country,
+                        City = x.City,
+                        PhoneNumber = x.PhoneNumber,
+                        Address = x.Address,
+                        IsArchived = x.IsArchived,
+                        Remarks = x.Remarks,
+                        SettlementCurrencyId = x.SettlementCurrencyId,
+                        SettlementCurrencyCode = x.SettlementCurrency == null
+                            ? null
+                            : x.SettlementCurrency.Code,
+                        CommissionMethod = x.CommissionMethod,
+                        CreatedAt = x.CreatedAt
+                    },
+                    AccountId = _context.Accounts
+                        .Where(account => account.CorrespondentId == x.Id && !account.IsArchived)
+                        .Select(account => (long?)account.Id)
+                        .FirstOrDefault()
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+        public async Task<CorrespondentStatusPageDto?> GetStatusPageAsync(
+            long id,
+            CancellationToken cancellationToken = default)
+        {
+            var connection = (SqlConnection)_context.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+            if (shouldClose)
+                await connection.OpenAsync(cancellationToken);
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = "[dbo].[usp_GetAccountOperationsPage_v1]";
+                command.CommandType = CommandType.StoredProcedure;
+                command.CommandTimeout = 60;
+                command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+                command.Parameters.Add("@AccountId", SqlDbType.BigInt).Value = DBNull.Value;
+                command.Parameters.Add("@PageNumber", SqlDbType.Int).Value = 1;
+                command.Parameters.Add("@PageSize", SqlDbType.Int).Value = 10;
+                command.Parameters.Add("@CorrespondentId", SqlDbType.BigInt).Value = id;
+                command.Parameters.Add("@IncludeStatusHeader", SqlDbType.Bit).Value = true;
+                command.Parameters.Add("@IncludeBalances", SqlDbType.Bit).Value = true;
+                if (_context.Database.CurrentTransaction?.GetDbTransaction() is SqlTransaction transaction)
+                    command.Transaction = transaction;
+
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                if (!await reader.ReadAsync(cancellationToken))
+                    return null;
+
+                var result = new CorrespondentStatusPageDto
+                {
+                    Correspondent = new CorrespondentDto
+                    {
+                        Id = reader.GetInt64(0),
+                        Code = reader.GetString(1),
+                        Name = reader.GetString(2),
+                        Country = ReadNullableString(reader, 3),
+                        City = ReadNullableString(reader, 4),
+                        PhoneNumber = ReadNullableString(reader, 5),
+                        Address = ReadNullableString(reader, 6),
+                        IsArchived = reader.GetBoolean(7),
+                        Remarks = ReadNullableString(reader, 8),
+                        SettlementCurrencyId = reader.IsDBNull(9) ? null : reader.GetInt64(9),
+                        SettlementCurrencyCode = ReadNullableString(reader, 10),
+                        CommissionMethod = reader.GetString(11),
+                        CreatedAt = reader.GetDateTime(12)
+                    },
+                    AccountId = reader.IsDBNull(13) ? null : reader.GetInt64(13)
+                };
+
+                await reader.NextResultAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    result.Balances.Add(new BalanceDto
+                    {
+                        CurrencyId = reader.GetInt64(0),
+                        CurrencyCode = reader.GetString(1),
+                        Balance = reader.GetDecimal(2)
+                    });
+                }
+
+                await reader.NextResultAsync(cancellationToken);
+                result.Operations = await JournalService.ReadAccountOperationsPageAsync(
+                    reader, 1, 10, cancellationToken);
+                return result;
+            }
+            finally
+            {
+                if (shouldClose)
+                    await connection.CloseAsync();
+            }
+        }
+
+        private static string? ReadNullableString(SqlDataReader reader, int ordinal) =>
+            reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
 
         public override async Task<IEnumerable<CorrespondentDto>> GetAllAsync()
         {
@@ -135,7 +247,9 @@ namespace HawalaExchange.Application.Services
         // ===== بازنویسی متد CreateAsync با پشتیبانی از موجودی اولیه =====
         public override async Task<CorrespondentDto> CreateAsync(CreateCorrespondentDto createDto)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await using var transaction = _context.Database.CurrentTransaction == null
+                ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+                : null;
 
             try
             {
@@ -165,13 +279,15 @@ namespace HawalaExchange.Application.Services
                     newValue: $"نماینده {correspondentDto.Name} با کد {correspondentDto.Code} ایجاد شد"
                 );
 
-                await transaction.CommitAsync();
+                if (transaction != null)
+                    await transaction.CommitAsync();
 
                 return correspondentDto;
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
+                if (transaction != null)
+                    await transaction.RollbackAsync();
                 _logger.LogError(ex, "خطا در ایجاد نماینده و حساب مرتبط");
                 throw;
             }

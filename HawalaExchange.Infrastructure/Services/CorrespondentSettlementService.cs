@@ -4,7 +4,9 @@ using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HawalaExchange.Infrastructure.Services;
 
@@ -42,139 +44,15 @@ public sealed class CorrespondentSettlementService(
         CancellationToken cancellationToken = default)
     {
         using var tenantScope = PinCurrentTenant();
-        context.ChangeTracker.Clear();
         var ids = dto.HawalaIds.Where(x => x > 0).Distinct().ToArray();
         if (ids.Length == 0)
             throw new InvalidOperationException("حداقل یک حواله را برای تبدیل انتخاب کنید.");
-
-        var submittedRates = dto.HawalaRates
-            .Where(x => x.HawalaId > 0 && x.SourceCurrencyId > 0 && x.Rate > 0)
-            .GroupBy(x => new { x.HawalaId, x.SourceCurrencyId })
-            .ToDictionary(x => (x.Key.HawalaId, x.Key.SourceCurrencyId), x => x.Last().Rate);
-
-        await using var dbTransaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
-
-        var correspondent = await GetConfiguredCorrespondentAsync(dto.CorrespondentId, cancellationToken);
-        var targetCurrencyId = correspondent.SettlementCurrencyId!.Value;
-        var hawalas = await PendingHawalas(dto.CorrespondentId, targetCurrencyId)
-            .Where(x => ids.Contains(x.Id))
-            .Select(x => new { x.Id, x.Number })
-            .ToListAsync(cancellationToken);
-
-        if (hawalas.Count != ids.Length)
-            throw new InvalidOperationException("یک یا چند حواله معتبر نیست، قبلاً تبدیل شده یا به ارز توافقی ثبت شده است.");
-
-        var accountId = await GetCorrespondentAccountIdAsync(dto.CorrespondentId, cancellationToken);
-        var balances = await GetHawalaBalancesAsync(accountId, ids, targetCurrencyId, cancellationToken);
-        if (balances.Select(x => x.HawalaId).Distinct().Count() != ids.Length)
-            throw new InvalidOperationException("برای یک یا چند حواله ماندهٔ قابل تبدیل پیدا نشد.");
-
-        foreach (var balance in balances)
-        {
-            if (!submittedRates.ContainsKey((balance.HawalaId, balance.SourceCurrencyId)))
-                throw new InvalidOperationException($"نرخ حواله شماره {balance.HawalaNumber} برای ارز {balance.SourceCurrencyCode} وارد نشده است.");
-        }
-
-        var sourceCurrencies = await context.Currencies
-            .Where(x => balances.Select(b => b.SourceCurrencyId).Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, cancellationToken);
-        var targetCurrency = correspondent.SettlementCurrency!;
-        var clearingAccountId = await GetOrCreateClearingAccountIdAsync(cancellationToken);
-        var transaction = new Transaction
-        {
-            TransactionNo = await GenerateTransactionNumberAsync(cancellationToken),
-            TransactionType = "CorrespondentSettlementConversion",
-            BranchId = await context.GetDefaultBranchIdAsync(cancellationToken),
-            Status = "Paid",
-            Remarks = $"تبدیل حواله‌های نمایندگی {correspondent.Name} به {targetCurrency.Code}. {dto.Note}".Trim(),
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow
-        };
-        context.Transactions.Add(transaction);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var conversion = new CorrespondentSettlementConversion
-        {
-            CorrespondentId = correspondent.Id,
-            TargetCurrencyId = targetCurrency.Id,
-            TransactionId = transaction.Id,
-            SourceMode = "Hawalas",
-            Note = dto.Note?.Trim(),
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow
-        };
-        context.CorrespondentSettlementConversions.Add(conversion);
-        foreach (var hawalaId in ids)
-            conversion.Hawalas.Add(new CorrespondentSettlementConversionHawala { HawalaId = hawalaId });
-
-        var resultItems = new List<CorrespondentSettlementResultItemDto>();
-        foreach (var balance in balances)
-        {
-            var source = sourceCurrencies[balance.SourceCurrencyId];
-            var sourceAmount = Math.Abs(balance.NetAmount);
-            var rate = submittedRates[(balance.HawalaId, balance.SourceCurrencyId)];
-            var targetAmount = ConvertAmount(source, targetCurrency, sourceAmount, rate);
-            var item = new CorrespondentSettlementConversionHawalaItem
-            {
-                HawalaId = balance.HawalaId,
-                SourceCurrencyId = source.Id,
-                SourceTalabKar = balance.TalabKar,
-                SourceBadehKar = balance.BadehKar,
-                ExchangeRate = rate,
-                TargetTalabKar = balance.NetAmount > 0 ? targetAmount : 0,
-                TargetBadehKar = balance.NetAmount < 0 ? targetAmount : 0
-            };
-            conversion.HawalaItems.Add(item);
-            resultItems.Add(new CorrespondentSettlementResultItemDto
-            {
-                HawalaId = balance.HawalaId,
-                HawalaNumber = balance.HawalaNumber,
-                SourceCurrencyCode = source.Code,
-                SourceAmount = sourceAmount,
-                BalanceDirection = balance.NetAmount > 0 ? "طلبکار" : "بدهکار",
-                ExchangeRate = rate,
-                TargetCurrencyCode = targetCurrency.Code,
-                TargetAmount = targetAmount
-            });
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-        foreach (var item in conversion.HawalaItems)
-        {
-            AddBalancedLedgerEntries(
-                transaction.Id,
-                accountId,
-                clearingAccountId,
-                item.SourceCurrencyId,
-                targetCurrency.Id,
-                Math.Abs(item.SourceTalabKar - item.SourceBadehKar),
-                Math.Abs(item.TargetTalabKar - item.TargetBadehKar),
-                item.SourceTalabKar > item.SourceBadehKar,
-                correspondent.Name,
-                item.Id);
-        }
-
-        context.AuditLogs.Add(new AuditLog
-        {
-            UserId = context.RequireCurrentUserId(),
-            Action = "CONVERT_HAWALAS_TO_SETTLEMENT",
-            TableName = "CorrespondentSettlementConversions",
-            RecordId = conversion.Id,
-            NewValue = $"{ids.Length} حوالهٔ نمایندگی {correspondent.Name} با نرخ جداگانه به {targetCurrency.Code} تبدیل شد.",
-            CreatedAt = DateTime.UtcNow
-        });
-        await context.SaveChangesAsync(cancellationToken);
-
-        await dbTransaction.CommitAsync(cancellationToken);
-        return new CorrespondentSettlementResultDto
-        {
-            ConversionId = conversion.Id,
-            TransactionId = transaction.Id,
-            HawalaCount = ids.Length,
-            CurrencyCount = balances.Select(x => x.SourceCurrencyId).Distinct().Count(),
-            Items = resultItems
-        };
+        ValidateConversionRequest(dto.CorrespondentId, dto.Note);
+        return await ExecuteConversionAsync(
+            "Hawalas", dto.CorrespondentId, dto.Note,
+            CreateIdTable(ids),
+            CreateHawalaRateTable(dto.HawalaRates),
+            cancellationToken);
     }
 
     public async Task<IReadOnlyList<CorrespondentSettlementHawalaBalanceDto>> GetHawalaPreviewAsync(
@@ -203,49 +81,122 @@ public sealed class CorrespondentSettlementService(
         CancellationToken cancellationToken = default)
     {
         using var tenantScope = PinCurrentTenant();
-        context.ChangeTracker.Clear();
-        await using var dbTransaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
-
-        var correspondent = await GetConfiguredCorrespondentAsync(dto.CorrespondentId, cancellationToken);
-        var targetCurrencyId = correspondent.SettlementCurrencyId!.Value;
-        var accountId = await GetCorrespondentAccountIdAsync(dto.CorrespondentId, cancellationToken);
-        var availableBalances = await GetNetBalancesAsync(accountId, targetCurrencyId, cancellationToken);
-        if (availableBalances.Count == 0)
-            throw new InvalidOperationException("مانده‌ای در ارزهای دیگر برای تبدیل وجود ندارد.");
-
-        var selectedCurrencyIds = dto.Rates
-            .Where(x => x.SourceCurrencyId > 0 && x.Rate > 0)
-            .Select(x => x.SourceCurrencyId)
-            .Distinct()
-            .ToHashSet();
-        if (selectedCurrencyIds.Count == 0)
+        ValidateConversionRequest(dto.CorrespondentId, dto.Note);
+        if (!dto.Rates.Any(x => x.SourceCurrencyId > 0 && x.Rate > 0))
             throw new InvalidOperationException("حداقل یک ارز را برای تبدیل انتخاب کنید.");
-
-        var balances = availableBalances
-            .Where(x => selectedCurrencyIds.Contains(x.SourceCurrencyId))
-            .ToList();
-        if (balances.Count != selectedCurrencyIds.Count)
-            throw new InvalidOperationException("یک یا چند ارز انتخاب‌شده دیگر ماندهٔ قابل تبدیل ندارد.");
-
-        var sourceCurrencyIds = balances.Select(x => x.SourceCurrencyId).ToArray();
-        var hawalaIds = await PendingHawalas(dto.CorrespondentId, targetCurrencyId)
-            .Where(x => sourceCurrencyIds.Contains(x.HawalaType == "HawalaSend" ? x.ToCurrencyId : x.FromCurrencyId))
-            .Select(x => x.Id)
-            .ToArrayAsync(cancellationToken);
-
-        var result = await CreateConversionAsync(
-            correspondent,
-            accountId,
-            balances,
-            dto.Rates,
-            "Account",
-            dto.Note,
-            hawalaIds,
+        return await ExecuteConversionAsync(
+            "Account", dto.CorrespondentId, dto.Note,
+            CreateIdTable([]),
+            CreateAccountRateTable(dto.Rates),
             cancellationToken);
+    }
 
-        await dbTransaction.CommitAsync(cancellationToken);
-        return result;
+    private async Task<CorrespondentSettlementResultDto> ExecuteConversionAsync(
+        string sourceMode,
+        long correspondentId,
+        string? note,
+        DataTable hawalaIds,
+        DataTable rates,
+        CancellationToken cancellationToken)
+    {
+        var connection = (SqlConnection)context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync(cancellationToken);
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "dbo.usp_ProcessCorrespondentSettlement_v1";
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandTimeout = 180;
+            command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction;
+            command.Parameters.Add(new SqlParameter("@SourceMode", SqlDbType.NVarChar, 20) { Value = sourceMode });
+            command.Parameters.Add(new SqlParameter("@TenantId", SqlDbType.BigInt) { Value = context.CurrentTenantId });
+            command.Parameters.Add(new SqlParameter("@CurrentUserId", SqlDbType.BigInt) { Value = context.RequireCurrentUserId() });
+            command.Parameters.Add(new SqlParameter("@CorrespondentId", SqlDbType.BigInt) { Value = correspondentId });
+            command.Parameters.Add(new SqlParameter("@Note", SqlDbType.NVarChar, 500)
+                { Value = string.IsNullOrWhiteSpace(note) ? DBNull.Value : note.Trim() });
+            command.Parameters.Add(new SqlParameter("@HawalaIds", SqlDbType.Structured)
+                { TypeName = "dbo.IdTableType_v1", Value = hawalaIds });
+            command.Parameters.Add(new SqlParameter("@Rates", SqlDbType.Structured)
+                { TypeName = "dbo.SettlementRateTableType_v1", Value = rates });
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+                throw new InvalidOperationException("نتیجه تبدیل مانده از دیتابیس دریافت نشد.");
+            var result = new CorrespondentSettlementResultDto
+            {
+                ConversionId = reader.GetInt64(0),
+                TransactionId = reader.GetInt64(1),
+                HawalaCount = reader.GetInt32(2),
+                CurrencyCount = reader.GetInt32(3)
+            };
+            var items = new List<CorrespondentSettlementResultItemDto>();
+            await reader.NextResultAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                items.Add(new CorrespondentSettlementResultItemDto
+                {
+                    HawalaId = reader.IsDBNull(0) ? null : reader.GetInt64(0),
+                    HawalaNumber = reader.IsDBNull(1) ? null : reader.GetInt64(1),
+                    SourceCurrencyCode = reader.GetString(2),
+                    SourceAmount = reader.GetDecimal(3),
+                    BalanceDirection = reader.GetString(4),
+                    ExchangeRate = reader.GetDecimal(5),
+                    TargetCurrencyCode = reader.GetString(6),
+                    TargetAmount = reader.GetDecimal(7)
+                });
+            result.Items = items;
+            return result;
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    private static DataTable CreateIdTable(IEnumerable<long> values)
+    {
+        var table = new DataTable();
+        table.Columns.Add("Id", typeof(long));
+        foreach (var id in values.Where(x => x > 0).Distinct())
+            table.Rows.Add(id);
+        return table;
+    }
+
+    private static DataTable CreateHawalaRateTable(IEnumerable<HawalaSettlementRateDto> rates)
+    {
+        var table = CreateRateTable();
+        foreach (var rate in rates.Where(x => x.HawalaId > 0 && x.SourceCurrencyId > 0 && x.Rate > 0)
+                     .GroupBy(x => new { x.HawalaId, x.SourceCurrencyId }).Select(x => x.Last()))
+            table.Rows.Add(rate.HawalaId, rate.SourceCurrencyId, rate.Rate);
+        return table;
+    }
+
+    private static DataTable CreateAccountRateTable(IEnumerable<SettlementRateDto> rates)
+    {
+        var table = CreateRateTable();
+        foreach (var rate in rates.Where(x => x.SourceCurrencyId > 0 && x.Rate > 0)
+                     .GroupBy(x => x.SourceCurrencyId).Select(x => x.Last()))
+            table.Rows.Add(0L, rate.SourceCurrencyId, rate.Rate);
+        return table;
+    }
+
+    private static DataTable CreateRateTable()
+    {
+        var table = new DataTable();
+        table.Columns.Add("HawalaId", typeof(long));
+        table.Columns.Add("SourceCurrencyId", typeof(long));
+        table.Columns.Add("Rate", typeof(decimal));
+        return table;
+    }
+
+    private static void ValidateConversionRequest(long correspondentId, string? note)
+    {
+        if (correspondentId <= 0)
+            throw new InvalidOperationException("نمایندگی معتبر انتخاب نشده است.");
+        if (note?.Trim().Length > 500)
+            throw new InvalidOperationException("یادداشت نمی‌تواند بیشتر از ۵۰۰ حرف باشد.");
     }
 
     public async Task<HawalaSettlementRateResultDto> UpdateHawalaRateAsync(
@@ -317,136 +268,6 @@ public sealed class CorrespondentSettlementService(
             SourceAmount = sourceAmount,
             TargetCurrencyCode = item.Conversion.TargetCurrency.Code,
             TargetAmount = targetAmount
-        };
-    }
-
-    private async Task<CorrespondentSettlementResultDto> CreateConversionAsync(
-        Correspondent correspondent,
-        long correspondentAccountId,
-        IReadOnlyList<CorrespondentSettlementBalanceDto> balances,
-        IEnumerable<SettlementRateDto> submittedRates,
-        string sourceMode,
-        string? note,
-        IReadOnlyCollection<long> hawalaIds,
-        CancellationToken cancellationToken)
-    {
-        var rates = submittedRates
-            .Where(x => x.SourceCurrencyId > 0 && x.Rate > 0)
-            .GroupBy(x => x.SourceCurrencyId)
-            .ToDictionary(x => x.Key, x => x.Last().Rate);
-        var targetCurrency = correspondent.SettlementCurrency!;
-        var sourceCurrencies = await context.Currencies
-            .Where(x => balances.Select(b => b.SourceCurrencyId).Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, cancellationToken);
-
-        foreach (var balance in balances)
-        {
-            if (!rates.ContainsKey(balance.SourceCurrencyId))
-                throw new InvalidOperationException($"نرخ تبدیل ارز {balance.SourceCurrencyCode} وارد نشده است.");
-        }
-
-        var clearingAccountId = await GetOrCreateClearingAccountIdAsync(cancellationToken);
-        var transaction = new Transaction
-        {
-            TransactionNo = await GenerateTransactionNumberAsync(cancellationToken),
-            TransactionType = "CorrespondentSettlementConversion",
-            BranchId = await context.GetDefaultBranchIdAsync(cancellationToken),
-            Status = "Paid",
-            Remarks = $"تبدیل حساب نمایندگی {correspondent.Name} به {targetCurrency.Code}. {note}".Trim(),
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow
-        };
-        context.Transactions.Add(transaction);
-        await context.SaveChangesAsync(cancellationToken);
-
-        var conversion = new CorrespondentSettlementConversion
-        {
-            CorrespondentId = correspondent.Id,
-            TargetCurrencyId = targetCurrency.Id,
-            TransactionId = transaction.Id,
-            SourceMode = sourceMode,
-            Note = note?.Trim(),
-            CreatedBy = context.RequireCurrentUserId(),
-            CreatedAt = DateTime.UtcNow
-        };
-        context.CorrespondentSettlementConversions.Add(conversion);
-        var resultItems = new List<CorrespondentSettlementResultItemDto>();
-
-        foreach (var hawalaId in hawalaIds)
-        {
-            conversion.Hawalas.Add(new CorrespondentSettlementConversionHawala
-            {
-                HawalaId = hawalaId
-            });
-        }
-
-        foreach (var balance in balances)
-        {
-            var source = sourceCurrencies[balance.SourceCurrencyId];
-            var sourceAmount = Math.Abs(balance.NetAmount);
-            if (sourceAmount == 0) continue;
-
-            var rate = rates[balance.SourceCurrencyId];
-            var converted = CurrencyQuotationCalculator.ConvertFromAmount(
-                source.Id, source.Code, source.QuotationPriority, sourceAmount,
-                targetCurrency.Id, targetCurrency.Code, targetCurrency.QuotationPriority, rate);
-            var targetAmount = decimal.Round(
-                converted.ToAmount,
-                Math.Clamp(targetCurrency.DecimalPlaces, 0, 8),
-                MidpointRounding.AwayFromZero);
-            if (targetAmount <= 0)
-                throw new InvalidOperationException($"حاصل تبدیل {source.Code} معتبر نیست.");
-
-            conversion.Items.Add(new CorrespondentSettlementConversionItem
-            {
-                SourceCurrencyId = source.Id,
-                SourceTalabKar = balance.TalabKar,
-                SourceBadehKar = balance.BadehKar,
-                ExchangeRate = rate,
-                TargetTalabKar = balance.NetAmount > 0 ? targetAmount : 0,
-                TargetBadehKar = balance.NetAmount < 0 ? targetAmount : 0
-            });
-            resultItems.Add(new CorrespondentSettlementResultItemDto
-            {
-                SourceCurrencyCode = source.Code,
-                SourceAmount = sourceAmount,
-                BalanceDirection = balance.NetAmount > 0 ? "طلبکار" : "بدهکار",
-                ExchangeRate = rate,
-                TargetCurrencyCode = targetCurrency.Code,
-                TargetAmount = targetAmount
-            });
-
-            AddBalancedLedgerEntries(
-                transaction.Id,
-                correspondentAccountId,
-                clearingAccountId,
-                source.Id,
-                targetCurrency.Id,
-                sourceAmount,
-                targetAmount,
-                balance.NetAmount > 0,
-                correspondent.Name);
-        }
-
-        await context.SaveChangesAsync(cancellationToken);
-        context.AuditLogs.Add(new AuditLog
-        {
-            UserId = context.RequireCurrentUserId(),
-            Action = sourceMode == "Hawalas" ? "CONVERT_HAWALAS_TO_SETTLEMENT" : "CONVERT_BALANCE_TO_SETTLEMENT",
-            TableName = "CorrespondentSettlementConversions",
-            RecordId = conversion.Id,
-            NewValue = $"نمایندگی {correspondent.Name}: {balances.Count} ارز و {hawalaIds.Count} حواله به {targetCurrency.Code} تبدیل شد.",
-            CreatedAt = DateTime.UtcNow
-        });
-        await context.SaveChangesAsync(cancellationToken);
-
-        return new CorrespondentSettlementResultDto
-        {
-            ConversionId = conversion.Id,
-            TransactionId = transaction.Id,
-            HawalaCount = hawalaIds.Count,
-            CurrencyCount = conversion.Items.Count,
-            Items = resultItems
         };
     }
 
@@ -608,18 +429,6 @@ public sealed class CorrespondentSettlementService(
         context.Accounts.Add(account);
         await context.SaveChangesAsync(cancellationToken);
         return account.Id;
-    }
-
-    private async Task<string> GenerateTransactionNumberAsync(CancellationToken cancellationToken)
-    {
-        var prefix = $"SC-{DateTime.UtcNow:yyyyMMdd}-";
-        var last = await context.Transactions
-            .Where(x => x.TransactionNo.StartsWith(prefix))
-            .OrderByDescending(x => x.TransactionNo)
-            .Select(x => x.TransactionNo)
-            .FirstOrDefaultAsync(cancellationToken);
-        var sequence = last is not null && int.TryParse(last[prefix.Length..], out var number) ? number + 1 : 1;
-        return $"{prefix}{sequence:D4}";
     }
 
     private IDisposable PinCurrentTenant()

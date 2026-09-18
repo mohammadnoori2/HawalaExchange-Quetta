@@ -106,7 +106,8 @@
                                         }
                                     </label>
                                     <select class="form-select"
-                                            @bind="CurrentHawala.PaymentLocationId"
+                                            value="@CurrentHawala.PaymentLocationId"
+                                            @onchange="OnPaymentLocationChanged"
                                             disabled="@isPaymentLocationsLoading">
                                         <option value="">
                                             انتخاب محل پرداخت
@@ -1755,6 +1756,42 @@
             CurrentHawala.CommissionCurrencyId = null;
         }
         await GetSuggestedNumber();
+        StateHasChanged();
+    }
+
+    private async Task OnPaymentLocationChanged(ChangeEventArgs e)
+    {
+        CurrentHawala.PaymentLocationId = long.TryParse(e.Value?.ToString(), out var locationId)
+            ? locationId
+            : null;
+
+        if (IsEditMode && CurrentHawala.HawalaType == "HawalaReceive" &&
+            CurrentHawala.Status == "Paid" && CurrentHawala.PaymentLocationId.HasValue)
+        {
+            var location = PaymentLocationsList.FirstOrDefault(x => x.Id == CurrentHawala.PaymentLocationId.Value);
+            var normalizedLocationName = PaymentLocationNameNormalizer.Normalize(location?.Name);
+            var correspondent = CorrespondentsList.FirstOrDefault(x =>
+                PaymentLocationNameNormalizer.Normalize(x.Name) == normalizedLocationName);
+            var account = correspondent == null
+                ? null
+                : AccountsList.FirstOrDefault(x => !x.IsArchived &&
+                    string.Equals(x.ReferenceType, "Correspondent", StringComparison.OrdinalIgnoreCase) &&
+                    x.ReferenceId == correspondent.Id);
+
+            CurrentHawala.FromAccountId = account?.Id;
+            CurrentHawala.GeneratedSendHawalaNumber = null;
+            ValidationErrors.RemoveAll(x => x.StartsWith("برای محل پرداخت انتخاب‌شده", StringComparison.Ordinal));
+            if (account == null)
+            {
+                ValidationErrors.Add(
+                    $"برای محل پرداخت انتخاب‌شده «{location?.Name}»، حساب نمایندگی مرتبط پیدا نشد.");
+            }
+            else
+            {
+                await GetSuggestedGeneratedSendHawalaNumberAsync();
+            }
+        }
+
         StateHasChanged();
     }
 

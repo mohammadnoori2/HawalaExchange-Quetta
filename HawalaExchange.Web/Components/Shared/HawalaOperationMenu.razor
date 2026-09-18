@@ -9,12 +9,19 @@
             کاپی معلومات
         </button>
 
-        @if (ShowEdit && Hawala.Status != "Cancel")
+        @if (ShowEdit && Hawala.Status != "Cancel" && !Hawala.IsBulkImportGeneratedSend)
         {
             <button type="button" class="operation-menu-item" role="menuitem" data-action-key="edit" @onclick="EditAsync">
                 <i class="bi bi-pencil text-warning"></i>
                 ویرایش
             </button>
+        }
+        else if (ShowEdit && Hawala.IsBulkImportGeneratedSend)
+        {
+            <div class="operation-menu-item text-muted" title="این حواله توسط آپلود گروهی ساخته شده و قابل ویرایش نیست.">
+                <i class="bi bi-lock"></i>
+                ویرایش غیرفعال
+            </div>
         }
 
         @if (ShowDelete)

@@ -234,6 +234,9 @@
 
                 var result = _mapper.Map<HawalaDto>(hawala);
                 result.FromAccountId = await ResolveExistingFromAccountIdAsync(hawala);
+                result.IsBulkImportGeneratedSend = hawala.IsSystemGenerated &&
+                    await _context.HawalaImportRows.AsNoTracking()
+                        .AnyAsync(x => x.GeneratedSendHawalaId == hawala.Id);
 
                 if (!hawala.IsSystemGenerated)
                 {
@@ -326,6 +329,21 @@
                 var items = await query
                     .Select(GetListProjection())
                     .ToListAsync(cancellationToken);
+                var systemGeneratedIds = items
+                    .Where(x => x.IsSystemGenerated)
+                    .Select(x => x.Id)
+                    .ToList();
+                if (systemGeneratedIds.Count > 0)
+                {
+                    var importedGeneratedIds = await _context.HawalaImportRows
+                        .AsNoTracking()
+                        .Where(x => x.GeneratedSendHawalaId.HasValue &&
+                                    systemGeneratedIds.Contains(x.GeneratedSendHawalaId.Value))
+                        .Select(x => x.GeneratedSendHawalaId!.Value)
+                        .ToHashSetAsync(cancellationToken);
+                    foreach (var item in items)
+                        item.IsBulkImportGeneratedSend = importedGeneratedIds.Contains(item.Id);
+                }
                 return new HawalaListResultDto
                 {
                     Items = items,
@@ -480,18 +498,23 @@
 
                     await EnsureNotSettlementConvertedAsync([hawala.Id]);
 
-                    if (hawala.IsSystemGenerated)
+                    if (hawala.IsSystemGenerated && await _context.HawalaImportRows
+                            .AsNoTracking()
+                            .AnyAsync(x => x.GeneratedSendHawalaId == hawala.Id))
                     {
                         throw new InvalidOperationException(
-                            "حواله ارسالی خودکار باید از طریق حواله دریافتی اصلی ویرایش شود.");
+                            "حواله ارسالی ایجادشده توسط آپلود گروهی قابل ویرایش نیست.");
                     }
 
                     var oldSenderTazkiraImagePath = hawala.SenderTazkiraImagePath;
                     var oldReceiverTazkiraImagePath = hawala.ReceiverTazkiraImagePath;
 
-                    var fromAccountId =
-                        dto.FromAccountId ??
-                        await ResolveExistingFromAccountIdAsync(hawala);
+                    var paymentLocationChanged = dto.PaymentLocationId != hawala.PaymentLocationId;
+                    var fromAccountId = paymentLocationChanged &&
+                                        hawala.HawalaType == "HawalaReceive" &&
+                                        hawala.Status == "Paid"
+                        ? await ResolvePaymentLocationAccountAsync(dto.PaymentLocationId)
+                        : dto.FromAccountId ?? await ResolveExistingFromAccountIdAsync(hawala);
 
                     var generatedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
@@ -503,9 +526,20 @@
                     var generatedAgentCommissionAmount = generatedHawala?.AgentCommissionAmount;
                     var generatedAgentCommissionCurrencyId = generatedHawala?.AgentCommissionCurrencyId;
                     var generatedReferenceNumber = generatedHawala?.ReferenceNumber;
+                    List<HawalaImportRow> linkedImportRows = generatedHawala == null
+                        ? []
+                        : await _context.HawalaImportRows
+                            .Where(x => x.GeneratedSendHawalaId == generatedHawala.Id)
+                            .ToListAsync();
 
                     if (generatedHawala != null)
                     {
+                        if (linkedImportRows.Count > 0)
+                        {
+                            foreach (var importRow in linkedImportRows)
+                                importRow.GeneratedSendHawalaId = null;
+                            await _context.SaveChangesAsync();
+                        }
                         await DeleteHawalaLedgerEntriesAsync(generatedHawala.Id);
                         _context.Hawalas.Remove(generatedHawala);
                     }
@@ -526,6 +560,17 @@
                         generatedReferenceNumber);
 
                     await _context.SaveChangesAsync();
+
+                    if (linkedImportRows.Count > 0)
+                    {
+                        var replacementGeneratedId = await _context.Hawalas
+                            .Where(x => x.SourceHawalaId == hawala.Id)
+                            .Select(x => (long?)x.Id)
+                            .FirstOrDefaultAsync();
+                        foreach (var importRow in linkedImportRows)
+                            importRow.GeneratedSendHawalaId = replacementGeneratedId;
+                        await _context.SaveChangesAsync();
+                    }
 
                     await _auditLogService.LogAsync(
                         "UPDATE",
@@ -584,6 +629,37 @@
                 hawala.AgentCommissionCurrencyId = dto.AgentCommissionCurrencyId;
                 hawala.ReferenceNumber = dto.ReferenceNumber;
                 hawala.Notes = dto.Notes;
+            }
+
+            private async Task<long> ResolvePaymentLocationAccountAsync(long? paymentLocationId)
+            {
+                if (!paymentLocationId.HasValue)
+                    throw new InvalidOperationException("برای حواله پرداخت‌شده، محل پرداخت الزامی است.");
+
+                var location = await _context.PaymentLocations
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == paymentLocationId.Value)
+                    ?? throw new InvalidOperationException("محل پرداخت انتخاب‌شده معتبر نیست.");
+
+                var correspondents = await _context.Correspondents
+                    .AsNoTracking()
+                    .Where(x => !x.IsArchived)
+                    .Select(x => new { x.Id, x.Name })
+                    .ToListAsync();
+                var correspondent = correspondents.FirstOrDefault(x =>
+                    PaymentLocationNameNormalizer.Normalize(x.Name) == location.NormalizedName);
+                if (correspondent is null)
+                    throw new InvalidOperationException(
+                        $"نمایندگی مربوط به محل پرداخت «{location.Name}» پیدا نشد.");
+
+                var accountId = await _context.Accounts
+                    .AsNoTracking()
+                    .Where(x => !x.IsArchived && x.CorrespondentId == correspondent.Id)
+                    .OrderBy(x => x.Id)
+                    .Select(x => (long?)x.Id)
+                    .FirstOrDefaultAsync();
+                return accountId ?? throw new InvalidOperationException(
+                    $"حساب فعال نمایندگی «{correspondent.Name}» پیدا نشد.");
             }
 
             private async Task DeleteReplacedTazkiraImagesAsync(

@@ -514,6 +514,23 @@
                     <button type="button" class="btn-close btn-close-white" @onclick="() => CloseDetailModal()"></button>
                 </div>
                 <div class="modal-body">
+                    @if (selectedHawala.IsSystemGenerated && selectedSourceHawala != null)
+                    {
+                        <div class="alert alert-info border-info mb-4">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <i class="bi bi-diagram-3 fs-4"></i>
+                                <strong>این حواله توسط سیستم و در نتیجه حواله دریافتی زیر به‌صورت خودکار ایجاد شده است.</strong>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-3"><small class="d-block text-muted">نمبر حواله دریافتی</small><strong>@selectedSourceHawala.Number</strong></div>
+                                <div class="col-md-3"><small class="d-block text-muted">نمایندگی اصلی</small><strong>@(selectedSourceHawala.CorrespondentName ?? "-")</strong></div>
+                                <div class="col-md-3"><small class="d-block text-muted">مبلغ</small><strong>@MoneyFormatHelper.Format(selectedSourceHawala.FromAmount) @selectedSourceHawala.FromCurrencyCode</strong></div>
+                                <div class="col-md-3"><small class="d-block text-muted">محل پرداخت</small><strong>@GetPaymentLocation(selectedSourceHawala)</strong></div>
+                                <div class="col-md-6"><small class="d-block text-muted">فرستنده</small><strong>@(selectedSourceHawala.SenderName ?? "-")</strong></div>
+                                <div class="col-md-6"><small class="d-block text-muted">گیرنده</small><strong>@(selectedSourceHawala.ReceiverName ?? "-")</strong></div>
+                            </div>
+                        </div>
+                    }
                     <!-- اطلاعات خلاصه -->
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
@@ -846,6 +863,7 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
     private HawalaDto? selectedHawala = null;
+    private HawalaDto? selectedSourceHawala;
     private bool showSettlementRateEditModal;
     private HawalaDto? settlementRateHawala;
     private HawalaSettlementRateInfoDto? settlementRateInfo;
@@ -1294,10 +1312,10 @@
 
             var hawala = await HawalaService.GetHawalaByIdAsync(id);
             var hawalaIdToEdit = id;
-            if (hawala?.IsSystemGenerated == true && hawala.SourceHawalaId.HasValue)
+            if (hawala?.IsBulkImportGeneratedSend == true)
             {
-                hawalaIdToEdit = hawala.SourceHawalaId.Value;
-                hawala = await HawalaService.GetHawalaByIdAsync(hawalaIdToEdit);
+                validationErrors.Add("حواله ارسالی ایجادشده توسط آپلود گروهی قابل ویرایش نیست.");
+                return;
             }
 
             if (hawala != null)
@@ -1372,6 +1390,10 @@
         try
         {
             selectedHawala = await HawalaService.GetHawalaByIdAsync(id);
+            selectedSourceHawala = selectedHawala?.IsSystemGenerated == true &&
+                                   selectedHawala.SourceHawalaId.HasValue
+                ? await HawalaService.GetHawalaByIdAsync(selectedHawala.SourceHawalaId.Value)
+                : null;
             showDetailModal = true;
             StateHasChanged();
         }
@@ -1385,6 +1407,7 @@
     {
         showDetailModal = false;
         selectedHawala = null;
+        selectedSourceHawala = null;
         StateHasChanged();
     }
 

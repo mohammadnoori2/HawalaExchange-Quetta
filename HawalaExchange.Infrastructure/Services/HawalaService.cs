@@ -20,6 +20,7 @@
             private readonly IAccountService _accountService;
             private readonly IAuditLogService _auditLogService;
             private readonly IFileService _fileService;
+            private readonly ICorrespondentSettlementService _settlementService;
 
 
             public HawalaService(
@@ -28,7 +29,8 @@
                 ILedgerService ledgerService,
                 IAccountService accountService,
                 IAuditLogService auditLogService,
-                IFileService fileService)
+                IFileService fileService,
+                ICorrespondentSettlementService? settlementService = null)
             {
                 _context = context;
                 _mapper = mapper;
@@ -36,6 +38,8 @@
                 _accountService = accountService;
                 _auditLogService = auditLogService;
                 _fileService = fileService;
+                _settlementService = settlementService ??
+                    new HawalaExchange.Infrastructure.Services.CorrespondentSettlementService(context);
             }
 
             public async Task<HawalaDto> CreateHawalaAsync(CreateHawalaDto dto)
@@ -237,6 +241,9 @@
                 result.IsBulkImportGeneratedSend = hawala.IsSystemGenerated &&
                     await _context.HawalaImportRows.AsNoTracking()
                         .AnyAsync(x => x.GeneratedSendHawalaId == hawala.Id);
+                result.HasPeriodicCommissionHistory = await _context.CorrespondentCommissionBatchItems
+                    .AsNoTracking()
+                    .AnyAsync(x => x.HawalaId == hawala.Id);
 
                 if (!hawala.IsSystemGenerated)
                 {
@@ -370,7 +377,7 @@
                 };
             }
 
-            private static Expression<Func<Hawala, HawalaDto>> GetListProjection() => h => new HawalaDto
+            private Expression<Func<Hawala, HawalaDto>> GetListProjection() => h => new HawalaDto
             {
                 Id = h.Id,
                 Number = h.Number,
@@ -422,6 +429,8 @@
                 PaidFromAccountType = h.PaidFromAccount != null ? h.PaidFromAccount.AccountType : null,
                 SourceHawalaId = h.SourceHawalaId,
                 IsSystemGenerated = h.IsSystemGenerated,
+                HasPeriodicCommissionHistory = _context.CorrespondentCommissionBatchItems
+                    .Any(x => x.HawalaId == h.Id),
                 CancelledAt = h.CancelledAt,
                 CancelledBy = h.CancelledBy,
                 CancelReason = h.CancelReason,
@@ -495,8 +504,30 @@
 
                     if (hawala.Status == "Cancel")
                         throw new InvalidOperationException("حواله لغو شده قابل ویرایش نیست.");
+                    if (dto.Status is not null and not ("Pending" or "Paid"))
+                        throw new InvalidOperationException("وضعیت حواله برای ویرایش معتبر نیست.");
 
-                    await EnsureNotSettlementConvertedAsync([hawala.Id]);
+                    var activePeriodicCommissionItem = await _context.CorrespondentCommissionBatchItems
+                        .Include(x => x.Batch)
+                        .ThenInclude(x => x.Items)
+                        .FirstOrDefaultAsync(x => x.HawalaId == hawala.Id && x.IsActive && x.Batch.Status == "Posted");
+                    var commissionAffectingChange = activePeriodicCommissionItem != null &&
+                        ((dto.CorrespondentId ?? hawala.CorrespondentId) != hawala.CorrespondentId ||
+                         (dto.FromCurrencyId ?? hawala.FromCurrencyId) != hawala.FromCurrencyId ||
+                         (dto.FromAmount ?? hawala.FromAmount) != hawala.FromAmount);
+                    if (commissionAffectingChange && dto.PeriodicCommissionHandling is not ("Recalculate" or "KeepPrevious"))
+                    {
+                        throw new InvalidOperationException(
+                            "کمیشن این حواله قبلاً محاسبه شده است. محاسبه مجدد یا حفظ کمیشن قبلی را انتخاب کنید.");
+                    }
+                    if (commissionAffectingChange && dto.PeriodicCommissionHandling == "Recalculate" &&
+                        dto.CorrespondentId.HasValue && dto.CorrespondentId != hawala.CorrespondentId)
+                    {
+                        throw new InvalidOperationException(
+                            "با تغییر نمایندگی، کمیشن قبلی را نمی‌توان داخل سند نمایندگی قبلی محاسبه مجدد کرد؛ گزینه حفظ کمیشن قبلی را انتخاب کنید.");
+                    }
+
+                    var settlementReconversion = await DetachSettlementConversionAsync(hawala.Id);
 
                     if (hawala.IsSystemGenerated && await _context.HawalaImportRows
                             .AsNoTracking()
@@ -509,28 +540,28 @@
                     var oldSenderTazkiraImagePath = hawala.SenderTazkiraImagePath;
                     var oldReceiverTazkiraImagePath = hawala.ReceiverTazkiraImagePath;
 
+                    var updatedStatus = dto.Status ?? hawala.Status;
                     var paymentLocationChanged = dto.PaymentLocationId != hawala.PaymentLocationId;
-                    var fromAccountId = paymentLocationChanged &&
+                    var fromAccountId = (paymentLocationChanged || hawala.Status != "Paid") &&
                                         hawala.HawalaType == "HawalaReceive" &&
-                                        hawala.Status == "Paid"
+                                        updatedStatus == "Paid"
                         ? await ResolvePaymentLocationAccountAsync(dto.PaymentLocationId)
                         : dto.FromAccountId ?? await ResolveExistingFromAccountIdAsync(hawala);
 
                     var generatedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
-                    if (generatedHawala != null)
-                        await EnsureNotSettlementConvertedAsync([generatedHawala.Id]);
+                    var generatedSettlementReconversion = generatedHawala == null
+                        ? null
+                        : await DetachSettlementConversionAsync(generatedHawala.Id);
                     var generatedHawalaNumber =
                         dto.GeneratedSendHawalaNumber ??
                         generatedHawala?.Number;
                     var generatedAgentCommissionAmount = generatedHawala?.AgentCommissionAmount;
                     var generatedAgentCommissionCurrencyId = generatedHawala?.AgentCommissionCurrencyId;
                     var generatedReferenceNumber = generatedHawala?.ReferenceNumber;
-                    List<HawalaImportRow> linkedImportRows = generatedHawala == null
-                        ? []
-                        : await _context.HawalaImportRows
-                            .Where(x => x.GeneratedSendHawalaId == generatedHawala.Id)
-                            .ToListAsync();
+                    List<HawalaImportRow> linkedImportRows = await _context.HawalaImportRows
+                        .Where(x => x.HawalaId == hawala.Id)
+                        .ToListAsync();
 
                     if (generatedHawala != null)
                     {
@@ -551,6 +582,9 @@
                     await NormalizeHawalaConversionAsync(hawala);
                     await ValidateUpdatedHawalaAsync(hawala);
 
+                    if (commissionAffectingChange && dto.PeriodicCommissionHandling == "Recalculate")
+                        await RecalculatePeriodicCommissionInPlaceAsync(hawala, activePeriodicCommissionItem!);
+
                     await ProcessLedgerEntries(
                         hawala,
                         fromAccountId,
@@ -561,14 +595,36 @@
 
                     await _context.SaveChangesAsync();
 
+                    if (settlementReconversion != null)
+                        await ReconvertSettlementAsync(hawala, settlementReconversion);
+
+                    if (generatedSettlementReconversion != null)
+                    {
+                        var replacementGenerated = await _context.Hawalas
+                            .SingleAsync(x => x.SourceHawalaId == hawala.Id);
+                        await ReconvertSettlementAsync(replacementGenerated, generatedSettlementReconversion);
+                    }
+
                     if (linkedImportRows.Count > 0)
                     {
                         var replacementGeneratedId = await _context.Hawalas
                             .Where(x => x.SourceHawalaId == hawala.Id)
                             .Select(x => (long?)x.Id)
                             .FirstOrDefaultAsync();
+                        var replacementGenerated = replacementGeneratedId.HasValue
+                            ? await _context.Hawalas.AsNoTracking()
+                                .SingleAsync(x => x.Id == replacementGeneratedId.Value)
+                            : null;
                         foreach (var importRow in linkedImportRows)
+                        {
                             importRow.GeneratedSendHawalaId = replacementGeneratedId;
+                            importRow.PaymentLocationId = hawala.PaymentLocationId;
+                            importRow.DestinationCorrespondentId = replacementGenerated?.CorrespondentId;
+                            importRow.Amount = hawala.FromAmount;
+                            importRow.CurrencyId = hawala.FromCurrencyId;
+                            importRow.AgentCommissionAmount = replacementGenerated?.AgentCommissionAmount;
+                            importRow.AgentCommissionCurrencyId = replacementGenerated?.AgentCommissionCurrencyId;
+                        }
                         await _context.SaveChangesAsync();
                     }
 
@@ -597,7 +653,7 @@
                 }
             }
 
-            private static void ApplyUpdate(Hawala hawala, UpdateHawalaDto dto)
+            private void ApplyUpdate(Hawala hawala, UpdateHawalaDto dto)
             {
                 if (dto.CorrespondentId.HasValue)
                     hawala.CorrespondentId = dto.CorrespondentId;
@@ -629,6 +685,21 @@
                 hawala.AgentCommissionCurrencyId = dto.AgentCommissionCurrencyId;
                 hawala.ReferenceNumber = dto.ReferenceNumber;
                 hawala.Notes = dto.Notes;
+                if (!string.IsNullOrWhiteSpace(dto.Status) && dto.Status != hawala.Status)
+                {
+                    hawala.Status = dto.Status;
+                    if (dto.Status == "Paid")
+                    {
+                        hawala.PaidAt = DateTime.UtcNow;
+                        hawala.PaidBy = GetCurrentUserId();
+                    }
+                    else
+                    {
+                        hawala.PaidAt = null;
+                        hawala.PaidBy = null;
+                        hawala.PaidFromAccountId = null;
+                    }
+                }
             }
 
             private async Task<long> ResolvePaymentLocationAccountAsync(long? paymentLocationId)
@@ -660,6 +731,179 @@
                     .FirstOrDefaultAsync();
                 return accountId ?? throw new InvalidOperationException(
                     $"حساب فعال نمایندگی «{correspondent.Name}» پیدا نشد.");
+            }
+
+            private async Task RecalculatePeriodicCommissionInPlaceAsync(
+                Hawala hawala,
+                CorrespondentCommissionBatchItem item)
+            {
+                var batch = item.Batch;
+                decimal sourceToAfnRate;
+                if (item.SourceCurrencyId == hawala.FromCurrencyId)
+                {
+                    sourceToAfnRate = item.SourceToAfnRate;
+                }
+                else
+                {
+                    var currencyCode = await _context.Currencies
+                        .Where(x => x.Id == hawala.FromCurrencyId)
+                        .Select(x => x.Code)
+                        .SingleAsync();
+                    sourceToAfnRate = string.Equals(currencyCode, "AFN", StringComparison.OrdinalIgnoreCase)
+                        ? 1m
+                        : batch.Items
+                            .Where(x => x.SourceCurrencyId == hawala.FromCurrencyId)
+                            .Select(x => x.SourceToAfnRate)
+                            .FirstOrDefault();
+                    if (sourceToAfnRate <= 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"نرخ تبدیل ارز {currencyCode} در محاسبه قبلی موجود نیست؛ کمیشن قبلی را حفظ کنید یا ابتدا Batch را برگشت دهید.");
+                    }
+                }
+
+                item.SourceCurrencyId = hawala.FromCurrencyId;
+                item.SourceAmount = hawala.FromAmount;
+                item.SourceToAfnRate = sourceToAfnRate;
+                item.AfnEquivalent = decimal.Round(hawala.FromAmount * sourceToAfnRate, 4,
+                    MidpointRounding.AwayFromZero);
+                item.CommissionAfn = decimal.Round(
+                    item.AfnEquivalent / 100000m * batch.CommissionPerLakhAfn,
+                    4, MidpointRounding.AwayFromZero);
+
+                batch.TotalBaseAfn = decimal.Round(
+                    batch.Items.Where(x => x.IsActive).Sum(x => x.AfnEquivalent),
+                    4, MidpointRounding.AwayFromZero);
+                batch.TotalCommissionAfn = decimal.Round(
+                    batch.TotalBaseAfn / 100000m * batch.CommissionPerLakhAfn,
+                    0, MidpointRounding.AwayFromZero);
+                batch.TotalCommissionUsd = decimal.Round(
+                    batch.TotalCommissionAfn / batch.UsdToAfnRate,
+                    0, MidpointRounding.AwayFromZero);
+
+                var ledgerEntries = await _context.LedgerEntries
+                    .Where(x => x.TransactionId == batch.PostingTransactionId)
+                    .ToListAsync();
+                if (ledgerEntries.Count != 2)
+                    throw new InvalidOperationException("سند حسابداری کمیشن دوره‌ای برای به‌روزرسانی معتبر نیست.");
+
+                foreach (var entry in ledgerEntries)
+                {
+                    if (entry.TalabKar > 0)
+                        entry.TalabKar = batch.TotalCommissionUsd;
+                    if (entry.BadehKar > 0)
+                        entry.BadehKar = batch.TotalCommissionUsd;
+                }
+
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    UserId = GetCurrentUserId(),
+                    Action = "RECALCULATE_PERIODIC_COMMISSION",
+                    TableName = "CorrespondentCommissionBatchItems",
+                    RecordId = item.Id,
+                    NewValue = $"کمیشن حواله {hawala.Id} در همان سند قبلی به‌روزرسانی شد.",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            private sealed record SettlementReconversionState(
+                long CorrespondentId,
+                long TargetCurrencyId,
+                IReadOnlyDictionary<long, decimal> Rates);
+
+            private async Task<SettlementReconversionState?> DetachSettlementConversionAsync(long hawalaId)
+            {
+                var link = await _context.CorrespondentSettlementConversionHawalas
+                    .Include(x => x.Conversion)
+                    .ThenInclude(x => x.HawalaItems)
+                    .ThenInclude(x => x.LedgerEntries)
+                    .SingleOrDefaultAsync(x => x.HawalaId == hawalaId);
+                if (link == null)
+                    return null;
+
+                if (link.Conversion.SourceMode != "Hawalas")
+                {
+                    throw new InvalidOperationException(
+                        "این حواله از طریق تبدیل کلی حساب به ارز توافقی تبدیل شده است و سهم آن جداگانه قابل بازسازی نیست.");
+                }
+
+                var items = link.Conversion.HawalaItems
+                    .Where(x => x.HawalaId == hawalaId)
+                    .ToList();
+                var rates = items
+                    .GroupBy(x => x.SourceCurrencyId)
+                    .ToDictionary(x => x.Key, x => x.Last().ExchangeRate);
+
+                _context.LedgerEntries.RemoveRange(items.SelectMany(x => x.LedgerEntries));
+                _context.CorrespondentSettlementConversionHawalaItems.RemoveRange(items);
+                _context.CorrespondentSettlementConversionHawalas.Remove(link);
+
+                return new SettlementReconversionState(
+                    link.Conversion.CorrespondentId,
+                    link.Conversion.TargetCurrencyId,
+                    rates);
+            }
+
+            private async Task ReconvertSettlementAsync(
+                Hawala hawala,
+                SettlementReconversionState previous)
+            {
+                if (!hawala.CorrespondentId.HasValue)
+                    throw new InvalidOperationException("برای تبدیل مجدد، نمایندگی حواله الزامی است.");
+
+                var settlement = await _settlementService.GetPreviewAsync(hawala.CorrespondentId.Value);
+                var settlementSourceCurrencyId = hawala.HawalaType == "HawalaSend"
+                    ? hawala.ToCurrencyId
+                    : hawala.FromCurrencyId;
+                if (settlementSourceCurrencyId == settlement.TargetCurrencyId)
+                    return;
+
+                var balances = await _settlementService.GetHawalaPreviewAsync(
+                    hawala.CorrespondentId.Value, [hawala.Id]);
+                var rates = new List<HawalaSettlementRateDto>();
+                foreach (var balance in balances)
+                {
+                    decimal rate = 0;
+                    if (previous.CorrespondentId == hawala.CorrespondentId.Value &&
+                        previous.TargetCurrencyId == settlement.TargetCurrencyId)
+                    {
+                        previous.Rates.TryGetValue(balance.SourceCurrencyId, out rate);
+                    }
+
+                    if (rate <= 0)
+                    {
+                        rate = await _context.CorrespondentSettlementConversionHawalaItems
+                            .AsNoTracking()
+                            .Where(x => x.SourceCurrencyId == balance.SourceCurrencyId &&
+                                        x.ExchangeRate > 0 &&
+                                        x.Conversion.CorrespondentId == hawala.CorrespondentId.Value &&
+                                        x.Conversion.TargetCurrencyId == settlement.TargetCurrencyId)
+                            .OrderByDescending(x => x.Conversion.CreatedAt)
+                            .Select(x => x.ExchangeRate)
+                            .FirstOrDefaultAsync();
+                    }
+
+                    if (rate <= 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"برای تبدیل مجدد ارز {balance.SourceCurrencyCode} به {settlement.TargetCurrencyCode} نرخ قبلی پیدا نشد.");
+                    }
+
+                    rates.Add(new HawalaSettlementRateDto
+                    {
+                        HawalaId = hawala.Id,
+                        SourceCurrencyId = balance.SourceCurrencyId,
+                        Rate = rate
+                    });
+                }
+
+                await _settlementService.ConvertHawalasAsync(new ConvertHawalasToSettlementDto
+                {
+                    CorrespondentId = hawala.CorrespondentId.Value,
+                    HawalaIds = [hawala.Id],
+                    HawalaRates = rates,
+                    Note = $"تبدیل مجدد خودکار پس از ویرایش حواله شماره {hawala.Number}"
+                });
             }
 
             private async Task DeleteReplacedTazkiraImagesAsync(
@@ -801,6 +1045,15 @@
 
                     var generatedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
+                    var deleteCandidateIds = generatedHawala == null
+                        ? new[] { hawala.Id }
+                        : new[] { hawala.Id, generatedHawala.Id };
+                    if (await _context.CorrespondentCommissionBatchItems
+                        .AnyAsync(x => deleteCandidateIds.Contains(x.HawalaId)))
+                    {
+                        throw new InvalidOperationException(
+                            "حواله‌ای که کمیشن دوره‌ای آن محاسبه شده قابل حذف نیست؛ در صورت نیاز آن را لغو کنید.");
+                    }
                     await EnsureNotSettlementConvertedAsync(generatedHawala == null
                         ? [hawala.Id]
                         : [hawala.Id, generatedHawala.Id]);
@@ -1471,6 +1724,13 @@
                     var affectedHawalaIds = new List<long> { hawala.Id };
                     if (generatedHawala != null)
                         affectedHawalaIds.Add(generatedHawala.Id);
+
+                    var periodicCommissionItems = await _context.CorrespondentCommissionBatchItems
+                        .Where(x => affectedHawalaIds.Contains(x.HawalaId) && x.IsActive &&
+                                    x.Batch.Status == "Posted")
+                        .ToListAsync();
+                    foreach (var commissionItem in periodicCommissionItems)
+                        commissionItem.IsActive = false;
 
                     await CreateCancellationLedgerEntriesAsync(
                         affectedHawalaIds,

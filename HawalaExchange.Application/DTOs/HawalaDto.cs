@@ -75,6 +75,7 @@ namespace HawalaExchange.Application.DTOs
         public long? SourceHawalaId { get; set; }
         public bool IsSystemGenerated { get; set; }
         public bool IsBulkImportGeneratedSend { get; set; }
+        public bool HasPeriodicCommissionHistory { get; set; }
         public long? GeneratedSendHawalaNumber { get; set; }
         public string? PaymentLocation { get; set; }
         public DateTime? CancelledAt { get; set; }
@@ -132,6 +133,7 @@ namespace HawalaExchange.Application.DTOs
         public decimal? GeneratedSendAgentCommissionAmount { get; set; }
         public long? GeneratedSendAgentCommissionCurrencyId { get; set; }
         public string? GeneratedSendReferenceNumber { get; set; }
+        public bool HasPeriodicCommissionHistory { get; set; }
     }
 
     public class UpdateHawalaDto
@@ -164,6 +166,8 @@ namespace HawalaExchange.Application.DTOs
         public string? Notes { get; set; }
         public string? PaymentLocation { get; set; }
         public long? GeneratedSendHawalaNumber { get; set; }
+        public string? PeriodicCommissionHandling { get; set; }
+        public string? Status { get; set; }
        
     }
 

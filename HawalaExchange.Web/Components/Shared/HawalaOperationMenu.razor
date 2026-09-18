@@ -24,12 +24,19 @@
             </div>
         }
 
-        @if (ShowDelete)
+        @if (ShowDelete && !Hawala.HasPeriodicCommissionHistory)
         {
             <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" data-action-key="delete" @onclick="DeleteAsync">
                 <i class="bi bi-trash"></i>
                 حذف
             </button>
+        }
+        else if (ShowDelete && Hawala.HasPeriodicCommissionHistory)
+        {
+            <div class="operation-menu-item text-muted" title="حواله دارای سابقه کمیشن دوره‌ای قابل حذف نیست.">
+                <i class="bi bi-lock"></i>
+                حذف غیرفعال
+            </div>
         }
 
         <div class="operation-menu-divider"></div>

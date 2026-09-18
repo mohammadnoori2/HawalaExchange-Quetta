@@ -14,8 +14,14 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
 {
     public async Task<CorrespondentCommissionPreviewDto> PreviewAsync(
         CorrespondentCommissionPreviewRequestDto request,
-        CancellationToken cancellationToken = default) =>
-        await ExecutePreviewAsync(request, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var preview = await ExecutePreviewAsync(request, cancellationToken);
+        var deductions = await GetPendingCancellationDeductionsAsync(
+            request.CorrespondentId, cancellationToken);
+        ApplyDeductionsToPreview(preview, deductions, request.CommissionPerLakhAfn, request.UsdToAfnRate);
+        return preview;
+    }
 
     public async Task<CorrespondentCommissionBatchDto> PostAsync(
         CorrespondentCommissionPreviewRequestDto request,
@@ -23,7 +29,9 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
     {
         ValidateRequest(request, requireUsdRate: true);
         var rates = CreateRatesTable(request.Rates);
-        return await WithProcedureAsync(
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        var result = await WithProcedureAsync(
             "Post", request, rates,
             async reader =>
             {
@@ -47,6 +55,114 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                     CreatedAt = reader.GetDateTime(12)
                 };
             }, cancellationToken);
+
+        var deductions = await GetPendingCancellationDeductionsAsync(
+            request.CorrespondentId, cancellationToken);
+        if (deductions.Count > 0)
+            await AddDeductionsToPostedBatchAsync(result, deductions, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    private async Task<List<CorrespondentCommissionBatchItem>> GetPendingCancellationDeductionsAsync(
+        long correspondentId,
+        CancellationToken cancellationToken)
+    {
+        var candidates = await context.CorrespondentCommissionBatchItems
+            .AsNoTracking()
+            .Include(x => x.Hawala)
+            .Include(x => x.SourceCurrency)
+            .Include(x => x.Batch)
+            .Where(x => !x.IsActive && x.Batch.Status == "Posted" &&
+                        x.Batch.CorrespondentId == correspondentId &&
+                        x.Hawala.Status == "Cancel" &&
+                        !context.CorrespondentCommissionBatchItems.Any(active =>
+                            active.HawalaId == x.HawalaId && active.IsActive))
+            .OrderByDescending(x => x.Batch.CreatedAt)
+            .ToListAsync(cancellationToken);
+        return candidates.GroupBy(x => x.HawalaId).Select(x => x.First()).ToList();
+    }
+
+    private static void ApplyDeductionsToPreview(
+        CorrespondentCommissionPreviewDto preview,
+        IReadOnlyCollection<CorrespondentCommissionBatchItem> deductions,
+        decimal commissionPerLakhAfn,
+        decimal usdToAfnRate)
+    {
+        foreach (var deduction in deductions)
+        {
+            preview.Items.Add(new CorrespondentCommissionItemDto
+            {
+                HawalaId = deduction.HawalaId,
+                HawalaNumber = deduction.Hawala.Number,
+                HawalaDate = deduction.Hawala.CreatedAt,
+                CurrencyId = deduction.SourceCurrencyId,
+                CurrencyCode = deduction.SourceCurrency.Code,
+                SourceAmount = -Math.Abs(deduction.SourceAmount),
+                SourceToAfnRate = deduction.SourceToAfnRate,
+                AfnEquivalent = -Math.Abs(deduction.AfnEquivalent),
+                CommissionAfn = -Math.Abs(deduction.CommissionAfn)
+            });
+        }
+
+        preview.TotalBaseAfn = decimal.Round(
+            preview.Items.Sum(x => x.AfnEquivalent), 4, MidpointRounding.AwayFromZero);
+        preview.TotalCommissionAfn = decimal.Round(
+            preview.TotalBaseAfn / 100000m * commissionPerLakhAfn,
+            0, MidpointRounding.AwayFromZero);
+        preview.TotalCommissionUsd = usdToAfnRate > 0
+            ? decimal.Round(preview.TotalCommissionAfn / usdToAfnRate, 0, MidpointRounding.AwayFromZero)
+            : 0;
+    }
+
+    private async Task AddDeductionsToPostedBatchAsync(
+        CorrespondentCommissionBatchDto result,
+        IReadOnlyCollection<CorrespondentCommissionBatchItem> deductions,
+        CancellationToken cancellationToken)
+    {
+        var batch = await context.CorrespondentCommissionBatches
+            .Include(x => x.Items)
+            .SingleAsync(x => x.Id == result.Id, cancellationToken);
+        foreach (var deduction in deductions)
+        {
+            batch.Items.Add(new CorrespondentCommissionBatchItem
+            {
+                HawalaId = deduction.HawalaId,
+                SourceCurrencyId = deduction.SourceCurrencyId,
+                SourceAmount = -Math.Abs(deduction.SourceAmount),
+                SourceToAfnRate = deduction.SourceToAfnRate,
+                AfnEquivalent = -Math.Abs(deduction.AfnEquivalent),
+                CommissionAfn = -Math.Abs(deduction.CommissionAfn),
+                IsActive = true
+            });
+        }
+
+        batch.TotalBaseAfn = decimal.Round(
+            batch.Items.Sum(x => x.AfnEquivalent), 4, MidpointRounding.AwayFromZero);
+        batch.TotalCommissionAfn = decimal.Round(
+            batch.TotalBaseAfn / 100000m * batch.CommissionPerLakhAfn,
+            0, MidpointRounding.AwayFromZero);
+        batch.TotalCommissionUsd = decimal.Round(
+            batch.TotalCommissionAfn / batch.UsdToAfnRate,
+            0, MidpointRounding.AwayFromZero);
+        if (batch.TotalCommissionUsd <= 0)
+            throw new InvalidOperationException(
+                "پس از کسر حواله‌های لغوشده، کمیشن قابل پرداختی باقی نمی‌ماند.");
+
+        var ledgerEntries = await context.LedgerEntries
+            .Where(x => x.TransactionId == batch.PostingTransactionId)
+            .ToListAsync(cancellationToken);
+        foreach (var entry in ledgerEntries)
+        {
+            if (entry.TalabKar > 0) entry.TalabKar = batch.TotalCommissionUsd;
+            if (entry.BadehKar > 0) entry.BadehKar = batch.TotalCommissionUsd;
+        }
+        await context.SaveChangesAsync(cancellationToken);
+
+        result.HawalaCount = batch.Items.Count;
+        result.TotalBaseAfn = batch.TotalBaseAfn;
+        result.TotalCommissionAfn = batch.TotalCommissionAfn;
+        result.TotalCommissionUsd = batch.TotalCommissionUsd;
     }
 
     public async Task<IReadOnlyList<CorrespondentCommissionBatchDto>> GetHistoryAsync(

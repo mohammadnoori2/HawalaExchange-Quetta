@@ -526,6 +526,36 @@
                             <i class="bi bi-info-circle"></i>
                             <small>در حال ویرایش حواله با شناسه: <strong>@EditId</strong></small>
                         </div>
+                        @if (HasPeriodicCommissionAffectingChanges())
+                        {
+                            <div class="alert alert-warning">
+                                <div class="fw-bold mb-2">
+                                    <i class="bi bi-calculator me-1"></i>
+                                    تغییرات فعلی روی کمیشن دوره‌ای محاسبه‌شده اثر می‌گذارد.
+                                </div>
+                                <div class="d-flex flex-column gap-2">
+                                    <label>
+                                        <input type="radio" name="periodicCommissionHandling" value="Recalculate"
+                                               @onchange="SelectPeriodicCommissionRecalculation"
+                                               disabled="@HasPeriodicCommissionCorrespondentChange()"
+                                               checked="@(periodicCommissionHandling == PeriodicCommissionRecalculate)" />
+                                        محاسبه مجدد و به‌روزرسانی همان کمیشن و سند قبلی
+                                    </label>
+                                    <label>
+                                        <input type="radio" name="periodicCommissionHandling" value="KeepPrevious"
+                                               @onchange="SelectPeriodicCommissionPreservation"
+                                               checked="@(periodicCommissionHandling == PeriodicCommissionKeepPrevious)" />
+                                        حفظ کمیشن قبلی بدون تغییر
+                                    </label>
+                                </div>
+                                @if (HasPeriodicCommissionCorrespondentChange())
+                                {
+                                    <small class="d-block mt-2">
+                                        با تغییر نمایندگی، سند قبلی متعلق به نمایندگی قبلی است؛ فقط حفظ کمیشن قبلی مجاز است.
+                                    </small>
+                                }
+                            </div>
+                        }
                     }
                 }
             </div>
@@ -908,6 +938,8 @@
                 FromAccountId = EditData.FromAccountId,
                 GeneratedSendHawalaNumber = EditData.GeneratedSendHawalaNumber
             };
+            CurrentHawala.HasPeriodicCommissionHistory = EditData.HasPeriodicCommissionHistory;
+            periodicCommissionHandling = null;
             InitializeHawalaConversion();
         }
         else if (!IsEditMode)
@@ -1599,6 +1631,12 @@
                 ValidationErrors.Add("مبلغ مقصد باید بزرگتر از صفر باشد.");
         }
 
+        if (HasPeriodicCommissionAffectingChanges() && string.IsNullOrWhiteSpace(periodicCommissionHandling))
+            ValidationErrors.Add("برای کمیشن دوره‌ای، محاسبه مجدد یا حفظ کمیشن قبلی را انتخاب کنید.");
+        else if (HasPeriodicCommissionCorrespondentChange() &&
+                 periodicCommissionHandling == PeriodicCommissionRecalculate)
+            ValidationErrors.Add("با تغییر نمایندگی فقط گزینه حفظ کمیشن قبلی مجاز است.");
+
         if (ValidationErrors.Any())
         {
             StateHasChanged();
@@ -1640,7 +1678,9 @@
                     ReferenceNumber = CurrentHawala.ReferenceNumber,
                     Notes = CurrentHawala.Notes,
                     PaymentLocationId = CurrentHawala.PaymentLocationId,
-                    GeneratedSendHawalaNumber = CurrentHawala.GeneratedSendHawalaNumber
+                    GeneratedSendHawalaNumber = CurrentHawala.GeneratedSendHawalaNumber,
+                    PeriodicCommissionHandling = periodicCommissionHandling,
+                    Status = CurrentHawala.Status
 
                 };
                 await HawalaService.UpdateHawalaAsync(EditId, updateDto);
@@ -2018,6 +2058,26 @@
         return account != null &&
                string.Equals(account.AccountType, "Correspondent", StringComparison.OrdinalIgnoreCase);
     }
+
+    private const string PeriodicCommissionRecalculate = "Recalculate";
+    private const string PeriodicCommissionKeepPrevious = "KeepPrevious";
+    private string? periodicCommissionHandling;
+
+    private bool HasPeriodicCommissionAffectingChanges() =>
+        IsEditMode && EditData?.HasPeriodicCommissionHistory == true &&
+        (CurrentHawala.CorrespondentId != EditData.CorrespondentId ||
+         CurrentHawala.FromCurrencyId != EditData.FromCurrencyId ||
+         CurrentHawala.FromAmount != EditData.FromAmount);
+
+    private bool HasPeriodicCommissionCorrespondentChange() =>
+        IsEditMode && EditData?.HasPeriodicCommissionHistory == true &&
+        CurrentHawala.CorrespondentId != EditData.CorrespondentId;
+
+    private void SelectPeriodicCommissionRecalculation(ChangeEventArgs _) =>
+        periodicCommissionHandling = PeriodicCommissionRecalculate;
+
+    private void SelectPeriodicCommissionPreservation(ChangeEventArgs _) =>
+        periodicCommissionHandling = PeriodicCommissionKeepPrevious;
 
     private async Task GetSuggestedGeneratedSendHawalaNumberAsync()
     {

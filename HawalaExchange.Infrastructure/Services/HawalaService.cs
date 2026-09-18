@@ -244,6 +244,11 @@
                 result.HasPeriodicCommissionHistory = await _context.CorrespondentCommissionBatchItems
                     .AsNoTracking()
                     .AnyAsync(x => x.HawalaId == hawala.Id);
+                result.PeriodicCommissionAfn = await _context.CorrespondentCommissionBatchItems
+                    .AsNoTracking()
+                    .Where(x => x.HawalaId == hawala.Id && x.IsActive && x.Batch.Status == "Posted")
+                    .Select(x => (decimal?)x.CommissionAfn)
+                    .FirstOrDefaultAsync();
 
                 if (!hawala.IsSystemGenerated)
                 {
@@ -431,6 +436,10 @@
                 IsSystemGenerated = h.IsSystemGenerated,
                 HasPeriodicCommissionHistory = _context.CorrespondentCommissionBatchItems
                     .Any(x => x.HawalaId == h.Id),
+                PeriodicCommissionAfn = _context.CorrespondentCommissionBatchItems
+                    .Where(x => x.HawalaId == h.Id && x.IsActive && x.Batch.Status == "Posted")
+                    .Select(x => (decimal?)x.CommissionAfn)
+                    .FirstOrDefault(),
                 CancelledAt = h.CancelledAt,
                 CancelledBy = h.CancelledBy,
                 CancelReason = h.CancelReason,
@@ -777,9 +786,13 @@
                 batch.TotalCommissionAfn = decimal.Round(
                     batch.TotalBaseAfn / 100000m * batch.CommissionPerLakhAfn,
                     0, MidpointRounding.AwayFromZero);
-                batch.TotalCommissionUsd = decimal.Round(
+                var isOutgoingCommission = hawala.HawalaType == "HawalaSend";
+                batch.TotalCommissionUsd = isOutgoingCommission ? 0 : decimal.Round(
                     batch.TotalCommissionAfn / batch.UsdToAfnRate,
                     0, MidpointRounding.AwayFromZero);
+                var postingAmount = isOutgoingCommission
+                    ? batch.TotalCommissionAfn
+                    : batch.TotalCommissionUsd;
 
                 var ledgerEntries = await _context.LedgerEntries
                     .Where(x => x.TransactionId == batch.PostingTransactionId)
@@ -790,9 +803,9 @@
                 foreach (var entry in ledgerEntries)
                 {
                     if (entry.TalabKar > 0)
-                        entry.TalabKar = batch.TotalCommissionUsd;
+                        entry.TalabKar = postingAmount;
                     if (entry.BadehKar > 0)
-                        entry.BadehKar = batch.TotalCommissionUsd;
+                        entry.BadehKar = postingAmount;
                 }
 
                 _context.AuditLogs.Add(new AuditLog

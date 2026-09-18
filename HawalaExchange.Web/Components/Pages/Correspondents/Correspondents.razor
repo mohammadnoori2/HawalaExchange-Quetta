@@ -152,10 +152,14 @@
                                             </button>
                                             @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
                                             {
-                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenCommissionPage(correspondent.Id)">
-                                                    <i class="bi bi-calculator text-success"></i>
-                                                    محاسبه کمیشن دوره‌ای
-                                                </button>
+                                                 <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenCommissionPage(correspondent.Id)">
+                                                     <i class="bi bi-calculator text-success"></i>
+                                                     کمیشن حواله‌های دریافتی
+                                                 </button>
+                                                 <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenOutgoingCommissionPage(correspondent.Id)">
+                                                     <i class="bi bi-calculator-fill text-warning"></i>
+                                                     کمیشن حواله‌های ارسالی
+                                                 </button>
                                             }
                                             @if (correspondent.IsArchived)
                                             {
@@ -1033,6 +1037,9 @@
     {
         NavigationManager.NavigateTo($"/correspondents/{correspondentId}/commission");
     }
+
+    private void OpenOutgoingCommissionPage(long correspondentId) =>
+        NavigationManager.NavigateTo($"/correspondents/{correspondentId}/outgoing-commission");
 
     private void OpenRangeModal(CorrespondentDto correspondent)
     {

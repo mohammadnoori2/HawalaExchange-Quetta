@@ -139,6 +139,7 @@
                             <th>نماینده</th>
                             <th>مبلغ</th>
                             <th>کارمزد</th>
+                            <th>کمیشن دوره‌ای</th>
                             <th>تاریخ</th>
                             <th class="text-center" style="width:80px;">عملیات</th>
                         </tr>
@@ -148,7 +149,7 @@
                         @if (isLoading)
                         {
                             <tr>
-                                <td colspan="10" class="text-center py-5">
+                                <td colspan="11" class="text-center py-5">
                                     <div class="spinner-border text-primary"></div>
                                     <p class="text-muted mt-2">در حال بارگذاری...</p>
                                 </td>
@@ -157,7 +158,7 @@
                         else if (!pagedHawalas.Any())
                         {
                             <tr>
-                                <td colspan="10" class="text-center py-5">
+                                <td colspan="11" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ حواله اجرا نشده‌ای یافت نشد</span>
@@ -193,6 +194,13 @@
                                     <td dir="ltr">
                                         @(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")
                                         @hawala.CommissionCurrencyCode
+                                    </td>
+                                    <td dir="ltr">
+                                        @if (hawala.PeriodicCommissionAfn.HasValue)
+                                        {
+                                            <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) AFN</span>
+                                        }
+                                        else { <span>—</span> }
                                     </td>
 
                                     <td><AppDateTime Value="@hawala.CreatedAt" /></td>

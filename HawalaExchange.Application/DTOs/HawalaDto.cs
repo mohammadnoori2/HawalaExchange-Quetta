@@ -76,6 +76,7 @@ namespace HawalaExchange.Application.DTOs
         public bool IsSystemGenerated { get; set; }
         public bool IsBulkImportGeneratedSend { get; set; }
         public bool HasPeriodicCommissionHistory { get; set; }
+        public decimal? PeriodicCommissionAfn { get; set; }
         public long? GeneratedSendHawalaNumber { get; set; }
         public string? PaymentLocation { get; set; }
         public DateTime? CancelledAt { get; set; }

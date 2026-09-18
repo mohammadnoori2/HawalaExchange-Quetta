@@ -1,4 +1,5 @@
 @page "/correspondents/{CorrespondentId:long}/commission"
+@page "/correspondents/{CorrespondentId:long}/outgoing-commission"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
@@ -8,11 +9,11 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 
-<PageTitle>محاسبه کمیشن دوره‌ای</PageTitle>
+<PageTitle>@(isOutgoing ? "کمیشن حواله‌های ارسالی" : "محاسبه کمیشن دوره‌ای")</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
-    <AppPageHeader Title="محاسبه کمیشن دوره‌ای"
-                   Subtitle="محاسبه کمیشن حواله‌های دریافتی بر اساس هر لک"
+    <AppPageHeader Title="@(isOutgoing ? "محاسبه کمیشن حواله‌های ارسالی" : "محاسبه کمیشن حواله‌های دریافتی")"
+                   Subtitle="@(isOutgoing ? "محاسبه مستقل کمیشن ارسالی به افغانی و طلبکارشدن نمایندگی" : "محاسبه کمیشن حواله‌های دریافتی بر اساس هر لک")"
                    Icon="bi-calculator">
         <Actions>
             <button class="btn-modern btn-light-modern" @onclick="BackToCorrespondent">
@@ -56,10 +57,13 @@
                         <label class="form-label fw-bold">کمیشن هر لک (AFN)</label>
                         <MoneyInput class="form-control" DecimalPlaces="0" @bind-Value="request.CommissionPerLakhAfn" />
                     </div>
+                    @if (!isOutgoing)
+                    {
                     <div class="col-md-3">
                         <label class="form-label fw-bold">نرخ USD به AFN</label>
                         <MoneyInput class="form-control" DecimalPlaces="8" @bind-Value="request.UsdToAfnRate" />
                     </div>
+                    }
                 </div>
                 <div class="mt-3">
                     <button class="btn-modern btn-primary-modern" disabled="@busy" @onclick="LoadPreview">
@@ -102,7 +106,7 @@
                     <div class="col-md-3"><div class="modern-card p-3"><small>تعداد حواله</small><h4>@preview.HawalaCount</h4></div></div>
                     <div class="col-md-3"><div class="modern-card p-3"><small>مجموع معادل AFN</small><h4>@preview.TotalBaseAfn.ToString("N0")</h4></div></div>
                     <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن AFN</small><h4>@preview.TotalCommissionAfn.ToString("N0")</h4></div></div>
-                    <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن نهایی USD</small><h4>@preview.TotalCommissionUsd.ToString("N0")</h4></div></div>
+                    <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن نهایی @(isOutgoing ? "AFN" : "USD")</small><h4>@(isOutgoing ? preview.TotalCommissionAfn : preview.TotalCommissionUsd).ToString("N0")</h4></div></div>
                 </div>
 
                 <div class="table-card mb-4">
@@ -122,7 +126,7 @@
                 </div>
 
                 <div class="alert alert-warning d-flex justify-content-between align-items-center">
-                    <span>پس از تأیید، مبلغ <strong>@preview.TotalCommissionUsd.ToString("N0") USD</strong> در حسابداری ثبت می‌شود.</span>
+                    <span>پس از تأیید، مبلغ <strong>@(isOutgoing ? preview.TotalCommissionAfn : preview.TotalCommissionUsd).ToString("N0") @(isOutgoing ? "AFN" : "USD")</strong> در حسابداری ثبت می‌شود.</span>
                     <button class="btn-modern btn-success-modern" disabled="@busy" @onclick="PostBatch">
                         <i class="bi bi-check2-circle"></i> تأیید و ثبت حسابداری
                     </button>
@@ -140,11 +144,11 @@
                 else
                 {
                     <div class="table-responsive"><table class="table table-hover align-middle">
-                        <thead><tr><th>دوره</th><th>حواله</th><th>کمیشن AFN</th><th>کمیشن USD</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                        <thead><tr><th>دوره</th><th>حواله</th><th>کمیشن AFN</th>@if (!isOutgoing) { <th>کمیشن USD</th> }<th>وضعیت</th><th>عملیات</th></tr></thead>
                         <tbody>@foreach (var batch in history)
                         {
                             <tr><td>@batch.PeriodFrom.ToString("yyyy-MM-dd") تا @batch.PeriodTo.ToString("yyyy-MM-dd")</td><td>@batch.HawalaCount</td>
-                                <td>@batch.TotalCommissionAfn.ToString("N0")</td><td>@batch.TotalCommissionUsd.ToString("N0")</td>
+                                <td>@batch.TotalCommissionAfn.ToString("N0")</td>@if (!isOutgoing) { <td>@batch.TotalCommissionUsd.ToString("N0")</td> }
                                 <td><span class="badge @(batch.Status == "Posted" ? "bg-success" : "bg-secondary")">@(batch.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></td>
                                 <td>@if (batch.Status == "Posted")
                                     {<button class="btn btn-sm btn-outline-danger" @onclick="() => SelectReverse(batch.Id)">برگشت</button>}</td></tr>
@@ -180,14 +184,17 @@
     private string success = string.Empty;
     private long? reverseBatchId;
     private string reverseReason = string.Empty;
+    private bool isOutgoing;
 
     protected override async Task OnInitializedAsync()
     {
+        isOutgoing = Navigation.Uri.Contains("/outgoing-commission", StringComparison.OrdinalIgnoreCase);
         correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId);
         request = new CorrespondentCommissionPreviewRequestDto
         {
             CorrespondentId = CorrespondentId, PeriodFrom = DateTime.Today.AddMonths(-1),
-            PeriodTo = DateTime.Today, CommissionPerLakhAfn = 200
+            PeriodTo = DateTime.Today, CommissionPerLakhAfn = 200,
+            HawalaType = isOutgoing ? "HawalaSend" : "HawalaReceive"
         };
         await LoadHistory();
         loadingPage = false;
@@ -233,7 +240,8 @@
         });
     }
 
-    private async Task LoadHistory() => history = (await CommissionService.GetHistoryAsync(CorrespondentId)).ToList();
+    private async Task LoadHistory() => history = (await CommissionService.GetHistoryAsync(CorrespondentId))
+        .Where(x => x.HawalaType == request.HawalaType).ToList();
     private async Task Execute(Func<Task> action)
     {
         error = string.Empty; success = string.Empty; busy = true;

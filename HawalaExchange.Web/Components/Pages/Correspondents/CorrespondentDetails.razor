@@ -55,7 +55,10 @@
                 @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
                 {
                     <button class="btn btn-success" @onclick="OpenCommissionPage">
-                        <i class="bi bi-calculator me-1"></i> محاسبه کمیشن
+                        <i class="bi bi-calculator me-1"></i> کمیشن دریافتی
+                    </button>
+                    <button class="btn btn-warning" @onclick="OpenOutgoingCommissionPage">
+                        <i class="bi bi-calculator-fill me-1"></i> کمیشن ارسالی
                     </button>
                 }
                 <CorrespondentActionsMenu IsArchived="@correspondent.IsArchived"
@@ -428,6 +431,9 @@
 
     private void OpenCommissionPage() =>
         NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/commission");
+
+    private void OpenOutgoingCommissionPage() =>
+        NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/outgoing-commission");
 
     private async Task SaveEditAsync()
     {

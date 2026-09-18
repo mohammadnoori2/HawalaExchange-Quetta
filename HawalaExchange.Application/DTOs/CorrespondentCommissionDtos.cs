@@ -12,6 +12,7 @@ public sealed class CorrespondentCommissionRateDto
 
 public sealed class CorrespondentCommissionPreviewRequestDto
 {
+    public string HawalaType { get; set; } = "HawalaReceive";
     public long CorrespondentId { get; set; }
     public DateTime PeriodFrom { get; set; }
     public DateTime PeriodTo { get; set; }
@@ -49,6 +50,7 @@ public sealed class CorrespondentCommissionItemDto
 
 public sealed class CorrespondentCommissionBatchDto
 {
+    public string HawalaType { get; set; } = "HawalaReceive";
     public long Id { get; set; }
     public long CorrespondentId { get; set; }
     public string CorrespondentName { get; set; } = string.Empty;

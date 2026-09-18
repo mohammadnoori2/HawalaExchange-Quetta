@@ -18,7 +18,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
     {
         var preview = await ExecutePreviewAsync(request, cancellationToken);
         var deductions = await GetPendingCancellationDeductionsAsync(
-            request.CorrespondentId, cancellationToken);
+            request.CorrespondentId, request.HawalaType, cancellationToken);
         ApplyDeductionsToPreview(preview, deductions, request.CommissionPerLakhAfn, request.UsdToAfnRate);
         return preview;
     }
@@ -57,15 +57,17 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             }, cancellationToken);
 
         var deductions = await GetPendingCancellationDeductionsAsync(
-            request.CorrespondentId, cancellationToken);
+            request.CorrespondentId, request.HawalaType, cancellationToken);
         if (deductions.Count > 0)
-            await AddDeductionsToPostedBatchAsync(result, deductions, cancellationToken);
+            await AddDeductionsToPostedBatchAsync(
+                result, deductions, request.HawalaType == "HawalaSend", cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
     }
 
     private async Task<List<CorrespondentCommissionBatchItem>> GetPendingCancellationDeductionsAsync(
         long correspondentId,
+        string hawalaType,
         CancellationToken cancellationToken)
     {
         var candidates = await context.CorrespondentCommissionBatchItems
@@ -75,6 +77,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             .Include(x => x.Batch)
             .Where(x => !x.IsActive && x.Batch.Status == "Posted" &&
                         x.Batch.CorrespondentId == correspondentId &&
+                        x.Hawala.HawalaType == hawalaType &&
                         x.Hawala.Status == "Cancel" &&
                         !context.CorrespondentCommissionBatchItems.Any(active =>
                             active.HawalaId == x.HawalaId && active.IsActive))
@@ -118,6 +121,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
     private async Task AddDeductionsToPostedBatchAsync(
         CorrespondentCommissionBatchDto result,
         IReadOnlyCollection<CorrespondentCommissionBatchItem> deductions,
+        bool isOutgoing,
         CancellationToken cancellationToken)
     {
         var batch = await context.CorrespondentCommissionBatches
@@ -142,10 +146,11 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         batch.TotalCommissionAfn = decimal.Round(
             batch.TotalBaseAfn / 100000m * batch.CommissionPerLakhAfn,
             0, MidpointRounding.AwayFromZero);
-        batch.TotalCommissionUsd = decimal.Round(
+        batch.TotalCommissionUsd = isOutgoing ? 0 : decimal.Round(
             batch.TotalCommissionAfn / batch.UsdToAfnRate,
             0, MidpointRounding.AwayFromZero);
-        if (batch.TotalCommissionUsd <= 0)
+        var postingAmount = isOutgoing ? batch.TotalCommissionAfn : batch.TotalCommissionUsd;
+        if (postingAmount <= 0)
             throw new InvalidOperationException(
                 "پس از کسر حواله‌های لغوشده، کمیشن قابل پرداختی باقی نمی‌ماند.");
 
@@ -154,8 +159,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             .ToListAsync(cancellationToken);
         foreach (var entry in ledgerEntries)
         {
-            if (entry.TalabKar > 0) entry.TalabKar = batch.TotalCommissionUsd;
-            if (entry.BadehKar > 0) entry.BadehKar = batch.TotalCommissionUsd;
+            if (entry.TalabKar > 0) entry.TalabKar = postingAmount;
+            if (entry.BadehKar > 0) entry.BadehKar = postingAmount;
         }
         await context.SaveChangesAsync(cancellationToken);
 
@@ -174,6 +179,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             .Select(x => new CorrespondentCommissionBatchDto
             {
                 Id = x.Id, CorrespondentId = x.CorrespondentId, CorrespondentName = x.Correspondent.Name,
+                HawalaType = x.Items.Select(i => i.Hawala.HawalaType).FirstOrDefault() ?? "HawalaReceive",
                 PeriodFrom = x.PeriodFrom, PeriodTo = x.PeriodTo, HawalaCount = x.Items.Count,
                 CommissionPerLakhAfn = x.CommissionPerLakhAfn, UsdToAfnRate = x.UsdToAfnRate,
                 TotalBaseAfn = x.TotalBaseAfn, TotalCommissionAfn = x.TotalCommissionAfn,
@@ -331,6 +337,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         command.Parameters.Add(new SqlParameter("@TenantId", SqlDbType.BigInt) { Value = context.CurrentTenantId });
         command.Parameters.Add(new SqlParameter("@CurrentUserId", SqlDbType.BigInt) { Value = context.RequireCurrentUserId() });
         command.Parameters.Add(new SqlParameter("@CorrespondentId", SqlDbType.BigInt) { Value = request.CorrespondentId });
+        command.Parameters.Add(new SqlParameter("@HawalaType", SqlDbType.NVarChar, 20) { Value = request.HawalaType });
         command.Parameters.Add(new SqlParameter("@PeriodFrom", SqlDbType.Date) { Value = request.PeriodFrom.Date });
         command.Parameters.Add(new SqlParameter("@PeriodTo", SqlDbType.Date) { Value = request.PeriodTo.Date });
         command.Parameters.Add(new SqlParameter("@FromUtc", SqlDbType.DateTime2) { Value = request.PeriodFrom.Date.ToUniversalTime() });
@@ -362,7 +369,9 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             throw new InvalidOperationException("تاریخ پایان نمی‌تواند قبل از تاریخ آغاز باشد.");
         if (request.CommissionPerLakhAfn <= 0)
             throw new InvalidOperationException("کمیشن هر لک باید بزرگ‌تر از صفر باشد.");
-        if (requireUsdRate && request.UsdToAfnRate <= 0)
+        if (request.HawalaType is not ("HawalaReceive" or "HawalaSend"))
+            throw new InvalidOperationException("نوع حواله برای محاسبه کمیشن معتبر نیست.");
+        if (requireUsdRate && request.HawalaType == "HawalaReceive" && request.UsdToAfnRate <= 0)
             throw new InvalidOperationException("نرخ تبدیل USD به AFN الزامی است.");
         if (request.Rates.Any(x => x.SourceToAfnRate < 0))
             throw new InvalidOperationException("نرخ تبدیل ارز نمی‌تواند منفی باشد.");

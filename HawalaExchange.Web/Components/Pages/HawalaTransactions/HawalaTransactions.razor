@@ -193,6 +193,7 @@
                             </th>
                             <th>کارمزد حواله</th>
                             <th>کمیشن عامل/نمایندگی</th>
+                            <th>کمیشن دوره‌ای</th>
                             <th>محل پرداخت</th>
                             <th>نماینده</th>
                             <th>نرخ توافقی</th>
@@ -217,7 +218,7 @@
                         @if (isLoading && filteredHawalas == null)
                         {
                             <tr>
-                                <td colspan="15" class="text-center py-5">
+                                <td colspan="16" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status"><span class="visually-hidden">در حال بارگذاری...</span></div>
                                         <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
@@ -228,7 +229,7 @@
                         else if (!filteredHawalas.Any())
                         {
                             <tr>
-                                <td colspan="15" class="text-center py-5">
+                                <td colspan="16" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ حواله‌ای یافت نشد</span>
@@ -263,6 +264,13 @@
                                     <td dir="ltr">
                                         @(hawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) : "-")
                                         @hawala.AgentCommissionCurrencyCode
+                                    </td>
+                                    <td dir="ltr">
+                                        @if (hawala.PeriodicCommissionAfn.HasValue)
+                                        {
+                                            <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) AFN</span>
+                                        }
+                                        else { <span>—</span> }
                                     </td>
                                     <td>@(hawala.PaymentLocationName ?? "-")</td>
                                     <td>@(hawala.CorrespondentName ?? "-")</td>

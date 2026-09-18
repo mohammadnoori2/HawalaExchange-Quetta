@@ -112,6 +112,7 @@
                     <th>گیرنده</th>
                     <th>مبلغ</th>
                     <th>@(HawalaType == "HawalaSend" ? "کمیشن نمایندگی" : "کارمزد")</th>
+                    <th>کمیشن دوره‌ای</th>
                     <th>نرخ توافقی</th>
                     <th>وضعیت</th>
                     <th>تاریخ</th>
@@ -121,11 +122,11 @@
             <tbody>
                 @if (isLoading)
                 {
-                    <tr><td colspan="10" class="panel-empty"><span class="spinner-border spinner-border-sm text-primary"></span> در حال بارگذاری...</td></tr>
+                    <tr><td colspan="11" class="panel-empty"><span class="spinner-border spinner-border-sm text-primary"></span> در حال بارگذاری...</td></tr>
                 }
                 else if (!hawalas.Any())
                 {
-                    <tr><td colspan="10" class="panel-empty">حواله‌ای در این بخش ثبت نشده است.</td></tr>
+                    <tr><td colspan="11" class="panel-empty">حواله‌ای در این بخش ثبت نشده است.</td></tr>
                 }
                 else
                 {
@@ -165,6 +166,13 @@
                                 {
                                     <span>@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "—") @hawala.CommissionCurrencyCode</span>
                                 }
+                            </td>
+                            <td dir="ltr">
+                                @if (hawala.PeriodicCommissionAfn.HasValue)
+                                {
+                                    <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) AFN</span>
+                                }
+                                else { <span>—</span> }
                             </td>
                             <td class="text-nowrap">
                                 @if (hawala.SettlementRates.Count > 0)

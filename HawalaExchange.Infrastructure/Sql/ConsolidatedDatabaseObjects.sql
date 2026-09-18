@@ -379,6 +379,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                     @TenantId bigint,
                     @CurrentUserId bigint,
                     @CorrespondentId bigint,
+                    @HawalaType nvarchar(20),
                     @PeriodFrom date,
                     @PeriodTo date,
                     @FromUtc datetime2,
@@ -393,11 +394,13 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
 
                     IF @Mode NOT IN (N'Preview', N'Post')
                         THROW 50001, N'نوع عملیات محاسبه کمیشن معتبر نیست.', 1;
+                    IF @HawalaType NOT IN (N'HawalaReceive', N'HawalaSend')
+                        THROW 50015, N'نوع حواله برای محاسبه کمیشن معتبر نیست.', 1;
                     IF @PeriodTo < @PeriodFrom
                         THROW 50002, N'تاریخ پایان نمی‌تواند قبل از تاریخ آغاز باشد.', 1;
                     IF @CommissionPerLakhAfn <= 0
                         THROW 50003, N'کمیشن هر لک باید بزرگ‌تر از صفر باشد.', 1;
-                    IF @Mode = N'Post' AND @UsdToAfnRate <= 0
+                    IF @Mode = N'Post' AND @HawalaType = N'HawalaReceive' AND @UsdToAfnRate <= 0
                         THROW 50004, N'نرخ تبدیل USD به AFN الزامی است.', 1;
                     IF NOT EXISTS
                     (
@@ -459,7 +462,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         ) rate
                         WHERE h.[TenantId] = @TenantId
                           AND h.[CorrespondentId] = @CorrespondentId
-                          AND h.[HawalaType] = N'HawalaReceive'
+                          AND h.[HawalaType] = @HawalaType
                           AND h.[Status] <> N'Cancel'
                           AND h.[CreatedAt] >= @FromUtc
                           AND h.[CreatedAt] < @ToUtcExclusive
@@ -488,7 +491,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         DECLARE @TotalCommissionAfn decimal(18,4) =
                             CAST(ROUND(@TotalBaseAfn / 100000 * @CommissionPerLakhAfn, 0) AS decimal(18,4));
                         DECLARE @TotalCommissionUsd decimal(18,4) =
-                            CAST(CASE WHEN @UsdToAfnRate > 0
+                            CAST(CASE WHEN @HawalaType = N'HawalaReceive' AND @UsdToAfnRate > 0
                                       THEN ROUND(@TotalCommissionAfn / @UsdToAfnRate, 0)
                                       ELSE 0 END AS decimal(18,4));
                         DECLARE @CorrespondentName nvarchar(200) =
@@ -524,8 +527,9 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
 
                         IF @HawalaCount = 0
                             THROW 50008, N'حواله محاسبه‌نشده‌ای در این دوره وجود ندارد.', 1;
-                        IF @TotalCommissionUsd <= 0
-                            THROW 50009, N'کمیشن نهایی پس از گردکردن کمتر از یک دالر است و قابل ثبت نیست.', 1;
+                        IF (@HawalaType = N'HawalaReceive' AND @TotalCommissionUsd <= 0) OR
+                           (@HawalaType = N'HawalaSend' AND @TotalCommissionAfn <= 0)
+                            THROW 50009, N'کمیشن نهایی پس از گردکردن قابل ثبت نیست.', 1;
 
                         DECLARE @UsdCurrencyId bigint =
                         (
@@ -564,6 +568,29 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         )
                             THROW 50012, N'حساب 3001 باید یک حساب درآمد فعال باشد.', 1;
 
+                        DECLARE @ExpenseAccountId bigint;
+                        IF @HawalaType = N'HawalaSend'
+                        BEGIN
+                            SELECT @ExpenseAccountId = [Id]
+                            FROM [dbo].[Accounts] WITH (UPDLOCK, HOLDLOCK)
+                            WHERE [TenantId] = @TenantId AND [AccountCode] = N'5002';
+                            IF @ExpenseAccountId IS NULL
+                            BEGIN
+                                INSERT INTO [dbo].[Accounts]
+                                    ([TenantId], [AccountCode], [AccountName], [AccountType], [IsArchived], [CreatedAt])
+                                VALUES
+                                    (@TenantId, N'5002', N'هزینه کمیشن حواله‌های ارسالی', N'Expense', 0, SYSUTCDATETIME());
+                                SET @ExpenseAccountId = SCOPE_IDENTITY();
+                            END
+                            ELSE IF EXISTS
+                            (
+                                SELECT 1 FROM [dbo].[Accounts]
+                                WHERE [TenantId] = @TenantId AND [Id] = @ExpenseAccountId
+                                  AND ([IsArchived] = 1 OR [AccountType] <> N'Expense')
+                            )
+                                THROW 50016, N'حساب 5002 باید یک حساب هزینه فعال باشد.', 1;
+                        END;
+
                         DECLARE @BranchId bigint =
                         (
                             SELECT TOP (1) [Id] FROM [dbo].[Branches]
@@ -591,7 +618,9 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                              WHERE [TenantId] = @TenantId AND [TransactionNo] LIKE @NumberPrefix + N'%'), 0
                         ) + 1;
                         DECLARE @TransactionNo nvarchar(50) = @NumberPrefix + FORMAT(@NextNumber, N'0000');
-                        DECLARE @Remarks nvarchar(1000) = N'کمیشن دوره‌ای نمایندگی ' + @CorrespondentName
+                        DECLARE @Remarks nvarchar(1000) =
+                            CASE WHEN @HawalaType = N'HawalaSend' THEN N'کمیشن دوره‌ای حواله‌های ارسالی نمایندگی '
+                                 ELSE N'کمیشن دوره‌ای حواله‌های دریافتی نمایندگی ' END + @CorrespondentName
                             + N' از ' + CONVERT(nvarchar(10), @PeriodFrom, 23)
                             + N' تا ' + CONVERT(nvarchar(10), @PeriodTo, 23);
 
@@ -599,7 +628,9 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             ([TenantId], [TransactionNo], [TransactionType], [BranchId], [Status],
                              [Remarks], [CreatedBy], [CreatedAt])
                         VALUES
-                            (@TenantId, @TransactionNo, N'PeriodicCorrespondentCommission', @BranchId,
+                            (@TenantId, @TransactionNo,
+                             CASE WHEN @HawalaType = N'HawalaSend' THEN N'PeriodicOutgoingCommission'
+                                  ELSE N'PeriodicCorrespondentCommission' END, @BranchId,
                              N'Paid', @Remarks, @CurrentUserId, @Now);
                         DECLARE @TransactionId bigint = SCOPE_IDENTITY();
 
@@ -623,16 +654,26 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                                CAST([CommissionAfn] AS decimal(18,4)), 1
                         FROM #Eligible;
 
-                        DECLARE @Description nvarchar(500) = N'کمیشن دوره‌ای نمایندگی '
+                        DECLARE @Description nvarchar(500) =
+                            CASE WHEN @HawalaType = N'HawalaSend' THEN N'کمیشن حواله‌های ارسالی نمایندگی '
+                                 ELSE N'کمیشن حواله‌های دریافتی نمایندگی ' END
                             + @CorrespondentName + N'، ' + CONVERT(nvarchar(20), @HawalaCount) + N' حواله';
+                        DECLARE @PostingCurrencyId bigint = CASE WHEN @HawalaType = N'HawalaSend' THEN @AfnCurrencyId ELSE @UsdCurrencyId END;
+                        DECLARE @PostingAmount decimal(18,4) = CASE WHEN @HawalaType = N'HawalaSend' THEN @TotalCommissionAfn ELSE @TotalCommissionUsd END;
                         INSERT INTO [dbo].[LedgerEntries]
                             ([TenantId], [TransactionId], [AccountId], [CurrencyId],
                              [TalabKar], [BadehKar], [Description], [CreatedAt])
                         VALUES
-                            (@TenantId, @TransactionId, @CorrespondentAccountId, @UsdCurrencyId,
-                             0, @TotalCommissionUsd, @Description, @Now),
-                            (@TenantId, @TransactionId, @IncomeAccountId, @UsdCurrencyId,
-                             @TotalCommissionUsd, 0, @Description, @Now);
+                            (@TenantId, @TransactionId, @CorrespondentAccountId, @PostingCurrencyId,
+                             CASE WHEN @HawalaType = N'HawalaSend' THEN @PostingAmount ELSE 0 END,
+                             CASE WHEN @HawalaType = N'HawalaReceive' THEN @PostingAmount ELSE 0 END,
+                             @Description, @Now),
+                            (@TenantId, @TransactionId,
+                             CASE WHEN @HawalaType = N'HawalaSend' THEN @ExpenseAccountId ELSE @IncomeAccountId END,
+                             @PostingCurrencyId,
+                             CASE WHEN @HawalaType = N'HawalaReceive' THEN @PostingAmount ELSE 0 END,
+                             CASE WHEN @HawalaType = N'HawalaSend' THEN @PostingAmount ELSE 0 END,
+                             @Description, @Now);
 
                         INSERT INTO [dbo].[AuditLogs]
                             ([TenantId], [UserId], [ProcessId], [Action], [TableName], [RecordId],
@@ -641,7 +682,9 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             (@TenantId, @CurrentUserId, NEWID(), N'POST_PERIODIC_COMMISSION',
                              N'CorrespondentCommissionBatches', @BatchId,
                              N'کمیشن ' + CONVERT(nvarchar(20), @HawalaCount) + N' حواله به مبلغ '
-                                + CONVERT(nvarchar(50), @TotalCommissionUsd) + N' USD ثبت شد.', @Now);
+                                 + CONVERT(nvarchar(50), @PostingAmount)
+                                 + CASE WHEN @HawalaType = N'HawalaSend' THEN N' AFN' ELSE N' USD' END
+                                 + N' ثبت شد.', @Now);
 
                         COMMIT TRANSACTION;
 

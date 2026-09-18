@@ -96,6 +96,7 @@
                             <th>مبلغ</th>
                             <th>کارمزد</th>
                             <th>کمیشن عامل پرداخت</th>
+                            <th>کمیشن دوره‌ای</th>
                             <th>وضعیت</th>
                             <th>تاریخ</th>
                             <th>زمان اجرا</th>
@@ -108,7 +109,7 @@
                         @if (isLoading)
                         {
                             <tr>
-                                <td colspan="14" class="text-center py-5">
+                                <td colspan="15" class="text-center py-5">
                                     <div class="spinner-border text-primary"></div>
                                     <p class="text-muted mt-2">در حال بارگذاری...</p>
                                 </td>
@@ -117,7 +118,7 @@
                         else if (!pagedHawalas.Any())
                         {
                             <tr>
-                                <td colspan="14" class="text-center py-5">
+                                <td colspan="15" class="text-center py-5">
                                     هیچ حواله دریافتی یافت نشد.
                                 </td>
                             </tr>
@@ -155,6 +156,13 @@
                                     <td dir="ltr">
                                         @(hawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) : "-")
                                         @hawala.AgentCommissionCurrencyCode
+                                    </td>
+                                    <td dir="ltr">
+                                        @if (hawala.PeriodicCommissionAfn.HasValue)
+                                        {
+                                            <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) AFN</span>
+                                        }
+                                        else { <span>—</span> }
                                     </td>
 
                                     <td>

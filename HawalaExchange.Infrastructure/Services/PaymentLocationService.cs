@@ -10,22 +10,27 @@ namespace HawalaExchange.Application.Services
     public class PaymentLocationService : IPaymentLocationService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
         private readonly IMapper _mapper;
         private readonly IAuditLogService _auditLogService;
 
         public PaymentLocationService(
             ApplicationDbContext context,
+            IDbContextFactory<ApplicationDbContext> contextFactory,
             IMapper mapper,
             IAuditLogService auditLogService)
         {
             _context = context;
+            _contextFactory = contextFactory;
             _mapper = mapper;
             _auditLogService = auditLogService;
         }
 
         public async Task<IEnumerable<PaymentLocationDto>> GetAllAsync()
         {
-            var entities = await _context.PaymentLocations
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var entities = await context.PaymentLocations
+                .AsNoTracking()
                 .Include(p => p.CreatedByUser)
                 .Include(p => p.Aliases)
                 .OrderBy(p => p.Name)
@@ -36,7 +41,9 @@ namespace HawalaExchange.Application.Services
 
         public async Task<IEnumerable<PaymentLocationDto>> GetActiveAsync()
         {
-            var entities = await _context.PaymentLocations
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var entities = await context.PaymentLocations
+                .AsNoTracking()
                 .Where(p => p.IsActive)
                 .Include(p => p.Aliases)
                 .OrderBy(p => p.Name)
@@ -47,7 +54,9 @@ namespace HawalaExchange.Application.Services
 
         public async Task<PaymentLocationDto?> GetByIdAsync(long id)
         {
-            var entity = await _context.PaymentLocations
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var entity = await context.PaymentLocations
+                .AsNoTracking()
                 .Include(p => p.CreatedByUser)
                 .Include(p => p.Aliases)
                 .FirstOrDefaultAsync(p => p.Id == id);
@@ -63,7 +72,8 @@ namespace HawalaExchange.Application.Services
             if (string.IsNullOrEmpty(normalizedName))
                 return null;
 
-            var query = _context.PaymentLocations
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var query = context.PaymentLocations
                 .AsNoTracking()
                 .Include(p => p.Aliases)
                 .Where(p => p.NormalizedName == normalizedName ||

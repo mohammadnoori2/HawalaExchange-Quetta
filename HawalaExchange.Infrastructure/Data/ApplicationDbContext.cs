@@ -120,6 +120,9 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<AedDealConversion> AedDealConversions { get; set; }
         public DbSet<CorrespondentCommissionBatch> CorrespondentCommissionBatches { get; set; }
         public DbSet<CorrespondentCommissionBatchItem> CorrespondentCommissionBatchItems { get; set; }
+        public DbSet<CorrespondentAccountPeriod> CorrespondentAccountPeriods { get; set; }
+        public DbSet<CorrespondentAccountPeriodBalance> CorrespondentAccountPeriodBalances { get; set; }
+        public DbSet<CorrespondentAccountPeriodHawala> CorrespondentAccountPeriodHawalas { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
         public DbSet<PaymentLocationAlias> PaymentLocationAliases { get; set; }
 
@@ -1615,8 +1618,7 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<AedDealConversion>()
                 .HasIndex(x => new { x.TenantId, x.AedDealId, x.CreatedAt });
             modelBuilder.Entity<Hawala>()
-                .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.Number })
-                .IsUnique();
+                .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.HawalaType, x.Number });
             modelBuilder.Entity<Hawala>()
                 .HasIndex(x => new { x.TenantId, x.SourceHawalaId })
                 .IsUnique()
@@ -2047,6 +2049,27 @@ namespace HawalaExchange.Infrastructure.Data
                 entity.HasOne(x => x.Hawala)
                     .WithMany(x => x.SettlementConversionLinks)
                     .HasForeignKey(x => x.HawalaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CorrespondentAccountPeriod>(entity =>
+            {
+                entity.HasIndex(x => new { x.TenantId, x.CorrespondentId, x.PeriodNumber }).IsUnique();
+                entity.HasOne(x => x.Correspondent).WithMany().HasForeignKey(x => x.CorrespondentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<CorrespondentAccountPeriodBalance>(entity =>
+            {
+                entity.HasIndex(x => new { x.TenantId, x.PeriodId, x.CurrencyId }).IsUnique();
+                entity.HasOne(x => x.Period).WithMany(x => x.Balances).HasForeignKey(x => x.PeriodId);
+                entity.HasOne(x => x.Currency).WithMany().HasForeignKey(x => x.CurrencyId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<CorrespondentAccountPeriodHawala>(entity =>
+            {
+                entity.HasKey(x => new { x.PeriodId, x.HawalaId });
+                entity.HasOne(x => x.Period).WithMany(x => x.Hawalas).HasForeignKey(x => x.PeriodId);
+                entity.HasOne(x => x.Hawala).WithMany().HasForeignKey(x => x.HawalaId)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 

@@ -1,0 +1,35 @@
+@page "/correspondents/{CorrespondentId:long}/periods"
+@page "/correspondents/{CorrespondentId:long}/periods/{PeriodId:long}"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject ICorrespondentService CorrespondentService
+@inject NavigationManager Navigation
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+
+<PageTitle>بستن دوره نمایندگی</PageTitle>
+<div class="page-wrapper" dir="rtl">
+ <AppPageHeader Title="بستن دوره نمایندگی" Subtitle="ثبت مانده انتقالی بدون پرداخت یا دریافت واقعی" Icon="bi-calendar-check" />
+ @if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger">@error</div> }
+ @if (PeriodId.HasValue && selected != null)
+ {
+  <button class="btn btn-light mb-3" @onclick="Back">بازگشت</button>
+  <div class="modern-card p-3 mb-3"><h5>دوره @selected.PeriodNumber — @selected.CorrespondentName</h5><div>@selected.PeriodFrom.ToLocalTime() تا @selected.PeriodTo.ToLocalTime()</div></div>
+  <div class="modern-card p-3 mb-3"><h6>مانده‌های انتقالی</h6>@foreach(var b in selected.Balances){<div dir="ltr">@b.CurrencyCode: طلب @b.TalabKar.ToString("N0") | بدهی @b.BadehKar.ToString("N0") | خالص @b.Net.ToString("N0")</div>}</div>
+  <div class="table-responsive"><table class="table"><thead><tr><th>نمبر</th><th>نوع</th><th>مبلغ</th><th>وضعیت</th><th>تاریخ</th></tr></thead><tbody>@foreach(var h in selected.Hawalas){<tr><td>@h.Number</td><td>@h.HawalaType</td><td>@h.FromAmount.ToString("N0") @h.FromCurrencyCode</td><td>@h.StatusName</td><td>@h.CreatedAt.ToLocalTime()</td></tr>}</tbody></table></div>
+ }
+ else
+ {
+  <div class="modern-card p-3 mb-3"><label class="form-label">یادداشت اختیاری</label><textarea class="form-control mb-2" @bind="note"></textarea><button class="btn btn-primary" disabled="@busy" @onclick="ClosePeriod">بستن دوره و شروع شماره‌ها از ۱</button></div>
+  <div class="table-responsive"><table class="table"><thead><tr><th>دوره</th><th>بازه</th><th>تعداد حواله</th><th></th></tr></thead><tbody>@foreach(var p in periods){<tr><td>@p.PeriodNumber</td><td>@p.PeriodFrom.ToLocalTime() تا @p.PeriodTo.ToLocalTime()</td><td>@p.HawalaCount</td><td><button class="btn btn-sm btn-outline-primary" @onclick="() => Open(p.Id)">جزئیات</button></td></tr>}</tbody></table></div>
+ }
+</div>
+@code {
+ [Parameter] public long CorrespondentId { get; set; }
+ [Parameter] public long? PeriodId { get; set; }
+ private List<CorrespondentPeriodDto> periods=[]; private CorrespondentPeriodDto? selected; private string? note; private string? error; private bool busy;
+ protected override async Task OnParametersSetAsync(){ if(PeriodId.HasValue) selected=await CorrespondentService.GetPeriodAsync(PeriodId.Value); else periods=(await CorrespondentService.GetPeriodsAsync(CorrespondentId)).ToList(); }
+ private async Task ClosePeriod(){try{busy=true; await CorrespondentService.ClosePeriodAsync(CorrespondentId,new(){Note=note}); periods=(await CorrespondentService.GetPeriodsAsync(CorrespondentId)).ToList(); note=null;}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+ private void Open(long id)=>Navigation.NavigateTo($"/correspondents/{CorrespondentId}/periods/{id}");
+ private void Back()=>Navigation.NavigateTo($"/correspondents/{CorrespondentId}/periods");
+}

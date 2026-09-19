@@ -97,7 +97,7 @@ public sealed class HawalaBulkImportBaselineTests(
         items[0].GeneratedSendHawalaNumber = 29_999_999;
         items[1].GeneratedSendHawalaNumber = 29_999_999;
 
-        await Assert.ThrowsAsync<SqlException>(() => service.CreateHawalasAsync(items));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateHawalasAsync(items));
 
         context.ChangeTracker.Clear();
         Assert.Equal(beforeHawalas, await context.Hawalas.CountAsync());

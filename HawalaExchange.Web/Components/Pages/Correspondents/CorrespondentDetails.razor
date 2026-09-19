@@ -52,6 +52,9 @@
                 <span>@correspondent.Name · @correspondent.Code</span>
             </div>
             <div class="correspondent-header-actions">
+                <button class="btn btn-outline-primary" @onclick="OpenPeriods">
+                    <i class="bi bi-calendar-check me-1"></i> بستن دوره
+                </button>
                 @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
                 {
                     <button class="btn btn-success" @onclick="OpenCommissionPage">
@@ -431,6 +434,8 @@
 
     private void OpenCommissionPage() =>
         NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/commission");
+
+    private void OpenPeriods() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/periods");
 
     private void OpenOutgoingCommissionPage() =>
         NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/outgoing-commission");

@@ -60,6 +60,7 @@
                     hawala.CreatedAt = DateTime.UtcNow;
                     hawala.CreatedBy = GetCurrentUserId();
                     hawala.Status = dto.Status ?? "Pending";
+                    var currentPeriodStart = await GetCurrentPeriodStartAsync(hawala.CorrespondentId);
                     if (hawala.Status == "Paid")
                     {
                         hawala.PaidAt = hawala.CreatedAt;
@@ -78,7 +79,8 @@
 
                         // تولید خودکار شماره برای حواله رفت و متفرقه
                         var lastNumber = await _context.Hawalas
-                            .Where(h => h.CorrespondentId == hawala.CorrespondentId && h.HawalaType == hawala.HawalaType)
+                            .Where(h => h.CorrespondentId == hawala.CorrespondentId && h.HawalaType == hawala.HawalaType &&
+                                        h.CreatedAt >= currentPeriodStart)
                             .OrderByDescending(h => h.Number)
                             .Select(h => (long?)h.Number)
                             .FirstOrDefaultAsync();
@@ -90,6 +92,7 @@
                     var exists = await _context.Hawalas
                         .AnyAsync(h => h.CorrespondentId == hawala.CorrespondentId &&
                                        h.HawalaType == hawala.HawalaType &&
+                                       h.CreatedAt >= currentPeriodStart &&
                                        h.Number == hawala.Number);
                     if (exists)
                         throw new InvalidOperationException($"شماره {hawala.Number} برای حواله {hawala.HawalaType} این نمایندگی قبلاً ثبت شده است.");
@@ -207,8 +210,11 @@
 
             public async Task<long> GetNextNumberAsync(long correspondentId, string hawalaType)
             {
+                var currentPeriodStart = await GetCurrentPeriodStartAsync(correspondentId);
                 var lastNumber = await _context.Hawalas
-                    .Where(h => h.CorrespondentId == correspondentId && h.HawalaType == hawalaType)
+                    .Where(h => h.CorrespondentId == correspondentId &&
+                                h.HawalaType == hawalaType &&
+                                h.CreatedAt >= currentPeriodStart)
                     .OrderByDescending(h => h.Number)
                     .Select(h => (long?)h.Number)
                     .FirstOrDefaultAsync();
@@ -1003,10 +1009,12 @@
 
                 await ValidatePaymentLocationAsync(hawala.PaymentLocationId, requireActive: false);
 
+                var currentPeriodStart = await GetCurrentPeriodStartAsync(hawala.CorrespondentId);
                 var duplicateNumber = await _context.Hawalas.AnyAsync(x =>
                     x.Id != hawala.Id &&
                     x.CorrespondentId == hawala.CorrespondentId &&
                     x.HawalaType == hawala.HawalaType &&
+                    x.CreatedAt >= currentPeriodStart &&
                     x.Number == hawala.Number);
 
                 if (duplicateNumber)
@@ -1264,13 +1272,21 @@
                         !account.CorrespondentId.HasValue)
                         throw new InvalidOperationException("یکی از حساب‌های نمایندگی مقصد معتبر نیست.");
 
+                var periodStarts = await _context.CorrespondentAccountPeriods.AsNoTracking()
+                    .Where(x => correspondentIds.Contains(x.CorrespondentId))
+                    .GroupBy(x => x.CorrespondentId)
+                    .Select(x => new { CorrespondentId = x.Key, Start = x.Max(p => p.PeriodTo) })
+                    .ToDictionaryAsync(x => x.CorrespondentId, x => x.Start);
                 var requestedNumbers = items.Select(x => x.Number).ToHashSet();
+                if (items.GroupBy(x => new { x.CorrespondentId, x.Number }).Any(x => x.Count() > 1))
+                    throw new InvalidOperationException("شماره حواله دریافتی در فایل گروهی برای یک نمایندگی تکراری است.");
                 var existingNumbers = await _context.Hawalas.AsNoTracking()
                     .Where(x => correspondentIds.Contains(x.CorrespondentId!.Value) &&
                                 x.HawalaType == "HawalaReceive" && requestedNumbers.Contains(x.Number))
-                    .Select(x => new { x.CorrespondentId, x.Number })
+                    .Select(x => new { x.CorrespondentId, x.Number, x.CreatedAt })
                     .ToListAsync();
-                if (existingNumbers.Count > 0)
+                if (existingNumbers.Any(x => x.CorrespondentId.HasValue &&
+                    x.CreatedAt >= periodStarts.GetValueOrDefault(x.CorrespondentId.Value, DateTime.MinValue)))
                     throw new InvalidOperationException("شماره یکی از حواله‌های دریافتی قبلاً برای نمایندگی فرستنده ثبت شده است.");
 
                 var outgoingItems = items.Where(x => x.Status == "Paid" && x.FromAccountId.HasValue).ToList();
@@ -1278,15 +1294,27 @@
                     .Select(x => accountsById[x.FromAccountId!.Value].CorrespondentId!.Value)
                     .Distinct().ToList();
                 var outgoingNumbers = outgoingItems.Select(x => x.GeneratedSendHawalaNumber ?? x.Number).ToHashSet();
+                if (outgoingItems.GroupBy(x => new
+                    {
+                        CorrespondentId = accountsById[x.FromAccountId!.Value].CorrespondentId!.Value,
+                        Number = x.GeneratedSendHawalaNumber ?? x.Number
+                    }).Any(x => x.Count() > 1))
+                    throw new InvalidOperationException("شماره حواله ارسالی خودکار در فایل گروهی برای یک نمایندگی تکراری است.");
+                var outgoingPeriodStarts = await _context.CorrespondentAccountPeriods.AsNoTracking()
+                    .Where(x => outgoingCorrespondentIds.Contains(x.CorrespondentId))
+                    .GroupBy(x => x.CorrespondentId)
+                    .Select(x => new { CorrespondentId = x.Key, Start = x.Max(p => p.PeriodTo) })
+                    .ToDictionaryAsync(x => x.CorrespondentId, x => x.Start);
                 var existingOutgoingNumbers = outgoingItems.Count == 0
                     ? []
                     : await _context.Hawalas.AsNoTracking()
                         .Where(x => x.CorrespondentId.HasValue && outgoingCorrespondentIds.Contains(x.CorrespondentId.Value) &&
                                     x.HawalaType == "HawalaSend" && outgoingNumbers.Contains(x.Number))
-                        .Select(x => new { CorrespondentId = x.CorrespondentId!.Value, x.Number })
+                        .Select(x => new { CorrespondentId = x.CorrespondentId!.Value, x.Number, x.CreatedAt })
                         .ToListAsync();
                 if (outgoingItems.Any(item => existingOutgoingNumbers.Any(existing =>
                         existing.CorrespondentId == accountsById[item.FromAccountId!.Value].CorrespondentId &&
+                        existing.CreatedAt >= outgoingPeriodStarts.GetValueOrDefault(existing.CorrespondentId, DateTime.MinValue) &&
                         existing.Number == (item.GeneratedSendHawalaNumber ?? item.Number))))
                     throw new InvalidOperationException("شماره یکی از حواله‌های ارسالی قبلاً برای نمایندگی مقصد ثبت شده است.");
 
@@ -2052,6 +2080,7 @@
                     return existing;
 
                 var destinationCorrespondentId = paidFromAccount.CorrespondentId.Value;
+                var currentPeriodStart = await GetCurrentPeriodStartAsync(destinationCorrespondentId);
                 if (requestedNumber.HasValue && requestedNumber.Value <= 0)
                     throw new InvalidOperationException("نمبر حواله ارسالی نمایندگی باید بزرگتر از صفر باشد.");
 
@@ -2064,7 +2093,7 @@
                 {
                     var lastNumber = await _context.Hawalas
                         .Where(x => x.CorrespondentId == destinationCorrespondentId &&
-                                    x.HawalaType == "HawalaSend")
+                                    x.HawalaType == "HawalaSend" && x.CreatedAt >= currentPeriodStart)
                         .OrderByDescending(x => x.Number)
                         .Select(x => (long?)x.Number)
                         .FirstOrDefaultAsync();
@@ -2075,6 +2104,7 @@
                 var numberExists = await _context.Hawalas.AnyAsync(x =>
                     x.CorrespondentId == destinationCorrespondentId &&
                     x.HawalaType == "HawalaSend" &&
+                    x.CreatedAt >= currentPeriodStart &&
                     x.Number == generatedNumber);
                 if (numberExists)
                 {
@@ -2318,6 +2348,14 @@
             }
 
             private long GetCurrentUserId() => _context.RequireCurrentUserId();
+            private async Task<DateTime> GetCurrentPeriodStartAsync(long? correspondentId)
+            {
+                if (!correspondentId.HasValue) return DateTime.MinValue;
+                return await _context.CorrespondentAccountPeriods
+                    .Where(x => x.CorrespondentId == correspondentId.Value)
+                    .MaxAsync(x => (DateTime?)x.PeriodTo) ?? DateTime.MinValue;
+            }
+
             private async Task EnforceCorrespondentCommissionMethodAsync(
                 string hawalaType, long? correspondentId, decimal? commissionAmount)
             {

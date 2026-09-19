@@ -12,5 +12,8 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<IEnumerable<CorrespondentDto>> GetActiveAsync();
         Task<CorrespondentDto> ArchiveAsync(long id);
         Task<CorrespondentDto> UnarchiveAsync(long id);
+        Task<CorrespondentPeriodDto> ClosePeriodAsync(long id, CloseCorrespondentPeriodDto dto);
+        Task<IReadOnlyList<CorrespondentPeriodDto>> GetPeriodsAsync(long id);
+        Task<CorrespondentPeriodDto?> GetPeriodAsync(long periodId);
     }
 }

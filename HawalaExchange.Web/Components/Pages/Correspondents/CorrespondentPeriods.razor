@@ -8,48 +8,289 @@
 @rendermode InteractiveServer
 
 <PageTitle>بستن دوره نمایندگی</PageTitle>
+
 <div class="page-wrapper" dir="rtl">
- <AppPageHeader Title="بستن دوره نمایندگی" Subtitle="ثبت مانده انتقالی بدون پرداخت یا دریافت واقعی" Icon="bi-calendar-check" />
- @if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger">@error</div> }
- @if (PeriodId.HasValue && selected != null)
- {
-  <button class="btn btn-light mb-3" @onclick="Back">بازگشت</button>
-  <div class="modern-card p-3 mb-3"><h5>دوره @selected.PeriodNumber — @selected.CorrespondentName</h5><div>@selected.PeriodFrom.ToLocalTime() تا @selected.PeriodTo.ToLocalTime()</div></div>
-  @if (selected.OpeningBalances.Count > 0)
-  {
-   <div class="modern-card p-3 mb-3"><h6>مانده انتقالی از دوره قبل</h6>@foreach(var b in selected.OpeningBalances){<div dir="ltr">@b.CurrencyCode: طلب @b.TalabKar.ToString("N0") | بدهی @b.BadehKar.ToString("N0") | خالص @b.Net.ToString("N0")</div>}</div>
-  }
-  <div class="modern-card p-3 mb-3"><h6>مانده پایان دوره</h6>@foreach(var b in selected.Balances){<div dir="ltr">@b.CurrencyCode: طلب @b.TalabKar.ToString("N0") | بدهی @b.BadehKar.ToString("N0") | خالص @b.Net.ToString("N0")</div>}</div>
-  <div class="table-responsive"><table class="table"><thead><tr><th>نمبر</th><th>نوع</th><th>مبلغ</th><th>وضعیت</th><th>تاریخ</th></tr></thead><tbody>@foreach(var h in selected.Hawalas){<tr><td>@h.Number</td><td>@h.HawalaType</td><td>@h.FromAmount.ToString("N0") @h.FromCurrencyCode</td><td>@h.StatusName</td><td>@h.CreatedAt.ToLocalTime()</td></tr>}</tbody></table></div>
- }
- else
- {
-  <div class="modern-card p-3 mb-3"><label class="form-label">یادداشت اختیاری</label><textarea class="form-control mb-2" @bind="note"></textarea><button class="btn btn-primary" disabled="@busy" @onclick="PreviewClosePeriod">مشاهده جزئیات بستن دوره</button></div>
-  @if (closePreview != null)
-  {
-   <div class="modern-card p-3 mb-3 border border-primary">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3"><div><h5 class="mb-1">پیش‌نمایش بستن دوره @closePreview.PeriodNumber</h5><div class="text-muted">@closePreview.CorrespondentName · @closePreview.PeriodFrom.ToLocalTime() تا @closePreview.PeriodTo.ToLocalTime()</div></div><span class="badge text-bg-warning">هنوز ثبت نشده است</span></div>
-    <div class="row g-2 mb-3"><div class="col-6 col-md-2"><div class="border rounded p-2"><small class="text-muted d-block">تمام حواله‌ها</small><strong>@closePreview.HawalaCount</strong></div></div><div class="col-6 col-md-2"><div class="border rounded p-2"><small class="text-muted d-block">دریافتی</small><strong>@closePreview.ReceiveCount</strong></div></div><div class="col-6 col-md-2"><div class="border rounded p-2"><small class="text-muted d-block">ارسالی</small><strong>@closePreview.SendCount</strong></div></div><div class="col-6 col-md-2"><div class="border rounded p-2"><small class="text-muted d-block">در انتظار</small><strong>@closePreview.PendingCount</strong></div></div><div class="col-6 col-md-2"><div class="border rounded p-2"><small class="text-muted d-block">پرداخت‌شده</small><strong>@closePreview.PaidCount</strong></div></div><div class="col-6 col-md-2"><div class="border rounded p-2"><small class="text-muted d-block">لغوشده</small><strong>@closePreview.CancelledCount</strong></div></div></div>
-    <div class="row g-3 mb-3"><div class="col-md-6"><div class="border rounded p-3 h-100"><h6>مانده انتقالی آغاز دوره</h6>@if(closePreview.OpeningBalances.Count == 0){<span class="text-muted">دوره قبلی وجود ندارد.</span>}else{@foreach(var b in closePreview.OpeningBalances){<div dir="ltr">@b.CurrencyCode: طلب @b.TalabKar.ToString("N0") | بدهی @b.BadehKar.ToString("N0") | خالص @b.Net.ToString("N0")</div>}}</div></div><div class="col-md-6"><div class="border rounded p-3 h-100"><h6>مانده پایان دوره</h6>@if(closePreview.ClosingBalances.Count == 0){<span class="text-muted">مانده‌ای وجود ندارد.</span>}else{@foreach(var b in closePreview.ClosingBalances){<div dir="ltr">@b.CurrencyCode: طلب @b.TalabKar.ToString("N0") | بدهی @b.BadehKar.ToString("N0") | خالص @b.Net.ToString("N0")</div>}}</div></div></div>
-    <div class="alert alert-info py-2">با تأیید، هیچ پرداخت یا دریافت جدیدی ثبت نمی‌شود؛ مانده پایان دوره به دوره بعد انتقال می‌یابد و نمبرها از ۱ آغاز می‌شوند.</div>
-    <div class="d-flex gap-2 justify-content-end"><button class="btn btn-outline-secondary" disabled="@busy" @onclick="CancelClosePreview">انصراف</button><button class="btn btn-success" disabled="@busy" @onclick="ClosePeriod">تأیید و بستن دوره</button></div>
-   </div>
-  }
-  @if (periods.FirstOrDefault() is { } lastPeriod && lastPeriod.Balances.Count > 0)
-  {
-   <div class="modern-card p-3 mb-3"><h6>مانده انتقالی آغاز دوره @(lastPeriod.PeriodNumber + 1)</h6><div class="text-muted small mb-2">این مانده نمایشی است و سند جدیدی در دفتر کل ایجاد نمی‌کند.</div>@foreach(var b in lastPeriod.Balances){<div dir="ltr">@b.CurrencyCode: طلب @b.TalabKar.ToString("N0") | بدهی @b.BadehKar.ToString("N0") | خالص @b.Net.ToString("N0")</div>}</div>
-  }
-  <div class="table-responsive"><table class="table"><thead><tr><th>دوره</th><th>بازه</th><th>تعداد حواله</th><th></th></tr></thead><tbody>@foreach(var p in periods){<tr><td>@p.PeriodNumber</td><td>@p.PeriodFrom.ToLocalTime() تا @p.PeriodTo.ToLocalTime()</td><td>@p.HawalaCount</td><td><button class="btn btn-sm btn-outline-primary" @onclick="() => Open(p.Id)">جزئیات</button></td></tr>}</tbody></table></div>
- }
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <AppPageHeader Title="بستن دوره نمایندگی"
+                       Subtitle="ثبت مانده انتقالی بدون پرداخت یا دریافت واقعی"
+                       Icon="bi-calendar-check" />
+        <button class="btn btn-outline-secondary" @onclick="BackToCorrespondent">
+            <i class="bi bi-arrow-left ms-1"></i>
+            بازگشت به نمایندگی
+        </button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    @if (PeriodId.HasValue && selected != null)
+    {
+        <button class="btn btn-light mb-3" @onclick="BackToPeriods">
+            <i class="bi bi-arrow-right ms-1"></i>
+            بازگشت به فهرست دوره‌ها
+        </button>
+
+        <div class="modern-card p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div>
+                    <h5 class="mb-1">دوره @selected.PeriodNumber — @selected.CorrespondentName</h5>
+                    <div class="text-muted">از @FormatDate(selected.PeriodFrom) تا @FormatDate(selected.PeriodTo)</div>
+                </div>
+                <div class="text-md-start">
+                    <span class="badge text-bg-success">بسته‌شده</span>
+                    <div class="small text-muted mt-1">@selected.HawalaCount حواله</div>
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(selected.Note))
+            {
+                <div class="alert alert-light border mt-3 mb-0"><strong>یادداشت:</strong> @selected.Note</div>
+            }
+        </div>
+
+        @if (selected.OpeningBalances.Count > 0)
+        {
+            <div class="modern-card p-3 mb-3">
+                <h6 class="mb-1">مانده انتقالی از دوره قبل</h6>
+                <p class="text-muted small mb-3">مانده‌ای که این دوره با آن آغاز شده است.</p>
+                @BalanceTable(selected.OpeningBalances)
+            </div>
+        }
+
+        <div class="modern-card p-3 mb-3">
+            <h6 class="mb-1">باقی‌مانده طلبکار و بدهکار در پایان دوره</h6>
+            <p class="text-muted small mb-3">این مبالغ بدون ایجاد سند جدید به دوره بعد انتقال یافته‌اند.</p>
+            @if (selected.Balances.Count == 0)
+            {
+                <div class="alert alert-light border mb-0">در پایان این دوره مانده‌ای وجود ندارد.</div>
+            }
+            else
+            {
+                @BalanceTable(selected.Balances)
+            }
+        </div>
+
+        <div class="modern-card p-3">
+            <h6 class="mb-3">حواله‌های شامل این دوره</h6>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr><th>نمبر</th><th>نوع</th><th>مبلغ</th><th>وضعیت</th><th>تاریخ</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var hawala in selected.Hawalas)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@hawala.Number</td>
+                                <td>@hawala.HawalaType</td>
+                                <td dir="ltr" class="text-end">@hawala.FromAmount.ToString("N0") @hawala.FromCurrencyCode</td>
+                                <td>@hawala.StatusName</td>
+                                <td>@FormatDate(hawala.CreatedAt)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="modern-card p-3 mb-3">
+            <h6 class="mb-1">ثبت دوره جدید</h6>
+            <p class="text-muted small mb-3">ابتدا جزئیات دوره و مانده‌های قابل انتقال را بررسی کنید؛ سپس دوره را ببندید.</p>
+            <label class="form-label">یادداشت اختیاری</label>
+            <textarea class="form-control mb-3" rows="2" @bind="note" placeholder="برای مثال: تصفیه حساب ماهانه"></textarea>
+            <button class="btn btn-primary" disabled="@busy" @onclick="PreviewClosePeriod">
+                @if (busy) { <span class="spinner-border spinner-border-sm ms-1"></span> }
+                <i class="bi bi-eye ms-1"></i>
+                مشاهده جزئیات بستن دوره
+            </button>
+        </div>
+
+        @if (closePreview != null)
+        {
+            <div class="modern-card p-3 mb-3 border border-primary">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                    <div>
+                        <h5 class="mb-1">پیش‌نمایش دوره @closePreview.PeriodNumber</h5>
+                        <div class="text-muted">@closePreview.CorrespondentName · از @FormatDate(closePreview.PeriodFrom) تا @FormatDate(closePreview.PeriodTo)</div>
+                    </div>
+                    <span class="badge text-bg-warning">هنوز ثبت نشده است</span>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    @StatCard("تمام حواله‌ها", closePreview.HawalaCount, "text-bg-primary")
+                    @StatCard("دریافتی", closePreview.ReceiveCount, "text-bg-info")
+                    @StatCard("ارسالی", closePreview.SendCount, "text-bg-secondary")
+                    @StatCard("در انتظار", closePreview.PendingCount, "text-bg-warning")
+                    @StatCard("پرداخت‌شده", closePreview.PaidCount, "text-bg-success")
+                    @StatCard("لغوشده", closePreview.CancelledCount, "text-bg-danger")
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-lg-6">
+                        <div class="border rounded p-3 h-100">
+                            <h6 class="mb-1">مانده آغاز دوره</h6>
+                            <p class="text-muted small mb-3">مانده انتقال‌یافته از دوره قبل</p>
+                            @if (closePreview.OpeningBalances.Count == 0)
+                            {
+                                <span class="text-muted">این نخستین دوره است و مانده انتقالی ندارد.</span>
+                            }
+                            else { @BalanceTable(closePreview.OpeningBalances) }
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="border border-primary-subtle rounded p-3 h-100 bg-primary-subtle bg-opacity-10">
+                            <h6 class="mb-1">باقی‌مانده پایان دوره</h6>
+                            <p class="text-muted small mb-3">طلبکار و بدهکار قابل انتقال به دوره بعد</p>
+                            @if (closePreview.ClosingBalances.Count == 0)
+                            {
+                                <span class="text-muted">مانده‌ای برای انتقال وجود ندارد.</span>
+                            }
+                            else { @BalanceTable(closePreview.ClosingBalances) }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info py-2">
+                    <i class="bi bi-info-circle ms-1"></i>
+                    با تأیید، پرداخت یا دریافت جدیدی ثبت نمی‌شود. باقی‌مانده طلبکار و بدهکار به دوره بعد انتقال می‌یابد و نمبر و رفرنس حواله‌ها در دوره جدید دوباره قابل استفاده می‌شوند.
+                </div>
+                <div class="d-flex gap-2 justify-content-end">
+                    <button class="btn btn-outline-secondary" disabled="@busy" @onclick="CancelClosePreview">انصراف</button>
+                    <button class="btn btn-success" disabled="@busy" @onclick="ClosePeriod">
+                        @if (busy) { <span class="spinner-border spinner-border-sm ms-1"></span> }
+                        تأیید و بستن دوره
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (periods.FirstOrDefault() is { } lastPeriod && lastPeriod.Balances.Count > 0)
+        {
+            <div class="modern-card p-3 mb-3">
+                <h6 class="mb-1">باقی‌مانده فعلی آغاز دوره @(lastPeriod.PeriodNumber + 1)</h6>
+                <p class="text-muted small mb-3">این مانده نمایشی است و سند جدیدی در دفتر کل ایجاد نمی‌کند.</p>
+                @BalanceTable(lastPeriod.Balances)
+            </div>
+        }
+
+        <div class="modern-card p-3">
+            <h6 class="mb-3">دوره‌های ثبت‌شده</h6>
+            @if (periods.Count == 0)
+            {
+                <div class="alert alert-light border mb-0">هنوز دوره‌ای برای این نمایندگی ثبت نشده است.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr><th>دوره</th><th>بازه</th><th>تعداد حواله</th><th>باقی‌مانده ارزها</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var period in periods)
+                            {
+                                <tr>
+                                    <td class="fw-semibold">دوره @period.PeriodNumber</td>
+                                    <td>@FormatDate(period.PeriodFrom) تا @FormatDate(period.PeriodTo)</td>
+                                    <td>@period.HawalaCount</td>
+                                    <td>@period.Balances.Count</td>
+                                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => Open(period.Id)">مشاهده جزئیات</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
 </div>
+
 @code {
- [Parameter] public long CorrespondentId { get; set; }
- [Parameter] public long? PeriodId { get; set; }
- private List<CorrespondentPeriodDto> periods=[]; private CorrespondentPeriodDto? selected; private CorrespondentPeriodClosePreviewDto? closePreview; private string? note; private string? error; private bool busy;
- protected override async Task OnParametersSetAsync(){ if(PeriodId.HasValue) selected=await CorrespondentService.GetPeriodAsync(PeriodId.Value); else periods=(await CorrespondentService.GetPeriodsAsync(CorrespondentId)).ToList(); }
- private async Task PreviewClosePeriod(){try{busy=true; error=null; closePreview=await CorrespondentService.GetPeriodClosePreviewAsync(CorrespondentId);}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
- private async Task ClosePeriod(){try{busy=true; error=null; await CorrespondentService.ClosePeriodAsync(CorrespondentId,new(){Note=note}); periods=(await CorrespondentService.GetPeriodsAsync(CorrespondentId)).ToList(); note=null; closePreview=null;}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
- private void CancelClosePreview()=>closePreview=null;
- private void Open(long id)=>Navigation.NavigateTo($"/correspondents/{CorrespondentId}/periods/{id}");
- private void Back()=>Navigation.NavigateTo($"/correspondents/{CorrespondentId}/periods");
+    [Parameter] public long CorrespondentId { get; set; }
+    [Parameter] public long? PeriodId { get; set; }
+
+    private List<CorrespondentPeriodDto> periods = [];
+    private CorrespondentPeriodDto? selected;
+    private CorrespondentPeriodClosePreviewDto? closePreview;
+    private string? note;
+    private string? error;
+    private bool busy;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        error = null;
+        closePreview = null;
+        if (PeriodId.HasValue)
+        {
+            selected = await CorrespondentService.GetPeriodAsync(PeriodId.Value);
+            if (selected == null) error = "دوره موردنظر پیدا نشد.";
+        }
+        else
+        {
+            selected = null;
+            periods = (await CorrespondentService.GetPeriodsAsync(CorrespondentId)).ToList();
+        }
+    }
+
+    private async Task PreviewClosePeriod()
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            closePreview = await CorrespondentService.GetPeriodClosePreviewAsync(CorrespondentId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task ClosePeriod()
+    {
+        try
+        {
+            busy = true;
+            error = null;
+            await CorrespondentService.ClosePeriodAsync(CorrespondentId, new CloseCorrespondentPeriodDto { Note = note });
+            periods = (await CorrespondentService.GetPeriodsAsync(CorrespondentId)).ToList();
+            note = null;
+            closePreview = null;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private void CancelClosePreview() => closePreview = null;
+    private void Open(long id) => Navigation.NavigateTo($"/correspondents/{CorrespondentId}/periods/{id}");
+    private void BackToPeriods() => Navigation.NavigateTo($"/correspondents/{CorrespondentId}/periods");
+    private void BackToCorrespondent() => Navigation.NavigateTo($"/correspondents/{CorrespondentId}");
+    private static string FormatDate(DateTime value) => value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+
+    private static RenderFragment BalanceTable(IReadOnlyCollection<CorrespondentPeriodBalanceDto> balances) => @<div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>ارز</th><th class="text-success">باقی‌مانده طلبکار</th><th class="text-danger">باقی‌مانده بدهکار</th><th>مانده خالص</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var balance in balances)
+                    {
+                        <tr>
+                            <td><span class="badge text-bg-light border">@balance.CurrencyCode</span></td>
+                            <td dir="ltr" class="text-end fw-semibold text-success">@balance.TalabKar.ToString("N0") @balance.CurrencyCode</td>
+                            <td dir="ltr" class="text-end fw-semibold text-danger">@balance.BadehKar.ToString("N0") @balance.CurrencyCode</td>
+                            <td dir="ltr" class="text-end fw-semibold">@balance.Net.ToString("N0") @balance.CurrencyCode</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>;
+
+    private static RenderFragment StatCard(string title, int value, string badgeClass) => @<div class="col-6 col-md-4 col-xl-2">
+            <div class="border rounded p-2 h-100">
+                <small class="text-muted d-block mb-1">@title</small>
+                <span class="badge @badgeClass fs-6">@value.ToString("N0")</span>
+            </div>
+        </div>;
 }

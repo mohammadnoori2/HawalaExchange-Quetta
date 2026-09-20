@@ -31,6 +31,21 @@ public sealed class CorrespondentAccountPeriodBalance : ITenantEntity
     public Currency Currency { get; set; } = null!;
 }
 
+/// <summary>
+/// خلاصه جاری مانده هر حساب و ارز. LedgerEntries منبع اصلی حسابداری باقی می‌ماند
+/// و این جدول فقط برای خواندن سریع مانده توسط Trigger همگام نگه داشته می‌شود.
+/// </summary>
+public sealed class AccountCurrencyBalance : ITenantEntity
+{
+    public long TenantId { get; set; }
+    public long AccountId { get; set; }
+    public long CurrencyId { get; set; }
+    [Column(TypeName="decimal(18,4)")] public decimal Balance { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public Account Account { get; set; } = null!;
+    public Currency Currency { get; set; } = null!;
+}
+
 public sealed class CorrespondentAccountPeriodHawala : ITenantEntity
 {
     public long TenantId { get; set; }

@@ -123,6 +123,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<CorrespondentAccountPeriod> CorrespondentAccountPeriods { get; set; }
         public DbSet<CorrespondentAccountPeriodBalance> CorrespondentAccountPeriodBalances { get; set; }
         public DbSet<CorrespondentAccountPeriodHawala> CorrespondentAccountPeriodHawalas { get; set; }
+        public DbSet<AccountCurrencyBalance> AccountCurrencyBalances { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
         public DbSet<PaymentLocationAlias> PaymentLocationAliases { get; set; }
 
@@ -1574,6 +1575,7 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<CashBalanceAlert>()
                 .HasIndex(x => new { x.TenantId, x.TriggeredAt });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.AccountId, x.CurrencyId, x.CreatedAt });
+            modelBuilder.Entity<LedgerEntry>().ToTable("LedgerEntries", table => table.UseSqlOutputClause(false));
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.CreatedAt });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.TransactionId });
             modelBuilder.Entity<LedgerEntry>().HasIndex(x => new { x.TenantId, x.HawalaId });
@@ -2070,6 +2072,18 @@ namespace HawalaExchange.Infrastructure.Data
                 entity.HasKey(x => new { x.PeriodId, x.HawalaId });
                 entity.HasOne(x => x.Period).WithMany(x => x.Hawalas).HasForeignKey(x => x.PeriodId);
                 entity.HasOne(x => x.Hawala).WithMany().HasForeignKey(x => x.HawalaId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<AccountCurrencyBalance>(entity =>
+            {
+                entity.HasKey(x => new { x.TenantId, x.AccountId, x.CurrencyId });
+                entity.Property(x => x.Balance).HasPrecision(18, 4);
+                entity.HasOne(x => x.Account).WithMany().HasForeignKey(x => new { x.TenantId, x.AccountId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id })
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Currency).WithMany().HasForeignKey(x => new { x.TenantId, x.CurrencyId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id })
                     .OnDelete(DeleteBehavior.Restrict);
             });
 

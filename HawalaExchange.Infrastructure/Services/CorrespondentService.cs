@@ -437,6 +437,80 @@ namespace HawalaExchange.Application.Services
             return $"OP-{datePart}-{nextNumber:D4}";
         }
 
+        public async Task<CorrespondentPeriodClosePreviewDto> GetPeriodClosePreviewAsync(long id)
+        {
+            var correspondent = await _context.Correspondents.AsNoTracking()
+                .Where(x => x.Id == id)
+                .Select(x => new { x.Id, x.Name, x.CreatedAt })
+                .SingleOrDefaultAsync()
+                ?? throw new KeyNotFoundException("نمایندگی یافت نشد.");
+            var last = await _context.CorrespondentAccountPeriods.AsNoTracking()
+                .Where(x => x.CorrespondentId == id)
+                .OrderByDescending(x => x.PeriodNumber)
+                .Select(x => new
+                {
+                    x.PeriodNumber,
+                    x.PeriodTo,
+                    Balances = x.Balances.OrderBy(balance => balance.Currency.Code).Select(balance =>
+                        new CorrespondentPeriodBalanceDto
+                        {
+                            CurrencyCode = balance.Currency.Code,
+                            TalabKar = balance.TalabKar,
+                            BadehKar = balance.BadehKar
+                        }).ToList()
+                }).FirstOrDefaultAsync();
+            var periodFrom = last?.PeriodTo ?? correspondent.CreatedAt;
+            var periodTo = DateTime.UtcNow;
+            var accountId = await _context.Accounts.AsNoTracking()
+                .Where(x => x.CorrespondentId == id && !x.IsArchived)
+                .Select(x => (long?)x.Id).FirstOrDefaultAsync()
+                ?? throw new InvalidOperationException("حساب فعال نمایندگی یافت نشد.");
+            var closingBalances = await _context.LedgerEntries.AsNoTracking()
+                .Where(x => x.AccountId == accountId && x.CreatedAt <= periodTo)
+                .GroupBy(x => new { x.CurrencyId, x.Currency!.Code })
+                .Select(x => new
+                {
+                    x.Key.Code,
+                    Net = x.Sum(entry => entry.TalabKar - entry.BadehKar)
+                })
+                .OrderBy(x => x.Code)
+                .ToListAsync();
+            var hawalaStats = await _context.Hawalas.AsNoTracking()
+                .Where(x => x.CorrespondentId == id && x.CreatedAt <= periodTo &&
+                            (last == null ? x.CreatedAt >= periodFrom : x.CreatedAt > periodFrom))
+                .GroupBy(_ => 1)
+                .Select(group => new
+                {
+                    Total = group.Count(),
+                    Receive = group.Count(x => x.HawalaType == "HawalaReceive"),
+                    Send = group.Count(x => x.HawalaType == "HawalaSend"),
+                    Pending = group.Count(x => x.Status == "Pending"),
+                    Paid = group.Count(x => x.Status == "Paid"),
+                    Cancelled = group.Count(x => x.Status == "Cancel")
+                }).SingleOrDefaultAsync();
+
+            return new CorrespondentPeriodClosePreviewDto
+            {
+                CorrespondentName = correspondent.Name,
+                PeriodNumber = (last?.PeriodNumber ?? 0) + 1,
+                PeriodFrom = periodFrom,
+                PeriodTo = periodTo,
+                HawalaCount = hawalaStats?.Total ?? 0,
+                ReceiveCount = hawalaStats?.Receive ?? 0,
+                SendCount = hawalaStats?.Send ?? 0,
+                PendingCount = hawalaStats?.Pending ?? 0,
+                PaidCount = hawalaStats?.Paid ?? 0,
+                CancelledCount = hawalaStats?.Cancelled ?? 0,
+                OpeningBalances = last?.Balances ?? [],
+                ClosingBalances = closingBalances.Select(x => new CorrespondentPeriodBalanceDto
+                {
+                    CurrencyCode = x.Code,
+                    TalabKar = x.Net > 0 ? x.Net : 0,
+                    BadehKar = x.Net < 0 ? -x.Net : 0
+                }).ToList()
+            };
+        }
+
         public async Task<CorrespondentPeriodDto> ClosePeriodAsync(long id, CloseCorrespondentPeriodDto dto)
         {
             await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
@@ -457,11 +531,20 @@ namespace HawalaExchange.Application.Services
             };
             _context.CorrespondentAccountPeriods.Add(period);
             await _context.SaveChangesAsync();
-            var balances = await _context.LedgerEntries.Where(x => x.AccountId == accountId)
+            var balances = await _context.LedgerEntries.Where(x => x.AccountId == accountId && x.CreatedAt <= periodTo)
                 .GroupBy(x => x.CurrencyId).Select(x => new
                 { x.Key, Talab = x.Sum(e => e.TalabKar), Badeh = x.Sum(e => e.BadehKar) }).ToListAsync();
             _context.CorrespondentAccountPeriodBalances.AddRange(balances.Select(x =>
-                new CorrespondentAccountPeriodBalance { PeriodId = period.Id, CurrencyId = x.Key, TalabKar = x.Talab, BadehKar = x.Badeh }));
+            {
+                var net = x.Talab - x.Badeh;
+                return new CorrespondentAccountPeriodBalance
+                {
+                    PeriodId = period.Id,
+                    CurrencyId = x.Key,
+                    TalabKar = net > 0 ? net : 0,
+                    BadehKar = net < 0 ? -net : 0
+                };
+            }));
             var hawalaQuery = _context.Hawalas.Where(x => x.CorrespondentId == id && x.CreatedAt <= periodTo);
             hawalaQuery = last == null
                 ? hawalaQuery.Where(x => x.CreatedAt >= periodFrom)
@@ -480,7 +563,14 @@ namespace HawalaExchange.Application.Services
                 {
                     Id = x.Id, CorrespondentId = x.CorrespondentId, CorrespondentName = x.Correspondent.Name,
                     PeriodNumber = x.PeriodNumber, PeriodFrom = x.PeriodFrom, PeriodTo = x.PeriodTo,
-                    ClosedAt = x.ClosedAt, Note = x.Note, HawalaCount = x.Hawalas.Count
+                    ClosedAt = x.ClosedAt, Note = x.Note, HawalaCount = x.Hawalas.Count,
+                    Balances = x.Balances.OrderBy(balance => balance.Currency.Code).Select(balance =>
+                        new CorrespondentPeriodBalanceDto
+                        {
+                            CurrencyCode = balance.Currency.Code,
+                            TalabKar = balance.TalabKar,
+                            BadehKar = balance.BadehKar
+                        }).ToList()
                 }).ToListAsync();
 
         public async Task<CorrespondentPeriodDto?> GetPeriodAsync(long periodId)
@@ -490,11 +580,28 @@ namespace HawalaExchange.Application.Services
                 .Include(x => x.Hawalas).ThenInclude(x => x.Hawala).ThenInclude(x => x.FromCurrency)
                 .SingleOrDefaultAsync(x => x.Id == periodId);
             if (period == null) return null;
+            var previousPeriodId = await _context.CorrespondentAccountPeriods.AsNoTracking()
+                .Where(x => x.CorrespondentId == period.CorrespondentId && x.PeriodNumber < period.PeriodNumber)
+                .OrderByDescending(x => x.PeriodNumber)
+                .Select(x => (long?)x.Id)
+                .FirstOrDefaultAsync();
+            var openingBalances = previousPeriodId.HasValue
+                ? await _context.CorrespondentAccountPeriodBalances.AsNoTracking()
+                    .Where(x => x.PeriodId == previousPeriodId.Value)
+                    .OrderBy(x => x.Currency.Code)
+                    .Select(balance => new CorrespondentPeriodBalanceDto
+                    {
+                        CurrencyCode = balance.Currency.Code,
+                        TalabKar = balance.TalabKar,
+                        BadehKar = balance.BadehKar
+                    }).ToListAsync()
+                : [];
             return new CorrespondentPeriodDto
             {
                 Id = period.Id, CorrespondentId = period.CorrespondentId, CorrespondentName = period.Correspondent.Name,
                 PeriodNumber = period.PeriodNumber, PeriodFrom = period.PeriodFrom, PeriodTo = period.PeriodTo,
                 ClosedAt = period.ClosedAt, Note = period.Note, HawalaCount = period.Hawalas.Count,
+                OpeningBalances = openingBalances,
                 Balances = period.Balances.Select(x => new CorrespondentPeriodBalanceDto
                     { CurrencyCode = x.Currency.Code, TalabKar = x.TalabKar, BadehKar = x.BadehKar }).ToList(),
                 Hawalas = period.Hawalas.OrderBy(x => x.Hawala.CreatedAt).Select(x => _mapper.Map<HawalaDto>(x.Hawala)).ToList()

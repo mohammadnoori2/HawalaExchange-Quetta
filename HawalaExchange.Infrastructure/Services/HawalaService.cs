@@ -1510,7 +1510,7 @@
                 var dbTransaction = _context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction
                     ?? throw new InvalidOperationException("ثبت گروهی باید داخل تراکنش SQL انجام شود.");
                 using var bulk = new SqlBulkCopy(connection,
-                    SqlBulkCopyOptions.TableLock | SqlBulkCopyOptions.CheckConstraints,
+                    SqlBulkCopyOptions.TableLock | SqlBulkCopyOptions.CheckConstraints | SqlBulkCopyOptions.FireTriggers,
                     dbTransaction)
                 {
                     DestinationTableName = destinationTable,

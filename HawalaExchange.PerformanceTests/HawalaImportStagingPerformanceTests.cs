@@ -120,6 +120,47 @@ public sealed class HawalaImportStagingPerformanceTests(
     }
 
     [Fact]
+    public async Task Preview_and_confirm_allow_reusing_incoming_number_and_reference_after_period_is_closed()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        const long hawalaNumber = 92_600_001;
+        const string reference = "STG-OLD-PERIOD-REFERENCE";
+        var periodEnd = await AddClosedPeriodAsync(context, fixture.SourceCorrespondent.Id);
+        context.Hawalas.Add(new Hawala
+        {
+            Number = hawalaNumber,
+            HawalaType = "HawalaReceive",
+            CorrespondentId = fixture.SourceCorrespondent.Id,
+            PaymentLocationId = fixture.OwnLocation.Id,
+            SenderName = "Old sender",
+            ReceiverName = "Old receiver",
+            FromCurrencyId = 2,
+            ToCurrencyId = 2,
+            FromAmount = 100,
+            ToAmount = 100,
+            ReferenceNumber = reference,
+            Status = "Paid",
+            CreatedBy = fixture.UserId,
+            CreatedAt = periodEnd.AddMinutes(-1)
+        });
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        await using var workbook = CreateWorkbook([
+            [hawalaNumber, reference, "New sender", "New receiver", fixture.OwnLocation.Name, 1_000, "USD"]
+        ]);
+        var service = fixture.CreateImportService(context);
+
+        var preview = await service.PreviewAsync(
+            workbook, "staging-reused-reference.xlsx", fixture.SourceCorrespondent.Id);
+        var result = await service.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId });
+
+        Assert.Equal(0, preview.InvalidRowCount);
+        Assert.Equal(1, result.ImportedCount);
+    }
+
+    [Fact]
     public async Task Confirm_revalidates_many_outgoing_rows_with_bounded_database_queries()
     {
         const int rowCount = 100;
@@ -143,6 +184,59 @@ public sealed class HawalaImportStagingPerformanceTests(
         Assert.Equal(rowCount, result.GeneratedSendCount);
         Assert.Equal(rowCount, result.MissingCommissionCount);
         Assert.InRange(fixture.Commands.Count, 1, 30);
+    }
+
+    [Fact]
+    public async Task Confirm_allows_reusing_outgoing_number_after_destination_period_is_closed()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var destinationLocation = await EnsureDestinationLocationAsync(context);
+        const long hawalaNumber = 95_100_001;
+        await using var workbook = CreateWorkbook([
+            [hawalaNumber, "STG-PERIOD-OLD", "Sender", "Receiver", destinationLocation.Name, 1_000, "USD"]
+        ]);
+        var service = fixture.CreateImportService(context);
+        var preview = await service.PreviewAsync(
+            workbook, "staging-period-old.xlsx", fixture.SourceCorrespondent.Id);
+
+        var periodEnd = await AddClosedPeriodAsync(context, fixture.DestinationCorrespondent.Id);
+        context.Hawalas.Add(CreateExistingOutgoing(hawalaNumber, periodEnd.AddMinutes(-1), "OLD-PERIOD"));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var result = await service.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId });
+
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(1, result.GeneratedSendCount);
+    }
+
+    [Fact]
+    public async Task Confirm_rejects_duplicate_outgoing_number_in_destination_current_period()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var destinationLocation = await EnsureDestinationLocationAsync(context);
+        const long hawalaNumber = 95_200_001;
+        await using var workbook = CreateWorkbook([
+            [hawalaNumber, "STG-PERIOD-CURRENT", "Sender", "Receiver", destinationLocation.Name, 1_000, "USD"]
+        ]);
+        var service = fixture.CreateImportService(context);
+        var preview = await service.PreviewAsync(
+            workbook, "staging-period-current.xlsx", fixture.SourceCorrespondent.Id);
+
+        var periodEnd = await AddClosedPeriodAsync(context, fixture.DestinationCorrespondent.Id);
+        context.Hawalas.Add(CreateExistingOutgoing(hawalaNumber, periodEnd.AddMinutes(1), "CURRENT-PERIOD"));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId }));
+
+        Assert.Contains("نمبر حواله ارسالی", error.Message);
+        Assert.Contains("قبلاً", error.Message);
     }
 
     [Fact]
@@ -247,6 +341,51 @@ public sealed class HawalaImportStagingPerformanceTests(
         context.ChangeTracker.Clear();
         return location;
     }
+
+    private async Task<DateTime> AddClosedPeriodAsync(
+        HawalaExchange.Infrastructure.Data.ApplicationDbContext context,
+        long correspondentId)
+    {
+        var latestPeriod = await context.CorrespondentAccountPeriods
+            .Where(x => x.CorrespondentId == correspondentId)
+            .OrderByDescending(x => x.PeriodNumber)
+            .Select(x => new { x.PeriodNumber, x.PeriodTo })
+            .FirstOrDefaultAsync();
+        var periodEnd = latestPeriod == null
+            ? DateTime.UtcNow.AddMinutes(-5)
+            : latestPeriod.PeriodTo.AddMinutes(5);
+        context.CorrespondentAccountPeriods.Add(new CorrespondentAccountPeriod
+        {
+            CorrespondentId = correspondentId,
+            PeriodNumber = (latestPeriod?.PeriodNumber ?? 0) + 1,
+            PeriodFrom = latestPeriod?.PeriodTo ?? periodEnd.AddDays(-1),
+            PeriodTo = periodEnd,
+            ClosedAt = periodEnd,
+            ClosedBy = fixture.UserId,
+            Note = "Bulk import period validation test"
+        });
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        return periodEnd;
+    }
+
+    private Hawala CreateExistingOutgoing(long number, DateTime createdAt, string reference) => new()
+    {
+        Number = number,
+        HawalaType = "HawalaSend",
+        CorrespondentId = fixture.DestinationCorrespondent.Id,
+        PaymentLocationId = fixture.RemoteLocation.Id,
+        SenderName = "Existing sender",
+        ReceiverName = "Existing receiver",
+        FromCurrencyId = 2,
+        ToCurrencyId = 2,
+        FromAmount = 100,
+        ToAmount = 100,
+        ReferenceNumber = reference,
+        Status = "Pending",
+        CreatedBy = fixture.UserId,
+        CreatedAt = createdAt
+    };
 
     private static MemoryStream CreateWorkbook(IReadOnlyList<object[]> rows)
     {

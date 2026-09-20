@@ -476,7 +476,7 @@ public sealed class HawalaImportService : IHawalaImportService
             ?? throw new InvalidOperationException("جدول آماده‌سازی باید داخل تراکنش SQL تکمیل شود.");
         using var bulk = new SqlBulkCopy(
             connection,
-            SqlBulkCopyOptions.TableLock | SqlBulkCopyOptions.CheckConstraints,
+            SqlBulkCopyOptions.TableLock | SqlBulkCopyOptions.CheckConstraints | SqlBulkCopyOptions.FireTriggers,
             sqlTransaction)
         {
             DestinationTableName = "[dbo].[HawalaImportRows]",
@@ -594,8 +594,13 @@ public sealed class HawalaImportService : IHawalaImportService
     {
         var numbers = batch.Rows.Select(x => x.HawalaNumber!.Value).ToList();
         var references = batch.Rows.Select(x => x.ReferenceNumber!).ToList();
+        var sourcePeriodStart = await _context.CorrespondentAccountPeriods.AsNoTracking()
+            .Where(x => x.CorrespondentId == batch.CorrespondentId)
+            .Select(x => (DateTime?)x.PeriodTo)
+            .MaxAsync(cancellationToken) ?? DateTime.MinValue;
         if (await _context.Hawalas.AsNoTracking().AnyAsync(
                 x => x.CorrespondentId == batch.CorrespondentId && x.HawalaType == "HawalaReceive" &&
+                     x.CreatedAt >= sourcePeriodStart &&
                      (numbers.Contains(x.Number) || (x.ReferenceNumber != null && references.Contains(x.ReferenceNumber))),
                 cancellationToken))
             throw new InvalidOperationException("در فاصلهٔ پیش‌نمایش تا ثبت، شماره یا رفرنس یکی از حواله‌ها قبلاً ثبت شده است. فایل را دوباره پیش‌نمایش کنید.");
@@ -607,6 +612,13 @@ public sealed class HawalaImportService : IHawalaImportService
 
         var destinationIds = outgoingRows.Select(x => x.DestinationCorrespondentId!.Value).Distinct().ToList();
         var outgoingNumbers = outgoingRows.Select(x => x.HawalaNumber!.Value).Distinct().ToList();
+        var outgoingPeriodStarts = destinationIds.Count == 0
+            ? new Dictionary<long, DateTime>()
+            : await _context.CorrespondentAccountPeriods.AsNoTracking()
+                .Where(x => destinationIds.Contains(x.CorrespondentId))
+                .GroupBy(x => x.CorrespondentId)
+                .Select(x => new { CorrespondentId = x.Key, Start = x.Max(p => p.PeriodTo) })
+                .ToDictionaryAsync(x => x.CorrespondentId, x => x.Start, cancellationToken);
         var existingOutgoingKeys = destinationIds.Count == 0
             ? new HashSet<(long CorrespondentId, long Number)>()
             : (await _context.Hawalas.AsNoTracking()
@@ -614,8 +626,10 @@ public sealed class HawalaImportService : IHawalaImportService
                             destinationIds.Contains(x.CorrespondentId.Value) &&
                             x.HawalaType == "HawalaSend" &&
                             outgoingNumbers.Contains(x.Number))
-                .Select(x => new { CorrespondentId = x.CorrespondentId!.Value, x.Number })
+                .Select(x => new { CorrespondentId = x.CorrespondentId!.Value, x.Number, x.CreatedAt })
                 .ToListAsync(cancellationToken))
+                .Where(x => x.CreatedAt >= outgoingPeriodStarts.GetValueOrDefault(
+                    x.CorrespondentId, DateTime.MinValue))
                 .Select(x => (x.CorrespondentId, x.Number))
                 .ToHashSet();
         var duplicateOutgoing = outgoingRows.FirstOrDefault(x =>

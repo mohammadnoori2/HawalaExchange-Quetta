@@ -1118,6 +1118,39 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_GetAccountBalances_v1]
                     IF @OwnerType IS NOT NULL AND @OwnerType NOT IN (N'Customer', N'Correspondent')
                         THROW 51001, 'OwnerType must be Customer or Correspondent.', 1;
 
+                    -- Current balances are maintained transactionally from LedgerEntries.
+                    -- Historical/as-of queries continue to use the immutable ledger below.
+                    IF @AsOfDate IS NULL
+                    BEGIN
+                        SELECT
+                            account.[Id] AS [AccountId],
+                            account.[AccountName],
+                            account.[AccountType],
+                            account.[CustomerId],
+                            account.[CorrespondentId],
+                            balance.[CurrencyId],
+                            currency.[Code] AS [CurrencyCode],
+                            CAST(balance.[Balance] AS decimal(18, 2)) AS [Balance]
+                        FROM [dbo].[AccountCurrencyBalances] balance
+                        INNER JOIN [dbo].[Accounts] account
+                            ON account.[TenantId] = balance.[TenantId]
+                           AND account.[Id] = balance.[AccountId]
+                        INNER JOIN [dbo].[Currencies] currency
+                            ON currency.[TenantId] = balance.[TenantId]
+                           AND currency.[Id] = balance.[CurrencyId]
+                        WHERE account.[TenantId] = @TenantId
+                          AND balance.[Balance] <> 0
+                          AND (@AccountId IS NULL OR account.[Id] = @AccountId)
+                          AND (@CustomerId IS NULL OR account.[CustomerId] = @CustomerId)
+                          AND (@CorrespondentId IS NULL OR account.[CorrespondentId] = @CorrespondentId)
+                          AND (@AccountType IS NULL OR account.[AccountType] = @AccountType)
+                          AND (@OwnerType IS NULL
+                               OR (@OwnerType = N'Customer' AND account.[CustomerId] IS NOT NULL)
+                               OR (@OwnerType = N'Correspondent' AND account.[CorrespondentId] IS NOT NULL))
+                        ORDER BY account.[Id], currency.[Code];
+                        RETURN;
+                    END;
+
                     SELECT
                         account.[Id] AS [AccountId],
                         account.[AccountName],
@@ -1252,7 +1285,8 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_ValidateHawalaImportStaging_v1]
                 SET NOCOUNT ON;
                 SET XACT_ABORT ON;
 
-                DECLARE @CorrespondentId bigint, @ExpectedRows int, @Status nvarchar(30);
+                DECLARE @CorrespondentId bigint, @ExpectedRows int, @Status nvarchar(30),
+                        @CurrentPeriodStart datetime2;
                 SELECT @CorrespondentId = [CorrespondentId], @ExpectedRows = [RowCount], @Status = [Status]
                 FROM [dbo].[HawalaImportBatches] WITH (UPDLOCK, HOLDLOCK)
                 WHERE [TenantId] = @TenantId AND [Id] = @BatchId;
@@ -1263,6 +1297,10 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_ValidateHawalaImportStaging_v1]
                     THROW 51000, N'این پیش‌نمایش دیگر قابل اعتبارسنجی نیست.', 1;
                 IF (SELECT COUNT(*) FROM [dbo].[HawalaImportRows] WHERE [TenantId] = @TenantId AND [BatchId] = @BatchId) <> @ExpectedRows
                     THROW 51000, N'تعداد ردیف‌های جدول آماده‌سازی با فایل برابر نیست.', 1;
+
+                SELECT @CurrentPeriodStart = COALESCE(MAX([PeriodTo]), CONVERT(datetime2, '0001-01-01'))
+                FROM [dbo].[CorrespondentAccountPeriods]
+                WHERE [TenantId] = @TenantId AND [CorrespondentId] = @CorrespondentId;
 
                 UPDATE r
                 SET [CurrencyId] = c.[Id], [CurrencyCode] = c.[Code]
@@ -1314,9 +1352,10 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_ValidateHawalaImportStaging_v1]
                 FROM [dbo].[HawalaImportRows] r
                 WHERE r.[TenantId] = @TenantId AND r.[BatchId] = @BatchId
                   AND EXISTS (
-                      SELECT 1 FROM [dbo].[Hawalas] h
-                      WHERE h.[TenantId] = @TenantId AND h.[CorrespondentId] = @CorrespondentId
-                        AND h.[HawalaType] = N'HawalaReceive' AND h.[Number] = r.[HawalaNumber]);
+                       SELECT 1 FROM [dbo].[Hawalas] h
+                       WHERE h.[TenantId] = @TenantId AND h.[CorrespondentId] = @CorrespondentId
+                         AND h.[HawalaType] = N'HawalaReceive' AND h.[Number] = r.[HawalaNumber]
+                         AND h.[CreatedAt] >= @CurrentPeriodStart);
 
                 UPDATE r SET [ValidationErrors] =
                     CASE WHEN NULLIF(r.[ValidationErrors], N'') IS NULL
@@ -1326,9 +1365,10 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_ValidateHawalaImportStaging_v1]
                 WHERE r.[TenantId] = @TenantId AND r.[BatchId] = @BatchId
                   AND NULLIF(r.[ReferenceNumber], N'') IS NOT NULL
                   AND EXISTS (
-                      SELECT 1 FROM [dbo].[Hawalas] h
-                      WHERE h.[TenantId] = @TenantId AND h.[CorrespondentId] = @CorrespondentId
-                        AND h.[HawalaType] = N'HawalaReceive' AND h.[ReferenceNumber] = r.[ReferenceNumber]);
+                       SELECT 1 FROM [dbo].[Hawalas] h
+                       WHERE h.[TenantId] = @TenantId AND h.[CorrespondentId] = @CorrespondentId
+                         AND h.[HawalaType] = N'HawalaReceive' AND h.[ReferenceNumber] = r.[ReferenceNumber]
+                         AND h.[CreatedAt] >= @CurrentPeriodStart);
 
                 UPDATE r SET [ValidationErrors] =
                     CASE WHEN NULLIF(r.[ValidationErrors], N'') IS NULL
@@ -2031,13 +2071,12 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_GetAccountOperationsPage_v1]
                 IF @IncludeBalances = 1
                 BEGIN
                     SELECT currency.[Id] AS [CurrencyId], currency.[Code] AS [CurrencyCode],
-                           CAST(SUM(entry.[TalabKar] - entry.[BadehKar]) AS decimal(18,2)) AS [Balance]
-                    FROM [dbo].[LedgerEntries] entry
+                           CAST(balance.[Balance] AS decimal(18,2)) AS [Balance]
+                    FROM [dbo].[AccountCurrencyBalances] balance
                     INNER JOIN [dbo].[Currencies] currency
-                      ON currency.[TenantId] = @TenantId AND currency.[Id] = entry.[CurrencyId]
-                    WHERE entry.[TenantId] = @TenantId AND entry.[AccountId] = @AccountId
-                    GROUP BY currency.[Id], currency.[Code]
-                    HAVING SUM(entry.[TalabKar] - entry.[BadehKar]) <> 0
+                      ON currency.[TenantId] = balance.[TenantId] AND currency.[Id] = balance.[CurrencyId]
+                    WHERE balance.[TenantId] = @TenantId AND balance.[AccountId] = @AccountId
+                      AND balance.[Balance] <> 0
                     ORDER BY currency.[Code];
                 END
 

@@ -182,4 +182,128 @@ public sealed class CorrespondentDetailsPerformanceTests(
             Assert.Null(await fixture.CreateCorrespondentService(context)
                 .GetStatusPageAsync(fixture.SourceCorrespondent.Id));
     }
+
+    [Fact]
+    public async Task Closing_period_carries_net_balance_without_posting_new_ledger_entries()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var suffix = Guid.NewGuid().ToString("N");
+        var correspondent = new Correspondent
+        {
+            Code = $"PERIOD-{suffix}",
+            Name = $"Period correspondent {suffix}",
+            CommissionMethod = "PerTransaction"
+        };
+        context.Correspondents.Add(correspondent);
+        await context.SaveChangesAsync();
+        var account = new Account
+        {
+            AccountCode = $"PERIOD-ACCOUNT-{suffix}",
+            AccountName = "Period account",
+            AccountType = "Correspondent",
+            CorrespondentId = correspondent.Id
+        };
+        context.Accounts.Add(account);
+        await context.SaveChangesAsync();
+        context.LedgerEntries.AddRange(
+            new LedgerEntry
+            {
+                AccountId = account.Id, CurrencyId = 2, TalabKar = 1_000,
+                Description = "Period opening debit", CreatedAt = DateTime.UtcNow.AddMinutes(-2)
+            },
+            new LedgerEntry
+            {
+                AccountId = account.Id, CurrencyId = 2, BadehKar = 300,
+                Description = "Period opening credit", CreatedAt = DateTime.UtcNow.AddMinutes(-1)
+            });
+        await context.SaveChangesAsync();
+        var ledgerCountBeforeClose = await context.LedgerEntries.CountAsync(x => x.AccountId == account.Id);
+
+        var service = fixture.CreateCorrespondentService(context);
+        var preview = await service.GetPeriodClosePreviewAsync(correspondent.Id);
+        Assert.Equal(1, preview.PeriodNumber);
+        Assert.Equal(700, Assert.Single(preview.ClosingBalances).Net);
+        Assert.Empty(preview.OpeningBalances);
+        Assert.Equal(ledgerCountBeforeClose,
+            await context.LedgerEntries.CountAsync(x => x.AccountId == account.Id));
+        var first = await service.ClosePeriodAsync(correspondent.Id, new CloseCorrespondentPeriodDto
+        {
+            Note = "First period"
+        });
+
+        Assert.Equal(ledgerCountBeforeClose, await context.LedgerEntries.CountAsync(x => x.AccountId == account.Id));
+        var firstBalance = Assert.Single(first.Balances);
+        Assert.Equal(700, firstBalance.TalabKar);
+        Assert.Equal(0, firstBalance.BadehKar);
+        Assert.Empty(first.OpeningBalances);
+        var periodList = await service.GetPeriodsAsync(correspondent.Id);
+        Assert.Equal(700, Assert.Single(Assert.Single(periodList).Balances).Net);
+
+        await Task.Delay(20);
+        context.LedgerEntries.Add(new LedgerEntry
+        {
+            AccountId = account.Id, CurrencyId = 2, BadehKar = 50,
+            Description = "Current period movement", CreatedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+        var status = await service.GetStatusPageAsync(correspondent.Id);
+        Assert.NotNull(status);
+        Assert.Equal(650, Assert.Single(status.Balances).Balance);
+
+        await Task.Delay(20);
+        var second = await service.ClosePeriodAsync(correspondent.Id, new CloseCorrespondentPeriodDto
+        {
+            Note = "Second period"
+        });
+        Assert.Equal(650, Assert.Single(second.Balances).Net);
+        Assert.Equal(700, Assert.Single(second.OpeningBalances).Net);
+        Assert.Equal(ledgerCountBeforeClose + 1,
+            await context.LedgerEntries.CountAsync(x => x.AccountId == account.Id));
+    }
+
+    [Fact]
+    public async Task Current_balance_cache_tracks_ledger_insert_update_and_delete()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var suffix = Guid.NewGuid().ToString("N");
+        var correspondent = new Correspondent
+        {
+            Code = $"CACHE-{suffix}", Name = $"Cache correspondent {suffix}",
+            CommissionMethod = "PerTransaction"
+        };
+        context.Correspondents.Add(correspondent);
+        await context.SaveChangesAsync();
+        var account = new Account
+        {
+            AccountCode = $"CACHE-ACCOUNT-{suffix}", AccountName = "Cache account",
+            AccountType = "Correspondent", CorrespondentId = correspondent.Id
+        };
+        context.Accounts.Add(account);
+        await context.SaveChangesAsync();
+        var entry = new LedgerEntry
+        {
+            AccountId = account.Id,
+            CurrencyId = 3,
+            TalabKar = 900,
+            Description = $"Balance cache {Guid.NewGuid():N}"
+        };
+        context.LedgerEntries.Add(entry);
+        await context.SaveChangesAsync();
+
+        var service = fixture.CreateBalanceService(context);
+        Assert.Equal(900, Assert.Single(await service.GetAccountBalanceAsync(
+            account.Id)).Balance);
+
+        entry.TalabKar = 0;
+        entry.BadehKar = 250;
+        await context.SaveChangesAsync();
+        Assert.Equal(-250, Assert.Single(await service.GetAccountBalanceAsync(
+            account.Id)).Balance);
+
+        context.LedgerEntries.Remove(entry);
+        await context.SaveChangesAsync();
+        Assert.Empty(await service.GetAccountBalanceAsync(account.Id));
+    }
 }

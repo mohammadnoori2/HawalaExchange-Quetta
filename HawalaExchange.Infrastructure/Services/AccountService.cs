@@ -43,43 +43,10 @@ namespace HawalaExchange.Application.Services
 
                 if (createDto.HasInitialBalance && createDto.InitialBalances?.Count > 0)
                 {
-                    var openingTransaction = new Transaction
-                    {
-                        TransactionNo = await GenerateOpeningTransactionNumberAsync(),
-                        TransactionType = "OpeningBalance",
-                        BranchId = await _context.GetDefaultBranchIdAsync(),
-                        Status = "Paid",
-                        Remarks = $"موجودی اولیه حساب {entity.AccountName}",
-                        CreatedBy = _context.RequireCurrentUserId(),
-                        CreatedAt = DateTime.UtcNow
-                    };
-
-                    await _context.Transactions.AddAsync(openingTransaction);
-                    await _context.SaveChangesAsync();
-
-                    var ledgerEntries = createDto.InitialBalances.Select(initialBalance =>
-                    {
-                        var entry = new LedgerEntry
-                        {
-                            TransactionId = openingTransaction.Id,
-                            AccountId = entity.Id,
-                            CurrencyId = initialBalance.CurrencyId,
-                            TalabKar = initialBalance.Direction == "Credit" ? initialBalance.Amount : 0,
-                            BadehKar = initialBalance.Direction == "Debit" ? initialBalance.Amount : 0,
-                            Description = string.IsNullOrWhiteSpace(initialBalance.Description)
-                                ? "موجودی اولیه"
-                                : $"موجودی اولیه: {initialBalance.Description}",
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        _context.PrepareTenantEntity(entry);
-                        return entry;
-                    }).ToList();
-
-                    await _context.LedgerEntries.AddRangeAsync(ledgerEntries);
-                    await _context.SaveChangesAsync();
-
-                    await _auditLogService.LogAsync("CREATE", "Transactions", openingTransaction.Id, null,
-                        $"موجودی اولیه حساب {entity.AccountName} ثبت شد", _context.RequireCurrentUserId());
+                    await CreateOpeningBalanceEntriesAsync(
+                        entity,
+                        createDto.InitialBalanceDate?.Date ?? DateTime.Today,
+                        createDto.InitialBalances);
                 }
 
                 await _auditLogService.LogAsync("CREATE", "Accounts", entity.Id, null,
@@ -156,6 +123,7 @@ namespace HawalaExchange.Application.Services
         {
             var entity = await _dbSet.FindAsync(id);
             if (entity == null) throw new KeyNotFoundException($"Account with ID {id} not found.");
+            EnsureNotProtectedSystemAccount(entity);
 
             entity.IsArchived = true;
             await _context.SaveChangesAsync();
@@ -166,6 +134,7 @@ namespace HawalaExchange.Application.Services
         {
             var entity = await _dbSet.FindAsync(id);
             if (entity == null) throw new KeyNotFoundException($"Account with ID {id} not found.");
+            EnsureNotProtectedSystemAccount(entity);
 
             entity.IsArchived = false;
             await _context.SaveChangesAsync();
@@ -180,6 +149,57 @@ namespace HawalaExchange.Application.Services
         public async Task<IEnumerable<BalanceDto>> GetAllAccountBalancesAsync(long accountId)
         {
             return await _ledgerService.GetAccountBalancesAsync(accountId);
+        }
+
+        public async Task AddOpeningBalancesAsync(
+            long accountId,
+            DateTime openingDate,
+            IReadOnlyCollection<InitialBalanceDto> balances)
+        {
+            await using var transaction = _context.Database.IsRelational() && _context.Database.CurrentTransaction == null
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            try
+            {
+                var account = await _context.Accounts
+                    .FirstOrDefaultAsync(x => x.Id == accountId && !x.IsArchived)
+                    ?? throw new InvalidOperationException("صندوق انتخاب‌شده معتبر نیست.");
+                if (!string.Equals(account.AccountType, "Cash", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("موجودی نقدی افتتاحیه فقط برای حساب صندوق قابل ثبت است.");
+
+                ValidateInitialBalances(balances);
+                var currencyIds = balances.Select(x => x.CurrencyId).ToArray();
+                var duplicateCurrencies = await _context.LedgerEntries
+                    .Where(entry =>
+                        entry.AccountId == accountId &&
+                        currencyIds.Contains(entry.CurrencyId) &&
+                        entry.TransactionId.HasValue &&
+                        _context.Transactions.Any(transaction =>
+                            transaction.Id == entry.TransactionId &&
+                            transaction.TransactionType == "OpeningBalance"))
+                    .Select(entry => entry.CurrencyId)
+                    .Distinct()
+                    .ToListAsync();
+                if (duplicateCurrencies.Count > 0)
+                {
+                    throw new InvalidOperationException(
+                        "برای یک یا چند ارز انتخاب‌شده قبلاً موجودی افتتاحیه این صندوق ثبت شده است.");
+                }
+
+                foreach (var balance in balances)
+                    balance.Direction = "Debit";
+
+                await CreateOpeningBalanceEntriesAsync(account, openingDate.Date, balances);
+                if (transaction != null)
+                    await transaction.CommitAsync();
+            }
+            catch
+            {
+                if (transaction != null)
+                    await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         protected override async Task ValidateCreateAsync(Account entity, CreateAccountDto dto)
@@ -199,7 +219,113 @@ namespace HawalaExchange.Application.Services
 
         protected override async Task ValidateUpdateAsync(Account entity, UpdateAccountDto dto)
         {
+            EnsureNotProtectedSystemAccount(entity);
             await ValidateUniqueOwnerAsync(entity, entity.Id);
+        }
+
+        protected override Task ValidateDeleteAsync(Account entity)
+        {
+            EnsureNotProtectedSystemAccount(entity);
+            return Task.CompletedTask;
+        }
+
+        private static void ValidateInitialBalances(IReadOnlyCollection<InitialBalanceDto> balances)
+        {
+            if (balances.Any(balance => balance.CurrencyId <= 0 || balance.Amount <= 0))
+                throw new InvalidOperationException("ارز و مبلغ تمام موجودی‌های اولیه باید معتبر باشد.");
+
+            if (balances.GroupBy(balance => balance.CurrencyId).Any(group => group.Count() > 1))
+                throw new InvalidOperationException("برای هر ارز فقط یک موجودی اولیه ثبت کنید.");
+
+            if (balances.Any(balance =>
+                    !string.Equals(balance.Direction, "Debit", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(balance.Direction, "Credit", StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException("جهت موجودی اولیه معتبر نیست.");
+            }
+        }
+
+        private static void EnsureNotProtectedSystemAccount(Account account)
+        {
+            if (account.AccountCode == ApplicationDbContext.OpeningBalanceEquityAccountCode)
+            {
+                throw new InvalidOperationException(
+                    "حساب انتقال مانده افتتاحیه یک حساب سیستمی است و قابل ویرایش، حذف یا بایگانی نیست.");
+            }
+        }
+
+        private async Task CreateOpeningBalanceEntriesAsync(
+            Account account,
+            DateTime openingDate,
+            IReadOnlyCollection<InitialBalanceDto> balances)
+        {
+            ValidateInitialBalances(balances);
+            var currencyIds = balances.Select(x => x.CurrencyId).Distinct().ToArray();
+            var validCurrencyCount = await _context.Currencies
+                .CountAsync(currency => currencyIds.Contains(currency.Id) && currency.IsActive);
+            if (validCurrencyCount != currencyIds.Length)
+                throw new InvalidOperationException("یک یا چند ارز موجودی افتتاحیه معتبر یا فعال نیست.");
+
+            await _context.EnsureSystemAccountsAsync(_context.CurrentTenantId);
+            var openingBalanceAccount = await _context.Accounts
+                .SingleAsync(x =>
+                    x.AccountCode == ApplicationDbContext.OpeningBalanceEquityAccountCode);
+            var openingTransaction = new Transaction
+            {
+                TransactionNo = await GenerateOpeningTransactionNumberAsync(),
+                TransactionType = "OpeningBalance",
+                BranchId = await _context.GetDefaultBranchIdAsync(),
+                Status = "Paid",
+                Remarks = $"موجودی اولیه حساب {account.AccountName}",
+                CreatedBy = _context.RequireCurrentUserId(),
+                CreatedAt = openingDate
+            };
+
+            await _context.Transactions.AddAsync(openingTransaction);
+            await _context.SaveChangesAsync();
+
+            var ledgerEntries = balances.SelectMany(initialBalance =>
+            {
+                var targetIsCredit = string.Equals(
+                    initialBalance.Direction,
+                    "Credit",
+                    StringComparison.OrdinalIgnoreCase);
+                var targetEntry = new LedgerEntry
+                {
+                    TransactionId = openingTransaction.Id,
+                    AccountId = account.Id,
+                    CurrencyId = initialBalance.CurrencyId,
+                    TalabKar = targetIsCredit ? initialBalance.Amount : 0,
+                    BadehKar = targetIsCredit ? 0 : initialBalance.Amount,
+                    Description = string.IsNullOrWhiteSpace(initialBalance.Description)
+                        ? "موجودی اولیه"
+                        : $"موجودی اولیه: {initialBalance.Description}",
+                    CreatedAt = openingDate
+                };
+                var oppositeEntry = new LedgerEntry
+                {
+                    TransactionId = openingTransaction.Id,
+                    AccountId = openingBalanceAccount.Id,
+                    CurrencyId = initialBalance.CurrencyId,
+                    TalabKar = targetIsCredit ? 0 : initialBalance.Amount,
+                    BadehKar = targetIsCredit ? initialBalance.Amount : 0,
+                    Description = $"طرف مقابل موجودی اولیه حساب {account.AccountName}",
+                    CreatedAt = openingDate
+                };
+                _context.PrepareTenantEntity(targetEntry);
+                _context.PrepareTenantEntity(oppositeEntry);
+                return new[] { targetEntry, oppositeEntry };
+            }).ToList();
+
+            await _context.LedgerEntries.AddRangeAsync(ledgerEntries);
+            await _context.SaveChangesAsync();
+            await _auditLogService.LogAsync(
+                "CREATE",
+                "Transactions",
+                openingTransaction.Id,
+                null,
+                $"موجودی اولیه حساب {account.AccountName} ثبت شد",
+                _context.RequireCurrentUserId());
         }
 
         private async Task ValidateUniqueOwnerAsync(Account entity, long? accountIdToExclude = null)

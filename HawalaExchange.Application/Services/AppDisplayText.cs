@@ -67,6 +67,7 @@ public static class AppDisplayText
         "income" => "حساب درآمد",
         "expense" => "حساب مصرف",
         "equity" => "حساب سرمایه",
+        "openingbalanceequity" => "انتقال مانده افتتاحیه",
         "pendinghawala" => "حساب حواله‌های اجرا نشده",
         "currencyconversionclearing" => "حساب داخلی تسویه تبدیل ارز",
         null or "" => "نوع حساب مشخص نشده",

@@ -136,6 +136,7 @@ namespace HawalaExchange.Infrastructure.Data
         public const string CurrencyInventoryAccountCode = "1201";
         public const string CurrencySaleLiabilityAccountCode = "2101";
         public const string PendingHawalaAccountCode = "2102";
+        public const string OpeningBalanceEquityAccountCode = "5901";
 
         /// <summary>
         /// Applies small, idempotent schema repairs that must also work when migration
@@ -266,7 +267,8 @@ namespace HawalaExchange.Infrastructure.Data
             {
                 CurrencyInventoryAccountCode,
                 CurrencySaleLiabilityAccountCode,
-                PendingHawalaAccountCode
+                PendingHawalaAccountCode,
+                OpeningBalanceEquityAccountCode
             };
             var accounts = await Accounts
                 .IgnoreQueryFilters()
@@ -279,6 +281,8 @@ namespace HawalaExchange.Infrastructure.Data
                 x => x.AccountCode == CurrencySaleLiabilityAccountCode);
             var pendingHawalaAccount = accounts.FirstOrDefault(
                 x => x.AccountCode == PendingHawalaAccountCode);
+            var openingBalanceEquityAccount = accounts.FirstOrDefault(
+                x => x.AccountCode == OpeningBalanceEquityAccountCode);
 
             var legacyPendingAccount = liabilityAccount != null &&
                 (liabilityAccount.AccountType == "PendingHawala" ||
@@ -309,6 +313,11 @@ namespace HawalaExchange.Infrastructure.Data
                 PendingHawalaAccountCode,
                 "حواله‌های اجرا نشده",
                 "PendingHawala");
+            openingBalanceEquityAccount ??= AddSystemAccount(
+                tenantId,
+                OpeningBalanceEquityAccountCode,
+                "انتقال مانده افتتاحیه",
+                "OpeningBalanceEquity");
 
             NormalizeSystemAccount(
                 inventoryAccount,
@@ -322,6 +331,10 @@ namespace HawalaExchange.Infrastructure.Data
                 pendingHawalaAccount,
                 "حواله‌های اجرا نشده",
                 "PendingHawala");
+            NormalizeSystemAccount(
+                openingBalanceEquityAccount,
+                "انتقال مانده افتتاحیه",
+                "OpeningBalanceEquity");
             await SaveChangesAsync(cancellationToken);
 
             var hawalaEntriesOnLiability = await LedgerEntries

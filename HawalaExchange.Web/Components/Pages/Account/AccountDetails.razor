@@ -8,6 +8,7 @@
 @inject IAccountService AccountService
 @inject ICustomerService CustomerService
 @inject ICorrespondentService CorrespondentService
+@inject ICurrencyService CurrencyService
 @inject NavigationManager NavigationManager
 
 <PageTitle>@(account == null ? "مشاهده حساب" : account.AccountName)</PageTitle>
@@ -40,16 +41,107 @@
             </div>
         }
 
-        <AccountDetailsModal IsVisible="true"
+        <AccountDetailsModal @key="detailsRefreshKey"
+                             IsVisible="true"
                              PageMode="true"
                              Account="@account"
                              ShowAccountFacts="false"
                              UseActionsMenu="true"
                              IsVisibleChanged="HandleDetailsVisibilityChanged"
                              OnEditRequested="OpenEditModal"
-                             OnArchiveToggleRequested="OpenArchiveConfirmation" />
+                             OnArchiveToggleRequested="OpenArchiveConfirmation">
+            <HeaderActions>
+                @if (string.Equals(account.AccountType, "Cash", StringComparison.OrdinalIgnoreCase) && !account.IsArchived)
+                {
+                    <button type="button" class="btn btn-sm btn-light border" @onclick="OpenOpeningBalanceModal">
+                        <i class="bi bi-cash-stack me-1"></i> ثبت موجودی افتتاحیه
+                    </button>
+                }
+            </HeaderActions>
+        </AccountDetailsModal>
     }
 </div>
+
+@if (showOpeningBalanceModal && account != null)
+{
+    <div class="modal show d-block account-action-overlay" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content account-action-modal">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title">ثبت موجودی افتتاحیه صندوق</h5>
+                        <small>@account.AccountName · مبالغ را مطابق شمارش واقعی وارد کنید</small>
+                    </div>
+                    <button type="button" class="btn-close" aria-label="بستن" @onclick="CloseOpeningBalanceModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (openingBalanceErrors.Any())
+                    {
+                        <div class="alert alert-danger py-2">
+                            @foreach (var error in openingBalanceErrors)
+                            {
+                                <div>@error</div>
+                            }
+                        </div>
+                    }
+
+                    <div class="alert alert-info py-2">
+                        سیستم حساب «انتقال مانده افتتاحیه» و طرف مقابل سند را خودکار ثبت می‌کند.
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">تاریخ مانده افتتاحیه</label>
+                            <PersianDatePicker @bind-Value="openingBalanceDate"
+                                               IncludeTime="false"
+                                               AllowEmpty="false"
+                                               Placeholder="انتخاب تاریخ" />
+                        </div>
+                    </div>
+
+                    @foreach (var item in openingBalances)
+                    {
+                        var currency = currencies.FirstOrDefault(x => x.Id == item.CurrencyId);
+                        <div class="row g-2 align-items-end mb-3 border rounded-3 p-2">
+                            <div class="col-md-5">
+                                <label class="form-label">ارز</label>
+                                <select class="form-select" @bind="item.CurrencyId">
+                                    <option value="0">انتخاب ارز</option>
+                                    @foreach (var currencyItem in currencies)
+                                    {
+                                        <option value="@currencyItem.Id">@currencyItem.Name (@currencyItem.Code)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label">موجودی واقعی صندوق</label>
+                                <MoneyInput @bind-Value="item.Amount" min="0" placeholder="مبلغ" />
+                                @if (item.Amount > 0)
+                                {
+                                    <small class="text-muted">@DariNumberToWords.ToWords(item.Amount) @(currency?.Name ?? string.Empty)</small>
+                                }
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-outline-danger w-100" title="حذف" @onclick="() => RemoveOpeningBalanceRow(item)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+
+                    <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddOpeningBalanceRow">
+                        <i class="bi bi-plus-lg me-1"></i> افزودن ارز دیگر
+                    </button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" @onclick="CloseOpeningBalanceModal">انصراف</button>
+                    <button type="button" class="btn btn-primary" disabled="@isSaving" @onclick="SaveOpeningBalances">
+                        @(isSaving ? "در حال ثبت..." : "ثبت موجودی افتتاحیه")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @if (showEditModal && account != null)
 {
@@ -166,12 +258,18 @@
     private AccountDto? account;
     private List<CustomerDto> customers = new();
     private List<CorrespondentDto> correspondents = new();
+    private List<CurrencyDto> currencies = new();
     private UpdateAccountDto editModel = new();
     private List<string> editErrors = new();
     private bool isLoading = true;
     private bool isSaving;
     private bool showEditModal;
     private bool showArchiveConfirmation;
+    private bool showOpeningBalanceModal;
+    private int detailsRefreshKey;
+    private DateTime openingBalanceDate = DateTime.Today;
+    private List<InitialBalanceDto> openingBalances = new();
+    private List<string> openingBalanceErrors = new();
     private string pageError = string.Empty;
     private string successMessage = string.Empty;
     private long? loadedAccountId;
@@ -195,6 +293,7 @@
             account = await AccountService.GetByIdAsync(AccountId);
             customers = (await CustomerService.GetAllAsync()).ToList();
             correspondents = (await CorrespondentService.GetAllAsync()).ToList();
+            currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
         }
         catch (Exception ex)
         {
@@ -320,6 +419,68 @@
         catch (Exception ex)
         {
             pageError = $"عملیات بایگانی انجام نشد: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void OpenOpeningBalanceModal()
+    {
+        openingBalanceDate = DateTime.Today;
+        openingBalanceErrors.Clear();
+        openingBalances = [new InitialBalanceDto { Direction = "Debit" }];
+        showOpeningBalanceModal = true;
+    }
+
+    private void CloseOpeningBalanceModal()
+    {
+        showOpeningBalanceModal = false;
+        openingBalanceErrors.Clear();
+    }
+
+    private void AddOpeningBalanceRow()
+    {
+        openingBalances.Add(new InitialBalanceDto { Direction = "Debit" });
+    }
+
+    private void RemoveOpeningBalanceRow(InitialBalanceDto item)
+    {
+        openingBalances.Remove(item);
+        if (openingBalances.Count == 0)
+            openingBalances.Add(new InitialBalanceDto { Direction = "Debit" });
+    }
+
+    private async Task SaveOpeningBalances()
+    {
+        if (account == null)
+            return;
+
+        openingBalanceErrors.Clear();
+        var entered = openingBalances
+            .Where(x => x.CurrencyId > 0 || x.Amount > 0)
+            .ToList();
+        if (entered.Count == 0)
+            openingBalanceErrors.Add("حداقل یک ارز و مبلغ وارد کنید.");
+        if (entered.Any(x => x.CurrencyId <= 0 || x.Amount <= 0))
+            openingBalanceErrors.Add("ارز و مبلغ بزرگ‌تر از صفر را در تمام ردیف‌ها کامل کنید.");
+        if (entered.GroupBy(x => x.CurrencyId).Any(group => group.Count() > 1))
+            openingBalanceErrors.Add("هر ارز را فقط یک‌بار انتخاب کنید.");
+        if (openingBalanceErrors.Any())
+            return;
+
+        try
+        {
+            isSaving = true;
+            await AccountService.AddOpeningBalancesAsync(account.Id, openingBalanceDate.Date, entered);
+            showOpeningBalanceModal = false;
+            successMessage = "موجودی افتتاحیه صندوق با سند متوازن ثبت شد.";
+            detailsRefreshKey++;
+        }
+        catch (Exception ex)
+        {
+            openingBalanceErrors.Add(ex.Message);
         }
         finally
         {

@@ -156,6 +156,18 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
 
     public ReportService CreateReportService(ApplicationDbContext context) => new(context);
     public FinancialReportService CreateFinancialReportService(ApplicationDbContext context) => new(context);
+    public AccountService CreateAccountService(ApplicationDbContext context)
+    {
+        var mapperConfig = new MapperConfiguration(
+            cfg => cfg.AddProfile<MappingProfile>(),
+            NullLoggerFactory.Instance);
+        var mapper = mapperConfig.CreateMapper();
+        return new AccountService(
+            context,
+            mapper,
+            new LedgerService(context, mapper),
+            Mock.Of<IAuditLogService>());
+    }
     public JournalService CreateJournalService(ApplicationDbContext context) => new(context);
     public CorrespondentCommissionService CreateCommissionService(ApplicationDbContext context) => new(context);
     public CorrespondentSettlementService CreateSettlementService(ApplicationDbContext context) => new(context);

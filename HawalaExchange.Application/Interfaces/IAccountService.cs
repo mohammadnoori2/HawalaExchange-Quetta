@@ -14,5 +14,9 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<decimal> GetAccountBalanceAsync(long accountId, long currencyId);
         Task<IEnumerable<BalanceDto>> GetAllAccountBalancesAsync(long accountId);
         Task<string> GetNextAccountCodeAsync(string accountType);
+        Task AddOpeningBalancesAsync(
+            long accountId,
+            DateTime openingDate,
+            IReadOnlyCollection<InitialBalanceDto> balances);
     }
 }

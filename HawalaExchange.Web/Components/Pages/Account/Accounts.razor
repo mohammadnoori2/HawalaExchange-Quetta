@@ -57,6 +57,7 @@
                 <option value="Income">درآمد</option>
                 <option value="Expense">هزینه</option>
                 <option value="Equity">سرمایه</option>
+                <option value="OpeningBalanceEquity">انتقال مانده افتتاحیه</option>
             </select>
         </QuickFilters>
     </CompactFilterBar>
@@ -379,6 +380,19 @@
                                 </h6>
                             </div>
                             <div class="card-body">
+                                <div class="alert alert-info py-2 mb-3">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    مبلغ‌ها را مطابق شمارش واقعی وارد کنید. سیستم طرف مقابل را به‌صورت خودکار در حساب «انتقال مانده افتتاحیه» ثبت می‌کند.
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold">تاریخ مانده افتتاحیه</label>
+                                        <PersianDatePicker @bind-Value="initialBalanceDate"
+                                                           IncludeTime="false"
+                                                           AllowEmpty="false"
+                                                           Placeholder="انتخاب تاریخ" />
+                                    </div>
+                                </div>
                                 <div class="initial-balance-grid">
                                     @foreach (var item in initialBalances)
                                     {
@@ -396,11 +410,20 @@
 
                                                 <MoneyInput class="initial-balance-amount-input" @bind-Value="item.Amount" min="0" placeholder="مبلغ" />
 
-                                                <select class="initial-balance-direction @(item.Direction == "Debit" ? "is-debit" : "is-credit")"
-                                                        @bind="item.Direction" aria-label="نوع موجودی اولیه">
-                                                    <option value="Debit">بدهکار</option>
-                                                    <option value="Credit">طلبکار</option>
-                                                </select>
+                                                @if (currentAccount.AccountType == "Cash")
+                                                {
+                                                    <span class="initial-balance-direction is-debit text-center" title="موجودی واقعی صندوق باعث افزایش دارایی می‌شود">
+                                                        موجودی صندوق
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <select class="initial-balance-direction @(item.Direction == "Debit" ? "is-debit" : "is-credit")"
+                                                            @bind="item.Direction" aria-label="نوع موجودی اولیه">
+                                                        <option value="Debit">بدهکار</option>
+                                                        <option value="Credit">طلبکار</option>
+                                                    </select>
+                                                }
                                             </div>
                                             @if (item.Amount > 0)
                                             {
@@ -627,6 +650,7 @@
     private List<InitialBalanceDto> initialBalances = new();
     private bool _hasInitialBalance = true;
     private bool _isBalanceSubmitted = false;
+    private DateTime initialBalanceDate = DateTime.Today;
 
     private bool HasInitialBalance
     {
@@ -829,6 +853,11 @@
                 currentAccount.ReferenceType = null;
 
             currentAccount.ReferenceId = null;
+            if (currentAccount.AccountType == "Cash")
+            {
+                foreach (var balance in initialBalances)
+                    balance.Direction = "Debit";
+            }
             await GetSuggestedCode();
         }
         StateHasChanged();
@@ -866,6 +895,7 @@
         _hasInitialBalance = false;
         HasInitialBalance = true;
         _isBalanceSubmitted = false;
+        initialBalanceDate = DateTime.Today;
         StateHasChanged();
     }
 
@@ -986,6 +1016,12 @@
             {
                 if (currentAccount.HasInitialBalance)
                 {
+                    if (currentAccount.AccountType == "Cash")
+                    {
+                        foreach (var balance in enteredInitialBalances)
+                            balance.Direction = "Debit";
+                    }
+                    currentAccount.InitialBalanceDate = initialBalanceDate.Date;
                     currentAccount.InitialBalances = enteredInitialBalances;
                 }
 

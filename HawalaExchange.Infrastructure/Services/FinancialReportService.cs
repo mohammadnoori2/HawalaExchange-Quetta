@@ -243,6 +243,7 @@ public class FinancialReportService : IFinancialReportService
             result.Header.Warnings);
         var capital = CreditBalance(balances, "Equity") +
                       CalculateHistoricalCapitalAdjustment(reporting, result.Header.Warnings);
+        result.OpeningBalanceEquity = NetCreditBalance(balances, "OpeningBalanceEquity");
 
         result.TotalAssets =
             cash +
@@ -261,10 +262,12 @@ public class FinancialReportService : IFinancialReportService
             result.TotalAssets -
             result.TotalLiabilities -
             capital -
+            result.OpeningBalanceEquity -
             retainedProfit -
             currentProfit;
         result.TotalEquity =
             capital +
+            result.OpeningBalanceEquity +
             retainedProfit +
             currentProfit +
             result.UnrealizedExchangeAdjustment;
@@ -296,11 +299,12 @@ public class FinancialReportService : IFinancialReportService
             Total("15", "مجموع بدهی‌ها", result.TotalLiabilities),
             Section("د", "سرمایه"),
             Line("16", "سرمایه مالک/شرکا", capital),
-            Line("17", "مفاد یا ضرر سال‌های قبل", retainedProfit),
-            Line("18", "مفاد یا ضرر دوره جاری", currentProfit),
-            Line("19", "تعدیلات ارزی تحقق‌نیافته", result.UnrealizedExchangeAdjustment),
-            Total("20", "مجموع سرمایه", result.TotalEquity),
-            GrandTotal("21", "مجموع بدهی‌ها و سرمایه", result.TotalLiabilitiesAndEquity)
+            Line("17", "انتقال مانده افتتاحیه", result.OpeningBalanceEquity),
+            Line("18", "مفاد یا ضرر سال‌های قبل", retainedProfit),
+            Line("19", "مفاد یا ضرر دوره جاری", currentProfit),
+            Line("20", "تعدیلات ارزی تحقق‌نیافته", result.UnrealizedExchangeAdjustment),
+            Total("21", "مجموع سرمایه", result.TotalEquity),
+            GrandTotal("22", "مجموع بدهی‌ها و سرمایه", result.TotalLiabilitiesAndEquity)
         ];
 
         return result;
@@ -810,6 +814,13 @@ public class FinancialReportService : IFinancialReportService
         balances
             .Where(x => accountTypes.Any(t => TypeIs(x.AccountType, t)))
             .Sum(x => x.CreditBalance);
+
+    private static decimal NetCreditBalance(
+        IEnumerable<ConvertedBalance> balances,
+        params string[] accountTypes) =>
+        balances
+            .Where(x => accountTypes.Any(t => TypeIs(x.AccountType, t)))
+            .Sum(x => x.Credit - x.Debit);
 
     private static bool TypeIs(string actual, string expected) =>
         string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);

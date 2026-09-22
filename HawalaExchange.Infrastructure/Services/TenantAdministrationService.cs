@@ -311,7 +311,12 @@ public sealed class TenantAdministrationService(
         NewAccount(tenantId, "3001", "درآمد کمیسیون حواله", "Income"),
         NewAccount(tenantId, "3002", "درآمد تبادل", "Income"),
         NewAccount(tenantId, "4001", "هزینه دفتر", "Expense"),
-        NewAccount(tenantId, "5001", "سرمایه مالک", "Equity")
+        NewAccount(tenantId, "5001", "سرمایه مالک", "Equity"),
+        NewAccount(
+            tenantId,
+            ApplicationDbContext.OpeningBalanceEquityAccountCode,
+            "انتقال مانده افتتاحیه",
+            "OpeningBalanceEquity")
     ];
 
     private static Account NewAccount(long tenantId, string code, string name, string type) => new()

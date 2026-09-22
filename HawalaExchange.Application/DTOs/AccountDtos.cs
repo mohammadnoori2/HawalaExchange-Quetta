@@ -27,6 +27,7 @@ namespace HawalaExchange.Application.DTOs
         public long? ReferenceId { get; set; }
 
         public bool HasInitialBalance { get; set; } = false;
+        public DateTime? InitialBalanceDate { get; set; }
         public List<InitialBalanceDto>? InitialBalances { get; set; }
     }
 

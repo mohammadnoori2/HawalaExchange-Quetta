@@ -29,6 +29,7 @@ public class BalanceSheetDto
     public List<FinancialStatementLineDto> LiabilityAndEquityLines { get; set; } = new();
     public decimal TotalAssets { get; set; }
     public decimal TotalLiabilities { get; set; }
+    public decimal OpeningBalanceEquity { get; set; }
     public decimal TotalEquity { get; set; }
     public decimal TotalLiabilitiesAndEquity { get; set; }
     public decimal UnrealizedExchangeAdjustment { get; set; }

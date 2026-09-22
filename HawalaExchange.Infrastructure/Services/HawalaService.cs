@@ -528,8 +528,11 @@
                         .FirstOrDefaultAsync(x => x.HawalaId == hawala.Id && x.IsActive && x.Batch.Status == "Posted");
                     var commissionAffectingChange = activePeriodicCommissionItem != null &&
                         ((dto.CorrespondentId ?? hawala.CorrespondentId) != hawala.CorrespondentId ||
-                         (dto.FromCurrencyId ?? hawala.FromCurrencyId) != hawala.FromCurrencyId ||
-                         (dto.FromAmount ?? hawala.FromAmount) != hawala.FromAmount);
+                         (hawala.HawalaType == "HawalaSend"
+                             ? (dto.ToCurrencyId ?? hawala.ToCurrencyId) != hawala.ToCurrencyId ||
+                               (dto.ToAmount ?? hawala.ToAmount) != hawala.ToAmount
+                             : (dto.FromCurrencyId ?? hawala.FromCurrencyId) != hawala.FromCurrencyId ||
+                               (dto.FromAmount ?? hawala.FromAmount) != hawala.FromAmount));
                     if (commissionAffectingChange && dto.PeriodicCommissionHandling is not ("Recalculate" or "KeepPrevious"))
                     {
                         throw new InvalidOperationException(
@@ -794,65 +797,104 @@
                 }
                 else
                 {
-                    if (item.SourceCurrencyId == hawala.FromCurrencyId)
+                    var currencyCode = await _context.Currencies
+                        .Where(x => x.Id == hawala.ToCurrencyId)
+                        .Select(x => x.Code)
+                        .SingleAsync();
+                    var settlementAmount = hawala.ToAmount ?? hawala.FromAmount;
+                    var valuationDate = hawala.CreatedAt.ToLocalTime().Date;
+                    if (string.Equals(currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
                     {
-                        sourceToAfnRate = item.SourceToAfnRate;
+                        sourceToAfnRate = 1m;
+                        hawala.CommissionUsdToAfnRate = null;
+                    }
+                    else if (string.Equals(currencyCode, "AFN", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sourceToAfnRate = await _context.DailyCommissionRates
+                            .Where(x => x.RateDate == valuationDate)
+                            .Select(x => (decimal?)x.UsdToAfnRate)
+                            .SingleOrDefaultAsync()
+                            ?? throw new InvalidOperationException(
+                                $"نرخ پایان روز {valuationDate:yyyy-MM-dd} ثبت نشده است؛ ابتدا نرخ را در روزنامچه ثبت کنید.");
+                        hawala.CommissionUsdToAfnRate = sourceToAfnRate;
                     }
                     else
                     {
-                        var currencyCode = await _context.Currencies
-                            .Where(x => x.Id == hawala.FromCurrencyId)
-                            .Select(x => x.Code)
-                            .SingleAsync();
-                        sourceToAfnRate = string.Equals(currencyCode, "AFN", StringComparison.OrdinalIgnoreCase)
-                            ? 1m
-                            : batch.Items
-                                .Where(x => x.SourceCurrencyId == hawala.FromCurrencyId)
-                                .Select(x => x.SourceToAfnRate)
-                                .FirstOrDefault();
-                        if (sourceToAfnRate <= 0)
-                        {
-                            throw new InvalidOperationException(
-                                $"نرخ تبدیل ارز {currencyCode} در محاسبه قبلی موجود نیست؛ کمیشن قبلی را حفظ کنید یا ابتدا Batch را برگشت دهید.");
-                        }
+                        throw new InvalidOperationException(
+                            "کمیشن دوره‌ای حواله ارسالی فقط برای ارزهای USD و AFN قابل محاسبه است.");
                     }
 
-                    commissionBase = decimal.Round(hawala.FromAmount * sourceToAfnRate, 4,
-                        MidpointRounding.AwayFromZero);
+                    var originalCommission = decimal.Round(
+                        settlementAmount / 100000m * batch.CommissionPerLakhAfn,
+                        0, MidpointRounding.AwayFromZero);
+                    commissionBase = string.Equals(currencyCode, "USD", StringComparison.OrdinalIgnoreCase)
+                        ? originalCommission
+                        : decimal.Round(originalCommission / sourceToAfnRate, 0,
+                            MidpointRounding.AwayFromZero);
+                    hawala.CommissionBaseUsdAmount = decimal.Round(
+                        settlementAmount / (sourceToAfnRate == 1m ? 1m : sourceToAfnRate),
+                        8, MidpointRounding.AwayFromZero);
+                    hawala.CommissionValuationDate = valuationDate;
+                    hawala.CommissionValuedAt = DateTime.UtcNow;
+
+                    item.SourceCurrencyId = hawala.ToCurrencyId;
+                    item.SourceAmount = settlementAmount;
+                    item.SourceToAfnRate = sourceToAfnRate;
+                    item.AfnEquivalent = commissionBase;
+                    item.CommissionAfn = originalCommission;
                 }
 
-                item.SourceCurrencyId = hawala.FromCurrencyId;
-                item.SourceAmount = hawala.FromAmount;
-                item.SourceToAfnRate = sourceToAfnRate;
-                item.AfnEquivalent = decimal.Round(commissionBase, 4, MidpointRounding.AwayFromZero);
-                item.CommissionAfn = decimal.Round(
-                    item.AfnEquivalent / 100000m * batch.CommissionPerLakhAfn,
-                    4, MidpointRounding.AwayFromZero);
+                if (!isOutgoingCommission)
+                {
+                    item.SourceCurrencyId = hawala.FromCurrencyId;
+                    item.SourceAmount = hawala.FromAmount;
+                    item.SourceToAfnRate = sourceToAfnRate;
+                    item.AfnEquivalent = decimal.Round(commissionBase, 4, MidpointRounding.AwayFromZero);
+                    item.CommissionAfn = decimal.Round(
+                        item.AfnEquivalent / 100000m * batch.CommissionPerLakhAfn,
+                        4, MidpointRounding.AwayFromZero);
+                }
 
                 batch.TotalBaseAfn = decimal.Round(
                     batch.Items.Where(x => x.IsActive).Sum(x => x.AfnEquivalent),
-                    4, MidpointRounding.AwayFromZero);
-                var calculatedCommission = decimal.Round(
-                    batch.TotalBaseAfn / 100000m * batch.CommissionPerLakhAfn,
-                    0, MidpointRounding.AwayFromZero);
-                batch.TotalCommissionAfn = isOutgoingCommission ? calculatedCommission : 0;
-                batch.TotalCommissionUsd = isOutgoingCommission ? 0 : calculatedCommission;
-                var postingAmount = isOutgoingCommission
-                    ? batch.TotalCommissionAfn
-                    : batch.TotalCommissionUsd;
-
-                var ledgerEntries = await _context.LedgerEntries
-                    .Where(x => x.TransactionId == batch.PostingTransactionId)
-                    .ToListAsync();
-                if (ledgerEntries.Count != 2)
-                    throw new InvalidOperationException("سند حسابداری کمیشن دوره‌ای برای به‌روزرسانی معتبر نیست.");
-
-                foreach (var entry in ledgerEntries)
+                    isOutgoingCommission ? 0 : 4, MidpointRounding.AwayFromZero);
+                decimal postingAmount;
+                if (isOutgoingCommission)
                 {
-                    if (entry.TalabKar > 0)
-                        entry.TalabKar = postingAmount;
-                    if (entry.BadehKar > 0)
-                        entry.BadehKar = postingAmount;
+                    var currencyCodes = await _context.Currencies.AsNoTracking()
+                        .Where(x => x.Code == "AFN" || x.Code == "USD")
+                        .ToDictionaryAsync(x => x.Id, x => x.Code);
+                    batch.TotalCommissionAfn = decimal.Round(batch.Items
+                        .Where(x => x.IsActive && currencyCodes.GetValueOrDefault(x.SourceCurrencyId) == "AFN")
+                        .Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero);
+                    batch.TotalCommissionUsd = decimal.Round(batch.Items
+                        .Where(x => x.IsActive && currencyCodes.GetValueOrDefault(x.SourceCurrencyId) == "USD")
+                        .Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero);
+                    postingAmount = batch.TotalBaseAfn;
+                    await RebuildOutgoingPeriodicCommissionLedgerAsync(batch);
+                }
+                else
+                {
+                    var calculatedCommission = decimal.Round(
+                        batch.TotalBaseAfn / 100000m * batch.CommissionPerLakhAfn,
+                        0, MidpointRounding.AwayFromZero);
+                    batch.TotalCommissionAfn = 0;
+                    batch.TotalCommissionUsd = calculatedCommission;
+                    postingAmount = batch.TotalCommissionUsd;
+
+                    var ledgerEntries = await _context.LedgerEntries
+                        .Where(x => x.TransactionId == batch.PostingTransactionId)
+                        .ToListAsync();
+                    if (ledgerEntries.Count != 2)
+                        throw new InvalidOperationException("سند حسابداری کمیشن دوره‌ای برای به‌روزرسانی معتبر نیست.");
+
+                    foreach (var entry in ledgerEntries)
+                    {
+                        if (entry.TalabKar > 0)
+                            entry.TalabKar = postingAmount;
+                        if (entry.BadehKar > 0)
+                            entry.BadehKar = postingAmount;
+                    }
                 }
 
                 _context.AuditLogs.Add(new AuditLog
@@ -864,6 +906,98 @@
                     NewValue = $"کمیشن حواله {hawala.Id} در همان سند قبلی به‌روزرسانی شد.",
                     CreatedAt = DateTime.UtcNow
                 });
+            }
+
+            private async Task RebuildOutgoingPeriodicCommissionLedgerAsync(
+                CorrespondentCommissionBatch batch)
+            {
+                var currencies = await _context.Currencies.AsNoTracking()
+                    .Where(x => x.Code == "AFN" || x.Code == "USD")
+                    .ToDictionaryAsync(x => x.Code, x => x.Id);
+                if (!currencies.TryGetValue("AFN", out var afnId) ||
+                    !currencies.TryGetValue("USD", out var usdId))
+                    throw new InvalidOperationException("ارزهای فعال USD و AFN در سیستم یافت نشد.");
+
+                var destinationAccountId = await _context.Accounts.AsNoTracking()
+                    .Where(x => x.CorrespondentId == batch.CorrespondentId && !x.IsArchived)
+                    .OrderBy(x => x.Id).Select(x => (long?)x.Id).FirstOrDefaultAsync()
+                    ?? throw new InvalidOperationException("حساب فعال نمایندگی مقصد یافت نشد.");
+                var clearing = await _context.Accounts
+                    .SingleOrDefaultAsync(x => x.AccountCode == "SYS-SETTLEMENT-CLEARING");
+                if (clearing == null)
+                {
+                    clearing = new Account
+                    {
+                        AccountCode = "SYS-SETTLEMENT-CLEARING",
+                        AccountName = "حساب واسط تبدیل ارز نمایندگی‌ها",
+                        AccountType = "CurrencyConversionClearing",
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.Accounts.Add(clearing);
+                    await _context.SaveChangesAsync();
+                }
+                else if (clearing.IsArchived || clearing.AccountType != "CurrencyConversionClearing")
+                    throw new InvalidOperationException("حساب واسط تبدیل ارز فعال و معتبر نیست.");
+
+                var activeBatchItems = batch.Items.Where(x => x.IsActive).ToList();
+                var hawalaIds = activeBatchItems.Select(x => x.HawalaId).ToArray();
+                var sourceLinks = await _context.Hawalas.AsNoTracking()
+                    .Where(x => hawalaIds.Contains(x.Id))
+                    .Select(x => new { x.Id, SourceCorrespondentId = x.SourceHawala!.CorrespondentId })
+                    .ToDictionaryAsync(x => x.Id, x => x.SourceCorrespondentId);
+                var items = activeBatchItems.Select(x => new
+                {
+                    x.SourceCurrencyId,
+                    x.AfnEquivalent,
+                    SourceCorrespondentId = sourceLinks.GetValueOrDefault(x.HawalaId)
+                }).ToList();
+                if (items.Any(x => !x.SourceCorrespondentId.HasValue))
+                    throw new InvalidOperationException("نمایندگی فرستنده یک یا چند حواله ارسالی یافت نشد.");
+
+                var sourceIds = items.Select(x => x.SourceCorrespondentId!.Value).Distinct().ToArray();
+                var sourceAccounts = await _context.Accounts.AsNoTracking()
+                    .Where(x => x.CorrespondentId.HasValue && sourceIds.Contains(x.CorrespondentId.Value) && !x.IsArchived)
+                    .GroupBy(x => x.CorrespondentId!.Value)
+                    .Select(x => new { CorrespondentId = x.Key, AccountId = x.Min(a => a.Id) })
+                    .ToDictionaryAsync(x => x.CorrespondentId, x => x.AccountId);
+                if (sourceIds.Any(id => !sourceAccounts.ContainsKey(id)))
+                    throw new InvalidOperationException("حساب فعال نمایندگی فرستنده یک یا چند حواله یافت نشد.");
+
+                var oldEntries = await _context.LedgerEntries
+                    .Where(x => x.TransactionId == batch.PostingTransactionId).ToListAsync();
+                _context.LedgerEntries.RemoveRange(oldEntries);
+                var description = $"کمیشن حواله‌های ارسالی نمایندگی، {items.Count} حواله";
+                void Add(long accountId, long currencyId, decimal talabKar, decimal badehKar) =>
+                    _context.LedgerEntries.Add(new LedgerEntry
+                    {
+                        TransactionId = batch.PostingTransactionId,
+                        AccountId = accountId,
+                        CurrencyId = currencyId,
+                        TalabKar = talabKar,
+                        BadehKar = badehKar,
+                        Description = description,
+                        CreatedAt = DateTime.UtcNow
+                    });
+
+                if (batch.TotalCommissionUsd > 0)
+                    Add(destinationAccountId, usdId, batch.TotalCommissionUsd, 0);
+                if (batch.TotalCommissionAfn > 0)
+                {
+                    Add(destinationAccountId, afnId, batch.TotalCommissionAfn, 0);
+                    Add(clearing.Id, afnId, 0, batch.TotalCommissionAfn);
+                    var afnUsd = decimal.Round(items
+                        .Where(x => x.SourceCurrencyId == afnId).Sum(x => x.AfnEquivalent),
+                        0, MidpointRounding.AwayFromZero);
+                    if (afnUsd > 0)
+                        Add(clearing.Id, usdId, afnUsd, 0);
+                }
+                foreach (var group in items.GroupBy(x => x.SourceCorrespondentId!.Value))
+                {
+                    var amount = decimal.Round(group.Sum(x => x.AfnEquivalent), 0,
+                        MidpointRounding.AwayFromZero);
+                    if (amount > 0)
+                        Add(sourceAccounts[group.Key], usdId, 0, amount);
+                }
             }
 
             private sealed record SettlementReconversionState(

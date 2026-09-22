@@ -439,54 +439,60 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             [SourceAmount] decimal(18,4) NOT NULL,
                             [SourceToAfnRate] decimal(18,8) NOT NULL,
                             [AfnEquivalent] decimal(38,8) NOT NULL,
-                            [CommissionAfn] decimal(38,8) NOT NULL
+                            [CommissionAfn] decimal(38,8) NOT NULL,
+                            [SourceCorrespondentId] bigint NULL
                         );
 
                         INSERT INTO #Eligible
                         (
                             [HawalaId], [HawalaNumber], [HawalaDate], [CurrencyId],
                             [CurrencyCode], [SourceAmount], [SourceToAfnRate],
-                            [AfnEquivalent], [CommissionAfn]
+                            [AfnEquivalent], [CommissionAfn], [SourceCorrespondentId]
                         )
-                        SELECT h.[Id], h.[Number], h.[CreatedAt], h.[FromCurrencyId], c.[Code],
-                               CAST(h.[FromAmount] AS decimal(18,4)),
-                               CASE WHEN @HawalaType = N'HawalaReceive'
-                                    THEN CAST(CASE WHEN h.[FromCurrencyId] = @UsdCurrencyId THEN 1
-                                                   ELSE h.[CommissionUsdToAfnRate] END AS decimal(18,8))
-                                    ELSE rate.[SourceToAfnRate] END,
+                        SELECT h.[Id], h.[Number], h.[CreatedAt], currencyData.[CurrencyId], c.[Code],
+                               CAST(currencyData.[SourceAmount] AS decimal(18,4)),
+                               CAST(CASE WHEN currencyData.[CurrencyId] = @UsdCurrencyId THEN 1
+                                         ELSE h.[CommissionUsdToAfnRate] END AS decimal(18,8)),
                                CAST(CASE WHEN @HawalaType = N'HawalaReceive'
                                          THEN h.[CommissionBaseUsdAmount]
-                                         ELSE h.[FromAmount] * rate.[SourceToAfnRate] END AS decimal(38,8)),
+                                         WHEN currencyData.[CurrencyId] = @UsdCurrencyId
+                                         THEN ROUND(currencyData.[SourceAmount] / 100000 * @CommissionPerLakhAfn, 0)
+                                         ELSE ROUND(ROUND(currencyData.[SourceAmount] / 100000 * @CommissionPerLakhAfn, 0)
+                                                    / h.[CommissionUsdToAfnRate], 0) END AS decimal(38,8)),
                                CAST(CASE WHEN @HawalaType = N'HawalaReceive'
                                          THEN h.[CommissionBaseUsdAmount] / 100000 * @CommissionPerLakhAfn
-                                         ELSE h.[FromAmount] * rate.[SourceToAfnRate] / 100000 * @CommissionPerLakhAfn END AS decimal(38,8))
+                                         ELSE ROUND(currencyData.[SourceAmount] / 100000 * @CommissionPerLakhAfn, 0)
+                                    END AS decimal(38,8)),
+                               sourceHawala.[CorrespondentId]
                         FROM [dbo].[Hawalas] h WITH (UPDLOCK, HOLDLOCK)
-                        INNER JOIN [dbo].[Currencies] c
-                            ON c.[TenantId] = @TenantId AND c.[Id] = h.[FromCurrencyId]
-                        LEFT JOIN @Rates supplied ON supplied.[CurrencyId] = h.[FromCurrencyId]
                         CROSS APPLY
                         (
-                            SELECT CAST(CASE WHEN h.[FromCurrencyId] = @AfnCurrencyId THEN 1
-                                             ELSE COALESCE(supplied.[SourceToAfnRate], 0) END
-                                        AS decimal(18,8)) AS [SourceToAfnRate]
-                        ) rate
+                            SELECT CASE WHEN @HawalaType = N'HawalaSend' THEN h.[ToCurrencyId]
+                                        ELSE h.[FromCurrencyId] END AS [CurrencyId],
+                                   CASE WHEN @HawalaType = N'HawalaSend' THEN COALESCE(h.[ToAmount], h.[FromAmount])
+                                        ELSE h.[FromAmount] END AS [SourceAmount]
+                        ) currencyData
+                        INNER JOIN [dbo].[Currencies] c
+                            ON c.[TenantId] = @TenantId AND c.[Id] = currencyData.[CurrencyId]
+                        LEFT JOIN [dbo].[Hawalas] sourceHawala
+                            ON sourceHawala.[TenantId] = @TenantId AND sourceHawala.[Id] = h.[SourceHawalaId]
                         WHERE h.[TenantId] = @TenantId
                           AND h.[CorrespondentId] = @CorrespondentId
                           AND h.[HawalaType] = @HawalaType
                           AND h.[Status] <> N'Cancel'
                           AND h.[CreatedAt] >= @FromUtc
                           AND h.[CreatedAt] < @ToUtcExclusive
-                          AND (h.[CommissionAmount] IS NULL OR h.[CommissionAmount] = 0)
-                          AND (@HawalaType <> N'HawalaReceive' OR
-                               (h.[FromCurrencyId] IN (@AfnCurrencyId, @UsdCurrencyId) AND
-                                h.[CommissionBaseUsdAmount] IS NOT NULL))
+                          AND ((@HawalaType = N'HawalaReceive' AND (h.[CommissionAmount] IS NULL OR h.[CommissionAmount] = 0))
+                               OR (@HawalaType = N'HawalaSend' AND (h.[AgentCommissionAmount] IS NULL OR h.[AgentCommissionAmount] = 0)))
+                          AND currencyData.[CurrencyId] IN (@AfnCurrencyId, @UsdCurrencyId)
+                          AND h.[CommissionBaseUsdAmount] IS NOT NULL
                           AND NOT EXISTS
                           (
                               SELECT 1 FROM [dbo].[CorrespondentCommissionBatchItems] bi WITH (UPDLOCK, HOLDLOCK)
                               WHERE bi.[TenantId] = @TenantId AND bi.[HawalaId] = h.[Id] AND bi.[IsActive] = 1
                           );
 
-                        IF @Mode = N'Post' AND @HawalaType = N'HawalaSend' AND
+                        IF @HawalaType = N'HawalaSend' AND
                            EXISTS (SELECT 1 FROM #Eligible WHERE [SourceToAfnRate] <= 0)
                         BEGIN
                             DECLARE @MissingCurrencies nvarchar(2000) =
@@ -495,9 +501,13 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                                 FROM (SELECT DISTINCT [CurrencyCode] FROM #Eligible WHERE [SourceToAfnRate] <= 0) missing
                             );
                             DECLARE @MissingRateMessage nvarchar(2048) =
-                                N'نرخ تبدیل به افغانی برای ' + @MissingCurrencies + N' وارد نشده است.';
+                                N'نرخ پایان روز برای ' + @MissingCurrencies + N' در روزنامچه ثبت نشده است.';
                             THROW 50007, @MissingRateMessage, 1;
                         END;
+
+                        IF @HawalaType = N'HawalaSend' AND
+                           EXISTS (SELECT 1 FROM #Eligible WHERE [SourceCorrespondentId] IS NULL)
+                            THROW 50017, N'حواله ارسالی به حواله دریافتی و نمایندگی فرستنده مرتبط نیست.', 1;
 
                         DECLARE @HawalaCount int = (SELECT COUNT(*) FROM #Eligible);
                         DECLARE @TotalBaseAfn decimal(18,4) =
@@ -505,9 +515,12 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         DECLARE @CalculatedCommission decimal(18,4) =
                             CAST(ROUND(@TotalBaseAfn / 100000 * @CommissionPerLakhAfn, 0) AS decimal(18,4));
                         DECLARE @TotalCommissionAfn decimal(18,4) =
-                            CASE WHEN @HawalaType = N'HawalaSend' THEN @CalculatedCommission ELSE 0 END;
+                            CASE WHEN @HawalaType = N'HawalaSend'
+                                 THEN CAST(COALESCE((SELECT SUM([CommissionAfn]) FROM #Eligible WHERE [CurrencyId] = @AfnCurrencyId), 0) AS decimal(18,4))
+                                 ELSE 0 END;
                         DECLARE @TotalCommissionUsd decimal(18,4) =
-                            CASE WHEN @HawalaType = N'HawalaReceive' THEN @CalculatedCommission ELSE 0 END;
+                            CASE WHEN @HawalaType = N'HawalaReceive' THEN @CalculatedCommission
+                                 ELSE CAST(COALESCE((SELECT SUM([CommissionAfn]) FROM #Eligible WHERE [CurrencyId] = @UsdCurrencyId), 0) AS decimal(18,4)) END;
                         DECLARE @CorrespondentName nvarchar(200) =
                             (SELECT [Name] FROM [dbo].[Correspondents]
                              WHERE [TenantId] = @TenantId AND [Id] = @CorrespondentId);
@@ -542,7 +555,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         IF @HawalaCount = 0
                             THROW 50008, N'حواله محاسبه‌نشده‌ای در این دوره وجود ندارد.', 1;
                         IF (@HawalaType = N'HawalaReceive' AND @TotalCommissionUsd <= 0) OR
-                           (@HawalaType = N'HawalaSend' AND @TotalCommissionAfn <= 0)
+                           (@HawalaType = N'HawalaSend' AND @TotalBaseAfn <= 0)
                             THROW 50009, N'کمیشن نهایی پس از گردکردن قابل ثبت نیست.', 1;
 
                         IF @UsdCurrencyId IS NULL
@@ -577,27 +590,42 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         )
                             THROW 50012, N'حساب 3001 باید یک حساب درآمد فعال باشد.', 1;
 
-                        DECLARE @ExpenseAccountId bigint;
+                        DECLARE @ClearingAccountId bigint;
                         IF @HawalaType = N'HawalaSend'
                         BEGIN
-                            SELECT @ExpenseAccountId = [Id]
+                            SELECT @ClearingAccountId = [Id]
                             FROM [dbo].[Accounts] WITH (UPDLOCK, HOLDLOCK)
-                            WHERE [TenantId] = @TenantId AND [AccountCode] = N'5002';
-                            IF @ExpenseAccountId IS NULL
+                            WHERE [TenantId] = @TenantId AND [AccountCode] = N'SYS-SETTLEMENT-CLEARING';
+                            IF @ClearingAccountId IS NULL
                             BEGIN
                                 INSERT INTO [dbo].[Accounts]
                                     ([TenantId], [AccountCode], [AccountName], [AccountType], [IsArchived], [CreatedAt])
                                 VALUES
-                                    (@TenantId, N'5002', N'هزینه کمیشن حواله‌های ارسالی', N'Expense', 0, SYSUTCDATETIME());
-                                SET @ExpenseAccountId = SCOPE_IDENTITY();
+                                    (@TenantId, N'SYS-SETTLEMENT-CLEARING', N'حساب واسط تبدیل ارز نمایندگی‌ها',
+                                     N'CurrencyConversionClearing', 0, SYSUTCDATETIME());
+                                SET @ClearingAccountId = SCOPE_IDENTITY();
                             END
                             ELSE IF EXISTS
                             (
                                 SELECT 1 FROM [dbo].[Accounts]
-                                WHERE [TenantId] = @TenantId AND [Id] = @ExpenseAccountId
-                                  AND ([IsArchived] = 1 OR [AccountType] <> N'Expense')
+                                WHERE [TenantId] = @TenantId AND [Id] = @ClearingAccountId
+                                  AND ([IsArchived] = 1 OR [AccountType] <> N'CurrencyConversionClearing')
                             )
-                                THROW 50016, N'حساب 5002 باید یک حساب هزینه فعال باشد.', 1;
+                                THROW 50016, N'حساب واسط تبدیل ارز باید فعال و از نوع صحیح باشد.', 1;
+
+                            IF EXISTS
+                            (
+                                SELECT 1
+                                FROM #Eligible e
+                                WHERE NOT EXISTS
+                                (
+                                    SELECT 1 FROM [dbo].[Accounts] a
+                                    WHERE a.[TenantId] = @TenantId
+                                      AND a.[CorrespondentId] = e.[SourceCorrespondentId]
+                                      AND a.[IsArchived] = 0
+                                )
+                            )
+                                THROW 50018, N'حساب فعال نمایندگی فرستنده حواله یافت نشد.', 1;
                         END;
 
                         DECLARE @BranchId bigint =
@@ -667,22 +695,67 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             CASE WHEN @HawalaType = N'HawalaSend' THEN N'کمیشن حواله‌های ارسالی نمایندگی '
                                  ELSE N'کمیشن حواله‌های دریافتی نمایندگی ' END
                             + @CorrespondentName + N'، ' + CONVERT(nvarchar(20), @HawalaCount) + N' حواله';
-                        DECLARE @PostingCurrencyId bigint = CASE WHEN @HawalaType = N'HawalaSend' THEN @AfnCurrencyId ELSE @UsdCurrencyId END;
-                        DECLARE @PostingAmount decimal(18,4) = CASE WHEN @HawalaType = N'HawalaSend' THEN @TotalCommissionAfn ELSE @TotalCommissionUsd END;
-                        INSERT INTO [dbo].[LedgerEntries]
-                            ([TenantId], [TransactionId], [AccountId], [CurrencyId],
-                             [TalabKar], [BadehKar], [Description], [CreatedAt])
-                        VALUES
-                            (@TenantId, @TransactionId, @CorrespondentAccountId, @PostingCurrencyId,
-                             CASE WHEN @HawalaType = N'HawalaSend' THEN @PostingAmount ELSE 0 END,
-                             CASE WHEN @HawalaType = N'HawalaReceive' THEN @PostingAmount ELSE 0 END,
-                             @Description, @Now),
-                            (@TenantId, @TransactionId,
-                             CASE WHEN @HawalaType = N'HawalaSend' THEN @ExpenseAccountId ELSE @IncomeAccountId END,
-                             @PostingCurrencyId,
-                             CASE WHEN @HawalaType = N'HawalaReceive' THEN @PostingAmount ELSE 0 END,
-                             CASE WHEN @HawalaType = N'HawalaSend' THEN @PostingAmount ELSE 0 END,
-                             @Description, @Now);
+                        DECLARE @PostingAmount decimal(18,4) =
+                            CASE WHEN @HawalaType = N'HawalaSend' THEN @TotalBaseAfn ELSE @TotalCommissionUsd END;
+
+                        IF @HawalaType = N'HawalaReceive'
+                        BEGIN
+                            INSERT INTO [dbo].[LedgerEntries]
+                                ([TenantId], [TransactionId], [AccountId], [CurrencyId],
+                                 [TalabKar], [BadehKar], [Description], [CreatedAt])
+                            VALUES
+                                (@TenantId, @TransactionId, @CorrespondentAccountId, @UsdCurrencyId,
+                                 0, @TotalCommissionUsd, @Description, @Now),
+                                (@TenantId, @TransactionId, @IncomeAccountId, @UsdCurrencyId,
+                                 @TotalCommissionUsd, 0, @Description, @Now);
+                        END
+                        ELSE
+                        BEGIN
+                            IF @TotalCommissionUsd > 0
+                                INSERT INTO [dbo].[LedgerEntries]
+                                    ([TenantId], [TransactionId], [AccountId], [CurrencyId],
+                                     [TalabKar], [BadehKar], [Description], [CreatedAt])
+                                VALUES
+                                    (@TenantId, @TransactionId, @CorrespondentAccountId, @UsdCurrencyId,
+                                     @TotalCommissionUsd, 0, @Description, @Now);
+
+                            IF @TotalCommissionAfn > 0
+                            BEGIN
+                                INSERT INTO [dbo].[LedgerEntries]
+                                    ([TenantId], [TransactionId], [AccountId], [CurrencyId],
+                                     [TalabKar], [BadehKar], [Description], [CreatedAt])
+                                VALUES
+                                    (@TenantId, @TransactionId, @CorrespondentAccountId, @AfnCurrencyId,
+                                     @TotalCommissionAfn, 0, @Description, @Now),
+                                    (@TenantId, @TransactionId, @ClearingAccountId, @AfnCurrencyId,
+                                     0, @TotalCommissionAfn, @Description, @Now);
+
+                                INSERT INTO [dbo].[LedgerEntries]
+                                    ([TenantId], [TransactionId], [AccountId], [CurrencyId],
+                                     [TalabKar], [BadehKar], [Description], [CreatedAt])
+                                SELECT @TenantId, @TransactionId, @ClearingAccountId, @UsdCurrencyId,
+                                       CAST(SUM([AfnEquivalent]) AS decimal(18,4)), 0, @Description, @Now
+                                FROM #Eligible WHERE [CurrencyId] = @AfnCurrencyId;
+                            END;
+
+                            INSERT INTO [dbo].[LedgerEntries]
+                                ([TenantId], [TransactionId], [AccountId], [CurrencyId],
+                                 [TalabKar], [BadehKar], [Description], [CreatedAt])
+                            SELECT @TenantId, @TransactionId, a.[Id], @UsdCurrencyId,
+                                   0, CAST(SUM(e.[AfnEquivalent]) AS decimal(18,4)),
+                                   @Description, @Now
+                            FROM #Eligible e
+                            CROSS APPLY
+                            (
+                                SELECT TOP (1) account.[Id]
+                                FROM [dbo].[Accounts] account
+                                WHERE account.[TenantId] = @TenantId
+                                  AND account.[CorrespondentId] = e.[SourceCorrespondentId]
+                                  AND account.[IsArchived] = 0
+                                ORDER BY account.[Id]
+                            ) a
+                            GROUP BY a.[Id];
+                        END;
 
                         INSERT INTO [dbo].[AuditLogs]
                             ([TenantId], [UserId], [ProcessId], [Action], [TableName], [RecordId],
@@ -692,7 +765,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                              N'CorrespondentCommissionBatches', @BatchId,
                              N'کمیشن ' + CONVERT(nvarchar(20), @HawalaCount) + N' حواله به مبلغ '
                                  + CONVERT(nvarchar(50), @PostingAmount)
-                                 + CASE WHEN @HawalaType = N'HawalaSend' THEN N' AFN' ELSE N' USD' END
+                                 + N' USD'
                                  + N' ثبت شد.', @Now);
 
                         COMMIT TRANSACTION;

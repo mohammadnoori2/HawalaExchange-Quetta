@@ -149,6 +149,69 @@ public sealed class PeriodicCommissionPerformanceTests(
     }
 
     [Fact]
+    public async Task Outgoing_commission_credits_destination_in_original_currency_and_debits_source_in_usd()
+    {
+        var period = new DateTime(2032, 7, 10);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var destination = await context.Correspondents
+            .SingleAsync(x => x.Id == fixture.DestinationCorrespondent.Id);
+        var originalMethod = destination.CommissionMethod;
+        destination.CommissionMethod = "PeriodicPerLakh";
+
+        var usdSource = NewHawala(98_700_001, 2, 100_000m, period, "Paid");
+        var firstAfnSource = NewHawala(98_700_002, 1, 300_000m, period, "Paid");
+        var secondAfnSource = NewHawala(98_700_003, 1, 200_000m, period.AddDays(1), "Paid");
+        context.Hawalas.AddRange(usdSource, firstAfnSource, secondAfnSource);
+        context.DailyCommissionRates.AddRange(
+            NewDailyRate(period, 66m),
+            NewDailyRate(period.AddDays(1), 67m));
+        await context.SaveChangesAsync();
+        context.Hawalas.AddRange(
+            NewOutgoingHawala(98_700_004, 2, 100_000m, period, usdSource.Id),
+            NewOutgoingHawala(98_700_005, 1, 300_000m, period, firstAfnSource.Id),
+            NewOutgoingHawala(98_700_006, 1, 200_000m, period.AddDays(1), secondAfnSource.Id));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var request = NewRequest(period, period.AddDays(1), 66m);
+        request.CorrespondentId = fixture.DestinationCorrespondent.Id;
+        request.HawalaType = "HawalaSend";
+        var service = fixture.CreateCommissionService(context);
+        var preview = await service.PreviewAsync(request);
+
+        Assert.Equal(3, preview.HawalaCount);
+        Assert.Equal(1_000m, preview.TotalCommissionAfn);
+        Assert.Equal(200m, preview.TotalCommissionUsd);
+        Assert.Equal(215m, preview.TotalBaseAfn);
+        Assert.Equal(9m, preview.Items.Single(x => x.HawalaNumber == 98_700_005).AfnEquivalent);
+        Assert.Equal(6m, preview.Items.Single(x => x.HawalaNumber == 98_700_006).AfnEquivalent);
+        Assert.Equal(66m, preview.Items.Single(x => x.HawalaNumber == 98_700_005).SourceToAfnRate);
+        Assert.Equal(67m, preview.Items.Single(x => x.HawalaNumber == 98_700_006).SourceToAfnRate);
+
+        var posted = await service.PostAsync(request);
+        context.ChangeTracker.Clear();
+        var batch = await context.CorrespondentCommissionBatches.AsNoTracking()
+            .SingleAsync(x => x.Id == posted.Id);
+        var ledger = await context.LedgerEntries.AsNoTracking()
+            .Include(x => x.Account)
+            .Where(x => x.TransactionId == batch.PostingTransactionId)
+            .ToListAsync();
+
+        Assert.Equal(200m, ledger.Single(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 2).TalabKar);
+        Assert.Equal(1_000m, ledger.Single(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 1).TalabKar);
+        Assert.Equal(215m, ledger.Single(x => x.AccountId == fixture.SourceAccount.Id && x.CurrencyId == 2).BadehKar);
+        Assert.Equal(ledger.Where(x => x.CurrencyId == 2).Sum(x => x.TalabKar),
+            ledger.Where(x => x.CurrencyId == 2).Sum(x => x.BadehKar));
+        Assert.Equal(ledger.Where(x => x.CurrencyId == 1).Sum(x => x.TalabKar),
+            ledger.Where(x => x.CurrencyId == 1).Sum(x => x.BadehKar));
+
+        destination = await context.Correspondents.SingleAsync(x => x.Id == fixture.DestinationCorrespondent.Id);
+        destination.CommissionMethod = originalMethod;
+        await context.SaveChangesAsync();
+    }
+
+    [Fact]
     public async Task Concurrent_posts_can_create_only_one_active_commission_batch()
     {
         var period = new DateTime(2032, 6, 10);
@@ -259,6 +322,31 @@ public sealed class PeriodicCommissionPerformanceTests(
         CommissionAmount = perTransactionCommission,
         CommissionCurrencyId = perTransactionCommission.HasValue ? currencyId : null,
         Status = status,
+        CreatedBy = fixture.UserId,
+        CreatedAt = date.AddHours(10).ToUniversalTime()
+    };
+
+    private Hawala NewOutgoingHawala(
+        long number,
+        long currencyId,
+        decimal amount,
+        DateTime date,
+        long sourceHawalaId) => new()
+    {
+        Number = number,
+        HawalaType = "HawalaSend",
+        CorrespondentId = fixture.DestinationCorrespondent.Id,
+        PaymentLocationId = fixture.RemoteLocation.Id,
+        SenderName = "Outgoing sender",
+        ReceiverName = "Outgoing receiver",
+        FromCurrencyId = currencyId,
+        FromAmount = amount,
+        ToCurrencyId = currencyId,
+        ToAmount = amount,
+        ExchangeRate = 1,
+        SourceHawalaId = sourceHawalaId,
+        IsSystemGenerated = true,
+        Status = "Paid",
         CreatedBy = fixture.UserId,
         CreatedAt = date.AddHours(10).ToUniversalTime()
     };

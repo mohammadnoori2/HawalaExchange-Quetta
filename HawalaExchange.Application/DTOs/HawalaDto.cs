@@ -82,7 +82,7 @@ namespace HawalaExchange.Application.DTOs
         public bool HasPeriodicCommissionHistory { get; set; }
         public decimal? PeriodicCommissionAfn { get; set; }
         public string PeriodicCommissionCurrencyCode =>
-            HawalaType == "HawalaReceive" ? "USD" : "AFN";
+            HawalaType == "HawalaReceive" ? "USD" : ToCurrencyCode;
         public long? GeneratedSendHawalaNumber { get; set; }
         public string? PaymentLocation { get; set; }
         public DateTime? CancelledAt { get; set; }

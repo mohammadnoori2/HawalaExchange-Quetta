@@ -61,6 +61,8 @@ public sealed class DailyCommissionRateDto
     public decimal? UsdToAfnRate { get; set; }
     public int AfnHawalaCount { get; set; }
     public int UsdHawalaCount { get; set; }
+    public int OutgoingAfnHawalaCount { get; set; }
+    public int OutgoingUsdHawalaCount { get; set; }
     public int ValuedHawalaCount { get; set; }
     public DateTime? ModifiedAt { get; set; }
 }

@@ -435,10 +435,11 @@ public class JournalService : IJournalService
             throw new InvalidOperationException("روز آینده را نمی‌توان بست.");
 
         var commissionRate = await GetDailyCommissionRateAsync(date);
-        if (commissionRate.AfnHawalaCount > 0 && !commissionRate.UsdToAfnRate.HasValue)
+        if (commissionRate.AfnHawalaCount + commissionRate.OutgoingAfnHawalaCount > 0 &&
+            !commissionRate.UsdToAfnRate.HasValue)
         {
             throw new InvalidOperationException(
-                "برای حواله‌های دریافتی افغانی این روز، ابتدا نرخ پایان روز USD به AFN را ثبت کنید.");
+                "برای حواله‌های افغانی این روز، ابتدا نرخ پایان روز USD به AFN را ثبت کنید.");
         }
         await ApplyDailyCommissionValuationsAsync(date, commissionRate.UsdToAfnRate);
 
@@ -489,7 +490,7 @@ public class JournalService : IJournalService
             .ToDictionaryAsync(x => x.Code, x => x.Id);
         var afnId = currencies.GetValueOrDefault("AFN");
         var usdId = currencies.GetValueOrDefault("USD");
-        var counts = await _context.Hawalas
+        var incomingCounts = await _context.Hawalas
             .AsNoTracking()
             .Where(x => x.HawalaType == "HawalaReceive" &&
                         x.Status != "Cancel" &&
@@ -504,6 +505,21 @@ public class JournalService : IJournalService
                 Valued = group.Count(x => x.CommissionBaseUsdAmount != null)
             })
             .FirstOrDefaultAsync();
+        var outgoingCounts = await _context.Hawalas
+            .AsNoTracking()
+            .Where(x => x.HawalaType == "HawalaSend" &&
+                        x.Status != "Cancel" &&
+                        x.CreatedAt >= utcStart &&
+                        x.CreatedAt < utcEnd &&
+                        (x.ToCurrencyId == afnId || x.ToCurrencyId == usdId))
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Afn = group.Count(x => x.ToCurrencyId == afnId),
+                Usd = group.Count(x => x.ToCurrencyId == usdId),
+                Valued = group.Count(x => x.CommissionBaseUsdAmount != null)
+            })
+            .FirstOrDefaultAsync();
         var rate = await _context.DailyCommissionRates
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.RateDate == date);
@@ -512,9 +528,11 @@ public class JournalService : IJournalService
         {
             RateDate = date,
             UsdToAfnRate = rate?.UsdToAfnRate,
-            AfnHawalaCount = counts?.Afn ?? 0,
-            UsdHawalaCount = counts?.Usd ?? 0,
-            ValuedHawalaCount = counts?.Valued ?? 0,
+            AfnHawalaCount = incomingCounts?.Afn ?? 0,
+            UsdHawalaCount = incomingCounts?.Usd ?? 0,
+            OutgoingAfnHawalaCount = outgoingCounts?.Afn ?? 0,
+            OutgoingUsdHawalaCount = outgoingCounts?.Usd ?? 0,
+            ValuedHawalaCount = (incomingCounts?.Valued ?? 0) + (outgoingCounts?.Valued ?? 0),
             ModifiedAt = rate?.ModifiedAt ?? rate?.CreatedAt
         };
     }
@@ -543,7 +561,8 @@ public class JournalService : IJournalService
                                   item.Batch.Status == "Posted" &&
                                   item.Hawala.CreatedAt >= utcStart &&
                                   item.Hawala.CreatedAt < utcEnd &&
-                                  item.Hawala.HawalaType == "HawalaReceive");
+                                  (item.Hawala.HawalaType == "HawalaReceive" ||
+                                   item.Hawala.HawalaType == "HawalaSend"));
             if (hasPostedCommission)
             {
                 throw new InvalidOperationException(
@@ -593,13 +612,16 @@ public class JournalService : IJournalService
         var utcStart = date.Date.ToUniversalTime();
         var utcEnd = date.Date.AddDays(1).ToUniversalTime();
         var hawalas = await _context.Hawalas
-            .Where(x => x.HawalaType == "HawalaReceive" &&
+            .Where(x => (x.HawalaType == "HawalaReceive" || x.HawalaType == "HawalaSend") &&
                         x.Status != "Cancel" &&
                         x.CreatedAt >= utcStart &&
                         x.CreatedAt < utcEnd &&
-                        (x.FromCurrencyId == afnId || x.FromCurrencyId == usdId))
+                        (x.HawalaType == "HawalaReceive"
+                            ? x.FromCurrencyId == afnId || x.FromCurrencyId == usdId
+                            : x.ToCurrencyId == afnId || x.ToCurrencyId == usdId))
             .ToListAsync();
-        if (hawalas.Any(x => x.FromCurrencyId == afnId) &&
+        if (hawalas.Any(x =>
+                (x.HawalaType == "HawalaReceive" ? x.FromCurrencyId : x.ToCurrencyId) == afnId) &&
             (!usdToAfnRate.HasValue || usdToAfnRate.Value <= 0))
         {
             throw new InvalidOperationException(
@@ -609,13 +631,19 @@ public class JournalService : IJournalService
         var valuedAt = DateTime.UtcNow;
         foreach (var hawala in hawalas)
         {
-            hawala.CommissionBaseUsdAmount = hawala.FromCurrencyId == usdId
-                ? decimal.Round(hawala.FromAmount, 8, MidpointRounding.AwayFromZero)
+            var currencyId = hawala.HawalaType == "HawalaReceive"
+                ? hawala.FromCurrencyId
+                : hawala.ToCurrencyId;
+            var amount = hawala.HawalaType == "HawalaReceive"
+                ? hawala.FromAmount
+                : hawala.ToAmount ?? hawala.FromAmount;
+            hawala.CommissionBaseUsdAmount = currencyId == usdId
+                ? decimal.Round(amount, 8, MidpointRounding.AwayFromZero)
                 : decimal.Round(
-                    hawala.FromAmount / usdToAfnRate!.Value,
+                    amount / usdToAfnRate!.Value,
                     8,
                     MidpointRounding.AwayFromZero);
-            hawala.CommissionUsdToAfnRate = hawala.FromCurrencyId == afnId
+            hawala.CommissionUsdToAfnRate = currencyId == afnId
                 ? usdToAfnRate
                 : null;
             hawala.CommissionValuationDate = date.Date;

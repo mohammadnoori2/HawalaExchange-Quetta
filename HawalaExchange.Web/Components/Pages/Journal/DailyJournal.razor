@@ -148,12 +148,14 @@
                                             DecimalPlaces="8"
                                             @bind-Value="dailyCommissionRateInput"
                                             min="0" />
-                                <small class="text-muted">این نرخ مستقل از نرخ خریدوفروش سیستم و مخصوص محاسبه کمیشن دریافتی است.</small>
+                                <small class="text-muted">این نرخ مستقل از نرخ خریدوفروش سیستم و مخصوص محاسبه کمیشن دوره‌ای حواله‌های دریافتی و ارسالی است.</small>
                             </div>
                             <div class="col-md-5">
                                 <div class="d-flex flex-wrap gap-2">
-                                    <span class="badge-modern badge-info">حواله AFN: @dailyCommissionRate.AfnHawalaCount</span>
-                                    <span class="badge-modern badge-info">حواله USD: @dailyCommissionRate.UsdHawalaCount</span>
+                                    <span class="badge-modern badge-info">دریافتی AFN: @dailyCommissionRate.AfnHawalaCount</span>
+                                    <span class="badge-modern badge-info">دریافتی USD: @dailyCommissionRate.UsdHawalaCount</span>
+                                    <span class="badge-modern badge-info">ارسالی AFN: @dailyCommissionRate.OutgoingAfnHawalaCount</span>
+                                    <span class="badge-modern badge-info">ارسالی USD: @dailyCommissionRate.OutgoingUsdHawalaCount</span>
                                     <span class="badge-modern badge-success">ارزش‌گذاری‌شده: @dailyCommissionRate.ValuedHawalaCount</span>
                                 </div>
                             </div>
@@ -1035,7 +1037,7 @@
             isCashLoading = true;
             validationErrors.Clear();
             successMessage = string.Empty;
-            if (dailyCommissionRate.AfnHawalaCount > 0)
+            if (dailyCommissionRate.AfnHawalaCount + dailyCommissionRate.OutgoingAfnHawalaCount > 0)
             {
                 dailyCommissionRate = await JournalService.SaveDailyCommissionRateAsync(
                     SelectedCashDate,

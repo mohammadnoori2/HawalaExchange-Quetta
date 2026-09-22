@@ -154,8 +154,13 @@
                                     else
                                     {<span>@batch.TotalCommissionUsd.ToString("N0") USD</span>}</td>
                                 <td><span class="badge @(batch.Status == "Posted" ? "bg-success" : "bg-secondary")">@(batch.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></td>
-                                <td>@if (batch.Status == "Posted")
-                                    {<button class="btn btn-sm btn-outline-danger" @onclick="() => SelectReverse(batch.Id)">برگشت</button>}</td></tr>
+                                <td><div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-primary" disabled="@busy" @onclick="() => ShowDetails(batch.Id)">
+                                        <i class="bi bi-eye"></i> جزئیات
+                                    </button>
+                                    @if (batch.Status == "Posted")
+                                    {<button class="btn btn-sm btn-outline-danger" @onclick="() => SelectReverse(batch.Id)">برگشت</button>}
+                                </div></td></tr>
                         }</tbody>
                     </table></div>
                 }
@@ -163,6 +168,80 @@
         </div>
     }
 </div>
+
+@if (selectedDetails != null)
+{
+    var detailsOutgoing = selectedDetails.HawalaType == "HawalaSend";
+    <div class="modal show d-block" style="background:rgba(0,0,0,.5)" tabindex="-1" dir="rtl">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">جزئیات محاسبه کمیشن #@selectedDetails.Id</h5>
+                    <small class="text-muted">@selectedDetails.CorrespondentName — @selectedDetails.PeriodFrom.ToString("yyyy-MM-dd") تا @selectedDetails.PeriodTo.ToString("yyyy-MM-dd")</small>
+                </div>
+                <button type="button" class="btn-close" @onclick="CloseDetails"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">نوع محاسبه</small><div class="fw-bold">@(detailsOutgoing ? "حواله‌های ارسالی" : "حواله‌های دریافتی")</div></div></div>
+                    <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">تعداد حواله</small><div class="fw-bold">@selectedDetails.HawalaCount</div></div></div>
+                    <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">کمیشن هر لک</small><div class="fw-bold">@selectedDetails.CommissionPerLakhAfn.ToString("N0")</div></div></div>
+                    <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">وضعیت</small><div><span class="badge @(selectedDetails.Status == "Posted" ? "bg-success" : "bg-secondary")">@(selectedDetails.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></div></div></div>
+                    <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">@(detailsOutgoing ? "بدهی فرستنده" : "مبنای محاسبه")</small><div class="fw-bold">@selectedDetails.TotalBaseAfn.ToString("N0") USD</div></div></div>
+                    <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن AFN</small><div class="fw-bold">@selectedDetails.TotalCommissionAfn.ToString("N0") AFN</div></div></div>
+                    <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن USD</small><div class="fw-bold">@selectedDetails.TotalCommissionUsd.ToString("N0") USD</div></div></div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3"><small class="text-muted d-block">سند اصلی</small><strong>@selectedDetails.PostingTransactionNo</strong></div>
+                    <div class="col-md-3"><small class="text-muted d-block">ثبت‌کننده</small><strong>@selectedDetails.CreatedByName</strong></div>
+                    <div class="col-md-3"><small class="text-muted d-block">زمان ثبت</small><strong>@selectedDetails.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</strong></div>
+                    @if (!string.IsNullOrWhiteSpace(selectedDetails.ReversalTransactionNo))
+                    {
+                        <div class="col-md-3"><small class="text-muted d-block">سند برگشت</small><strong>@selectedDetails.ReversalTransactionNo</strong></div>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(selectedDetails.ReversalReason))
+                {
+                    <div class="alert alert-secondary"><strong>دلیل برگشت:</strong> @selectedDetails.ReversalReason</div>
+                }
+
+                <h6 class="fw-bold mb-3">جزئیات تمام حواله‌ها</h6>
+                <div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle">
+                    <thead><tr><th>نمبر</th><th>تاریخ</th><th>مبلغ</th><th>نرخ روز</th><th>@(detailsOutgoing ? "کمیشن" : "مبنای USD")</th><th>@(detailsOutgoing ? "معادل USD" : "سهم کمیشن USD")</th><th>وضعیت</th></tr></thead>
+                    <tbody>@foreach (var item in selectedDetails.Items)
+                    {
+                        <tr class="@(!item.IsActive ? "table-secondary" : null)">
+                            <td>@item.HawalaNumber</td><td>@item.HawalaDate.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                            <td dir="ltr">@item.SourceAmount.ToString("N0") @item.CurrencyCode</td>
+                            <td dir="ltr">@item.SourceToAfnRate.ToString("N4")</td>
+                            @if (detailsOutgoing)
+                            {
+                                <td dir="ltr">@item.CommissionAfn.ToString("N0") @item.CurrencyCode</td><td dir="ltr">@item.AfnEquivalent.ToString("N0") USD</td>
+                            }
+                            else
+                            {
+                                <td dir="ltr">@item.AfnEquivalent.ToString("N4") USD</td><td dir="ltr">@item.CommissionAfn.ToString("N4") USD</td>
+                            }
+                            <td><span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">@(item.IsActive ? "فعال" : "برگشت‌شده/کسرشده")</span></td>
+                        </tr>
+                    }</tbody>
+                </table></div>
+
+                <h6 class="fw-bold mb-3">ثبت‌های حسابداری</h6>
+                <div class="table-responsive"><table class="table table-sm table-bordered align-middle">
+                    <thead><tr><th>سند</th><th>حساب</th><th>ارز</th><th>طلبکار</th><th>بدهکار</th><th>شرح</th></tr></thead>
+                    <tbody>@foreach (var entry in selectedDetails.LedgerEntries)
+                    {
+                        <tr><td>@entry.TransactionNo</td><td>@entry.AccountCode — @entry.AccountName</td><td>@entry.CurrencyCode</td>
+                            <td dir="ltr">@entry.TalabKar.ToString("N0")</td><td dir="ltr">@entry.BadehKar.ToString("N0")</td><td>@entry.Description</td></tr>
+                    }</tbody>
+                </table></div>
+            </div>
+            <div class="modal-footer"><button class="btn btn-light" @onclick="CloseDetails">بستن</button></div>
+        </div></div>
+    </div>
+}
 
 @if (reverseBatchId.HasValue)
 {
@@ -186,6 +265,7 @@
     private bool calculated;
     private string error = string.Empty;
     private string success = string.Empty;
+    private CorrespondentCommissionBatchDto? selectedDetails;
     private long? reverseBatchId;
     private string reverseReason = string.Empty;
     private bool isOutgoing;
@@ -227,6 +307,9 @@
     }
 
     private void SelectReverse(long id) { reverseBatchId = id; reverseReason = string.Empty; }
+    private async Task ShowDetails(long id) => await Execute(async () =>
+        selectedDetails = await CommissionService.GetDetailsAsync(id));
+    private void CloseDetails() => selectedDetails = null;
     private void BackToCorrespondent() => Navigation.NavigateTo($"/correspondents/{CorrespondentId}");
     private void CancelReverse() { reverseBatchId = null; reverseReason = string.Empty; }
     private async Task ReverseBatch()

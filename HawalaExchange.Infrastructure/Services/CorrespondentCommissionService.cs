@@ -325,6 +325,87 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 TotalCommissionUsd = x.TotalCommissionUsd, Status = x.Status, CreatedAt = x.CreatedAt
             }).ToListAsync(cancellationToken);
 
+    public async Task<CorrespondentCommissionBatchDto> GetDetailsAsync(
+        long batchId,
+        CancellationToken cancellationToken = default)
+    {
+        var batch = await context.CorrespondentCommissionBatches.AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.Correspondent)
+            .Include(x => x.CreatedByUser)
+            .Include(x => x.PostingTransaction)
+            .Include(x => x.ReversalTransaction)
+            .Include(x => x.Items).ThenInclude(x => x.Hawala)
+            .Include(x => x.Items).ThenInclude(x => x.SourceCurrency)
+            .SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken)
+            ?? throw new KeyNotFoundException("محاسبه کمیشن یافت نشد.");
+
+        var transactionIds = new[] { batch.PostingTransactionId, batch.ReversalTransactionId ?? 0 }
+            .Where(x => x > 0).ToArray();
+        var ledgerEntries = await context.LedgerEntries.AsNoTracking()
+            .Include(x => x.Account)
+            .Include(x => x.Currency)
+            .Include(x => x.Transaction)
+            .Where(x => x.TransactionId.HasValue && transactionIds.Contains(x.TransactionId.Value))
+            .OrderBy(x => x.TransactionId)
+            .ThenBy(x => x.Id)
+            .Select(x => new LedgerEntryDto
+            {
+                Id = x.Id,
+                TransactionId = x.TransactionId ?? 0,
+                TransactionNo = x.Transaction != null ? x.Transaction.TransactionNo : string.Empty,
+                TransactionType = x.Transaction != null ? x.Transaction.TransactionType : string.Empty,
+                AccountId = x.AccountId,
+                AccountCode = x.Account != null ? x.Account.AccountCode : string.Empty,
+                AccountName = x.Account != null ? x.Account.AccountName : string.Empty,
+                CurrencyId = x.CurrencyId,
+                CurrencyCode = x.Currency != null ? x.Currency.Code : string.Empty,
+                TalabKar = x.TalabKar,
+                BadehKar = x.BadehKar,
+                Description = x.Description,
+                CreatedAt = x.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return new CorrespondentCommissionBatchDto
+        {
+            Id = batch.Id,
+            CorrespondentId = batch.CorrespondentId,
+            CorrespondentName = batch.Correspondent.Name,
+            HawalaType = batch.Items.Select(x => x.Hawala.HawalaType).FirstOrDefault() ?? "HawalaReceive",
+            PeriodFrom = batch.PeriodFrom,
+            PeriodTo = batch.PeriodTo,
+            HawalaCount = batch.Items.Count,
+            CommissionPerLakhAfn = batch.CommissionPerLakhAfn,
+            UsdToAfnRate = batch.UsdToAfnRate,
+            TotalBaseAfn = batch.TotalBaseAfn,
+            TotalCommissionAfn = batch.TotalCommissionAfn,
+            TotalCommissionUsd = batch.TotalCommissionUsd,
+            Status = batch.Status,
+            CreatedAt = batch.CreatedAt,
+            CreatedByName = batch.CreatedByUser.FullName,
+            PostingTransactionNo = batch.PostingTransaction.TransactionNo,
+            ReversalTransactionNo = batch.ReversalTransaction?.TransactionNo,
+            ReversedAt = batch.ReversedAt,
+            ReversalReason = batch.ReversalReason,
+            Items = batch.Items.OrderBy(x => x.Hawala.CreatedAt).ThenBy(x => x.Hawala.Number)
+                .Select(x => new CorrespondentCommissionItemDto
+                {
+                    HawalaId = x.HawalaId,
+                    HawalaNumber = x.Hawala.Number,
+                    HawalaDate = x.Hawala.CreatedAt,
+                    CurrencyId = x.SourceCurrencyId,
+                    CurrencyCode = x.SourceCurrency.Code,
+                    SourceAmount = x.SourceAmount,
+                    SourceToAfnRate = x.SourceToAfnRate,
+                    AfnEquivalent = x.AfnEquivalent,
+                    CommissionAfn = x.CommissionAfn,
+                    IsActive = x.IsActive
+                }).ToList(),
+            LedgerEntries = ledgerEntries
+        };
+    }
+
     public async Task ReverseAsync(long batchId, string reason, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(reason))

@@ -46,6 +46,7 @@ public sealed class CorrespondentCommissionItemDto
     public decimal SourceToAfnRate { get; set; }
     public decimal AfnEquivalent { get; set; }
     public decimal CommissionAfn { get; set; }
+    public bool IsActive { get; set; } = true;
 }
 
 public sealed class CorrespondentCommissionBatchDto
@@ -64,4 +65,11 @@ public sealed class CorrespondentCommissionBatchDto
     public decimal TotalCommissionUsd { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public string CreatedByName { get; set; } = string.Empty;
+    public string PostingTransactionNo { get; set; } = string.Empty;
+    public string? ReversalTransactionNo { get; set; }
+    public DateTime? ReversedAt { get; set; }
+    public string? ReversalReason { get; set; }
+    public List<CorrespondentCommissionItemDto> Items { get; set; } = [];
+    public List<LedgerEntryDto> LedgerEntries { get; set; } = [];
 }

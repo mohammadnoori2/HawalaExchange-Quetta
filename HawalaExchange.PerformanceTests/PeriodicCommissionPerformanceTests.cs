@@ -108,6 +108,12 @@ public sealed class PeriodicCommissionPerformanceTests(
         Assert.Equal(ledger.Sum(x => x.BadehKar), reversalLedger.Sum(x => x.TalabKar));
         Assert.Equal(ledger.Sum(x => x.TalabKar), reversalLedger.Sum(x => x.BadehKar));
         Assert.Equal(2, (await service.PreviewAsync(request)).HawalaCount);
+        var reversedDetails = await service.GetDetailsAsync(batch.Id);
+        Assert.Equal("Reversed", reversedDetails.Status);
+        Assert.Equal("آزمایش برگشت مرحله چهارم", reversedDetails.ReversalReason);
+        Assert.False(string.IsNullOrWhiteSpace(reversedDetails.ReversalTransactionNo));
+        Assert.Equal(4, reversedDetails.LedgerEntries.Count);
+        Assert.All(reversedDetails.Items, item => Assert.False(item.IsActive));
     }
 
     [Fact]
@@ -205,6 +211,13 @@ public sealed class PeriodicCommissionPerformanceTests(
             ledger.Where(x => x.CurrencyId == 2).Sum(x => x.BadehKar));
         Assert.Equal(ledger.Where(x => x.CurrencyId == 1).Sum(x => x.TalabKar),
             ledger.Where(x => x.CurrencyId == 1).Sum(x => x.BadehKar));
+        var details = await service.GetDetailsAsync(batch.Id);
+        Assert.Equal(3, details.Items.Count);
+        Assert.Equal(5, details.LedgerEntries.Count);
+        Assert.Equal(1_000m, details.TotalCommissionAfn);
+        Assert.Equal(200m, details.TotalCommissionUsd);
+        Assert.False(string.IsNullOrWhiteSpace(details.PostingTransactionNo));
+        Assert.False(string.IsNullOrWhiteSpace(details.CreatedByName));
 
         destination = await context.Correspondents.SingleAsync(x => x.Id == fixture.DestinationCorrespondent.Id);
         destination.CommissionMethod = originalMethod;

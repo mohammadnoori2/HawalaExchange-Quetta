@@ -54,17 +54,16 @@
                         <input type="date" class="form-control" @bind="request.PeriodTo" @bind:format="yyyy-MM-dd" />
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label fw-bold">کمیشن هر لک (AFN)</label>
+                        <label class="form-label fw-bold">کمیشن هر لک (@(isOutgoing ? "AFN" : "USD"))</label>
                         <MoneyInput class="form-control" DecimalPlaces="0" @bind-Value="request.CommissionPerLakhAfn" />
                     </div>
-                    @if (!isOutgoing)
-                    {
-                    <div class="col-md-3">
-                        <label class="form-label fw-bold">نرخ USD به AFN</label>
-                        <MoneyInput class="form-control" DecimalPlaces="8" @bind-Value="request.UsdToAfnRate" />
-                    </div>
-                    }
                 </div>
+                @if (!isOutgoing)
+                {
+                    <div class="alert alert-info mt-3 mb-0">
+                        مبلغ حواله‌های دالری مستقیماً و مبلغ حواله‌های افغانی با نرخ پایان روز ثبت‌شده در روزنامچه، به دالر محاسبه می‌شود.
+                    </div>
+                }
                 <div class="mt-3">
                     <button class="btn-modern btn-primary-modern" disabled="@busy" @onclick="LoadPreview">
                         <i class="bi bi-search"></i> نمایش حواله‌های محاسبه‌نشده
@@ -75,15 +74,17 @@
 
         @if (preview != null)
         {
-            <div class="modern-card mb-4">
-                <div class="card-header"><h6 class="mb-0">نرخ تبدیل ارزها به افغانی</h6></div>
-                <div class="card-body">
-                    @if (preview.Rates.Count == 0)
-                    {
-                        <div class="text-muted">در این دوره حواله محاسبه‌نشده‌ای وجود ندارد.</div>
-                    }
-                    else
-                    {
+            @if (isOutgoing)
+            {
+                <div class="modern-card mb-4">
+                    <div class="card-header"><h6 class="mb-0">نرخ تبدیل ارزها به افغانی</h6></div>
+                    <div class="card-body">
+                        @if (preview.Rates.Count == 0)
+                        {
+                            <div class="text-muted">در این دوره حواله محاسبه‌نشده‌ای وجود ندارد.</div>
+                        }
+                        else
+                        {
                         <div class="row g-3">
                             @foreach (var rate in request.Rates)
                             {
@@ -96,23 +97,28 @@
                         <button class="btn-modern btn-info-modern mt-3" disabled="@busy" @onclick="Recalculate">
                             <i class="bi bi-arrow-repeat"></i> محاسبه پیش‌نمایش
                         </button>
-                    }
+                        }
+                    </div>
                 </div>
-            </div>
+            }
+            else if (preview.HawalaCount == 0)
+            {
+                <div class="modern-card mb-4 p-4 text-muted">در این دوره حواله محاسبه‌نشده‌ای وجود ندارد.</div>
+            }
 
             @if (calculated && preview.HawalaCount > 0)
             {
                 <div class="row g-3 mb-4">
                     <div class="col-md-3"><div class="modern-card p-3"><small>تعداد حواله</small><h4>@preview.HawalaCount</h4></div></div>
-                    <div class="col-md-3"><div class="modern-card p-3"><small>مجموع معادل AFN</small><h4>@preview.TotalBaseAfn.ToString("N0")</h4></div></div>
-                    <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن AFN</small><h4>@preview.TotalCommissionAfn.ToString("N0")</h4></div></div>
-                    <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن نهایی @(isOutgoing ? "AFN" : "USD")</small><h4>@(isOutgoing ? preview.TotalCommissionAfn : preview.TotalCommissionUsd).ToString("N0")</h4></div></div>
+                    <div class="col-md-3"><div class="modern-card p-3"><small>مجموع معادل @(isOutgoing ? "AFN" : "USD")</small><h4>@preview.TotalBaseAfn.ToString("N0")</h4></div></div>
+                    <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن هر لک (@(isOutgoing ? "AFN" : "USD"))</small><h4>@request.CommissionPerLakhAfn.ToString("N0")</h4></div></div>
+                    <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن نهایی @(isOutgoing ? "AFN" : "USD")</small><h4>@((isOutgoing ? preview.TotalCommissionAfn : preview.TotalCommissionUsd).ToString("N0"))</h4></div></div>
                 </div>
 
                 <div class="table-card mb-4">
                     <div class="table-card-body"><div class="table-scroll-wrapper">
                         <GlobalDataGrid class="table-modern table-striped-modern">
-                            <thead><tr><th>نمبر</th><th>تاریخ</th><th>مبلغ</th><th>نرخ به AFN</th><th>معادل AFN</th><th>سهم کمیشن AFN</th></tr></thead>
+                            <thead><tr><th>نمبر</th><th>تاریخ</th><th>مبلغ</th><th>@(isOutgoing ? "نرخ به AFN" : "نرخ پایان روز USD/AFN")</th><th>معادل @(isOutgoing ? "AFN" : "USD")</th><th>سهم کمیشن @(isOutgoing ? "AFN" : "USD")</th></tr></thead>
                             <tbody>
                             @foreach (var item in preview.Items)
                             {
@@ -126,7 +132,7 @@
                 </div>
 
                 <div class="alert alert-warning d-flex justify-content-between align-items-center">
-                    <span>پس از تأیید، مبلغ <strong>@(isOutgoing ? preview.TotalCommissionAfn : preview.TotalCommissionUsd).ToString("N0") @(isOutgoing ? "AFN" : "USD")</strong> در حسابداری ثبت می‌شود.</span>
+                    <span>پس از تأیید، مبلغ <strong>@((isOutgoing ? preview.TotalCommissionAfn : preview.TotalCommissionUsd).ToString("N0")) @(isOutgoing ? "AFN" : "USD")</strong> در حسابداری ثبت می‌شود.</span>
                     <button class="btn-modern btn-success-modern" disabled="@busy" @onclick="PostBatch">
                         <i class="bi bi-check2-circle"></i> تأیید و ثبت حسابداری
                     </button>
@@ -144,11 +150,11 @@
                 else
                 {
                     <div class="table-responsive"><table class="table table-hover align-middle">
-                        <thead><tr><th>دوره</th><th>حواله</th><th>کمیشن AFN</th>@if (!isOutgoing) { <th>کمیشن USD</th> }<th>وضعیت</th><th>عملیات</th></tr></thead>
+                        <thead><tr><th>دوره</th><th>حواله</th><th>کمیشن @(isOutgoing ? "AFN" : "USD")</th><th>وضعیت</th><th>عملیات</th></tr></thead>
                         <tbody>@foreach (var batch in history)
                         {
                             <tr><td>@batch.PeriodFrom.ToString("yyyy-MM-dd") تا @batch.PeriodTo.ToString("yyyy-MM-dd")</td><td>@batch.HawalaCount</td>
-                                <td>@batch.TotalCommissionAfn.ToString("N0")</td>@if (!isOutgoing) { <td>@batch.TotalCommissionUsd.ToString("N0")</td> }
+                                <td>@((isOutgoing ? batch.TotalCommissionAfn : batch.TotalCommissionUsd).ToString("N0"))</td>
                                 <td><span class="badge @(batch.Status == "Posted" ? "bg-success" : "bg-secondary")">@(batch.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></td>
                                 <td>@if (batch.Status == "Posted")
                                     {<button class="btn btn-sm btn-outline-danger" @onclick="() => SelectReverse(batch.Id)">برگشت</button>}</td></tr>
@@ -207,6 +213,7 @@
             calculated = false;
             preview = await CommissionService.PreviewAsync(request);
             request.Rates = preview.Rates;
+            calculated = !isOutgoing;
         });
     }
 

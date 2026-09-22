@@ -160,7 +160,7 @@
                                     <td dir="ltr">
                                         @if (hawala.PeriodicCommissionAfn.HasValue)
                                         {
-                                            <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) AFN</span>
+                                            <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) @hawala.PeriodicCommissionCurrencyCode</span>
                                         }
                                         else { <span>—</span> }
                                     </td>
@@ -418,6 +418,22 @@
                                 </span>
                             </div>
                         </div>
+
+                        @if (selectedHawala.CommissionBaseUsdAmount.HasValue)
+                        {
+                            <div class="col-md-6">
+                                <div class="info-card">
+                                    <span class="info-label">معادل دالری برای کمیشن</span>
+                                    <span class="info-value text-info fw-bold" dir="ltr">
+                                        @MoneyFormatHelper.Format(selectedHawala.CommissionBaseUsdAmount.Value) USD
+                                    </span>
+                                    @if (selectedHawala.CommissionUsdToAfnRate.HasValue)
+                                    {
+                                        <small class="text-muted d-block" dir="ltr">نرخ پایان روز: @selectedHawala.CommissionUsdToAfnRate.Value.ToString("N8").TrimEnd('0').TrimEnd('.')</small>
+                                    }
+                                </div>
+                            </div>
+                        }
 
                         <div class="col-md-6">
                             <div class="info-card">

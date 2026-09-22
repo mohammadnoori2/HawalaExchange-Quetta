@@ -753,35 +753,78 @@
                 CorrespondentCommissionBatchItem item)
             {
                 var batch = item.Batch;
+                var isOutgoingCommission = hawala.HawalaType == "HawalaSend";
                 decimal sourceToAfnRate;
-                if (item.SourceCurrencyId == hawala.FromCurrencyId)
-                {
-                    sourceToAfnRate = item.SourceToAfnRate;
-                }
-                else
+                decimal commissionBase;
+                if (!isOutgoingCommission)
                 {
                     var currencyCode = await _context.Currencies
                         .Where(x => x.Id == hawala.FromCurrencyId)
                         .Select(x => x.Code)
                         .SingleAsync();
-                    sourceToAfnRate = string.Equals(currencyCode, "AFN", StringComparison.OrdinalIgnoreCase)
-                        ? 1m
-                        : batch.Items
-                            .Where(x => x.SourceCurrencyId == hawala.FromCurrencyId)
-                            .Select(x => x.SourceToAfnRate)
-                            .FirstOrDefault();
-                    if (sourceToAfnRate <= 0)
+                    if (string.Equals(currencyCode, "USD", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sourceToAfnRate = 1m;
+                        commissionBase = hawala.FromAmount;
+                        hawala.CommissionUsdToAfnRate = null;
+                    }
+                    else if (string.Equals(currencyCode, "AFN", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var valuationDate = hawala.CreatedAt.ToLocalTime().Date;
+                        sourceToAfnRate = await _context.DailyCommissionRates
+                            .Where(x => x.RateDate == valuationDate)
+                            .Select(x => (decimal?)x.UsdToAfnRate)
+                            .SingleOrDefaultAsync()
+                            ?? throw new InvalidOperationException(
+                                $"نرخ پایان روز {valuationDate:yyyy-MM-dd} ثبت نشده است؛ ابتدا نرخ را در روزنامچه ثبت کنید.");
+                        commissionBase = hawala.FromAmount / sourceToAfnRate;
+                        hawala.CommissionUsdToAfnRate = sourceToAfnRate;
+                    }
+                    else
                     {
                         throw new InvalidOperationException(
-                            $"نرخ تبدیل ارز {currencyCode} در محاسبه قبلی موجود نیست؛ کمیشن قبلی را حفظ کنید یا ابتدا Batch را برگشت دهید.");
+                            "کمیشن دوره‌ای حواله دریافتی فقط برای ارزهای USD و AFN قابل محاسبه است.");
                     }
+
+                    commissionBase = decimal.Round(
+                        commissionBase, 8, MidpointRounding.AwayFromZero);
+                    hawala.CommissionBaseUsdAmount = commissionBase;
+                    hawala.CommissionValuationDate = hawala.CreatedAt.ToLocalTime().Date;
+                    hawala.CommissionValuedAt = DateTime.UtcNow;
+                }
+                else
+                {
+                    if (item.SourceCurrencyId == hawala.FromCurrencyId)
+                    {
+                        sourceToAfnRate = item.SourceToAfnRate;
+                    }
+                    else
+                    {
+                        var currencyCode = await _context.Currencies
+                            .Where(x => x.Id == hawala.FromCurrencyId)
+                            .Select(x => x.Code)
+                            .SingleAsync();
+                        sourceToAfnRate = string.Equals(currencyCode, "AFN", StringComparison.OrdinalIgnoreCase)
+                            ? 1m
+                            : batch.Items
+                                .Where(x => x.SourceCurrencyId == hawala.FromCurrencyId)
+                                .Select(x => x.SourceToAfnRate)
+                                .FirstOrDefault();
+                        if (sourceToAfnRate <= 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"نرخ تبدیل ارز {currencyCode} در محاسبه قبلی موجود نیست؛ کمیشن قبلی را حفظ کنید یا ابتدا Batch را برگشت دهید.");
+                        }
+                    }
+
+                    commissionBase = decimal.Round(hawala.FromAmount * sourceToAfnRate, 4,
+                        MidpointRounding.AwayFromZero);
                 }
 
                 item.SourceCurrencyId = hawala.FromCurrencyId;
                 item.SourceAmount = hawala.FromAmount;
                 item.SourceToAfnRate = sourceToAfnRate;
-                item.AfnEquivalent = decimal.Round(hawala.FromAmount * sourceToAfnRate, 4,
-                    MidpointRounding.AwayFromZero);
+                item.AfnEquivalent = decimal.Round(commissionBase, 4, MidpointRounding.AwayFromZero);
                 item.CommissionAfn = decimal.Round(
                     item.AfnEquivalent / 100000m * batch.CommissionPerLakhAfn,
                     4, MidpointRounding.AwayFromZero);
@@ -789,13 +832,11 @@
                 batch.TotalBaseAfn = decimal.Round(
                     batch.Items.Where(x => x.IsActive).Sum(x => x.AfnEquivalent),
                     4, MidpointRounding.AwayFromZero);
-                batch.TotalCommissionAfn = decimal.Round(
+                var calculatedCommission = decimal.Round(
                     batch.TotalBaseAfn / 100000m * batch.CommissionPerLakhAfn,
                     0, MidpointRounding.AwayFromZero);
-                var isOutgoingCommission = hawala.HawalaType == "HawalaSend";
-                batch.TotalCommissionUsd = isOutgoingCommission ? 0 : decimal.Round(
-                    batch.TotalCommissionAfn / batch.UsdToAfnRate,
-                    0, MidpointRounding.AwayFromZero);
+                batch.TotalCommissionAfn = isOutgoingCommission ? calculatedCommission : 0;
+                batch.TotalCommissionUsd = isOutgoingCommission ? 0 : calculatedCommission;
                 var postingAmount = isOutgoingCommission
                     ? batch.TotalCommissionAfn
                     : batch.TotalCommissionUsd;

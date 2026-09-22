@@ -28,4 +28,10 @@ public interface IJournalService
         IReadOnlyCollection<UpdateCashOpeningBalanceDto> balances);
 
     Task CloseCashDayAsync(DateTime journalDate);
+
+    Task<DailyCommissionRateDto> GetDailyCommissionRateAsync(DateTime journalDate);
+
+    Task<DailyCommissionRateDto> SaveDailyCommissionRateAsync(
+        DateTime journalDate,
+        decimal usdToAfnRate);
 }

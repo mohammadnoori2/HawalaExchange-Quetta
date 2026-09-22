@@ -3299,6 +3299,20 @@ namespace HawalaExchange.Infrastructure.Migrations
                 unique: true,
                 filter: "[NormalizedUserName] IS NOT NULL");
 
+            // The SQL object resource is shared by later migrations. Keep the
+            // columns required by its current periodic-commission procedure
+            // available when a database is created from the full history.
+            migrationBuilder.Sql("""
+                IF COL_LENGTH(N'dbo.Hawalas', N'CommissionBaseUsdAmount') IS NULL
+                    ALTER TABLE [dbo].[Hawalas] ADD [CommissionBaseUsdAmount] decimal(18,8) NULL;
+                IF COL_LENGTH(N'dbo.Hawalas', N'CommissionUsdToAfnRate') IS NULL
+                    ALTER TABLE [dbo].[Hawalas] ADD [CommissionUsdToAfnRate] decimal(18,8) NULL;
+                IF COL_LENGTH(N'dbo.Hawalas', N'CommissionValuationDate') IS NULL
+                    ALTER TABLE [dbo].[Hawalas] ADD [CommissionValuationDate] datetime2 NULL;
+                IF COL_LENGTH(N'dbo.Hawalas', N'CommissionValuedAt') IS NULL
+                    ALTER TABLE [dbo].[Hawalas] ADD [CommissionValuedAt] datetime2 NULL;
+                """);
+
             foreach (var batch in LoadDatabaseObjectBatches())
             {
                 migrationBuilder.Sql(batch);

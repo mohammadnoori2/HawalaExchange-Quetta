@@ -137,6 +137,37 @@
             </div>
         </div>
         <div class="table-card-body">
+            @if (IsSingleDay)
+            {
+                <div class="modern-card m-3 border">
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">نرخ پایان روز USD به AFN</label>
+                                <MoneyInput class="form-control"
+                                            DecimalPlaces="8"
+                                            @bind-Value="dailyCommissionRateInput"
+                                            min="0" />
+                                <small class="text-muted">این نرخ مستقل از نرخ خریدوفروش سیستم و مخصوص محاسبه کمیشن دریافتی است.</small>
+                            </div>
+                            <div class="col-md-5">
+                                <div class="d-flex flex-wrap gap-2">
+                                    <span class="badge-modern badge-info">حواله AFN: @dailyCommissionRate.AfnHawalaCount</span>
+                                    <span class="badge-modern badge-info">حواله USD: @dailyCommissionRate.UsdHawalaCount</span>
+                                    <span class="badge-modern badge-success">ارزش‌گذاری‌شده: @dailyCommissionRate.ValuedHawalaCount</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn-modern btn-primary-modern w-100"
+                                        disabled="@(isCashLoading || isLoading || SelectedCashDate > DateTime.Today)"
+                                        @onclick="SaveDailyCommissionRate">
+                                    <i class="bi bi-currency-dollar"></i> ذخیره نرخ پایان روز
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
             @if (!IsSingleDay)
             {
                 <div class="alert alert-info m-3">
@@ -761,6 +792,8 @@
     private List<string> accountNames = new();
     private List<string> currencyCodes = new();
     private List<CashDailyBalanceDto> cashDailyBalances = new();
+    private DailyCommissionRateDto dailyCommissionRate = new();
+    private decimal dailyCommissionRateInput;
     private List<CashJournalRow> receiptRows = new();
     private List<CashJournalRow> withdrawalRows = new();
     private int pageSize = 20;
@@ -934,6 +967,8 @@
             cashDailyBalances = (await JournalService
                     .GetCashDailyBalancesAsync(SelectedCashDate))
                 .ToList();
+            dailyCommissionRate = await JournalService.GetDailyCommissionRateAsync(SelectedCashDate);
+            dailyCommissionRateInput = dailyCommissionRate.UsdToAfnRate ?? 0;
         }
         finally
         {
@@ -969,6 +1004,30 @@
         }
     }
 
+    private async Task SaveDailyCommissionRate()
+    {
+        try
+        {
+            isCashLoading = true;
+            validationErrors.Clear();
+            successMessage = string.Empty;
+            dailyCommissionRate = await JournalService.SaveDailyCommissionRateAsync(
+                SelectedCashDate,
+                dailyCommissionRateInput);
+            dailyCommissionRateInput = dailyCommissionRate.UsdToAfnRate ?? 0;
+            successMessage =
+                $"نرخ پایان روز ذخیره شد و {dailyCommissionRate.ValuedHawalaCount} حواله به دالر ارزش‌گذاری گردید.";
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"ذخیره نرخ پایان روز انجام نشد: {ex.Message}");
+        }
+        finally
+        {
+            isCashLoading = false;
+        }
+    }
+
     private async Task CloseCashDay()
     {
         try
@@ -976,6 +1035,12 @@
             isCashLoading = true;
             validationErrors.Clear();
             successMessage = string.Empty;
+            if (dailyCommissionRate.AfnHawalaCount > 0)
+            {
+                dailyCommissionRate = await JournalService.SaveDailyCommissionRateAsync(
+                    SelectedCashDate,
+                    dailyCommissionRateInput);
+            }
             await JournalService.SaveCashOpeningBalancesAsync(
                 SelectedCashDate,
                 cashDailyBalances.Select(x => new UpdateCashOpeningBalanceDto

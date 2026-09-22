@@ -434,6 +434,14 @@ public class JournalService : IJournalService
         if (date > DateTime.Today)
             throw new InvalidOperationException("روز آینده را نمی‌توان بست.");
 
+        var commissionRate = await GetDailyCommissionRateAsync(date);
+        if (commissionRate.AfnHawalaCount > 0 && !commissionRate.UsdToAfnRate.HasValue)
+        {
+            throw new InvalidOperationException(
+                "برای حواله‌های دریافتی افغانی این روز، ابتدا نرخ پایان روز USD به AFN را ثبت کنید.");
+        }
+        await ApplyDailyCommissionValuationsAsync(date, commissionRate.UsdToAfnRate);
+
         var balances = await EnsureCashDailyBalancesAsync(date);
         if (balances.Count == 0)
             throw new InvalidOperationException("هیچ حساب صندوق فعالی برای بستن روز وجود ندارد.");
@@ -465,6 +473,153 @@ public class JournalService : IJournalService
                 tomorrow.OpeningBalance = balance.ClosingBalance ?? balance.OpeningBalance;
                 tomorrow.ModifiedAt = closedAt;
             }
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task<DailyCommissionRateDto> GetDailyCommissionRateAsync(DateTime journalDate)
+    {
+        var date = journalDate.Date;
+        var utcStart = date.ToUniversalTime();
+        var utcEnd = date.AddDays(1).ToUniversalTime();
+        var currencies = await _context.Currencies
+            .AsNoTracking()
+            .Where(x => x.Code == "AFN" || x.Code == "USD")
+            .ToDictionaryAsync(x => x.Code, x => x.Id);
+        var afnId = currencies.GetValueOrDefault("AFN");
+        var usdId = currencies.GetValueOrDefault("USD");
+        var counts = await _context.Hawalas
+            .AsNoTracking()
+            .Where(x => x.HawalaType == "HawalaReceive" &&
+                        x.Status != "Cancel" &&
+                        x.CreatedAt >= utcStart &&
+                        x.CreatedAt < utcEnd &&
+                        (x.FromCurrencyId == afnId || x.FromCurrencyId == usdId))
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Afn = group.Count(x => x.FromCurrencyId == afnId),
+                Usd = group.Count(x => x.FromCurrencyId == usdId),
+                Valued = group.Count(x => x.CommissionBaseUsdAmount != null)
+            })
+            .FirstOrDefaultAsync();
+        var rate = await _context.DailyCommissionRates
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.RateDate == date);
+
+        return new DailyCommissionRateDto
+        {
+            RateDate = date,
+            UsdToAfnRate = rate?.UsdToAfnRate,
+            AfnHawalaCount = counts?.Afn ?? 0,
+            UsdHawalaCount = counts?.Usd ?? 0,
+            ValuedHawalaCount = counts?.Valued ?? 0,
+            ModifiedAt = rate?.ModifiedAt ?? rate?.CreatedAt
+        };
+    }
+
+    public async Task<DailyCommissionRateDto> SaveDailyCommissionRateAsync(
+        DateTime journalDate,
+        decimal usdToAfnRate)
+    {
+        if (usdToAfnRate <= 0)
+            throw new InvalidOperationException("نرخ پایان روز باید بزرگ‌تر از صفر باشد.");
+
+        var date = journalDate.Date;
+        if (date > DateTime.Today)
+            throw new InvalidOperationException("برای روز آینده نمی‌توان نرخ پایان روز ثبت کرد.");
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable);
+        var rate = await _context.DailyCommissionRates
+            .FirstOrDefaultAsync(x => x.RateDate == date);
+        if (rate != null && rate.UsdToAfnRate != usdToAfnRate)
+        {
+            var utcStart = date.ToUniversalTime();
+            var utcEnd = date.AddDays(1).ToUniversalTime();
+            var hasPostedCommission = await _context.CorrespondentCommissionBatchItems
+                .AnyAsync(item => item.IsActive &&
+                                  item.Batch.Status == "Posted" &&
+                                  item.Hawala.CreatedAt >= utcStart &&
+                                  item.Hawala.CreatedAt < utcEnd &&
+                                  item.Hawala.HawalaType == "HawalaReceive");
+            if (hasPostedCommission)
+            {
+                throw new InvalidOperationException(
+                    "نرخ این روز قابل تغییر نیست؛ کمیشن یک یا چند حواله آن قبلاً ثبت شده است.");
+            }
+        }
+
+        var now = DateTime.UtcNow;
+        if (rate == null)
+        {
+            rate = new DailyCommissionRate
+            {
+                RateDate = date,
+                UsdToAfnRate = usdToAfnRate,
+                CreatedBy = _context.RequireCurrentUserId(),
+                CreatedAt = now
+            };
+            _context.DailyCommissionRates.Add(rate);
+        }
+        else
+        {
+            rate.UsdToAfnRate = usdToAfnRate;
+            rate.ModifiedBy = _context.RequireCurrentUserId();
+            rate.ModifiedAt = now;
+        }
+
+        await _context.SaveChangesAsync();
+        await ApplyDailyCommissionValuationsAsync(date, usdToAfnRate);
+        await transaction.CommitAsync();
+        return await GetDailyCommissionRateAsync(date);
+    }
+
+    private async Task ApplyDailyCommissionValuationsAsync(
+        DateTime date,
+        decimal? usdToAfnRate)
+    {
+        var currencies = await _context.Currencies
+            .AsNoTracking()
+            .Where(x => x.Code == "AFN" || x.Code == "USD")
+            .ToDictionaryAsync(x => x.Code, x => x.Id);
+        if (!currencies.TryGetValue("USD", out var usdId) ||
+            !currencies.TryGetValue("AFN", out var afnId))
+        {
+            throw new InvalidOperationException("ارزهای فعال USD و AFN در سیستم یافت نشد.");
+        }
+
+        var utcStart = date.Date.ToUniversalTime();
+        var utcEnd = date.Date.AddDays(1).ToUniversalTime();
+        var hawalas = await _context.Hawalas
+            .Where(x => x.HawalaType == "HawalaReceive" &&
+                        x.Status != "Cancel" &&
+                        x.CreatedAt >= utcStart &&
+                        x.CreatedAt < utcEnd &&
+                        (x.FromCurrencyId == afnId || x.FromCurrencyId == usdId))
+            .ToListAsync();
+        if (hawalas.Any(x => x.FromCurrencyId == afnId) &&
+            (!usdToAfnRate.HasValue || usdToAfnRate.Value <= 0))
+        {
+            throw new InvalidOperationException(
+                "نرخ پایان روز USD به AFN برای ارزش‌گذاری حواله‌های افغانی ثبت نشده است.");
+        }
+
+        var valuedAt = DateTime.UtcNow;
+        foreach (var hawala in hawalas)
+        {
+            hawala.CommissionBaseUsdAmount = hawala.FromCurrencyId == usdId
+                ? decimal.Round(hawala.FromAmount, 8, MidpointRounding.AwayFromZero)
+                : decimal.Round(
+                    hawala.FromAmount / usdToAfnRate!.Value,
+                    8,
+                    MidpointRounding.AwayFromZero);
+            hawala.CommissionUsdToAfnRate = hawala.FromCurrencyId == afnId
+                ? usdToAfnRate
+                : null;
+            hawala.CommissionValuationDate = date.Date;
+            hawala.CommissionValuedAt = valuedAt;
         }
 
         await _context.SaveChangesAsync();

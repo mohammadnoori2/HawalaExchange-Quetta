@@ -132,6 +132,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<MoneyExchangeOperation> MoneyExchangeOperations { get; set; }
         public DbSet<CompanySetting> CompanySettings { get; set; }
         public DbSet<CashDailyBalance> CashDailyBalances { get; set; }
+        public DbSet<DailyCommissionRate> DailyCommissionRates { get; set; }
 
         public const string CurrencyInventoryAccountCode = "1201";
         public const string CurrencySaleLiabilityAccountCode = "2101";
@@ -1563,6 +1564,9 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<Customer>().HasIndex(x => new { x.TenantId, x.CustomerCode }).IsUnique();
             modelBuilder.Entity<Correspondent>().HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
             modelBuilder.Entity<Currency>().HasIndex(x => new { x.TenantId, x.Code }).IsUnique();
+            modelBuilder.Entity<DailyCommissionRate>()
+                .HasIndex(x => new { x.TenantId, x.RateDate })
+                .IsUnique();
             modelBuilder.Entity<Account>().HasIndex(x => new { x.TenantId, x.AccountCode }).IsUnique();
             modelBuilder.Entity<Account>()
                 .HasIndex(x => new { x.TenantId, x.CustomerId })

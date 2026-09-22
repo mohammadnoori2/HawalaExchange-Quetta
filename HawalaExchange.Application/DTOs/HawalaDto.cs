@@ -60,6 +60,10 @@ namespace HawalaExchange.Application.DTOs
         public long? AgentCommissionCurrencyId { get; set; }
         public string? AgentCommissionCurrencyCode { get; set; }
         public string? AgentCommissionCurrencyName { get; set; }
+        public decimal? CommissionBaseUsdAmount { get; set; }
+        public decimal? CommissionUsdToAfnRate { get; set; }
+        public DateTime? CommissionValuationDate { get; set; }
+        public DateTime? CommissionValuedAt { get; set; }
         public string? ReferenceNumber { get; set; }
         public string? Notes { get; set; }
         public string Status { get; set; } = "Pending";
@@ -77,6 +81,8 @@ namespace HawalaExchange.Application.DTOs
         public bool IsBulkImportGeneratedSend { get; set; }
         public bool HasPeriodicCommissionHistory { get; set; }
         public decimal? PeriodicCommissionAfn { get; set; }
+        public string PeriodicCommissionCurrencyCode =>
+            HawalaType == "HawalaReceive" ? "USD" : "AFN";
         public long? GeneratedSendHawalaNumber { get; set; }
         public string? PaymentLocation { get; set; }
         public DateTime? CancelledAt { get; set; }

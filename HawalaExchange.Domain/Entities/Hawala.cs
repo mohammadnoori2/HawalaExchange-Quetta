@@ -83,6 +83,15 @@ namespace HawalaExchange.Domain.Entities
 
         public long? AgentCommissionCurrencyId { get; set; }
 
+        [Column(TypeName = "decimal(18,8)")]
+        public decimal? CommissionBaseUsdAmount { get; set; }
+
+        [Column(TypeName = "decimal(18,8)")]
+        public decimal? CommissionUsdToAfnRate { get; set; }
+
+        public DateTime? CommissionValuationDate { get; set; }
+        public DateTime? CommissionValuedAt { get; set; }
+
         [MaxLength(100)]
         public string? ReferenceNumber { get; set; }
 

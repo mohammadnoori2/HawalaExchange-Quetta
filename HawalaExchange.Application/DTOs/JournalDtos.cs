@@ -55,6 +55,16 @@ public class UpdateCashOpeningBalanceDto
     public decimal OpeningBalance { get; set; }
 }
 
+public sealed class DailyCommissionRateDto
+{
+    public DateTime RateDate { get; set; }
+    public decimal? UsdToAfnRate { get; set; }
+    public int AfnHawalaCount { get; set; }
+    public int UsdHawalaCount { get; set; }
+    public int ValuedHawalaCount { get; set; }
+    public DateTime? ModifiedAt { get; set; }
+}
+
 public class CurrentCashBalanceDto
 {
     public long AccountId { get; set; }

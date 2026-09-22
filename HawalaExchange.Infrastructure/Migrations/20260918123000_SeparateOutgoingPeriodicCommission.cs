@@ -35,8 +35,10 @@ public sealed class SeparateOutgoingPeriodicCommission : Migration
             .Single(x => x.Contains(
                 "CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]",
                 StringComparison.OrdinalIgnoreCase));
-        return Regex.Replace(
+        var createOrAlter = Regex.Replace(
             procedure.Trim(), @"^\s*CREATE\s+PROCEDURE",
             "CREATE OR ALTER PROCEDURE", RegexOptions.IgnoreCase);
+        return "IF COL_LENGTH(N'dbo.Hawalas', N'CommissionBaseUsdAmount') IS NOT NULL " +
+               $"EXEC(N'{createOrAlter.Replace("'", "''")}');";
     }
 }

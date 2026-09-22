@@ -170,7 +170,7 @@
                             <td dir="ltr">
                                 @if (hawala.PeriodicCommissionAfn.HasValue)
                                 {
-                                    <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) AFN</span>
+                                    <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) @hawala.PeriodicCommissionCurrencyCode</span>
                                 }
                                 else { <span>—</span> }
                             </td>
@@ -277,6 +277,11 @@
                         <div><span>نام پدر گیرنده</span><strong>@(selectedHawala.ReceiverFatherName ?? "—")</strong></div>
                         <div><span>تلفن گیرنده</span><strong dir="ltr">@(selectedHawala.ReceiverPhone ?? "—")</strong></div>
                         <div><span>مبلغ حواله</span><strong dir="ltr">@MoneyFormatHelper.Format(selectedHawala.FromAmount) @selectedHawala.FromCurrencyCode</strong></div>
+                        @if (selectedHawala.CommissionBaseUsdAmount.HasValue)
+                        {
+                            <div><span>معادل دالری کمیشن</span><strong dir="ltr">@MoneyFormatHelper.Format(selectedHawala.CommissionBaseUsdAmount.Value) USD</strong></div>
+                            <div><span>نرخ پایان روز</span><strong dir="ltr">@(selectedHawala.CommissionUsdToAfnRate?.ToString("N8").TrimEnd('0').TrimEnd('.') ?? "—")</strong></div>
+                        }
                         <div><span>مبلغ تبدیل‌شده</span><strong dir="ltr">@(selectedHawala.ToAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.ToAmount.Value) : "—") @selectedHawala.ToCurrencyCode</strong></div>
                         <div><span>نرخ تبدیل</span><strong dir="ltr">@(selectedHawala.ExchangeRate.HasValue ? MoneyFormatHelper.Format(selectedHawala.ExchangeRate.Value) : "—")</strong></div>
                         <div><span>کارمزد حواله</span><strong dir="ltr">@(selectedHawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.CommissionAmount.Value) : "—") @selectedHawala.CommissionCurrencyCode</strong></div>

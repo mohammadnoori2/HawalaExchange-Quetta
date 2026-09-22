@@ -15,6 +15,36 @@ public sealed class PeriodicCommissionPerformanceTests(
     ITestOutputHelper output)
 {
     [Fact]
+    public async Task Saving_daily_rate_persists_usd_equivalent_for_afn_and_usd_hawalas()
+    {
+        var rateDate = DateTime.Today.AddYears(-8).AddDays(-17);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        context.Hawalas.AddRange(
+            NewHawala(93_900_001, 1, 70_000m, rateDate, "Paid"),
+            NewHawala(93_900_002, 2, 500m, rateDate, "Paid"));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var result = await fixture.CreateJournalService(context)
+            .SaveDailyCommissionRateAsync(rateDate, 70m);
+        context.ChangeTracker.Clear();
+        var valued = await context.Hawalas.AsNoTracking()
+            .Where(x => x.Number == 93_900_001 || x.Number == 93_900_002)
+            .OrderBy(x => x.Number)
+            .ToListAsync();
+
+        Assert.Equal(1, result.AfnHawalaCount);
+        Assert.Equal(1, result.UsdHawalaCount);
+        Assert.Equal(2, result.ValuedHawalaCount);
+        Assert.Equal(1_000m, valued[0].CommissionBaseUsdAmount);
+        Assert.Equal(70m, valued[0].CommissionUsdToAfnRate);
+        Assert.Equal(500m, valued[1].CommissionBaseUsdAmount);
+        Assert.Null(valued[1].CommissionUsdToAfnRate);
+        Assert.All(valued, x => Assert.Equal(rateDate.Date, x.CommissionValuationDate));
+    }
+
+    [Fact]
     public async Task Procedure_calculates_posts_prevents_duplicates_and_reverses()
     {
         var period = new DateTime(2032, 3, 10);
@@ -25,6 +55,7 @@ public sealed class PeriodicCommissionPerformanceTests(
             NewHawala(94_000_002, 1, 50_000m, period.AddDays(2), "Pending"),
             NewHawala(94_000_003, 2, 9_999m, period.AddDays(3), "Cancel"),
             NewHawala(94_000_004, 2, 9_999m, period.AddDays(4), "Paid", 10m));
+        context.DailyCommissionRates.Add(NewDailyRate(period.AddDays(2), 70m));
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
@@ -35,13 +66,17 @@ public sealed class PeriodicCommissionPerformanceTests(
         var preview = await service.PreviewAsync(request);
 
         Assert.Equal(2, preview.HawalaCount);
-        Assert.Equal(120_000m, preview.TotalBaseAfn);
-        Assert.Equal(240m, preview.TotalCommissionAfn);
+        Assert.Equal(1_714.2857m, preview.TotalBaseAfn);
+        Assert.Equal(0m, preview.TotalCommissionAfn);
         Assert.Equal(3m, preview.TotalCommissionUsd);
         Assert.Equal(2, preview.Rates.Count);
         Assert.Equal(2, preview.Items.Count);
-        Assert.Equal(140m, preview.Items.Single(x => x.HawalaNumber == 94_000_001).CommissionAfn);
-        Assert.Equal(100m, preview.Items.Single(x => x.HawalaNumber == 94_000_002).CommissionAfn);
+        Assert.Equal(2m, decimal.Round(preview.Items.Single(x => x.HawalaNumber == 94_000_001).CommissionAfn, 0, MidpointRounding.AwayFromZero));
+        Assert.Equal(1m, decimal.Round(preview.Items.Single(x => x.HawalaNumber == 94_000_002).CommissionAfn, 0, MidpointRounding.AwayFromZero));
+        var valuedAfnHawala = await context.Hawalas.AsNoTracking()
+            .SingleAsync(x => x.Number == 94_000_002);
+        Assert.Equal(714.28571429m, valuedAfnHawala.CommissionBaseUsdAmount);
+        Assert.Equal(70m, valuedAfnHawala.CommissionUsdToAfnRate);
 
         var posted = await service.PostAsync(request);
         context.ChangeTracker.Clear();
@@ -81,7 +116,7 @@ public sealed class PeriodicCommissionPerformanceTests(
         var roundingPeriod = new DateTime(2032, 4, 10);
         await using var context = fixture.CreateContext();
         using var bypass = context.BypassSubscriptionEnforcement();
-        context.Hawalas.Add(NewHawala(95_000_001, 1, 125_000m, roundingPeriod, "Paid"));
+        context.Hawalas.Add(NewHawala(95_000_001, 2, 1_250m, roundingPeriod, "Paid"));
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
         var service = fixture.CreateCommissionService(context);
@@ -89,11 +124,11 @@ public sealed class PeriodicCommissionPerformanceTests(
 
         var roundingPreview = await service.PreviewAsync(roundingRequest);
 
-        Assert.Equal(250m, roundingPreview.TotalCommissionAfn);
+        Assert.Equal(0m, roundingPreview.TotalCommissionAfn);
         Assert.Equal(3m, roundingPreview.TotalCommissionUsd);
 
         var missingRatePeriod = new DateTime(2032, 5, 10);
-        context.Hawalas.Add(NewHawala(95_000_002, 3, 1_000m, missingRatePeriod, "Paid"));
+        context.Hawalas.Add(NewHawala(95_000_002, 1, 1_000m, missingRatePeriod, "Paid"));
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
         var missingRateRequest = NewRequest(missingRatePeriod, missingRatePeriod, 70m);
@@ -101,11 +136,13 @@ public sealed class PeriodicCommissionPerformanceTests(
         var beforeBatches = await context.CorrespondentCommissionBatches.CountAsync();
         var beforeLedger = await context.LedgerEntries.CountAsync();
 
-        var missingRatePreview = await service.PreviewAsync(missingRateRequest);
-        var exception = await Assert.ThrowsAsync<SqlException>(() => service.PostAsync(missingRateRequest));
+        var previewException = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.PreviewAsync(missingRateRequest));
+        var postException = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.PostAsync(missingRateRequest));
 
-        Assert.Equal(0m, missingRatePreview.Rates.Single().SourceToAfnRate);
-        Assert.Contains("EUR", exception.Message);
+        Assert.Contains(missingRatePeriod.ToString("yyyy-MM-dd"), previewException.Message);
+        Assert.Contains(missingRatePeriod.ToString("yyyy-MM-dd"), postException.Message);
         Assert.Equal(beforeTransactions, await context.Transactions.CountAsync());
         Assert.Equal(beforeBatches, await context.CorrespondentCommissionBatches.CountAsync());
         Assert.Equal(beforeLedger, await context.LedgerEntries.CountAsync());
@@ -140,7 +177,7 @@ public sealed class PeriodicCommissionPerformanceTests(
             TryPostAsync(fixture.CreateCommissionService(secondContext)));
 
         Assert.Single(results.OfType<CorrespondentCommissionBatchDto>());
-        Assert.Single(results.OfType<SqlException>());
+        Assert.Single(results.OfType<Exception>());
         await using var verifyContext = fixture.CreateContext();
         Assert.Equal(1, await verifyContext.CorrespondentCommissionBatchItems
             .CountAsync(x => x.Hawala.Number == 95_000_003 && x.IsActive));
@@ -224,5 +261,13 @@ public sealed class PeriodicCommissionPerformanceTests(
         Status = status,
         CreatedBy = fixture.UserId,
         CreatedAt = date.AddHours(10).ToUniversalTime()
+    };
+
+    private DailyCommissionRate NewDailyRate(DateTime date, decimal usdToAfnRate) => new()
+    {
+        RateDate = date.Date,
+        UsdToAfnRate = usdToAfnRate,
+        CreatedBy = fixture.UserId,
+        CreatedAt = DateTime.UtcNow
     };
 }

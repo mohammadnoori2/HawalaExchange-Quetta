@@ -400,8 +400,6 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         THROW 50002, N'تاریخ پایان نمی‌تواند قبل از تاریخ آغاز باشد.', 1;
                     IF @CommissionPerLakhAfn <= 0
                         THROW 50003, N'کمیشن هر لک باید بزرگ‌تر از صفر باشد.', 1;
-                    IF @Mode = N'Post' AND @HawalaType = N'HawalaReceive' AND @UsdToAfnRate <= 0
-                        THROW 50004, N'نرخ تبدیل USD به AFN الزامی است.', 1;
                     IF NOT EXISTS
                     (
                         SELECT 1 FROM [dbo].[Correspondents]
@@ -425,6 +423,11 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             SELECT TOP (1) [Id] FROM [dbo].[Currencies]
                             WHERE [TenantId] = @TenantId AND [Code] = N'AFN' AND [IsActive] = 1
                         );
+                        DECLARE @UsdCurrencyId bigint =
+                        (
+                            SELECT TOP (1) [Id] FROM [dbo].[Currencies]
+                            WHERE [TenantId] = @TenantId AND [Code] = N'USD' AND [IsActive] = 1
+                        );
 
                         CREATE TABLE #Eligible
                         (
@@ -447,9 +450,16 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         )
                         SELECT h.[Id], h.[Number], h.[CreatedAt], h.[FromCurrencyId], c.[Code],
                                CAST(h.[FromAmount] AS decimal(18,4)),
-                               rate.[SourceToAfnRate],
-                               CAST(h.[FromAmount] * rate.[SourceToAfnRate] AS decimal(38,8)),
-                               CAST(h.[FromAmount] * rate.[SourceToAfnRate] / 100000 * @CommissionPerLakhAfn AS decimal(38,8))
+                               CASE WHEN @HawalaType = N'HawalaReceive'
+                                    THEN CAST(CASE WHEN h.[FromCurrencyId] = @UsdCurrencyId THEN 1
+                                                   ELSE h.[CommissionUsdToAfnRate] END AS decimal(18,8))
+                                    ELSE rate.[SourceToAfnRate] END,
+                               CAST(CASE WHEN @HawalaType = N'HawalaReceive'
+                                         THEN h.[CommissionBaseUsdAmount]
+                                         ELSE h.[FromAmount] * rate.[SourceToAfnRate] END AS decimal(38,8)),
+                               CAST(CASE WHEN @HawalaType = N'HawalaReceive'
+                                         THEN h.[CommissionBaseUsdAmount] / 100000 * @CommissionPerLakhAfn
+                                         ELSE h.[FromAmount] * rate.[SourceToAfnRate] / 100000 * @CommissionPerLakhAfn END AS decimal(38,8))
                         FROM [dbo].[Hawalas] h WITH (UPDLOCK, HOLDLOCK)
                         INNER JOIN [dbo].[Currencies] c
                             ON c.[TenantId] = @TenantId AND c.[Id] = h.[FromCurrencyId]
@@ -467,13 +477,17 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                           AND h.[CreatedAt] >= @FromUtc
                           AND h.[CreatedAt] < @ToUtcExclusive
                           AND (h.[CommissionAmount] IS NULL OR h.[CommissionAmount] = 0)
+                          AND (@HawalaType <> N'HawalaReceive' OR
+                               (h.[FromCurrencyId] IN (@AfnCurrencyId, @UsdCurrencyId) AND
+                                h.[CommissionBaseUsdAmount] IS NOT NULL))
                           AND NOT EXISTS
                           (
                               SELECT 1 FROM [dbo].[CorrespondentCommissionBatchItems] bi WITH (UPDLOCK, HOLDLOCK)
                               WHERE bi.[TenantId] = @TenantId AND bi.[HawalaId] = h.[Id] AND bi.[IsActive] = 1
                           );
 
-                        IF @Mode = N'Post' AND EXISTS (SELECT 1 FROM #Eligible WHERE [SourceToAfnRate] <= 0)
+                        IF @Mode = N'Post' AND @HawalaType = N'HawalaSend' AND
+                           EXISTS (SELECT 1 FROM #Eligible WHERE [SourceToAfnRate] <= 0)
                         BEGIN
                             DECLARE @MissingCurrencies nvarchar(2000) =
                             (
@@ -488,12 +502,12 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         DECLARE @HawalaCount int = (SELECT COUNT(*) FROM #Eligible);
                         DECLARE @TotalBaseAfn decimal(18,4) =
                             CAST(COALESCE((SELECT SUM([AfnEquivalent]) FROM #Eligible), 0) AS decimal(18,4));
-                        DECLARE @TotalCommissionAfn decimal(18,4) =
+                        DECLARE @CalculatedCommission decimal(18,4) =
                             CAST(ROUND(@TotalBaseAfn / 100000 * @CommissionPerLakhAfn, 0) AS decimal(18,4));
+                        DECLARE @TotalCommissionAfn decimal(18,4) =
+                            CASE WHEN @HawalaType = N'HawalaSend' THEN @CalculatedCommission ELSE 0 END;
                         DECLARE @TotalCommissionUsd decimal(18,4) =
-                            CAST(CASE WHEN @HawalaType = N'HawalaReceive' AND @UsdToAfnRate > 0
-                                      THEN ROUND(@TotalCommissionAfn / @UsdToAfnRate, 0)
-                                      ELSE 0 END AS decimal(18,4));
+                            CASE WHEN @HawalaType = N'HawalaReceive' THEN @CalculatedCommission ELSE 0 END;
                         DECLARE @CorrespondentName nvarchar(200) =
                             (SELECT [Name] FROM [dbo].[Correspondents]
                              WHERE [TenantId] = @TenantId AND [Id] = @CorrespondentId);
@@ -531,11 +545,6 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                            (@HawalaType = N'HawalaSend' AND @TotalCommissionAfn <= 0)
                             THROW 50009, N'کمیشن نهایی پس از گردکردن قابل ثبت نیست.', 1;
 
-                        DECLARE @UsdCurrencyId bigint =
-                        (
-                            SELECT TOP (1) [Id] FROM [dbo].[Currencies]
-                            WHERE [TenantId] = @TenantId AND [Code] = N'USD' AND [IsActive] = 1
-                        );
                         IF @UsdCurrencyId IS NULL
                             THROW 50010, N'ارز فعال USD در سیستم یافت نشد.', 1;
 

@@ -1,6 +1,7 @@
 @page "/correspondents/{CorrespondentId:long}/hawala-import"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.Data.SqlClient
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @inject IHawalaImportService HawalaImportService
 @inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
@@ -18,8 +19,33 @@
         </Actions>
     </AppPageHeader>
 
-    @if (!string.IsNullOrWhiteSpace(errorMessage))
-    { <div class="alert alert-danger mt-3"><i class="bi bi-exclamation-triangle ms-2"></i>@errorMessage</div> }
+    @if (importError is not null)
+    {
+        <div class="alert alert-danger mt-3" role="alert">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+                <div class="flex-grow-1">
+                    <h5 class="alert-heading mb-1">@importError.Title</h5>
+                    <div>@importError.Message</div>
+                    @if (!string.IsNullOrWhiteSpace(importError.LastStage))
+                    { <div class="small mt-2"><strong>آخرین مرحله:</strong> @importError.LastStage</div> }
+                    @if (importError.Actions.Count > 0)
+                    {
+                        <div class="mt-2"><strong>برای رفع مشکل:</strong></div>
+                        <ol class="mb-0 mt-1">
+                            @foreach (var action in importError.Actions)
+                            { <li>@action</li> }
+                        </ol>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(importError.TechnicalMessage))
+                    {
+                        <details class="mt-2"><summary class="small">جزئیات فنی برای پشتیبانی</summary><code class="d-block mt-1 text-wrap" dir="ltr">@importError.TechnicalMessage</code></details>
+                    }
+                </div>
+                <button type="button" class="btn-close" aria-label="بستن" @onclick="() => importError = null"></button>
+            </div>
+        </div>
+    }
     @if (result is not null)
     {
         <div class="alert alert-success mt-3">
@@ -60,10 +86,34 @@
             <div class="col-md-3"><div class="card card-body"><small class="text-muted">حواله‌های ارسالی</small><strong class="fs-4">@preview.Rows.Count(x => x.RequiresOutgoingHawala).ToString("N0")</strong></div></div>
         </div>
 
+        @if (ValidationIssueGroups.Count > 0)
+        {
+            <div class="card shadow-sm mt-3 border-danger">
+                <div class="card-header bg-danger-subtle text-danger-emphasis"><strong><i class="bi bi-exclamation-octagon ms-1"></i>خطاهای فایل و روش اصلاح</strong></div>
+                <div class="card-body">
+                    <p class="mb-3">موارد زیر را در فایل Excel اصلاح کنید، فایل را ذخیره نمایید و سپس «انتخاب فایل دیگر» را بزنید.</p>
+                    <div class="list-group list-group-flush">
+                        @foreach (var issue in ValidationIssueGroups)
+                        {
+                            <div class="list-group-item px-0">
+                                <div class="d-flex flex-wrap justify-content-between gap-2">
+                                    <strong class="text-danger">@issue.Message</strong>
+                                    <span class="badge text-bg-danger">@issue.RowNumbers.Count.ToString("N0") ردیف</span>
+                                </div>
+                                <div class="small mt-1"><strong>ردیف‌های Excel:</strong> @FormatRowNumbers(issue.RowNumbers)</div>
+                                <div class="small text-muted mt-1"><strong>راه اصلاح:</strong> @GetValidationGuidance(issue.Message)</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
         @if (preview.MissingLocations.Count > 0)
         {
             <div class="card shadow-sm mt-3 border-warning"><div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center"><strong>محل‌های پرداخت جدید</strong><button type="button" class="btn btn-sm btn-outline-dark" @onclick="ToggleAllLocations">@(AllLocationsSelected ? "لغو انتخاب همه" : "انتخاب همه")</button></div><div class="card-body">
-                <p class="mb-2">ایجاد این محل‌های پرداخت را تأیید کنید:</p><div class="row g-2">
+                <p class="mb-1">ایجاد این محل‌های پرداخت را تأیید کنید:</p>
+                <p class="small text-muted mb-2">اگر نامی فقط از نظر املا با محل موجود تفاوت دارد، آن را ایجاد نکنید؛ نام محل را در Excel دقیقاً مانند نام ثبت‌شده اصلاح و فایل را دوباره انتخاب کنید.</p><div class="row g-2">
                 @foreach (var location in preview.MissingLocations)
                 { <div class="col-md-4"><label class="form-check border rounded p-2 pe-5 w-100"><input class="form-check-input" type="checkbox" checked="@locationsToCreate.Contains(location)" @onchange="args => ToggleSet(locationsToCreate, location, args)" /><span class="form-check-label">@location</span></label></div> }
                 </div>
@@ -119,7 +169,7 @@
     private readonly HashSet<string> correspondentsToCreate = new(StringComparer.Ordinal);
     private decimal? bulkCommissionAmount;
     private long bulkCommissionCurrencyId;
-    private string? errorMessage;
+    private ImportErrorViewModel? importError;
     private bool isBusy;
     private int progressPercent;
     private string progressMessage = "در حال آماده‌سازی...";
@@ -140,15 +190,24 @@
                             : null;
     private bool AllLocationsSelected => preview is not null && preview.MissingLocations.All(locationsToCreate.Contains);
     private bool AllCorrespondentsSelected => preview is not null && preview.MissingCorrespondents.All(correspondentsToCreate.Contains);
+    private List<ValidationIssueViewModel> ValidationIssueGroups => preview?.Rows
+        .Where(x => !x.IsValid)
+        .SelectMany(row => SplitValidationErrors(row.ValidationErrors)
+            .Select(message => new { row.ExcelRowNumber, Message = message }))
+        .GroupBy(x => x.Message, StringComparer.Ordinal)
+        .Select(group => new ValidationIssueViewModel(group.Key,
+            group.Select(x => x.ExcelRowNumber).Distinct().OrderBy(x => x).ToList()))
+        .OrderBy(x => x.RowNumbers[0])
+        .ToList() ?? [];
 
     protected override async Task OnInitializedAsync()
-    { try { currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); } catch (Exception ex) { errorMessage = ex.Message; } }
+    { try { currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); } catch (Exception ex) { importError = BuildImportError(ex, "بارگذاری ارزهای فعال", false); } }
 
     private async Task PreviewFileAsync(InputFileChangeEventArgs args)
     {
-        errorMessage = null; result = null; isBusy = true; progressPercent = 1; progressMessage = "در حال آپلود فایل...";
+        importError = null; result = null; isBusy = true; progressPercent = 1; progressMessage = "در حال آپلود فایل...";
         try { await using var stream = args.File.OpenReadStream(MaximumFileSize); preview = await HawalaImportService.PreviewAsync(stream, args.File.Name, CorrespondentId, CreateProgressReporter()); locationsToCreate.Clear(); correspondentsToCreate.Clear(); }
-        catch (Exception ex) { errorMessage = ex.Message; preview = null; }
+        catch (Exception ex) { importError = BuildImportError(ex, progressMessage, false); preview = null; }
         finally { isBusy = false; }
     }
 
@@ -178,13 +237,13 @@
     private async Task ConfirmAsync()
     {
         if (!CanConfirm || preview is null) return;
-        errorMessage = null; isBusy = true; progressPercent = 1; progressMessage = "در حال آغاز ثبت گروهی...";
+        importError = null; isBusy = true; progressPercent = 1; progressMessage = "در حال آغاز ثبت گروهی...";
         try
         {
             result = await HawalaImportService.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId, LocationsToCreate = locationsToCreate.ToList(), CorrespondentsToCreate = correspondentsToCreate.ToList(), Commissions = preview.Rows.Where(x => x.RequiresOutgoingHawala).Select(x => new HawalaImportCommissionDto { RowId = x.Id, Amount = x.AgentCommissionAmount, CurrencyId = x.AgentCommissionCurrencyId }).ToList() }, CreateProgressReporter());
             preview = null; locationsToCreate.Clear(); correspondentsToCreate.Clear();
         }
-        catch (Exception ex) { errorMessage = ex.Message; }
+        catch (Exception ex) { importError = BuildImportError(ex, progressMessage, true); }
         finally { isBusy = false; }
     }
 
@@ -195,6 +254,105 @@
         _ = InvokeAsync(StateHasChanged);
     });
 
-    private void Reset() { preview = null; result = null; errorMessage = null; locationsToCreate.Clear(); correspondentsToCreate.Clear(); bulkCommissionAmount = null; bulkCommissionCurrencyId = 0; progressPercent = 0; progressMessage = "در حال آماده‌سازی..."; }
+    private void Reset() { preview = null; result = null; importError = null; locationsToCreate.Clear(); correspondentsToCreate.Clear(); bulkCommissionAmount = null; bulkCommissionCurrencyId = 0; progressPercent = 0; progressMessage = "در حال آماده‌سازی..."; }
     private void BackToCorrespondent() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}");
+
+    private static IEnumerable<string> SplitValidationErrors(string? errors) =>
+        (errors ?? string.Empty).Split(" | ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static string FormatRowNumbers(IReadOnlyCollection<int> rows)
+    {
+        const int visibleCount = 20;
+        var text = string.Join("، ", rows.Take(visibleCount));
+        return rows.Count > visibleCount ? $"{text} و {rows.Count - visibleCount:N0} ردیف دیگر" : text;
+    }
+
+    private static string GetValidationGuidance(string message)
+    {
+        if (message.Contains("همین فایل تکراری", StringComparison.Ordinal))
+            return "یکی از ردیف‌های تکراری را حذف کنید یا شماره/رفرنس درست را در ستون اول یا دوم وارد کنید.";
+        if (message.Contains("قبلاً برای این نمایندگی", StringComparison.Ordinal))
+            return "سوابق نمایندگی را بررسی کنید. اگر همان حواله است آن را دوباره وارد نکنید؛ در غیر آن شماره یا رفرنس صحیح را در Excel اصلاح کنید.";
+        if (message.Contains("شماره حواله", StringComparison.Ordinal))
+            return "ستون اول باید یک شماره صحیح، بدون حروف و برای هر حواله دارای مقدار باشد.";
+        if (message.Contains("رفرنس", StringComparison.Ordinal))
+            return "رفرنس را در ستون دوم بررسی کنید و مقدار تکراری یا اشتباه را اصلاح نمایید.";
+        if (message.Contains("فرستنده", StringComparison.Ordinal))
+            return "نام فرستنده را در ستون سوم وارد کنید.";
+        if (message.Contains("گیرنده", StringComparison.Ordinal))
+            return "نام گیرنده را در ستون چهارم وارد کنید.";
+        if (message.Contains("محل پرداخت", StringComparison.Ordinal))
+            return "نام محل پرداخت را در ستون پنجم وارد کنید؛ املای آن را با محل‌های موجود یکسان نگه دارید.";
+        if (message.Contains("کمیشن", StringComparison.Ordinal) && message.Contains("ارز", StringComparison.Ordinal))
+            return "کد ارز کمیشن را در ستون نهم مانند USD یا AFN وارد کنید؛ اگر خالی باشد ارز خود حواله استفاده می‌شود.";
+        if (message.Contains("کمیشن", StringComparison.Ordinal))
+            return "مبلغ کمیشن ستون هشتم باید عددی و بزرگ‌تر از صفر باشد، یا برای نداشتن کمیشن خالی بماند.";
+        if (message.Contains("ارز", StringComparison.Ordinal))
+            return "کد ارز ستون هفتم را مانند USD، AFN یا AED وارد کنید و مطمئن شوید ارز در سیستم فعال است.";
+        if (message.Contains("مبلغ", StringComparison.Ordinal))
+            return "مبلغ ستون ششم باید عددی و بزرگ‌تر از صفر باشد.";
+        return "مقادیر این ردیف را با ساختار ستون‌های راهنما مقایسه و اصلاح کنید.";
+    }
+
+    private ImportErrorViewModel BuildImportError(Exception exception, string lastStage, bool duringConfirm)
+    {
+        var root = exception.GetBaseException();
+        var actions = new List<string>();
+        string title;
+        string message;
+
+        if (root is SqlException { Number: -2 })
+        {
+            title = "پایگاه‌داده در زمان تعیین‌شده پاسخ نداد";
+            message = duringConfirm
+                ? "ثبت نهایی کامل نشد و تراکنش برگشت داده شد؛ روی دکمه ثبت چند بار کلیک نکنید."
+                : "بررسی فایل در زمان تعیین‌شده کامل نشد.";
+            actions.Add("چند لحظه صبر کنید و فقط یک‌بار دوباره تلاش کنید.");
+            actions.Add("اگر خطا تکرار شد، آخرین مرحله و جزئیات فنی زیر را برای پشتیبانی بفرستید.");
+        }
+        else if (root is TaskCanceledException or OperationCanceledException)
+        {
+            title = "ارتباط صفحه هنگام انجام عملیات قطع شد";
+            message = duringConfirm
+                ? "نتیجه ثبت به صفحه برنگشت. ابتدا فهرست حواله‌ها را بررسی کنید و بدون بررسی دوباره ثبت نکنید."
+                : "ارتباط صفحه پیش از تکمیل پیش‌نمایش قطع شد.";
+            actions.Add("اتصال شبکه و بازبودن برنامه را بررسی کنید و صفحه را تازه‌سازی نمایید.");
+            actions.Add(duringConfirm
+                ? "در نمایندگی کویته، شماره‌های فایل را جستجو کنید؛ اگر ثبت نشده بود دوباره آپلود کنید."
+                : "فایل را دوباره انتخاب کنید.");
+        }
+        else if (root is IOException or InvalidDataException)
+        {
+            title = "فایل Excel قابل خواندن نیست";
+            message = "فایل باز، ناقص یا دارای قالب نامعتبر است.";
+            actions.Add("فایل را در Excel باز کنید و با فرمت .xlsx ذخیره نمایید.");
+            actions.Add("فایل را در Excel ببندید و دوباره انتخاب کنید.");
+        }
+        else if (root is InvalidOperationException)
+        {
+            title = duringConfirm ? "ثبت گروهی انجام نشد" : "فایل نیاز به اصلاح دارد";
+            message = root.Message;
+            actions.Add(duringConfirm
+                ? "پیام بالا را اصلاح کنید؛ پیش‌نمایش فعلی حفظ شده و می‌توانید دوباره تأیید کنید."
+                : "مقادیر فایل و تنظیمات نمایندگی را مطابق پیام بالا اصلاح و فایل را دوباره انتخاب کنید.");
+        }
+        else
+        {
+            title = duringConfirm ? "خطای غیرمنتظره در ثبت گروهی" : "خطای غیرمنتظره در بررسی فایل";
+            message = "عملیات کامل نشد. اطلاعات واردشده را تغییر ندهید و جزئیات زیر را برای پشتیبانی بفرستید.";
+            actions.Add("از پیام و آخرین مرحله تصویر بگیرید.");
+            actions.Add("یک‌بار صفحه را تازه‌سازی و دوباره تلاش کنید.");
+        }
+
+        return new ImportErrorViewModel(title, message, lastStage, actions,
+            $"{root.GetType().Name}: {root.Message}");
+    }
+
+    private sealed record ValidationIssueViewModel(string Message, List<int> RowNumbers);
+    private sealed record ImportErrorViewModel(
+        string Title,
+        string Message,
+        string LastStage,
+        List<string> Actions,
+        string TechnicalMessage);
 }

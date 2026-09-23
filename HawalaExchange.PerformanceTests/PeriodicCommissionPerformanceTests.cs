@@ -168,7 +168,8 @@ public sealed class PeriodicCommissionPerformanceTests(
         var usdSource = NewHawala(98_700_001, 2, 100_000m, period, "Paid");
         var firstAfnSource = NewHawala(98_700_002, 1, 300_000m, period, "Paid");
         var secondAfnSource = NewHawala(98_700_003, 1, 200_000m, period.AddDays(1), "Paid");
-        context.Hawalas.AddRange(usdSource, firstAfnSource, secondAfnSource);
+        var commissionedSource = NewHawala(98_700_007, 2, 500_000m, period, "Paid");
+        context.Hawalas.AddRange(usdSource, firstAfnSource, secondAfnSource, commissionedSource);
         context.DailyCommissionRates.AddRange(
             NewDailyRate(period, 66m),
             NewDailyRate(period.AddDays(1), 67m));
@@ -176,7 +177,9 @@ public sealed class PeriodicCommissionPerformanceTests(
         context.Hawalas.AddRange(
             NewOutgoingHawala(98_700_004, 2, 100_000m, period, usdSource.Id),
             NewOutgoingHawala(98_700_005, 1, 300_000m, period, firstAfnSource.Id),
-            NewOutgoingHawala(98_700_006, 1, 200_000m, period.AddDays(1), secondAfnSource.Id));
+            NewOutgoingHawala(98_700_006, 1, 200_000m, period.AddDays(1), secondAfnSource.Id),
+            NewOutgoingHawala(98_700_008, 2, 500_000m, period, commissionedSource.Id, 0m),
+            NewOutgoingHawala(98_700_009, 2, 50_000m, period, null));
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
@@ -186,10 +189,10 @@ public sealed class PeriodicCommissionPerformanceTests(
         var service = fixture.CreateCommissionService(context);
         var preview = await service.PreviewAsync(request);
 
-        Assert.Equal(3, preview.HawalaCount);
+        Assert.Equal(4, preview.HawalaCount);
         Assert.Equal(1_000m, preview.TotalCommissionAfn);
-        Assert.Equal(200m, preview.TotalCommissionUsd);
-        Assert.Equal(215m, preview.TotalBaseAfn);
+        Assert.Equal(300m, preview.TotalCommissionUsd);
+        Assert.Equal(315m, preview.TotalBaseAfn);
         Assert.Equal(9m, preview.Items.Single(x => x.HawalaNumber == 98_700_005).AfnEquivalent);
         Assert.Equal(6m, preview.Items.Single(x => x.HawalaNumber == 98_700_006).AfnEquivalent);
         Assert.Equal(66m, preview.Items.Single(x => x.HawalaNumber == 98_700_005).SourceToAfnRate);
@@ -204,18 +207,20 @@ public sealed class PeriodicCommissionPerformanceTests(
             .Where(x => x.TransactionId == batch.PostingTransactionId)
             .ToListAsync();
 
-        Assert.Equal(200m, ledger.Single(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 2).TalabKar);
+        Assert.Equal(300m, ledger.Single(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 2).TalabKar);
         Assert.Equal(1_000m, ledger.Single(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 1).TalabKar);
         Assert.Equal(215m, ledger.Single(x => x.AccountId == fixture.SourceAccount.Id && x.CurrencyId == 2).BadehKar);
+        Assert.Equal(100m, ledger.Single(x => x.Account!.AccountCode == "5002" && x.CurrencyId == 2).BadehKar);
         Assert.Equal(ledger.Where(x => x.CurrencyId == 2).Sum(x => x.TalabKar),
             ledger.Where(x => x.CurrencyId == 2).Sum(x => x.BadehKar));
         Assert.Equal(ledger.Where(x => x.CurrencyId == 1).Sum(x => x.TalabKar),
             ledger.Where(x => x.CurrencyId == 1).Sum(x => x.BadehKar));
         var details = await service.GetDetailsAsync(batch.Id);
-        Assert.Equal(3, details.Items.Count);
-        Assert.Equal(5, details.LedgerEntries.Count);
+        Assert.Equal(4, details.Items.Count);
+        Assert.Equal(6, details.LedgerEntries.Count);
         Assert.Equal(1_000m, details.TotalCommissionAfn);
-        Assert.Equal(200m, details.TotalCommissionUsd);
+        Assert.Equal(300m, details.TotalCommissionUsd);
+        Assert.Equal("صرافی خود ما", details.Items.Single(x => x.HawalaNumber == 98_700_009).SourceName);
         Assert.False(string.IsNullOrWhiteSpace(details.PostingTransactionNo));
         Assert.False(string.IsNullOrWhiteSpace(details.CreatedByName));
 
@@ -344,7 +349,8 @@ public sealed class PeriodicCommissionPerformanceTests(
         long currencyId,
         decimal amount,
         DateTime date,
-        long sourceHawalaId) => new()
+        long? sourceHawalaId,
+        decimal? agentCommissionAmount = null) => new()
     {
         Number = number,
         HawalaType = "HawalaSend",
@@ -357,6 +363,8 @@ public sealed class PeriodicCommissionPerformanceTests(
         ToCurrencyId = currencyId,
         ToAmount = amount,
         ExchangeRate = 1,
+        AgentCommissionAmount = agentCommissionAmount,
+        AgentCommissionCurrencyId = agentCommissionAmount.HasValue ? currencyId : null,
         SourceHawalaId = sourceHawalaId,
         IsSystemGenerated = true,
         Status = "Paid",

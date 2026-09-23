@@ -47,6 +47,8 @@ public sealed class CorrespondentCommissionItemDto
     public decimal AfnEquivalent { get; set; }
     public decimal CommissionAfn { get; set; }
     public bool IsActive { get; set; } = true;
+    public string SourceType { get; set; } = string.Empty;
+    public string SourceName { get; set; } = string.Empty;
 }
 
 public sealed class CorrespondentCommissionBatchDto

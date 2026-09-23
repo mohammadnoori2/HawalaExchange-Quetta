@@ -951,10 +951,8 @@
                     x.AfnEquivalent,
                     SourceCorrespondentId = sourceLinks.GetValueOrDefault(x.HawalaId)
                 }).ToList();
-                if (items.Any(x => !x.SourceCorrespondentId.HasValue))
-                    throw new InvalidOperationException("نمایندگی فرستنده یک یا چند حواله ارسالی یافت نشد.");
-
-                var sourceIds = items.Select(x => x.SourceCorrespondentId!.Value).Distinct().ToArray();
+                var sourceIds = items.Where(x => x.SourceCorrespondentId.HasValue)
+                    .Select(x => x.SourceCorrespondentId!.Value).Distinct().ToArray();
                 var sourceAccounts = await _context.Accounts.AsNoTracking()
                     .Where(x => x.CorrespondentId.HasValue && sourceIds.Contains(x.CorrespondentId.Value) && !x.IsArchived)
                     .GroupBy(x => x.CorrespondentId!.Value)
@@ -962,6 +960,23 @@
                     .ToDictionaryAsync(x => x.CorrespondentId, x => x.AccountId);
                 if (sourceIds.Any(id => !sourceAccounts.ContainsKey(id)))
                     throw new InvalidOperationException("حساب فعال نمایندگی فرستنده یک یا چند حواله یافت نشد.");
+                Account? expenseAccount = null;
+                if (items.Any(x => !x.SourceCorrespondentId.HasValue))
+                {
+                    expenseAccount = await _context.Accounts.SingleOrDefaultAsync(x => x.AccountCode == "5002");
+                    if (expenseAccount == null)
+                    {
+                        expenseAccount = new Account
+                        {
+                            AccountCode = "5002", AccountName = "هزینه کمیشن حواله‌های ارسالی",
+                            AccountType = "Expense", CreatedAt = DateTime.UtcNow
+                        };
+                        _context.Accounts.Add(expenseAccount);
+                        await _context.SaveChangesAsync();
+                    }
+                    else if (expenseAccount.IsArchived || expenseAccount.AccountType != "Expense")
+                        throw new InvalidOperationException("حساب 5002 باید یک حساب هزینه فعال باشد.");
+                }
 
                 var oldEntries = await _context.LedgerEntries
                     .Where(x => x.TransactionId == batch.PostingTransactionId).ToListAsync();
@@ -991,13 +1006,19 @@
                     if (afnUsd > 0)
                         Add(clearing.Id, usdId, afnUsd, 0);
                 }
-                foreach (var group in items.GroupBy(x => x.SourceCorrespondentId!.Value))
+                foreach (var group in items.Where(x => x.SourceCorrespondentId.HasValue)
+                             .GroupBy(x => x.SourceCorrespondentId!.Value))
                 {
                     var amount = decimal.Round(group.Sum(x => x.AfnEquivalent), 0,
                         MidpointRounding.AwayFromZero);
                     if (amount > 0)
                         Add(sourceAccounts[group.Key], usdId, 0, amount);
                 }
+                var ownOfficeAmount = decimal.Round(items
+                    .Where(x => !x.SourceCorrespondentId.HasValue).Sum(x => x.AfnEquivalent),
+                    0, MidpointRounding.AwayFromZero);
+                if (ownOfficeAmount > 0 && expenseAccount != null)
+                    Add(expenseAccount.Id, usdId, 0, ownOfficeAmount);
             }
 
             private sealed record SettlementReconversionState(

@@ -208,11 +208,15 @@
 
                 <h6 class="fw-bold mb-3">جزئیات تمام حواله‌ها</h6>
                 <div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle">
-                    <thead><tr><th>نمبر</th><th>تاریخ</th><th>مبلغ</th><th>نرخ روز</th><th>@(detailsOutgoing ? "کمیشن" : "مبنای USD")</th><th>@(detailsOutgoing ? "معادل USD" : "سهم کمیشن USD")</th><th>وضعیت</th></tr></thead>
+                    <thead><tr><th>نمبر</th><th>تاریخ</th>@if (detailsOutgoing){<th>منبع حواله</th>}<th>مبلغ</th><th>نرخ روز</th><th>@(detailsOutgoing ? "کمیشن" : "مبنای USD")</th><th>@(detailsOutgoing ? "معادل USD" : "سهم کمیشن USD")</th><th>وضعیت</th></tr></thead>
                     <tbody>@foreach (var item in selectedDetails.Items)
                     {
                         <tr class="@(!item.IsActive ? "table-secondary" : null)">
                             <td>@item.HawalaNumber</td><td>@item.HawalaDate.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                            @if (detailsOutgoing)
+                            {
+                                <td><span class="badge @(item.SourceType == "OwnOffice" ? "bg-primary" : "bg-info text-dark")">@item.SourceName</span></td>
+                            }
                             <td dir="ltr">@item.SourceAmount.ToString("N0") @item.CurrencyCode</td>
                             <td dir="ltr">@item.SourceToAfnRate.ToString("N4")</td>
                             @if (detailsOutgoing)

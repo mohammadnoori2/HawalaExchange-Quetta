@@ -483,7 +483,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                           AND h.[CreatedAt] >= @FromUtc
                           AND h.[CreatedAt] < @ToUtcExclusive
                           AND ((@HawalaType = N'HawalaReceive' AND (h.[CommissionAmount] IS NULL OR h.[CommissionAmount] = 0))
-                               OR (@HawalaType = N'HawalaSend' AND (h.[AgentCommissionAmount] IS NULL OR h.[AgentCommissionAmount] = 0)))
+                               OR (@HawalaType = N'HawalaSend' AND h.[AgentCommissionAmount] IS NULL))
                           AND currencyData.[CurrencyId] IN (@AfnCurrencyId, @UsdCurrencyId)
                           AND h.[CommissionBaseUsdAmount] IS NOT NULL
                           AND NOT EXISTS
@@ -504,10 +504,6 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                                 N'نرخ پایان روز برای ' + @MissingCurrencies + N' در روزنامچه ثبت نشده است.';
                             THROW 50007, @MissingRateMessage, 1;
                         END;
-
-                        IF @HawalaType = N'HawalaSend' AND
-                           EXISTS (SELECT 1 FROM #Eligible WHERE [SourceCorrespondentId] IS NULL)
-                            THROW 50017, N'حواله ارسالی به حواله دریافتی و نمایندگی فرستنده مرتبط نیست.', 1;
 
                         DECLARE @HawalaCount int = (SELECT COUNT(*) FROM #Eligible);
                         DECLARE @TotalBaseAfn decimal(18,4) =
@@ -591,6 +587,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             THROW 50012, N'حساب 3001 باید یک حساب درآمد فعال باشد.', 1;
 
                         DECLARE @ClearingAccountId bigint;
+                        DECLARE @ExpenseAccountId bigint;
                         IF @HawalaType = N'HawalaSend'
                         BEGIN
                             SELECT @ClearingAccountId = [Id]
@@ -617,7 +614,8 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             (
                                 SELECT 1
                                 FROM #Eligible e
-                                WHERE NOT EXISTS
+                                WHERE e.[SourceCorrespondentId] IS NOT NULL
+                                  AND NOT EXISTS
                                 (
                                     SELECT 1 FROM [dbo].[Accounts] a
                                     WHERE a.[TenantId] = @TenantId
@@ -626,6 +624,28 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                                 )
                             )
                                 THROW 50018, N'حساب فعال نمایندگی فرستنده حواله یافت نشد.', 1;
+
+                            IF EXISTS (SELECT 1 FROM #Eligible WHERE [SourceCorrespondentId] IS NULL)
+                            BEGIN
+                                SELECT @ExpenseAccountId = [Id]
+                                FROM [dbo].[Accounts] WITH (UPDLOCK, HOLDLOCK)
+                                WHERE [TenantId] = @TenantId AND [AccountCode] = N'5002';
+                                IF @ExpenseAccountId IS NULL
+                                BEGIN
+                                    INSERT INTO [dbo].[Accounts]
+                                        ([TenantId], [AccountCode], [AccountName], [AccountType], [IsArchived], [CreatedAt])
+                                    VALUES
+                                        (@TenantId, N'5002', N'هزینه کمیشن حواله‌های ارسالی', N'Expense', 0, SYSUTCDATETIME());
+                                    SET @ExpenseAccountId = SCOPE_IDENTITY();
+                                END
+                                ELSE IF EXISTS
+                                (
+                                    SELECT 1 FROM [dbo].[Accounts]
+                                    WHERE [TenantId] = @TenantId AND [Id] = @ExpenseAccountId
+                                      AND ([IsArchived] = 1 OR [AccountType] <> N'Expense')
+                                )
+                                    THROW 50017, N'حساب 5002 باید یک حساب هزینه فعال باشد.', 1;
+                            END;
                         END;
 
                         DECLARE @BranchId bigint =
@@ -754,7 +774,18 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                                   AND account.[IsArchived] = 0
                                 ORDER BY account.[Id]
                             ) a
+                            WHERE e.[SourceCorrespondentId] IS NOT NULL
                             GROUP BY a.[Id];
+
+                            IF @ExpenseAccountId IS NOT NULL
+                                INSERT INTO [dbo].[LedgerEntries]
+                                    ([TenantId], [TransactionId], [AccountId], [CurrencyId],
+                                     [TalabKar], [BadehKar], [Description], [CreatedAt])
+                                SELECT @TenantId, @TransactionId, @ExpenseAccountId, @UsdCurrencyId,
+                                       0, CAST(SUM(e.[AfnEquivalent]) AS decimal(18,4)),
+                                       N'هزینه کمیشن حواله‌های ارسالی از صرافی خود ما', @Now
+                                FROM #Eligible e
+                                WHERE e.[SourceCorrespondentId] IS NULL;
                         END;
 
                         INSERT INTO [dbo].[AuditLogs]

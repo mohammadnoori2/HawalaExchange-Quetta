@@ -266,10 +266,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             x.AfnEquivalent,
             SourceCorrespondentId = sourceLinks.GetValueOrDefault(x.HawalaId)
         }).ToList();
-        if (activeItems.Any(x => !x.SourceCorrespondentId.HasValue))
-            throw new InvalidOperationException("نمایندگی فرستنده یک یا چند حواله ارسالی یافت نشد.");
-
-        var sourceIds = activeItems.Select(x => x.SourceCorrespondentId!.Value).Distinct().ToArray();
+        var sourceIds = activeItems.Where(x => x.SourceCorrespondentId.HasValue)
+            .Select(x => x.SourceCorrespondentId!.Value).Distinct().ToArray();
         var sourceAccounts = await context.Accounts.AsNoTracking()
             .Where(x => x.CorrespondentId.HasValue && sourceIds.Contains(x.CorrespondentId.Value) && !x.IsArchived)
             .GroupBy(x => x.CorrespondentId!.Value)
@@ -277,6 +275,24 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             .ToDictionaryAsync(x => x.CorrespondentId, x => x.AccountId, cancellationToken);
         if (sourceIds.Any(id => !sourceAccounts.ContainsKey(id)))
             throw new InvalidOperationException("حساب فعال نمایندگی فرستنده یک یا چند حواله یافت نشد.");
+        Account? expenseAccount = null;
+        if (activeItems.Any(x => !x.SourceCorrespondentId.HasValue))
+        {
+            expenseAccount = await context.Accounts
+                .SingleOrDefaultAsync(x => x.AccountCode == "5002", cancellationToken);
+            if (expenseAccount == null)
+            {
+                expenseAccount = new Account
+                {
+                    AccountCode = "5002", AccountName = "هزینه کمیشن حواله‌های ارسالی",
+                    AccountType = "Expense", CreatedAt = DateTime.UtcNow
+                };
+                context.Accounts.Add(expenseAccount);
+                await context.SaveChangesAsync(cancellationToken);
+            }
+            else if (expenseAccount.IsArchived || expenseAccount.AccountType != "Expense")
+                throw new InvalidOperationException("حساب 5002 باید یک حساب هزینه فعال باشد.");
+        }
 
         var oldEntries = await context.LedgerEntries
             .Where(x => x.TransactionId == batch.PostingTransactionId)
@@ -299,7 +315,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 context.LedgerEntries.Add(NewEntry(batch.PostingTransactionId, clearing.Id,
                     usdId, afnUsd, 0, description));
         }
-        foreach (var group in activeItems.GroupBy(x => x.SourceCorrespondentId!.Value))
+        foreach (var group in activeItems.Where(x => x.SourceCorrespondentId.HasValue)
+                     .GroupBy(x => x.SourceCorrespondentId!.Value))
         {
             var amount = decimal.Round(group.Sum(x => x.AfnEquivalent), 0,
                 MidpointRounding.AwayFromZero);
@@ -307,6 +324,13 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 context.LedgerEntries.Add(NewEntry(batch.PostingTransactionId,
                     sourceAccounts[group.Key], usdId, 0, amount, description));
         }
+        var ownOfficeAmount = decimal.Round(activeItems
+            .Where(x => !x.SourceCorrespondentId.HasValue).Sum(x => x.AfnEquivalent),
+            0, MidpointRounding.AwayFromZero);
+        if (ownOfficeAmount > 0 && expenseAccount != null)
+            context.LedgerEntries.Add(NewEntry(batch.PostingTransactionId,
+                expenseAccount.Id, usdId, 0, ownOfficeAmount,
+                "هزینه کمیشن حواله‌های ارسالی از صرافی خود ما"));
     }
 
     public async Task<IReadOnlyList<CorrespondentCommissionBatchDto>> GetHistoryAsync(
@@ -335,7 +359,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             .Include(x => x.CreatedByUser)
             .Include(x => x.PostingTransaction)
             .Include(x => x.ReversalTransaction)
-            .Include(x => x.Items).ThenInclude(x => x.Hawala)
+            .Include(x => x.Items).ThenInclude(x => x.Hawala).ThenInclude(x => x.SourceHawala).ThenInclude(x => x!.Correspondent)
             .Include(x => x.Items).ThenInclude(x => x.SourceCurrency)
             .SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken)
             ?? throw new KeyNotFoundException("محاسبه کمیشن یافت نشد.");
@@ -400,7 +424,9 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                     SourceToAfnRate = x.SourceToAfnRate,
                     AfnEquivalent = x.AfnEquivalent,
                     CommissionAfn = x.CommissionAfn,
-                    IsActive = x.IsActive
+                    IsActive = x.IsActive,
+                    SourceType = x.Hawala.SourceHawalaId.HasValue ? "Correspondent" : "OwnOffice",
+                    SourceName = x.Hawala.SourceHawala?.Correspondent?.Name ?? "صرافی خود ما"
                 }).ToList(),
             LedgerEntries = ledgerEntries
         };
@@ -617,7 +643,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                         x.CreatedAt >= utcStart && x.CreatedAt < utcEnd &&
                         (request.HawalaType == "HawalaReceive"
                             ? x.CommissionAmount == null || x.CommissionAmount == 0
-                            : x.AgentCommissionAmount == null || x.AgentCommissionAmount == 0) &&
+                            : x.AgentCommissionAmount == null) &&
                         (request.HawalaType == "HawalaReceive"
                             ? x.FromCurrencyId == afnId || x.FromCurrencyId == usdId
                             : x.ToCurrencyId == afnId || x.ToCurrencyId == usdId) &&

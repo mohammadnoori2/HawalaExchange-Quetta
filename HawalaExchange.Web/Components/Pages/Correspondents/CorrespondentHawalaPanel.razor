@@ -110,6 +110,7 @@
                     <th>نمبر</th>
                     <th>فرستنده</th>
                     <th>گیرنده</th>
+                    <th style="min-width:130px">محل پرداخت</th>
                     <th>مبلغ</th>
                     <th>@(HawalaType == "HawalaSend" ? "کمیشن نمایندگی" : "کارمزد")</th>
                     <th>کمیشن دوره‌ای</th>
@@ -122,11 +123,11 @@
             <tbody>
                 @if (isLoading)
                 {
-                    <tr><td colspan="11" class="panel-empty"><span class="spinner-border spinner-border-sm text-primary"></span> در حال بارگذاری...</td></tr>
+                    <tr><td colspan="12" class="panel-empty"><span class="spinner-border spinner-border-sm text-primary"></span> در حال بارگذاری...</td></tr>
                 }
                 else if (!hawalas.Any())
                 {
-                    <tr><td colspan="11" class="panel-empty">حواله‌ای در این بخش ثبت نشده است.</td></tr>
+                    <tr><td colspan="12" class="panel-empty">حواله‌ای در این بخش ثبت نشده است.</td></tr>
                 }
                 else
                 {
@@ -145,6 +146,7 @@
                             <td class="fw-bold">@hawala.Number</td>
                             <td>@(hawala.SenderName ?? "—")</td>
                             <td>@(hawala.ReceiverName ?? "—")</td>
+                            <td title="@GetPaymentLocation(hawala)">@GetPaymentLocationName(hawala)</td>
                             <td class="fw-bold text-primary" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount) @hawala.FromCurrencyCode</td>
                             <td dir="ltr">
                                 @if (HawalaType == "HawalaSend")
@@ -196,7 +198,7 @@
                                 }
                             </td>
                             <td><span class="hawala-status @GetStatusClass(hawala.Status)">@hawala.StatusName</span></td>
-                            <td><AppDateTime Value="@hawala.CreatedAt" /></td>
+                            <td><AppDateTime Value="@hawala.CreatedAt" UsePersianCalendar="@UsePersianCalendar" /></td>
                             <td class="text-center operation-cell">
                                 <HawalaOperationMenu Hawala="hawala"
                                                      ShowEdit="true"
@@ -269,7 +271,7 @@
                 <div class="modal-body">
                     <div class="hawala-detail-grid">
                         <div><span>وضعیت</span><strong>@selectedHawala.StatusName</strong></div>
-                        <div><span>تاریخ</span><strong><AppDateTime Value="@selectedHawala.CreatedAt" /></strong></div>
+                        <div><span>تاریخ</span><strong><AppDateTime Value="@selectedHawala.CreatedAt" UsePersianCalendar="@UsePersianCalendar" /></strong></div>
                         <div><span>فرستنده</span><strong>@(selectedHawala.SenderName ?? "—")</strong></div>
                         <div><span>نام پدر فرستنده</span><strong>@(selectedHawala.SenderFatherName ?? "—")</strong></div>
                         <div><span>تلفن فرستنده</span><strong dir="ltr">@(selectedHawala.SenderPhone ?? "—")</strong></div>
@@ -444,6 +446,7 @@
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string SingularTitle { get; set; } = string.Empty;
     [Parameter] public bool CanCreate { get; set; } = true;
+    [Parameter] public bool UsePersianCalendar { get; set; } = true;
 
     private List<HawalaDto> hawalas = new();
     private List<AccountDto> paymentAccounts = new();
@@ -1138,6 +1141,15 @@
             return hawala.PaymentLocationName;
         if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationAddress))
             return hawala.PaymentLocationAddress;
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocation))
+            return hawala.PaymentLocation;
+        return "—";
+    }
+
+    private static string GetPaymentLocationName(HawalaDto hawala)
+    {
+        if (!string.IsNullOrWhiteSpace(hawala.PaymentLocationName))
+            return hawala.PaymentLocationName;
         if (!string.IsNullOrWhiteSpace(hawala.PaymentLocation))
             return hawala.PaymentLocation;
         return "—";

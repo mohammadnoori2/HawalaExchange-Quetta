@@ -111,6 +111,14 @@
         }
 
         <div class="correspondent-hawala-sections">
+            <div class="d-flex justify-content-end align-items-center gap-2 mb-2">
+                <label class="form-label mb-0" for="correspondentHawalaCalendar">نمایش تاریخ:</label>
+                <select id="correspondentHawalaCalendar" class="form-select form-select-sm w-auto"
+                        @bind="usePersianHawalaCalendar">
+                    <option value="true">خورشیدی</option>
+                    <option value="false">میلادی</option>
+                </select>
+            </div>
             <div class="correspondent-hawala-tabs" role="tablist" aria-label="نوع حواله‌های نمایندگی">
                 <button type="button"
                         class="@(activeHawalaType == "HawalaSend" ? "active" : null)"
@@ -131,6 +139,7 @@
                                           HawalaType="HawalaSend"
                                           Title="حواله‌های ارسالی"
                                           SingularTitle="حواله ارسالی"
+                                          UsePersianCalendar="@usePersianHawalaCalendar"
                                           CanCreate="@(!correspondent.IsArchived)" />
             }
             else
@@ -140,6 +149,7 @@
                                           HawalaType="HawalaReceive"
                                           Title="حواله‌های دریافتی"
                                           SingularTitle="حواله دریافتی"
+                                          UsePersianCalendar="@usePersianHawalaCalendar"
                                           CanCreate="@(!correspondent.IsArchived)" />
             }
         </div>
@@ -290,6 +300,7 @@
     private string successMessage = string.Empty;
     private long? loadedCorrespondentId;
     private string activeHawalaType = "HawalaSend";
+    private bool usePersianHawalaCalendar = true;
     private bool currenciesLoaded;
     private DateTime sourceRateDate = DateTime.Today;
     private decimal sourceUsdRateInput;

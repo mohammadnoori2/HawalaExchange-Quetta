@@ -98,6 +98,151 @@ public sealed class HawalaImportStagingPerformanceTests(
     }
 
     [Fact]
+    public async Task Imported_receive_and_paired_send_commissions_reconcile_with_each_other_and_the_ledger()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var locationName = $"Commission place {Guid.NewGuid():N}";
+        var destinationLocation = new PaymentLocation
+        {
+            Name = locationName,
+            NormalizedName = PaymentLocationNameNormalizer.Normalize(locationName),
+            Address = "Test", CreatedBy = fixture.UserId
+        };
+        context.PaymentLocations.Add(destinationLocation);
+        var testId = Guid.NewGuid().ToString("N")[..12];
+        var source = new Correspondent
+        {
+            Code = $"FLOW-S-{testId}", Name = $"Flow source {testId}",
+            CommissionMethod = "PeriodicPerLakh", SettlementCurrencyId = 2
+        };
+        var destination = new Correspondent
+        {
+            Code = $"FLOW-D-{testId}", Name = $"Flow destination {testId}",
+            CommissionMethod = "PeriodicPerLakh", SettlementCurrencyId = 2
+        };
+        context.Correspondents.AddRange(source, destination);
+        await context.SaveChangesAsync();
+        context.Accounts.AddRange(
+            new Account
+            {
+                AccountCode = $"FLOW-S-ACC-{testId}", AccountName = "Flow source account",
+                AccountType = "Correspondent", CorrespondentId = source.Id
+            },
+            new Account
+            {
+                AccountCode = $"FLOW-D-ACC-{testId}", AccountName = "Flow destination account",
+                AccountType = "Correspondent", CorrespondentId = destination.Id
+            });
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        {
+            var number = Random.Shared.NextInt64(300_000_000, 800_000_000);
+            await using var workbook = CreateWorkbook([
+                [number, $"FLOW-USD-{Guid.NewGuid():N}", "Sender USD", "Receiver USD",
+                    fixture.OwnLocation.Name, 100_000, "USD"],
+                [number + 1, $"FLOW-AFN-{Guid.NewGuid():N}", "Sender AFN", "Receiver AFN",
+                    destinationLocation.Name, 300_000, "AFN"]
+            ]);
+            var importService = fixture.CreateImportService(context);
+            var importPreview = await importService.PreviewAsync(
+                workbook, "commission-flow.xlsx", source.Id);
+            Assert.Equal(0, importPreview.InvalidRowCount);
+            var imported = await importService.ConfirmAsync(new ConfirmHawalaImportDto
+            {
+                BatchId = importPreview.BatchId,
+                OwnPaymentLocationName = fixture.OwnLocation.Name,
+                LocationMappings = [new HawalaImportLocationMappingDto
+                {
+                    PaymentLocationName = destinationLocation.Name,
+                    CorrespondentId = destination.Id
+                }]
+            });
+            Assert.Equal(2, imported.ImportedCount);
+            Assert.Equal(1, imported.GeneratedSendCount);
+            context.ChangeTracker.Clear();
+
+            var importedHawalas = await context.Hawalas.AsNoTracking()
+                .Where(x => x.Number == number || x.Number == number + 1)
+                .ToListAsync();
+            var received = importedHawalas.Where(x => x.HawalaType == "HawalaReceive").ToList();
+            var outgoing = Assert.Single(importedHawalas, x => x.HawalaType == "HawalaSend");
+            Assert.Equal(2, received.Count);
+            Assert.Equal(destination.Id, outgoing.CorrespondentId);
+            Assert.Equal(destinationLocation.Id, outgoing.PaymentLocationId);
+            Assert.Contains(received, x => x.Id == outgoing.SourceHawalaId);
+            Assert.Null(outgoing.AgentCommissionAmount);
+
+            var day = outgoing.CreatedAt.ToLocalTime().Date;
+            context.DailyCommissionRates.Add(new DailyCommissionRate
+            {
+                RateDate = day, UsdToAfnRate = 70m, CreatedBy = fixture.UserId
+            });
+            context.CorrespondentDailyCommissionRates.Add(new CorrespondentDailyCommissionRate
+            {
+                CorrespondentId = source.Id,
+                RateDate = day, UsdToAfnRate = 66m, CreatedBy = fixture.UserId
+            });
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+
+            var incomingRequest = new CorrespondentCommissionPreviewRequestDto
+            {
+                CorrespondentId = source.Id,
+                HawalaType = "HawalaReceive", PeriodFrom = day, PeriodTo = day,
+                CommissionPerLakhAfn = 200m
+            };
+            var outgoingRequest = new CorrespondentCommissionPreviewRequestDto
+            {
+                CorrespondentId = destination.Id,
+                HawalaType = "HawalaSend", PeriodFrom = day, PeriodTo = day,
+                CommissionPerLakhAfn = 200m,
+                PaymentLocationRates = [new PaymentLocationCommissionRateDto
+                {
+                    PaymentLocationId = destinationLocation.Id, PerLakhRate = 300m
+                }]
+            };
+            var commissionService = fixture.CreateCommissionService(context);
+            var incomingPreview = await commissionService.PreviewAsync(incomingRequest);
+            var outgoingPreview = await commissionService.PreviewAsync(outgoingRequest);
+            Assert.Equal(2, incomingPreview.HawalaCount);
+            Assert.Equal(104_285.7143m, incomingPreview.TotalBaseAfn);
+            Assert.Equal(209m, incomingPreview.TotalCommissionUsd);
+            Assert.Equal(1, outgoingPreview.HawalaCount);
+            Assert.Equal(900m, outgoingPreview.TotalCommissionAfn);
+            Assert.Equal(13.64m, outgoingPreview.TotalBaseAfn);
+            Assert.Equal(66m, outgoingPreview.Items[0].SourceToAfnRate);
+            Assert.Equal(300m, outgoingPreview.Items[0].PerLakhRate);
+
+            var incomingBatch = await commissionService.PostAsync(incomingRequest);
+            var outgoingBatch = await commissionService.PostAsync(outgoingRequest);
+            context.ChangeTracker.Clear();
+            foreach (var batchId in new[] { incomingBatch.Id, outgoingBatch.Id })
+            {
+                var transactionId = await context.CorrespondentCommissionBatches.AsNoTracking()
+                    .Where(x => x.Id == batchId).Select(x => x.PostingTransactionId)
+                    .SingleAsync();
+                var ledger = await context.LedgerEntries.AsNoTracking()
+                    .Where(x => x.TransactionId == transactionId).ToListAsync();
+                Assert.NotEmpty(ledger);
+                Assert.All(ledger.GroupBy(x => x.CurrencyId), group =>
+                    Assert.Equal(group.Sum(x => x.TalabKar), group.Sum(x => x.BadehKar)));
+            }
+            Assert.Equal(0, (await commissionService.PreviewAsync(incomingRequest)).HawalaCount);
+            Assert.Equal(0, (await commissionService.PreviewAsync(outgoingRequest)).HawalaCount);
+
+            await new PaymentLocationAssignmentService(context).AssignAsync(
+                destinationLocation.Id, source.Id, day.AddDays(1));
+            context.ChangeTracker.Clear();
+            var originalOutgoing = await context.Hawalas.AsNoTracking()
+                .SingleAsync(x => x.Id == outgoing.Id);
+            Assert.Equal(destination.Id, originalOutgoing.CorrespondentId);
+        }
+    }
+
+    [Fact]
     public async Task First_import_can_choose_own_location_and_map_different_payment_place_to_existing_correspondent()
     {
         await using var context = fixture.CreateContext();

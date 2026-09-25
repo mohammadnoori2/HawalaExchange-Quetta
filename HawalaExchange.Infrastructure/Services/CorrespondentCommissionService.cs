@@ -113,6 +113,10 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         decimal commissionPerLakhAfn,
         bool isOutgoing)
     {
+        if (deductions.Count == 0)
+            return;
+
+        var originalBase = preview.TotalBaseAfn;
         foreach (var deduction in deductions)
         {
             preview.Items.Add(new CorrespondentCommissionItemDto
@@ -133,7 +137,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         }
 
         preview.TotalBaseAfn = decimal.Round(
-            preview.Items.Sum(x => x.AfnEquivalent), isOutgoing ? 2 : 4,
+            originalBase - deductions.Sum(x => Math.Abs(x.AfnEquivalent)), isOutgoing ? 2 : 4,
             MidpointRounding.AwayFromZero);
         if (isOutgoing)
         {
@@ -162,6 +166,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         var batch = await context.CorrespondentCommissionBatches
             .Include(x => x.Items)
             .SingleAsync(x => x.Id == result.Id, cancellationToken);
+        var originalBase = batch.TotalBaseAfn;
         foreach (var deduction in deductions)
         {
             batch.Items.Add(new CorrespondentCommissionBatchItem
@@ -180,7 +185,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         }
 
         batch.TotalBaseAfn = decimal.Round(
-            batch.Items.Sum(x => x.AfnEquivalent), isOutgoing ? 2 : 4,
+            originalBase - deductions.Sum(x => Math.Abs(x.AfnEquivalent)), isOutgoing ? 2 : 4,
             MidpointRounding.AwayFromZero);
         var currencyCodes = await context.Currencies.AsNoTracking()
             .Where(x => x.Code == "AFN" || x.Code == "USD")

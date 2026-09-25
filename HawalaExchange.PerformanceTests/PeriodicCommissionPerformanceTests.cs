@@ -84,6 +84,77 @@ public sealed class PeriodicCommissionPerformanceTests(
     }
 
     [Fact]
+    public async Task Incoming_commission_uses_each_hawalas_own_day_rate_then_posts_one_balanced_usd_amount()
+    {
+        var firstDay = new DateTime(2033, 2, 10);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        context.Hawalas.AddRange(
+            NewHawala(98_720_001, 1, 300_000m, firstDay, "Paid"),
+            NewHawala(98_720_002, 1, 200_000m, firstDay.AddDays(1), "Paid"),
+            NewHawala(98_720_003, 2, 100_000m, firstDay, "Paid"));
+        context.DailyCommissionRates.AddRange(
+            NewDailyRate(firstDay, 66m),
+            NewDailyRate(firstDay.AddDays(1), 67m));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var request = NewRequest(firstDay, firstDay.AddDays(1), 66m);
+        var service = fixture.CreateCommissionService(context);
+        var preview = await service.PreviewAsync(request);
+
+        Assert.Equal(3, preview.HawalaCount);
+        Assert.Equal(107_530.5292m, preview.TotalBaseAfn);
+        Assert.Equal(215m, preview.TotalCommissionUsd);
+        Assert.Equal(66m, preview.Items.Single(x => x.HawalaNumber == 98_720_001).SourceToAfnRate);
+        Assert.Equal(67m, preview.Items.Single(x => x.HawalaNumber == 98_720_002).SourceToAfnRate);
+        Assert.Equal(100_000m, preview.Items.Single(x => x.HawalaNumber == 98_720_003).AfnEquivalent);
+
+        var posted = await service.PostAsync(request);
+        context.ChangeTracker.Clear();
+        var batch = await context.CorrespondentCommissionBatches.AsNoTracking()
+            .Include(x => x.Items).SingleAsync(x => x.Id == posted.Id);
+        var entries = await context.LedgerEntries.AsNoTracking()
+            .Where(x => x.TransactionId == batch.PostingTransactionId).ToListAsync();
+        var valued = await context.Hawalas.AsNoTracking()
+            .Where(x => x.Number >= 98_720_001 && x.Number <= 98_720_003)
+            .OrderBy(x => x.Number).ToListAsync();
+
+        Assert.Equal(3, batch.Items.Count);
+        Assert.Equal(66m, valued[0].CommissionUsdToAfnRate);
+        Assert.Equal(67m, valued[1].CommissionUsdToAfnRate);
+        Assert.Null(valued[2].CommissionUsdToAfnRate);
+        Assert.Equal(2, entries.Count);
+        Assert.All(entries, x => Assert.Equal(2, x.CurrencyId));
+        Assert.Equal(215m, entries.Sum(x => x.TalabKar));
+        Assert.Equal(entries.Sum(x => x.TalabKar), entries.Sum(x => x.BadehKar));
+
+        var cancelled = await context.Hawalas.SingleAsync(x => x.Number == 98_720_001);
+        cancelled.Status = "Cancel";
+        var cancelledItem = await context.CorrespondentCommissionBatchItems
+            .SingleAsync(x => x.BatchId == batch.Id && x.HawalaId == cancelled.Id);
+        cancelledItem.IsActive = false;
+        context.Hawalas.Add(NewHawala(98_720_004, 2, 100_000m, firstDay, "Paid"));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var adjustedPreview = await service.PreviewAsync(request);
+        Assert.Equal(95_454.5455m, adjustedPreview.TotalBaseAfn);
+        Assert.Equal(191m, adjustedPreview.TotalCommissionUsd);
+        var adjustedBatch = await service.PostAsync(request);
+        Assert.Equal(adjustedPreview.TotalBaseAfn, adjustedBatch.TotalBaseAfn);
+        Assert.Equal(adjustedPreview.TotalCommissionUsd, adjustedBatch.TotalCommissionUsd);
+        var adjustedTransactionId = await context.CorrespondentCommissionBatches.AsNoTracking()
+            .Where(b => b.Id == adjustedBatch.Id).Select(b => b.PostingTransactionId)
+            .SingleAsync();
+        var adjustedLedger = await context.LedgerEntries.AsNoTracking()
+            .Where(x => x.TransactionId == adjustedTransactionId)
+            .ToListAsync();
+        Assert.Equal(191m, adjustedLedger.Sum(x => x.TalabKar));
+        Assert.Equal(adjustedLedger.Sum(x => x.TalabKar), adjustedLedger.Sum(x => x.BadehKar));
+    }
+
+    [Fact]
     public async Task Procedure_calculates_posts_prevents_duplicates_and_reverses()
     {
         var period = new DateTime(2032, 3, 10);

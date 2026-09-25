@@ -562,7 +562,8 @@ public class JournalService : IJournalService
                                   item.Hawala.CreatedAt >= utcStart &&
                                   item.Hawala.CreatedAt < utcEnd &&
                                   (item.Hawala.HawalaType == "HawalaReceive" ||
-                                   item.Hawala.HawalaType == "HawalaSend"));
+                                   (item.Hawala.HawalaType == "HawalaSend" &&
+                                    item.Hawala.SourceHawalaId == null)));
             if (hasPostedCommission)
             {
                 throw new InvalidOperationException(
@@ -612,7 +613,8 @@ public class JournalService : IJournalService
         var utcStart = date.Date.ToUniversalTime();
         var utcEnd = date.Date.AddDays(1).ToUniversalTime();
         var hawalas = await _context.Hawalas
-            .Where(x => (x.HawalaType == "HawalaReceive" || x.HawalaType == "HawalaSend") &&
+            .Where(x => (x.HawalaType == "HawalaReceive" ||
+                         (x.HawalaType == "HawalaSend" && x.SourceHawalaId == null)) &&
                         x.Status != "Cancel" &&
                         x.CreatedAt >= utcStart &&
                         x.CreatedAt < utcEnd &&

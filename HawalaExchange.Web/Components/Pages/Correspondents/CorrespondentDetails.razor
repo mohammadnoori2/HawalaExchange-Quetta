@@ -7,6 +7,7 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
+@inject ICorrespondentDailyRateService CorrespondentDailyRateService
 @inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject NavigationManager NavigationManager
 @implements IDisposable
@@ -83,6 +84,30 @@
         @if (correspondent.IsArchived)
         {
             <div class="alert alert-warning py-2 mb-2">این نمایندگی بایگانی است؛ حواله‌های قبلی قابل مشاهده‌اند، اما برای ثبت حواله جدید ابتدا آن را از بایگانی خارج کنید.</div>
+        }
+
+        @if (!correspondent.IsArchived)
+        {
+            <div class="card mb-3"><div class="card-body row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold" for="sourceRateDate">تاریخ نرخ کمیشن حواله‌های ارسالی</label>
+                    <input id="sourceRateDate" type="date" class="form-control"
+                           max="@DateTime.Today.ToString("yyyy-MM-dd")"
+                           @bind="sourceRateDate" @bind:format="yyyy-MM-dd" @bind:after="LoadSourceRateAsync" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold" for="sourceUsdRate">نرخ USD به AFN نمایندگی مبدأ</label>
+                    <InputNumber id="sourceUsdRate" class="form-control" min="0.00000001" step="0.00000001"
+                                 @bind-Value="sourceUsdRateInput" />
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-primary w-100" disabled="@(isSavingSourceRate || sourceRateDate > DateTime.Today)"
+                            @onclick="SaveSourceRateAsync">
+                        @(isSavingSourceRate ? "در حال ذخیره..." : "ذخیره نرخ نمایندگی")
+                    </button>
+                </div>
+                <div class="col-12 form-text">این نرخ فقط برای تبدیل کمیشن حواله‌های ارسالیِ افغانیِ دریافت‌شده از همین نمایندگی در همین روز استفاده می‌شود؛ نرخ عمومی روزنامچه تغییر نمی‌کند.</div>
+            </div></div>
         }
 
         <div class="correspondent-hawala-sections">
@@ -266,6 +291,9 @@
     private long? loadedCorrespondentId;
     private string activeHawalaType = "HawalaSend";
     private bool currenciesLoaded;
+    private DateTime sourceRateDate = DateTime.Today;
+    private decimal sourceUsdRateInput;
+    private bool isSavingSourceRate;
     private CancellationTokenSource? pageLoadCts;
     private int pageLoadVersion;
 
@@ -301,6 +329,8 @@
 
             correspondent = page.Correspondent;
             correspondentAccountId = page.AccountId;
+            sourceRateDate = DateTime.Today;
+            await LoadSourceRateAsync();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -314,6 +344,38 @@
         {
             if (loadVersion == pageLoadVersion)
                 isLoading = false;
+        }
+    }
+
+    private async Task LoadSourceRateAsync()
+    {
+        try
+        {
+            var rate = await CorrespondentDailyRateService.GetAsync(CorrespondentId, sourceRateDate);
+            sourceUsdRateInput = rate.UsdToAfnRate ?? 0;
+        }
+        catch (Exception ex)
+        {
+            pageError = $"بارگذاری نرخ نمایندگی انجام نشد: {ex.Message}";
+        }
+    }
+
+    private async Task SaveSourceRateAsync()
+    {
+        try
+        {
+            isSavingSourceRate = true;
+            pageError = string.Empty;
+            await CorrespondentDailyRateService.SaveAsync(CorrespondentId, sourceRateDate, sourceUsdRateInput);
+            successMessage = $"نرخ {sourceRateDate:yyyy-MM-dd} برای نمایندگی «{correspondent?.Name}» ثبت شد.";
+        }
+        catch (Exception ex)
+        {
+            pageError = $"ذخیره نرخ نمایندگی انجام نشد: {ex.Message}";
+        }
+        finally
+        {
+            isSavingSourceRate = false;
         }
     }
 

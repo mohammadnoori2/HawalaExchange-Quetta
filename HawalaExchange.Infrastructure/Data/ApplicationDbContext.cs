@@ -134,6 +134,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<CompanySetting> CompanySettings { get; set; }
         public DbSet<CashDailyBalance> CashDailyBalances { get; set; }
         public DbSet<DailyCommissionRate> DailyCommissionRates { get; set; }
+        public DbSet<CorrespondentDailyCommissionRate> CorrespondentDailyCommissionRates { get; set; }
 
         public const string CurrencyInventoryAccountCode = "1201";
         public const string CurrencySaleLiabilityAccountCode = "2101";
@@ -1568,6 +1569,9 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<DailyCommissionRate>()
                 .HasIndex(x => new { x.TenantId, x.RateDate })
                 .IsUnique();
+            modelBuilder.Entity<CorrespondentDailyCommissionRate>()
+                .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.RateDate })
+                .IsUnique();
             modelBuilder.Entity<Account>().HasIndex(x => new { x.TenantId, x.AccountCode }).IsUnique();
             modelBuilder.Entity<Account>()
                 .HasIndex(x => new { x.TenantId, x.CustomerId })
@@ -1962,6 +1966,13 @@ namespace HawalaExchange.Infrastructure.Data
                 .HasOne(x => x.SettlementCurrency)
                 .WithMany()
                 .HasForeignKey(x => x.SettlementCurrencyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CorrespondentDailyCommissionRate>()
+                .HasOne(x => x.Correspondent)
+                .WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.CorrespondentId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id })
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<CompanySetting>()

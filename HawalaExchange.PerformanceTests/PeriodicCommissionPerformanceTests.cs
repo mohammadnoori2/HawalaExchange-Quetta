@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Domain.Entities;
+using HawalaExchange.Infrastructure.Services;
 using HawalaExchange.PerformanceTests.Infrastructure;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,44 @@ public sealed class PeriodicCommissionPerformanceTests(
     SqlServerPerformanceFixture fixture,
     ITestOutputHelper output)
 {
+    [Fact]
+    public async Task Source_daily_rate_is_saved_without_changing_journal_rate()
+    {
+        var day = DateTime.Today.AddYears(-7).AddDays(-41);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var service = new CorrespondentDailyRateService(context);
+
+        var saved = await service.SaveAsync(fixture.SourceCorrespondent.Id, day, 66.25m);
+        Assert.Equal(66.25m, saved.UsdToAfnRate);
+        Assert.Null(await context.DailyCommissionRates.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.RateDate == day));
+        Assert.Equal(66.25m, (await service.GetAsync(fixture.SourceCorrespondent.Id, day)).UsdToAfnRate);
+    }
+
+    [Fact]
+    public async Task Outgoing_afn_requires_source_rate_even_when_global_rate_exists()
+    {
+        var day = new DateTime(2031, 8, 14);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var source = NewHawala(98_710_001, 1, 100_000m, day, "Paid");
+        context.Hawalas.Add(source);
+        context.DailyCommissionRates.Add(NewDailyRate(day, 70m));
+        await context.SaveChangesAsync();
+        context.Hawalas.Add(NewOutgoingHawala(98_710_002, 1, 100_000m, day, source.Id));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var request = NewRequest(day, day, 70m);
+        request.CorrespondentId = fixture.DestinationCorrespondent.Id;
+        request.HawalaType = "HawalaSend";
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            fixture.CreateCommissionService(context).PreviewAsync(request));
+        Assert.Contains("نمایندگی مبدأ", error.Message);
+        Assert.Contains("2031-08-14", error.Message);
+    }
+
     [Fact]
     public async Task Saving_daily_rate_persists_usd_equivalent_for_afn_and_usd_hawalas()
     {
@@ -171,8 +210,11 @@ public sealed class PeriodicCommissionPerformanceTests(
         var commissionedSource = NewHawala(98_700_007, 2, 500_000m, period, "Paid");
         context.Hawalas.AddRange(usdSource, firstAfnSource, secondAfnSource, commissionedSource);
         context.DailyCommissionRates.AddRange(
-            NewDailyRate(period, 66m),
-            NewDailyRate(period.AddDays(1), 67m));
+            NewDailyRate(period, 70m),
+            NewDailyRate(period.AddDays(1), 70m));
+        context.CorrespondentDailyCommissionRates.AddRange(
+            NewSourceDailyRate(fixture.SourceCorrespondent.Id, period, 66m),
+            NewSourceDailyRate(fixture.SourceCorrespondent.Id, period.AddDays(1), 67m));
         await context.SaveChangesAsync();
         context.Hawalas.AddRange(
             NewOutgoingHawala(98_700_004, 2, 100_000m, period, usdSource.Id),
@@ -374,6 +416,16 @@ public sealed class PeriodicCommissionPerformanceTests(
 
     private DailyCommissionRate NewDailyRate(DateTime date, decimal usdToAfnRate) => new()
     {
+        RateDate = date.Date,
+        UsdToAfnRate = usdToAfnRate,
+        CreatedBy = fixture.UserId,
+        CreatedAt = DateTime.UtcNow
+    };
+
+    private CorrespondentDailyCommissionRate NewSourceDailyRate(
+        long correspondentId, DateTime date, decimal usdToAfnRate) => new()
+    {
+        CorrespondentId = correspondentId,
         RateDate = date.Date,
         UsdToAfnRate = usdToAfnRate,
         CreatedBy = fixture.UserId,

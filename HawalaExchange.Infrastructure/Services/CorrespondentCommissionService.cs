@@ -637,6 +637,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             throw new InvalidOperationException("ارزهای فعال USD و AFN در سیستم یافت نشد.");
 
         var hawalas = await context.Hawalas
+            .Include(x => x.SourceHawala)
             .Where(x => x.CorrespondentId == request.CorrespondentId &&
                         x.HawalaType == request.HawalaType &&
                         x.Status != "Cancel" &&
@@ -654,7 +655,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             return;
 
         var rateDates = hawalas.Where(x =>
-                (request.HawalaType == "HawalaReceive" ? x.FromCurrencyId : x.ToCurrencyId) == afnId)
+                (request.HawalaType == "HawalaReceive" ? x.FromCurrencyId : x.ToCurrencyId) == afnId &&
+                (request.HawalaType == "HawalaReceive" || x.SourceHawala?.CorrespondentId is null))
             .Select(x => x.CreatedAt.ToLocalTime().Date)
             .Distinct()
             .ToArray();
@@ -666,6 +668,30 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             throw new InvalidOperationException(
                 $"نرخ پایان روز برای تاریخ‌های زیر ثبت نشده است: {string.Join("، ", missingDates.Select(x => x.ToString("yyyy-MM-dd")))}");
 
+        var sourcedHawalas = hawalas.Where(x => request.HawalaType == "HawalaSend" &&
+            x.ToCurrencyId == afnId && x.SourceHawala?.CorrespondentId is not null).ToList();
+        var sourceIds = sourcedHawalas.Select(x => x.SourceHawala!.CorrespondentId!.Value)
+            .Distinct().ToArray();
+        var sourceDates = sourcedHawalas.Select(x => x.CreatedAt.ToLocalTime().Date)
+            .Distinct().ToArray();
+        var sourceRates = sourceIds.Length == 0
+            ? new Dictionary<(long CorrespondentId, DateTime Date), decimal>()
+            : (await context.CorrespondentDailyCommissionRates.AsNoTracking()
+                .Where(x => sourceIds.Contains(x.CorrespondentId) && sourceDates.Contains(x.RateDate))
+                .ToListAsync(cancellationToken))
+                .ToDictionary(x => (x.CorrespondentId, x.RateDate), x => x.UsdToAfnRate);
+        var missingSource = sourcedHawalas.FirstOrDefault(x => !sourceRates.ContainsKey(
+            (x.SourceHawala!.CorrespondentId!.Value, x.CreatedAt.ToLocalTime().Date)));
+        if (missingSource is not null)
+        {
+            var sourceId = missingSource.SourceHawala!.CorrespondentId!.Value;
+            var sourceName = await context.Correspondents.AsNoTracking()
+                .Where(x => x.Id == sourceId).Select(x => x.Name)
+                .SingleAsync(cancellationToken);
+            throw new InvalidOperationException(
+                $"نرخ روز {missingSource.CreatedAt.ToLocalTime():yyyy-MM-dd} برای نمایندگی مبدأ «{sourceName}» ثبت نشده است.");
+        }
+
         var valuedAt = DateTime.UtcNow;
         foreach (var hawala in hawalas)
         {
@@ -676,7 +702,10 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             var amount = request.HawalaType == "HawalaReceive"
                 ? hawala.FromAmount
                 : hawala.ToAmount ?? hawala.FromAmount;
-            var rate = currencyId == afnId ? rates[valuationDate] : (decimal?)null;
+            var rate = currencyId != afnId ? (decimal?)null
+                : request.HawalaType == "HawalaSend" && hawala.SourceHawala?.CorrespondentId is long sourceId
+                    ? sourceRates[(sourceId, valuationDate)]
+                    : rates[valuationDate];
             hawala.CommissionBaseUsdAmount = currencyId == usdId
                 ? decimal.Round(amount, 8, MidpointRounding.AwayFromZero)
                 : decimal.Round(amount / rate!.Value, 8, MidpointRounding.AwayFromZero);

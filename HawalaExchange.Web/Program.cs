@@ -134,6 +134,7 @@ public partial class Program
         builder.Services.AddScoped<ICapitalInvestmentService, CapitalInvestmentService>();
         builder.Services.AddScoped<IPaymentLocationService, PaymentLocationService>();
         builder.Services.AddScoped<IPaymentLocationAssignmentService, PaymentLocationAssignmentService>();
+builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRateService>();
         builder.Services.AddScoped<IFileService, FileService>();
 
         builder.Services.AddScoped<IAccountMoneyOperationService, AccountMoneyOperationService>();

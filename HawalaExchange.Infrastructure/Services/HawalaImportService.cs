@@ -56,8 +56,7 @@ public sealed class HawalaImportService : IHawalaImportService
             .AsNoTracking()
             .Where(x => x.OwnPaymentLocationId.HasValue)
             .Select(x => new { Id = x.OwnPaymentLocationId!.Value, Name = x.OwnPaymentLocation!.Name })
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new InvalidOperationException("ابتدا در تنظیمات شرکت، محل پرداخت دفتر خود صرافی را تعیین کنید.");
+            .FirstOrDefaultAsync(cancellationToken);
 
         await using var memory = new MemoryStream();
         await file.CopyToAsync(memory, cancellationToken);
@@ -76,7 +75,7 @@ public sealed class HawalaImportService : IHawalaImportService
             throw new InvalidOperationException("این فایل قبلاً به‌طور کامل ثبت شده است.");
 
         memory.Position = 0;
-        var rows = await ParseRowsAsync(memory, correspondentId, ownLocation.Id, progress, cancellationToken);
+        var rows = await ParseRowsAsync(memory, correspondentId, ownLocation?.Id, progress, cancellationToken);
         if (rows.Count == 0)
             throw new InvalidOperationException("هیچ ردیف قابل خواندن در فایل پیدا نشد.");
         if (rows.Count > MaximumRows)
@@ -85,7 +84,7 @@ public sealed class HawalaImportService : IHawalaImportService
         var batch = new HawalaImportBatch
         {
             CorrespondentId = correspondentId,
-            OwnPaymentLocationId = ownLocation.Id,
+            OwnPaymentLocationId = ownLocation?.Id,
             FileName = Path.GetFileName(fileName),
             FileHash = fileHash,
             Status = "Preview",
@@ -124,7 +123,14 @@ public sealed class HawalaImportService : IHawalaImportService
             .ToListAsync(cancellationToken);
 
         Report(progress, 100, "پیش‌نمایش آماده شد.");
-        return BuildPreview(batch, correspondent.Name, ownLocation.Id, ownLocation.Name);
+        var locationIds = batch.Rows.Where(x => x.PaymentLocationId.HasValue)
+            .Select(x => x.PaymentLocationId!.Value).Distinct().ToList();
+        var currentAssignments = await _context.PaymentLocationCorrespondentAssignments.AsNoTracking()
+            .Where(x => locationIds.Contains(x.PaymentLocationId) && x.EffectiveFrom <= DateTime.Today &&
+                        (x.EffectiveTo == null || DateTime.Today < x.EffectiveTo))
+            .Include(x => x.Correspondent)
+            .ToDictionaryAsync(x => x.PaymentLocationId, cancellationToken);
+        return BuildPreview(batch, correspondent.Name, ownLocation?.Id, ownLocation?.Name ?? string.Empty, currentAssignments);
     }
 
     public async Task<HawalaImportResultDto> ConfirmAsync(
@@ -180,49 +186,137 @@ public sealed class HawalaImportService : IHawalaImportService
             }
             Report(progress, 25, "محل‌های پرداخت آماده شدند.");
 
-            var ownLocationId = batch.OwnPaymentLocationId
-                ?? throw new InvalidOperationException("محل پرداخت دفتر خود صرافی در این پیش‌نمایش مشخص نیست؛ فایل را دوباره انتخاب کنید.");
             var locationIds = batch.Rows.Where(x => x.PaymentLocationId.HasValue)
                 .Select(x => x.PaymentLocationId!.Value).Distinct().ToList();
             var locations = await _context.PaymentLocations
                 .Where(x => locationIds.Contains(x.Id))
                 .ToDictionaryAsync(x => x.Id, cancellationToken);
-            var activeCorrespondents = (await _context.Correspondents
+            var ownLocationId = batch.OwnPaymentLocationId;
+            if (!string.IsNullOrWhiteSpace(request.OwnPaymentLocationName))
+            {
+                var ownKey = PaymentLocationNameNormalizer.Normalize(request.OwnPaymentLocationName);
+                var matchesConfiguredOwn = batch.OwnPaymentLocationId.HasValue &&
+                    PaymentLocationNameNormalizer.Normalize(
+                        await _context.PaymentLocations.AsNoTracking()
+                            .Where(x => x.Id == batch.OwnPaymentLocationId.Value)
+                            .Select(x => x.Name).SingleAsync(cancellationToken)) == ownKey;
+                var ownRows = batch.Rows.Where(x =>
+                    PaymentLocationNameNormalizer.Normalize(x.PaymentLocationText) == ownKey ||
+                    (x.PaymentLocationId.HasValue && locations.TryGetValue(x.PaymentLocationId.Value, out var resolved) &&
+                     PaymentLocationNameNormalizer.Normalize(resolved.Name) == ownKey)).ToList();
+                if (ownRows.Count == 0 && matchesConfiguredOwn)
+                    ownLocationId = batch.OwnPaymentLocationId;
+                else if (ownRows.Count == 0 || ownRows.Any(x => !x.PaymentLocationId.HasValue) ||
+                    ownRows.Select(x => x.PaymentLocationId).Distinct().Count() != 1)
+                    throw new InvalidOperationException("محل پرداخت دفتر خود صرافی در فایل پیدا نشد؛ آن را از فهرست محل‌های فایل انتخاب کنید.");
+                else
+                    ownLocationId = ownRows[0].PaymentLocationId;
+            }
+            if (!ownLocationId.HasValue ||
+                (ownLocationId != batch.OwnPaymentLocationId && !locations.ContainsKey(ownLocationId.Value)))
+                throw new InvalidOperationException("محل پرداخت دفتر خود صرافی را پیش از ثبت از فهرست فایل انتخاب کنید.");
+
+            var activeCorrespondentList = await _context.Correspondents
                     .Where(x => !x.IsArchived)
-                    .ToListAsync(cancellationToken))
+                    .ToListAsync(cancellationToken);
+            var activeCorrespondentsById = activeCorrespondentList.ToDictionary(x => x.Id);
+            var activeCorrespondents = activeCorrespondentList
                 .GroupBy(x => PaymentLocationNameNormalizer.Normalize(x.Name))
                 .ToDictionary(x => x.Key, x => x.First(), StringComparer.Ordinal);
             var confirmedCorrespondents = request.CorrespondentsToCreate
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(PaymentLocationNameNormalizer.Normalize)
                 .ToHashSet(StringComparer.Ordinal);
+            var useExplicitMappings = request.LocationMappings.Count > 0;
+            var mappings = new Dictionary<string, HawalaImportLocationMappingDto>(StringComparer.Ordinal);
+            foreach (var mapping in request.LocationMappings)
+            {
+                var key = PaymentLocationNameNormalizer.Normalize(mapping.PaymentLocationName);
+                if (string.IsNullOrWhiteSpace(key) || !mappings.TryAdd(key, mapping))
+                    throw new InvalidOperationException("برای هر محل پرداخت باید دقیقاً یک تعیین نمایندگی ثبت شود.");
+            }
+            var assignmentHistory = await _context.PaymentLocationCorrespondentAssignments.AsNoTracking()
+                .Where(x => locationIds.Contains(x.PaymentLocationId))
+                .OrderByDescending(x => x.EffectiveFrom)
+                .ToListAsync(cancellationToken);
+            var latestAssignments = assignmentHistory.GroupBy(x => x.PaymentLocationId)
+                .ToDictionary(x => x.Key, x => x.First());
 
             foreach (var group in batch.Rows
-                         .Where(x => x.PaymentLocationId != ownLocationId)
-                         .GroupBy(x => PaymentLocationNameNormalizer.Normalize(
-                             locations[x.PaymentLocationId!.Value].Name)))
+                         .Where(x => x.PaymentLocationId != ownLocationId.Value)
+                         .GroupBy(x => x.PaymentLocationId!.Value))
             {
-                if (!activeCorrespondents.TryGetValue(group.Key, out var destination))
-                {
-                    var locationName = locations[group.First().PaymentLocationId!.Value].Name;
-                    var originalKey = PaymentLocationNameNormalizer.Normalize(group.First().PaymentLocationText);
-                    if (!confirmedCorrespondents.Contains(group.Key) && !confirmedCorrespondents.Contains(originalKey))
-                        throw new InvalidOperationException($"ایجاد نمایندگی «{locationName}» باید تأیید شود.");
+                var locationName = locations[group.Key].Name;
+                var locationKey = PaymentLocationNameNormalizer.Normalize(locationName);
+                var currentAssignment = latestAssignments.GetValueOrDefault(group.Key);
+                if (currentAssignment is not null &&
+                    (currentAssignment.EffectiveFrom > DateTime.Today ||
+                     currentAssignment.EffectiveTo <= DateTime.Today))
+                    throw new InvalidOperationException($"برای محل پرداخت «{locationName}» مسئولیت آینده ثبت شده است؛ ابتدا تاریخچه مسئولیت آن را بررسی کنید.");
 
-                    var createdCorrespondent = await _correspondentService.CreateAsync(new CreateCorrespondentDto
+                Correspondent destination;
+                if (useExplicitMappings)
+                {
+                    if (!mappings.TryGetValue(locationKey, out var mapping) ||
+                        (mapping.CreateCorrespondent == mapping.CorrespondentId.HasValue))
+                        throw new InvalidOperationException($"برای محل پرداخت «{locationName}» یک نمایندگی مسئول انتخاب کنید.");
+                    if (currentAssignment is not null)
+                    {
+                        if (mapping.CorrespondentId != currentAssignment.CorrespondentId)
+                            throw new InvalidOperationException($"مسئول محل پرداخت «{locationName}» قبلاً ثبت شده است؛ برای تغییر آن از صفحهٔ محل‌های پرداخت و تاریخ مؤثر استفاده کنید.");
+                        destination = activeCorrespondentsById.GetValueOrDefault(currentAssignment.CorrespondentId)
+                            ?? throw new InvalidOperationException($"نمایندگی مسئول محل پرداخت «{locationName}» غیرفعال است.");
+                    }
+                    else if (mapping.CreateCorrespondent)
+                    {
+                        if (activeCorrespondents.ContainsKey(locationKey))
+                            throw new InvalidOperationException($"نمایندگی «{locationName}» از قبل وجود دارد؛ آن را از فهرست انتخاب کنید.");
+                        var createdDestination = await _correspondentService.CreateAsync(new CreateCorrespondentDto
+                        {
+                            Name = locationName,
+                            City = locationName,
+                            CommissionMethod = "PerTransaction"
+                        });
+                        destination = await _context.Correspondents.SingleAsync(
+                            x => x.Id == createdDestination.Id, cancellationToken);
+                        activeCorrespondentsById[destination.Id] = destination;
+                        activeCorrespondents[locationKey] = destination;
+                    }
+                    else if (!activeCorrespondentsById.TryGetValue(mapping.CorrespondentId!.Value, out destination!))
+                        throw new InvalidOperationException($"نمایندگی انتخاب‌شده برای «{locationName}» فعال یا معتبر نیست.");
+                }
+                else if (currentAssignment is not null)
+                {
+                    destination = activeCorrespondentsById.GetValueOrDefault(currentAssignment.CorrespondentId)
+                        ?? throw new InvalidOperationException($"نمایندگی مسئول محل پرداخت «{locationName}» غیرفعال است.");
+                }
+                else if (!activeCorrespondents.TryGetValue(locationKey, out destination!))
+                {
+                    var originalKey = PaymentLocationNameNormalizer.Normalize(group.First().PaymentLocationText);
+                    if (!confirmedCorrespondents.Contains(locationKey) && !confirmedCorrespondents.Contains(originalKey))
+                        throw new InvalidOperationException($"ایجاد نمایندگی «{locationName}» باید تأیید شود.");
+                    var createdDestination = await _correspondentService.CreateAsync(new CreateCorrespondentDto
                     {
                         Name = locationName,
                         City = locationName,
                         CommissionMethod = "PerTransaction"
                     });
-                    destination = await _context.Correspondents
-                        .SingleAsync(x => x.Id == createdCorrespondent.Id, cancellationToken);
-                    activeCorrespondents[group.Key] = destination;
+                    destination = await _context.Correspondents.SingleAsync(x => x.Id == createdDestination.Id, cancellationToken);
+                    activeCorrespondents[locationKey] = destination;
                 }
 
                 foreach (var row in group)
                     row.DestinationCorrespondentId = destination.Id;
+                if (currentAssignment is null)
+                    _context.PaymentLocationCorrespondentAssignments.Add(new PaymentLocationCorrespondentAssignment
+                    {
+                        PaymentLocationId = group.Key,
+                        CorrespondentId = destination.Id,
+                        EffectiveFrom = DateTime.Today,
+                        CreatedBy = _context.RequireCurrentUserId()
+                    });
             }
+            await _context.SaveChangesAsync(cancellationToken);
             Report(progress, 45, "نمایندگی‌ها و حساب‌های مقصد آماده شدند.");
 
             var submittedCommissions = request.Commissions
@@ -251,7 +345,7 @@ public sealed class HawalaImportService : IHawalaImportService
             }
             Report(progress, 55, "کمیشن‌ها و ارزها بررسی شدند.");
 
-            await RevalidateBeforePostingAsync(batch, ownLocationId, cancellationToken);
+            await RevalidateBeforePostingAsync(batch, ownLocationId.Value, cancellationToken);
             Report(progress, 65, "در حال آماده‌سازی ثبت گروهی...");
 
             var orderedRows = batch.Rows.OrderBy(x => x.ExcelRowNumber).ToList();
@@ -314,6 +408,9 @@ public sealed class HawalaImportService : IHawalaImportService
             var batchId = batch.Id;
             var batchFileName = batch.FileName;
             await FinalizeStagingAsync(batchId, confirmedBy, orderedRows, cancellationToken);
+            await _context.HawalaImportBatches.Where(x => x.Id == batchId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.OwnPaymentLocationId, ownLocationId), cancellationToken);
             _context.ChangeTracker.Clear();
             await _auditLogService.LogAsync(
                 "CREATE",
@@ -345,7 +442,7 @@ public sealed class HawalaImportService : IHawalaImportService
     private async Task<List<HawalaImportRow>> ParseRowsAsync(
         Stream stream,
         long correspondentId,
-        long ownPaymentLocationId,
+        long? ownPaymentLocationId,
         IProgress<HawalaImportProgressDto>? progress,
         CancellationToken cancellationToken)
     {
@@ -649,8 +746,9 @@ public sealed class HawalaImportService : IHawalaImportService
     private static HawalaImportPreviewDto BuildPreview(
         HawalaImportBatch batch,
         string correspondentName,
-        long ownLocationId,
-        string ownLocationName)
+        long? ownLocationId,
+        string ownLocationName,
+        IReadOnlyDictionary<long, PaymentLocationCorrespondentAssignment> currentAssignments)
     {
         var rows = batch.Rows.OrderBy(x => x.ExcelRowNumber).ToList();
         return new HawalaImportPreviewDto
@@ -659,6 +757,25 @@ public sealed class HawalaImportService : IHawalaImportService
             FileName = batch.FileName,
             CorrespondentName = correspondentName,
             OwnPaymentLocationName = ownLocationName,
+            OwnPaymentLocationId = ownLocationId,
+            PaymentLocations = rows.Where(x => !string.IsNullOrWhiteSpace(x.PaymentLocationText))
+                .GroupBy(x => x.PaymentLocation?.NormalizedName ??
+                    PaymentLocationNameNormalizer.Normalize(x.PaymentLocationText))
+                .Select(group =>
+                {
+                    var row = group.First();
+                    var assignment = row.PaymentLocationId.HasValue &&
+                        currentAssignments.TryGetValue(row.PaymentLocationId.Value, out var matched)
+                            ? matched : null;
+                    return new HawalaImportLocationOptionDto
+                    {
+                        Name = row.PaymentLocation?.Name ?? row.PaymentLocationText!,
+                        PaymentLocationId = row.PaymentLocationId,
+                        ResponsibleCorrespondentId = assignment?.CorrespondentId,
+                        ResponsibleCorrespondentName = assignment?.Correspondent.Name
+                    };
+                })
+                .OrderBy(x => x.Name).ToList(),
             RowCount = rows.Count,
             ValidRowCount = rows.Count(x => string.IsNullOrWhiteSpace(x.ValidationErrors)),
             InvalidRowCount = rows.Count(x => !string.IsNullOrWhiteSpace(x.ValidationErrors)),

@@ -1,10 +1,18 @@
 using ClosedXML.Excel;
+using AutoMapper;
 using System.Diagnostics;
 using System.Text.Json;
 using HawalaExchange.Application.DTOs;
+using HawalaExchange.Application.Interfaces.Services;
+using HawalaExchange.Application.Services;
 using HawalaExchange.Domain.Entities;
+using HawalaExchange.Infrastructure.Data;
+using HawalaExchange.Infrastructure.Services;
 using HawalaExchange.PerformanceTests.Infrastructure;
+using HawalaSystem.Mappings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit.Abstractions;
 
 namespace HawalaExchange.PerformanceTests;
@@ -87,6 +95,187 @@ public sealed class HawalaImportStagingPerformanceTests(
         var duplicateFile = await Assert.ThrowsAsync<InvalidOperationException>(() => service.PreviewAsync(
             workbook, "staging-confirm-copy.xlsx", fixture.SourceCorrespondent.Id));
         Assert.Contains("قبلاً", duplicateFile.Message);
+    }
+
+    [Fact]
+    public async Task First_import_can_choose_own_location_and_map_different_payment_place_to_existing_correspondent()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var setting = await context.CompanySettings.SingleAsync();
+        var previousOwnId = setting.OwnPaymentLocationId;
+        setting.OwnPaymentLocationId = null;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        try
+        {
+            var locationName = $"Mapped Place {Guid.NewGuid():N}";
+            var location = new PaymentLocation
+            {
+                Name = locationName,
+                NormalizedName = HawalaExchange.Application.Services.PaymentLocationNameNormalizer.Normalize(locationName),
+                Address = "Test",
+                CreatedBy = fixture.UserId
+            };
+            var secondName = $"Second Place {Guid.NewGuid():N}";
+            var secondLocation = new PaymentLocation
+            {
+                Name = secondName,
+                NormalizedName = HawalaExchange.Application.Services.PaymentLocationNameNormalizer.Normalize(secondName),
+                Address = "Test",
+                CreatedBy = fixture.UserId
+            };
+            context.PaymentLocations.AddRange(location, secondLocation);
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+
+            var number = Random.Shared.NextInt64(200_000_000, 900_000_000);
+            await using var workbook = CreateWorkbook([
+                [number, $"MAP-OWN-{Guid.NewGuid():N}", "Sender 1", "Receiver 1", fixture.OwnLocation.Name, 1_000, "USD"],
+                [number + 1, $"MAP-REMOTE-{Guid.NewGuid():N}", "Sender 2", "Receiver 2", locationName, 2_000, "USD"],
+                [number + 2, $"MAP-SECOND-{Guid.NewGuid():N}", "Sender 3", "Receiver 3", secondName, 3_000, "USD"]
+            ]);
+            var service = fixture.CreateImportService(context);
+            var preview = await service.PreviewAsync(workbook, "mapping.xlsx", fixture.SourceCorrespondent.Id);
+            Assert.Null(preview.OwnPaymentLocationId);
+            Assert.Contains(preview.PaymentLocations, x => x.Name == locationName &&
+                !x.ResponsibleCorrespondentId.HasValue);
+
+            var result = await service.ConfirmAsync(new ConfirmHawalaImportDto
+            {
+                BatchId = preview.BatchId,
+                OwnPaymentLocationName = fixture.OwnLocation.Name,
+                LocationMappings =
+                [
+                    new HawalaImportLocationMappingDto
+                    {
+                        PaymentLocationName = locationName,
+                        CorrespondentId = fixture.DestinationCorrespondent.Id
+                    },
+                    new HawalaImportLocationMappingDto
+                    {
+                        PaymentLocationName = secondName,
+                        CorrespondentId = fixture.DestinationCorrespondent.Id
+                    }
+                ]
+            });
+            Assert.Equal(3, result.ImportedCount);
+            Assert.Equal(2, result.GeneratedSendCount);
+
+            var assignments = await context.PaymentLocationCorrespondentAssignments.AsNoTracking()
+                .Where(x => x.PaymentLocationId == location.Id || x.PaymentLocationId == secondLocation.Id)
+                .ToListAsync();
+            Assert.Equal(2, assignments.Count);
+            Assert.All(assignments, x => Assert.Equal(fixture.DestinationCorrespondent.Id, x.CorrespondentId));
+            var outgoing = await context.Hawalas.AsNoTracking()
+                .Where(x => x.HawalaType == "HawalaSend" && (x.Number == number + 1 || x.Number == number + 2))
+                .ToListAsync();
+            Assert.Equal(2, outgoing.Count);
+            Assert.All(outgoing, x => Assert.Equal(fixture.DestinationCorrespondent.Id, x.CorrespondentId));
+            var batch = await context.HawalaImportBatches.AsNoTracking().SingleAsync(x => x.Id == preview.BatchId);
+            Assert.Equal(fixture.OwnLocation.Id, batch.OwnPaymentLocationId);
+        }
+        finally
+        {
+            await context.CompanySettings.ExecuteUpdateAsync(setters =>
+                setters.SetProperty(x => x.OwnPaymentLocationId, previousOwnId));
+        }
+    }
+
+    [Fact]
+    public async Task Confirm_creates_new_payment_location_with_selected_existing_correspondent()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var name = $"New Payment Place {Guid.NewGuid():N}";
+        var number = Random.Shared.NextInt64(200_000_000, 900_000_000);
+        await using var workbook = CreateWorkbook([
+            [number, $"NEW-LOC-{Guid.NewGuid():N}", "Sender", "Receiver", name, 1_000, "USD"]
+        ]);
+        var mapper = new MapperConfiguration(
+            config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
+        var factory = new Mock<IDbContextFactory<ApplicationDbContext>>();
+        factory.Setup(x => x.CreateDbContextAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => fixture.CreateContext());
+        var paymentLocations = new PaymentLocationService(
+            context, factory.Object, mapper, Mock.Of<IAuditLogService>());
+        var service = new HawalaImportService(
+            context, fixture.CreateService(context), paymentLocations,
+            Mock.Of<ICorrespondentService>(), Mock.Of<IAuditLogService>());
+
+        var preview = await service.PreviewAsync(workbook, "new-location.xlsx", fixture.SourceCorrespondent.Id);
+        Assert.Contains(name, preview.MissingLocations);
+        var result = await service.ConfirmAsync(new ConfirmHawalaImportDto
+        {
+            BatchId = preview.BatchId,
+            LocationsToCreate = [name],
+            OwnPaymentLocationName = fixture.OwnLocation.Name,
+            LocationMappings = [new HawalaImportLocationMappingDto
+            {
+                PaymentLocationName = name,
+                CorrespondentId = fixture.DestinationCorrespondent.Id
+            }]
+        });
+
+        Assert.Equal(1, result.GeneratedSendCount);
+        var createdLocation = await context.PaymentLocations.AsNoTracking().SingleAsync(x => x.Name == name);
+        var assignment = await context.PaymentLocationCorrespondentAssignments.AsNoTracking()
+            .SingleAsync(x => x.PaymentLocationId == createdLocation.Id);
+        Assert.Equal(fixture.DestinationCorrespondent.Id, assignment.CorrespondentId);
+    }
+
+    [Fact]
+    public async Task Confirm_creates_explicitly_approved_correspondent_for_payment_place()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var name = $"New Agent Place {Guid.NewGuid():N}";
+        var location = new PaymentLocation
+        {
+            Name = name,
+            NormalizedName = PaymentLocationNameNormalizer.Normalize(name),
+            Address = "Test",
+            CreatedBy = fixture.UserId
+        };
+        context.PaymentLocations.Add(location);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var mapper = new MapperConfiguration(
+            config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
+        var correspondents = new CorrespondentService(
+            context, mapper, fixture.CreateAccountService(context),
+            Mock.Of<ILedgerService>(), Mock.Of<IAuditLogService>(),
+            NullLogger<CorrespondentService>.Instance);
+        var service = new HawalaImportService(
+            context, fixture.CreateService(context), Mock.Of<IPaymentLocationService>(),
+            correspondents, Mock.Of<IAuditLogService>());
+        var number = Random.Shared.NextInt64(200_000_000, 900_000_000);
+        await using var workbook = CreateWorkbook([
+            [number, $"NEW-AGENT-{Guid.NewGuid():N}", "Sender", "Receiver", name, 1_000, "USD"]
+        ]);
+        var preview = await service.PreviewAsync(workbook, "new-agent.xlsx", fixture.SourceCorrespondent.Id);
+        var result = await service.ConfirmAsync(new ConfirmHawalaImportDto
+        {
+            BatchId = preview.BatchId,
+            OwnPaymentLocationName = fixture.OwnLocation.Name,
+            LocationMappings = [new HawalaImportLocationMappingDto
+            {
+                PaymentLocationName = name,
+                CreateCorrespondent = true
+            }]
+        });
+
+        Assert.Equal(1, result.GeneratedSendCount);
+        var agent = await context.Correspondents.AsNoTracking().SingleAsync(x => x.Name == name);
+        var assignment = await context.PaymentLocationCorrespondentAssignments.AsNoTracking()
+            .SingleAsync(x => x.PaymentLocationId == location.Id);
+        Assert.Equal(agent.Id, assignment.CorrespondentId);
+        Assert.True(await context.Accounts.AnyAsync(x => x.CorrespondentId == agent.Id));
     }
 
     [Fact]

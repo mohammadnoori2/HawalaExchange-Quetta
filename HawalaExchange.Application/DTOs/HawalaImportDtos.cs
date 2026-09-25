@@ -43,6 +43,8 @@ namespace HawalaExchange.Application.DTOs
         public string FileName { get; set; } = string.Empty;
         public string CorrespondentName { get; set; } = string.Empty;
         public string OwnPaymentLocationName { get; set; } = string.Empty;
+        public long? OwnPaymentLocationId { get; set; }
+        public List<HawalaImportLocationOptionDto> PaymentLocations { get; set; } = [];
         public int RowCount { get; set; }
         public int ValidRowCount { get; set; }
         public int InvalidRowCount { get; set; }
@@ -55,9 +57,26 @@ namespace HawalaExchange.Application.DTOs
     public class ConfirmHawalaImportDto
     {
         public long BatchId { get; set; }
+        public string? OwnPaymentLocationName { get; set; }
+        public List<HawalaImportLocationMappingDto> LocationMappings { get; set; } = [];
         public List<string> LocationsToCreate { get; set; } = [];
         public List<string> CorrespondentsToCreate { get; set; } = [];
         public List<HawalaImportCommissionDto> Commissions { get; set; } = [];
+    }
+
+    public class HawalaImportLocationOptionDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public long? PaymentLocationId { get; set; }
+        public long? ResponsibleCorrespondentId { get; set; }
+        public string? ResponsibleCorrespondentName { get; set; }
+    }
+
+    public class HawalaImportLocationMappingDto
+    {
+        public string PaymentLocationName { get; set; } = string.Empty;
+        public long? CorrespondentId { get; set; }
+        public bool CreateCorrespondent { get; set; }
     }
 
     public class HawalaImportCommissionDto

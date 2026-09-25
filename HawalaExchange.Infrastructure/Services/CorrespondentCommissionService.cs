@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
@@ -124,21 +125,24 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 SourceAmount = -Math.Abs(deduction.SourceAmount),
                 SourceToAfnRate = deduction.SourceToAfnRate,
                 AfnEquivalent = -Math.Abs(deduction.AfnEquivalent),
-                CommissionAfn = -Math.Abs(deduction.CommissionAfn)
+                CommissionAfn = -Math.Abs(deduction.CommissionAfn),
+                PaymentLocationId = deduction.PaymentLocationId,
+                PaymentLocationName = deduction.PaymentLocationName ?? "محل پرداخت نامشخص",
+                PerLakhRate = deduction.PerLakhRate ?? commissionPerLakhAfn
             });
         }
 
         preview.TotalBaseAfn = decimal.Round(
-            preview.Items.Sum(x => x.AfnEquivalent), isOutgoing ? 0 : 4,
+            preview.Items.Sum(x => x.AfnEquivalent), isOutgoing ? 2 : 4,
             MidpointRounding.AwayFromZero);
         if (isOutgoing)
         {
             preview.TotalCommissionAfn = decimal.Round(
                 preview.Items.Where(x => x.CurrencyCode == "AFN").Sum(x => x.CommissionAfn),
-                0, MidpointRounding.AwayFromZero);
+                2, MidpointRounding.AwayFromZero);
             preview.TotalCommissionUsd = decimal.Round(
                 preview.Items.Where(x => x.CurrencyCode == "USD").Sum(x => x.CommissionAfn),
-                0, MidpointRounding.AwayFromZero);
+                2, MidpointRounding.AwayFromZero);
         }
         else
         {
@@ -168,12 +172,15 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 SourceToAfnRate = deduction.SourceToAfnRate,
                 AfnEquivalent = -Math.Abs(deduction.AfnEquivalent),
                 CommissionAfn = -Math.Abs(deduction.CommissionAfn),
+                PaymentLocationId = deduction.PaymentLocationId,
+                PaymentLocationName = deduction.PaymentLocationName,
+                PerLakhRate = deduction.PerLakhRate,
                 IsActive = true
             });
         }
 
         batch.TotalBaseAfn = decimal.Round(
-            batch.Items.Sum(x => x.AfnEquivalent), isOutgoing ? 0 : 4,
+            batch.Items.Sum(x => x.AfnEquivalent), isOutgoing ? 2 : 4,
             MidpointRounding.AwayFromZero);
         var currencyCodes = await context.Currencies.AsNoTracking()
             .Where(x => x.Code == "AFN" || x.Code == "USD")
@@ -182,10 +189,10 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         {
             batch.TotalCommissionAfn = decimal.Round(batch.Items
                 .Where(x => currencyCodes.GetValueOrDefault(x.SourceCurrencyId) == "AFN")
-                .Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero);
+                .Sum(x => x.CommissionAfn), 2, MidpointRounding.AwayFromZero);
             batch.TotalCommissionUsd = decimal.Round(batch.Items
                 .Where(x => currencyCodes.GetValueOrDefault(x.SourceCurrencyId) == "USD")
-                .Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero);
+                .Sum(x => x.CommissionAfn), 2, MidpointRounding.AwayFromZero);
         }
         else
         {
@@ -310,7 +317,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 afnId, 0, batch.TotalCommissionAfn, description));
             var afnUsd = decimal.Round(activeItems
                 .Where(x => x.SourceCurrencyId == afnId).Sum(x => x.AfnEquivalent),
-                0, MidpointRounding.AwayFromZero);
+                2, MidpointRounding.AwayFromZero);
             if (afnUsd > 0)
                 context.LedgerEntries.Add(NewEntry(batch.PostingTransactionId, clearing.Id,
                     usdId, afnUsd, 0, description));
@@ -318,7 +325,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         foreach (var group in activeItems.Where(x => x.SourceCorrespondentId.HasValue)
                      .GroupBy(x => x.SourceCorrespondentId!.Value))
         {
-            var amount = decimal.Round(group.Sum(x => x.AfnEquivalent), 0,
+            var amount = decimal.Round(group.Sum(x => x.AfnEquivalent), 2,
                 MidpointRounding.AwayFromZero);
             if (amount > 0)
                 context.LedgerEntries.Add(NewEntry(batch.PostingTransactionId,
@@ -326,7 +333,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         }
         var ownOfficeAmount = decimal.Round(activeItems
             .Where(x => !x.SourceCorrespondentId.HasValue).Sum(x => x.AfnEquivalent),
-            0, MidpointRounding.AwayFromZero);
+            2, MidpointRounding.AwayFromZero);
         if (ownOfficeAmount > 0 && expenseAccount != null)
             context.LedgerEntries.Add(NewEntry(batch.PostingTransactionId,
                 expenseAccount.Id, usdId, 0, ownOfficeAmount,
@@ -424,6 +431,9 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                     SourceToAfnRate = x.SourceToAfnRate,
                     AfnEquivalent = x.AfnEquivalent,
                     CommissionAfn = x.CommissionAfn,
+                    PaymentLocationId = x.PaymentLocationId,
+                    PaymentLocationName = x.PaymentLocationName ?? "محل پرداخت نامشخص",
+                    PerLakhRate = x.PerLakhRate ?? batch.CommissionPerLakhAfn,
                     IsActive = x.IsActive,
                     SourceType = x.Hawala.SourceHawalaId.HasValue ? "Correspondent" : "OwnOffice",
                     SourceName = x.Hawala.SourceHawala?.Correspondent?.Name ?? "صرافی خود ما"
@@ -538,7 +548,23 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                         SourceAmount = reader.GetDecimal(5),
                         SourceToAfnRate = reader.GetDecimal(6),
                         AfnEquivalent = reader.GetDecimal(7),
-                        CommissionAfn = reader.GetDecimal(8)
+                        CommissionAfn = reader.GetDecimal(8),
+                        PaymentLocationId = reader.IsDBNull(9) ? null : reader.GetInt64(9),
+                        PaymentLocationName = reader.IsDBNull(10) ? "محل پرداخت نامشخص" : reader.GetString(10),
+                        PerLakhRate = reader.GetDecimal(11)
+                    });
+                await reader.NextResultAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                    result.PaymentLocationRates.Add(new PaymentLocationCommissionRateDto
+                    {
+                        PaymentLocationId = reader.IsDBNull(0) ? 0 : reader.GetInt64(0),
+                        PaymentLocationName = reader.IsDBNull(1) ? "محل پرداخت نامشخص" : reader.GetString(1),
+                        PerLakhRate = reader.GetDecimal(2),
+                        HawalaCount = reader.GetInt32(3),
+                        TotalAmount = reader.GetDecimal(4),
+                        TotalCommissionAfn = reader.GetDecimal(5),
+                        TotalCommissionUsd = reader.GetDecimal(6),
+                        TotalDebitUsd = reader.GetDecimal(7)
                     });
                 return result;
             }, cancellationToken);
@@ -594,6 +620,12 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             { Precision = 18, Scale = 8, Value = request.UsdToAfnRate });
         command.Parameters.Add(new SqlParameter("@Rates", SqlDbType.Structured)
             { TypeName = "dbo.CommissionRateTableType_v1", Value = rates });
+        command.Parameters.Add(new SqlParameter("@LocationRatesJson", SqlDbType.NVarChar, -1)
+        {
+            Value = JsonSerializer.Serialize(request.PaymentLocationRates
+                .Where(x => x.PaymentLocationId > 0)
+                .Select(x => new { x.PaymentLocationId, x.PerLakhRate }))
+        });
     }
 
     private static DataTable CreateRatesTable(IEnumerable<CorrespondentCommissionRateDto> suppliedRates)
@@ -619,6 +651,10 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             throw new InvalidOperationException("نوع حواله برای محاسبه کمیشن معتبر نیست.");
         if (request.Rates.Any(x => x.SourceToAfnRate < 0))
             throw new InvalidOperationException("نرخ تبدیل ارز نمی‌تواند منفی باشد.");
+        if (request.PaymentLocationRates.Any(x => x.PaymentLocationId <= 0 || x.PerLakhRate <= 0) ||
+            request.PaymentLocationRates.Select(x => x.PaymentLocationId).Distinct().Count() !=
+            request.PaymentLocationRates.Count)
+            throw new InvalidOperationException("نرخ کمیشن محل پرداخت معتبر نیست یا محل تکراری انتخاب شده است.");
     }
 
     private async Task EnsureCommissionUsdValuationsAsync(
@@ -644,7 +680,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                         x.CreatedAt >= utcStart && x.CreatedAt < utcEnd &&
                         (request.HawalaType == "HawalaReceive"
                             ? x.CommissionAmount == null || x.CommissionAmount == 0
-                            : x.AgentCommissionAmount == null) &&
+                            : x.AgentCommissionAmount == null &&
+                              x.SourceHawala != null && x.SourceHawala.CorrespondentId != null) &&
                         (request.HawalaType == "HawalaReceive"
                             ? x.FromCurrencyId == afnId || x.FromCurrencyId == usdId
                             : x.ToCurrencyId == afnId || x.ToCurrencyId == usdId) &&

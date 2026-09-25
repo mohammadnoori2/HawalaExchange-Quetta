@@ -10,6 +10,18 @@ public sealed class CorrespondentCommissionRateDto
     public decimal SourceToAfnRate { get; set; }
 }
 
+public sealed class PaymentLocationCommissionRateDto
+{
+    public long PaymentLocationId { get; set; }
+    public string PaymentLocationName { get; set; } = string.Empty;
+    public decimal PerLakhRate { get; set; }
+    public int HawalaCount { get; set; }
+    public decimal TotalAmount { get; set; }
+    public decimal TotalCommissionAfn { get; set; }
+    public decimal TotalCommissionUsd { get; set; }
+    public decimal TotalDebitUsd { get; set; }
+}
+
 public sealed class CorrespondentCommissionPreviewRequestDto
 {
     public string HawalaType { get; set; } = "HawalaReceive";
@@ -19,6 +31,7 @@ public sealed class CorrespondentCommissionPreviewRequestDto
     [Range(typeof(decimal), "0.01", "999999999999")] public decimal CommissionPerLakhAfn { get; set; } = 200;
     [Range(typeof(decimal), "0.00000001", "999999999999")] public decimal UsdToAfnRate { get; set; }
     public List<CorrespondentCommissionRateDto> Rates { get; set; } = [];
+    public List<PaymentLocationCommissionRateDto> PaymentLocationRates { get; set; } = [];
 }
 
 public sealed class CorrespondentCommissionPreviewDto
@@ -32,6 +45,7 @@ public sealed class CorrespondentCommissionPreviewDto
     public decimal TotalCommissionAfn { get; set; }
     public decimal TotalCommissionUsd { get; set; }
     public List<CorrespondentCommissionRateDto> Rates { get; set; } = [];
+    public List<PaymentLocationCommissionRateDto> PaymentLocationRates { get; set; } = [];
     public List<CorrespondentCommissionItemDto> Items { get; set; } = [];
 }
 
@@ -46,6 +60,9 @@ public sealed class CorrespondentCommissionItemDto
     public decimal SourceToAfnRate { get; set; }
     public decimal AfnEquivalent { get; set; }
     public decimal CommissionAfn { get; set; }
+    public long? PaymentLocationId { get; set; }
+    public string PaymentLocationName { get; set; } = string.Empty;
+    public decimal PerLakhRate { get; set; }
     public bool IsActive { get; set; } = true;
     public string SourceType { get; set; } = string.Empty;
     public string SourceName { get; set; } = string.Empty;

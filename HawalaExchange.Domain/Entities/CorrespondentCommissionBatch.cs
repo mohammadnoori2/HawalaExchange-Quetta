@@ -46,6 +46,9 @@ public sealed class CorrespondentCommissionBatchItem : ITenantEntity
     [Column(TypeName = "decimal(18,8)")] public decimal SourceToAfnRate { get; set; }
     [Column(TypeName = "decimal(18,4)")] public decimal AfnEquivalent { get; set; }
     [Column(TypeName = "decimal(18,4)")] public decimal CommissionAfn { get; set; }
+    public long? PaymentLocationId { get; set; }
+    [MaxLength(200)] public string? PaymentLocationName { get; set; }
+    [Column(TypeName = "decimal(18,4)")] public decimal? PerLakhRate { get; set; }
     public bool IsActive { get; set; } = true;
 
     public CorrespondentCommissionBatch Batch { get; set; } = null!;

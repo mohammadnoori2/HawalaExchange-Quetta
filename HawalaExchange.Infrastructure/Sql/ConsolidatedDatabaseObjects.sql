@@ -386,7 +386,8 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                     @ToUtcExclusive datetime2,
                     @CommissionPerLakhAfn decimal(18,4),
                     @UsdToAfnRate decimal(18,8),
-                    @Rates [dbo].[CommissionRateTableType_v1] READONLY
+                    @Rates [dbo].[CommissionRateTableType_v1] READONLY,
+                    @LocationRatesJson nvarchar(max) = N'[]'
                 AS
                 BEGIN
                     SET NOCOUNT ON;
@@ -429,6 +430,22 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             WHERE [TenantId] = @TenantId AND [Code] = N'USD' AND [IsActive] = 1
                         );
 
+                        CREATE TABLE #LocationRates
+                        (
+                            [PaymentLocationId] bigint NOT NULL PRIMARY KEY,
+                            [PerLakhRate] decimal(18,4) NOT NULL
+                        );
+                        IF @HawalaType = N'HawalaSend'
+                        BEGIN
+                            INSERT INTO #LocationRates ([PaymentLocationId], [PerLakhRate])
+                            SELECT [PaymentLocationId], [PerLakhRate]
+                            FROM OPENJSON(@LocationRatesJson)
+                            WITH ([PaymentLocationId] bigint '$.PaymentLocationId',
+                                  [PerLakhRate] decimal(18,4) '$.PerLakhRate');
+                            IF EXISTS (SELECT 1 FROM #LocationRates WHERE [PerLakhRate] <= 0)
+                                THROW 50019, N'کمیشن هر لک برای محل پرداخت باید بزرگ‌تر از صفر باشد.', 1;
+                        END;
+
                         CREATE TABLE #Eligible
                         (
                             [HawalaId] bigint NOT NULL PRIMARY KEY,
@@ -440,14 +457,18 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             [SourceToAfnRate] decimal(18,8) NOT NULL,
                             [AfnEquivalent] decimal(38,8) NOT NULL,
                             [CommissionAfn] decimal(38,8) NOT NULL,
-                            [SourceCorrespondentId] bigint NULL
+                            [SourceCorrespondentId] bigint NULL,
+                            [PaymentLocationId] bigint NULL,
+                            [PaymentLocationName] nvarchar(200) NULL,
+                            [PerLakhRate] decimal(18,4) NOT NULL
                         );
 
                         INSERT INTO #Eligible
                         (
                             [HawalaId], [HawalaNumber], [HawalaDate], [CurrencyId],
                             [CurrencyCode], [SourceAmount], [SourceToAfnRate],
-                            [AfnEquivalent], [CommissionAfn], [SourceCorrespondentId]
+                            [AfnEquivalent], [CommissionAfn], [SourceCorrespondentId],
+                            [PaymentLocationId], [PaymentLocationName], [PerLakhRate]
                         )
                         SELECT h.[Id], h.[Number], h.[CreatedAt], currencyData.[CurrencyId], c.[Code],
                                CAST(currencyData.[SourceAmount] AS decimal(18,4)),
@@ -456,14 +477,15 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                                CAST(CASE WHEN @HawalaType = N'HawalaReceive'
                                          THEN h.[CommissionBaseUsdAmount]
                                          WHEN currencyData.[CurrencyId] = @UsdCurrencyId
-                                         THEN ROUND(currencyData.[SourceAmount] / 100000 * @CommissionPerLakhAfn, 0)
-                                         ELSE ROUND(ROUND(currencyData.[SourceAmount] / 100000 * @CommissionPerLakhAfn, 0)
-                                                    / h.[CommissionUsdToAfnRate], 0) END AS decimal(38,8)),
+                                         THEN ROUND(currencyData.[SourceAmount] / 100000 * locationRate.[PerLakhRate], 2)
+                                         ELSE ROUND(ROUND(currencyData.[SourceAmount] / 100000 * locationRate.[PerLakhRate], 2)
+                                                    / h.[CommissionUsdToAfnRate], 2) END AS decimal(38,8)),
                                CAST(CASE WHEN @HawalaType = N'HawalaReceive'
                                          THEN h.[CommissionBaseUsdAmount] / 100000 * @CommissionPerLakhAfn
-                                         ELSE ROUND(currencyData.[SourceAmount] / 100000 * @CommissionPerLakhAfn, 0)
+                                         ELSE ROUND(currencyData.[SourceAmount] / 100000 * locationRate.[PerLakhRate], 2)
                                     END AS decimal(38,8)),
-                               sourceHawala.[CorrespondentId]
+                               sourceHawala.[CorrespondentId], h.[PaymentLocationId],
+                               paymentLocation.[Name], locationRate.[PerLakhRate]
                         FROM [dbo].[Hawalas] h WITH (UPDLOCK, HOLDLOCK)
                         CROSS APPLY
                         (
@@ -476,6 +498,15 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             ON c.[TenantId] = @TenantId AND c.[Id] = currencyData.[CurrencyId]
                         LEFT JOIN [dbo].[Hawalas] sourceHawala
                             ON sourceHawala.[TenantId] = @TenantId AND sourceHawala.[Id] = h.[SourceHawalaId]
+                        LEFT JOIN [dbo].[PaymentLocations] paymentLocation
+                            ON paymentLocation.[TenantId] = @TenantId AND paymentLocation.[Id] = h.[PaymentLocationId]
+                        LEFT JOIN #LocationRates suppliedLocationRate
+                            ON suppliedLocationRate.[PaymentLocationId] = h.[PaymentLocationId]
+                        CROSS APPLY
+                        (
+                            SELECT COALESCE(suppliedLocationRate.[PerLakhRate], @CommissionPerLakhAfn)
+                                   AS [PerLakhRate]
+                        ) locationRate
                         WHERE h.[TenantId] = @TenantId
                           AND h.[CorrespondentId] = @CorrespondentId
                           AND h.[HawalaType] = @HawalaType
@@ -483,7 +514,8 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                           AND h.[CreatedAt] >= @FromUtc
                           AND h.[CreatedAt] < @ToUtcExclusive
                           AND ((@HawalaType = N'HawalaReceive' AND (h.[CommissionAmount] IS NULL OR h.[CommissionAmount] = 0))
-                               OR (@HawalaType = N'HawalaSend' AND h.[AgentCommissionAmount] IS NULL))
+                               OR (@HawalaType = N'HawalaSend' AND h.[AgentCommissionAmount] IS NULL
+                                   AND sourceHawala.[CorrespondentId] IS NOT NULL))
                           AND currencyData.[CurrencyId] IN (@AfnCurrencyId, @UsdCurrencyId)
                           AND h.[CommissionBaseUsdAmount] IS NOT NULL
                           AND NOT EXISTS
@@ -491,6 +523,10 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                               SELECT 1 FROM [dbo].[CorrespondentCommissionBatchItems] bi WITH (UPDLOCK, HOLDLOCK)
                               WHERE bi.[TenantId] = @TenantId AND bi.[HawalaId] = h.[Id] AND bi.[IsActive] = 1
                           );
+
+                        IF @HawalaType = N'HawalaSend' AND
+                           EXISTS (SELECT 1 FROM #Eligible WHERE [PaymentLocationId] IS NULL OR [PaymentLocationName] IS NULL)
+                            THROW 50020, N'برای یک یا چند حواله ارسالی محل پرداخت معتبر ثبت نشده است؛ ابتدا حواله را اصلاح کنید.', 1;
 
                         IF @HawalaType = N'HawalaSend' AND
                            EXISTS (SELECT 1 FROM #Eligible WHERE [SourceToAfnRate] <= 0)
@@ -542,9 +578,25 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             SELECT [HawalaId], [HawalaNumber], [HawalaDate], [CurrencyId],
                                    [CurrencyCode], [SourceAmount], [SourceToAfnRate],
                                    CAST([AfnEquivalent] AS decimal(18,4)) AS [AfnEquivalent],
-                                   CAST([CommissionAfn] AS decimal(18,4)) AS [CommissionAfn]
+                                   CAST([CommissionAfn] AS decimal(18,4)) AS [CommissionAfn],
+                                   [PaymentLocationId], [PaymentLocationName], [PerLakhRate]
                             FROM #Eligible
                             ORDER BY [HawalaDate], [HawalaNumber];
+
+                            SELECT [PaymentLocationId], [PaymentLocationName], [PerLakhRate],
+                                   COUNT(*) AS [HawalaCount],
+                                   CAST(SUM([SourceAmount]) AS decimal(18,4)) AS [TotalAmount],
+                                   CAST(SUM(CASE WHEN [CurrencyId] = @AfnCurrencyId
+                                                 THEN [CommissionAfn] ELSE 0 END)
+                                        AS decimal(18,4)) AS [TotalCommissionAfn],
+                                   CAST(SUM(CASE WHEN [CurrencyId] = @UsdCurrencyId
+                                                 THEN [CommissionAfn] ELSE 0 END)
+                                        AS decimal(18,4)) AS [TotalCommissionUsd],
+                                   CAST(SUM([AfnEquivalent]) AS decimal(18,4)) AS [TotalDebitUsd]
+                            FROM #Eligible
+                            WHERE @HawalaType = N'HawalaSend'
+                            GROUP BY [PaymentLocationId], [PaymentLocationName], [PerLakhRate]
+                            ORDER BY [PaymentLocationName];
                             RETURN;
                         END;
 
@@ -705,10 +757,12 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
 
                         INSERT INTO [dbo].[CorrespondentCommissionBatchItems]
                             ([TenantId], [BatchId], [HawalaId], [SourceCurrencyId], [SourceAmount],
-                             [SourceToAfnRate], [AfnEquivalent], [CommissionAfn], [IsActive])
+                             [SourceToAfnRate], [AfnEquivalent], [CommissionAfn], [IsActive],
+                             [PaymentLocationId], [PaymentLocationName], [PerLakhRate])
                         SELECT @TenantId, @BatchId, [HawalaId], [CurrencyId], [SourceAmount],
                                [SourceToAfnRate], CAST([AfnEquivalent] AS decimal(18,4)),
-                               CAST([CommissionAfn] AS decimal(18,4)), 1
+                               CAST([CommissionAfn] AS decimal(18,4)), 1,
+                               [PaymentLocationId], [PaymentLocationName], [PerLakhRate]
                         FROM #Eligible;
 
                         DECLARE @Description nvarchar(500) =

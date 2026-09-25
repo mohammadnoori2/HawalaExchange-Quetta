@@ -216,10 +216,13 @@ public sealed class PeriodicCommissionPerformanceTests(
             NewSourceDailyRate(fixture.SourceCorrespondent.Id, period, 66m),
             NewSourceDailyRate(fixture.SourceCorrespondent.Id, period.AddDays(1), 67m));
         await context.SaveChangesAsync();
+        var secondLocationOutgoing = NewOutgoingHawala(
+            98_700_006, 1, 200_000m, period.AddDays(1), secondAfnSource.Id);
+        secondLocationOutgoing.PaymentLocationId = fixture.OwnLocation.Id;
         context.Hawalas.AddRange(
             NewOutgoingHawala(98_700_004, 2, 100_000m, period, usdSource.Id),
             NewOutgoingHawala(98_700_005, 1, 300_000m, period, firstAfnSource.Id),
-            NewOutgoingHawala(98_700_006, 1, 200_000m, period.AddDays(1), secondAfnSource.Id),
+            secondLocationOutgoing,
             NewOutgoingHawala(98_700_008, 2, 500_000m, period, commissionedSource.Id, 0m),
             NewOutgoingHawala(98_700_009, 2, 50_000m, period, null));
         await context.SaveChangesAsync();
@@ -228,15 +231,27 @@ public sealed class PeriodicCommissionPerformanceTests(
         var request = NewRequest(period, period.AddDays(1), 66m);
         request.CorrespondentId = fixture.DestinationCorrespondent.Id;
         request.HawalaType = "HawalaSend";
+        request.PaymentLocationRates =
+        [
+            new() { PaymentLocationId = fixture.RemoteLocation.Id, PerLakhRate = 200m },
+            new() { PaymentLocationId = fixture.OwnLocation.Id, PerLakhRate = 300m }
+        ];
         var service = fixture.CreateCommissionService(context);
         var preview = await service.PreviewAsync(request);
 
-        Assert.Equal(4, preview.HawalaCount);
-        Assert.Equal(1_000m, preview.TotalCommissionAfn);
-        Assert.Equal(300m, preview.TotalCommissionUsd);
-        Assert.Equal(315m, preview.TotalBaseAfn);
-        Assert.Equal(9m, preview.Items.Single(x => x.HawalaNumber == 98_700_005).AfnEquivalent);
-        Assert.Equal(6m, preview.Items.Single(x => x.HawalaNumber == 98_700_006).AfnEquivalent);
+        Assert.Equal(3, preview.HawalaCount);
+        Assert.Equal(1_200m, preview.TotalCommissionAfn);
+        Assert.Equal(200m, preview.TotalCommissionUsd);
+        Assert.Equal(218.05m, preview.TotalBaseAfn);
+        Assert.Equal(9.09m, preview.Items.Single(x => x.HawalaNumber == 98_700_005).AfnEquivalent);
+        Assert.Equal(8.96m, preview.Items.Single(x => x.HawalaNumber == 98_700_006).AfnEquivalent);
+        Assert.Equal(200m, preview.Items.Single(x => x.HawalaNumber == 98_700_005).PerLakhRate);
+        Assert.Equal(300m, preview.Items.Single(x => x.HawalaNumber == 98_700_006).PerLakhRate);
+        Assert.Equal(2, preview.PaymentLocationRates.Count);
+        Assert.Equal(600m, preview.PaymentLocationRates
+            .Single(x => x.PaymentLocationId == fixture.OwnLocation.Id).TotalCommissionAfn);
+        Assert.Equal(8.96m, preview.PaymentLocationRates
+            .Single(x => x.PaymentLocationId == fixture.OwnLocation.Id).TotalDebitUsd);
         Assert.Equal(66m, preview.Items.Single(x => x.HawalaNumber == 98_700_005).SourceToAfnRate);
         Assert.Equal(67m, preview.Items.Single(x => x.HawalaNumber == 98_700_006).SourceToAfnRate);
 
@@ -249,22 +264,34 @@ public sealed class PeriodicCommissionPerformanceTests(
             .Where(x => x.TransactionId == batch.PostingTransactionId)
             .ToListAsync();
 
-        Assert.Equal(300m, ledger.Single(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 2).TalabKar);
-        Assert.Equal(1_000m, ledger.Single(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 1).TalabKar);
-        Assert.Equal(215m, ledger.Single(x => x.AccountId == fixture.SourceAccount.Id && x.CurrencyId == 2).BadehKar);
-        Assert.Equal(100m, ledger.Single(x => x.Account!.AccountCode == "5002" && x.CurrencyId == 2).BadehKar);
+        Assert.Equal(200m, ledger.Single(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 2).TalabKar);
+        Assert.Equal(1_200m, ledger.Single(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 1).TalabKar);
+        Assert.Equal(218.05m, ledger.Single(x => x.AccountId == fixture.SourceAccount.Id && x.CurrencyId == 2).BadehKar);
+        Assert.DoesNotContain(ledger, x => x.Account?.AccountCode == "5002");
         Assert.Equal(ledger.Where(x => x.CurrencyId == 2).Sum(x => x.TalabKar),
             ledger.Where(x => x.CurrencyId == 2).Sum(x => x.BadehKar));
         Assert.Equal(ledger.Where(x => x.CurrencyId == 1).Sum(x => x.TalabKar),
             ledger.Where(x => x.CurrencyId == 1).Sum(x => x.BadehKar));
         var details = await service.GetDetailsAsync(batch.Id);
-        Assert.Equal(4, details.Items.Count);
-        Assert.Equal(6, details.LedgerEntries.Count);
-        Assert.Equal(1_000m, details.TotalCommissionAfn);
-        Assert.Equal(300m, details.TotalCommissionUsd);
-        Assert.Equal("صرافی خود ما", details.Items.Single(x => x.HawalaNumber == 98_700_009).SourceName);
+        Assert.Equal(3, details.Items.Count);
+        Assert.Equal(5, details.LedgerEntries.Count);
+        Assert.Equal(1_200m, details.TotalCommissionAfn);
+        Assert.Equal(200m, details.TotalCommissionUsd);
+        Assert.Equal(fixture.OwnLocation.Id,
+            details.Items.Single(x => x.HawalaNumber == 98_700_006).PaymentLocationId);
+        Assert.Equal(300m, details.Items.Single(x => x.HawalaNumber == 98_700_006).PerLakhRate);
         Assert.False(string.IsNullOrWhiteSpace(details.PostingTransactionNo));
         Assert.False(string.IsNullOrWhiteSpace(details.CreatedByName));
+
+        var editedOutgoing = await context.Hawalas.SingleAsync(x => x.Number == 98_700_006);
+        editedOutgoing.PaymentLocationId = fixture.RemoteLocation.Id;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var savedDetails = await service.GetDetailsAsync(batch.Id);
+        Assert.Equal(fixture.OwnLocation.Id,
+            savedDetails.Items.Single(x => x.HawalaNumber == 98_700_006).PaymentLocationId);
+        Assert.Equal(300m,
+            savedDetails.Items.Single(x => x.HawalaNumber == 98_700_006).PerLakhRate);
 
         destination = await context.Correspondents.SingleAsync(x => x.Id == fixture.DestinationCorrespondent.Id);
         destination.CommissionMethod = originalMethod;

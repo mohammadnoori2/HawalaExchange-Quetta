@@ -240,6 +240,8 @@ public sealed class PeriodicCommissionPerformanceTests(
         var preview = await service.PreviewAsync(request);
 
         Assert.Equal(3, preview.HawalaCount);
+        Assert.Equal(100_000m, preview.TotalSourceUsd);
+        Assert.Equal(500_000m, preview.TotalSourceAfn);
         Assert.Equal(1_200m, preview.TotalCommissionAfn);
         Assert.Equal(200m, preview.TotalCommissionUsd);
         Assert.Equal(218.05m, preview.TotalBaseAfn);
@@ -274,6 +276,8 @@ public sealed class PeriodicCommissionPerformanceTests(
             ledger.Where(x => x.CurrencyId == 1).Sum(x => x.BadehKar));
         var details = await service.GetDetailsAsync(batch.Id);
         Assert.Equal(3, details.Items.Count);
+        Assert.Equal(100_000m, details.TotalSourceUsd);
+        Assert.Equal(500_000m, details.TotalSourceAfn);
         Assert.Equal(5, details.LedgerEntries.Count);
         Assert.Equal(1_200m, details.TotalCommissionAfn);
         Assert.Equal(200m, details.TotalCommissionUsd);

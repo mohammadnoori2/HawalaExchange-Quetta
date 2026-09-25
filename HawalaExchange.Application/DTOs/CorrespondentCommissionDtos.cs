@@ -47,6 +47,8 @@ public sealed class CorrespondentCommissionPreviewDto
     public List<CorrespondentCommissionRateDto> Rates { get; set; } = [];
     public List<PaymentLocationCommissionRateDto> PaymentLocationRates { get; set; } = [];
     public List<CorrespondentCommissionItemDto> Items { get; set; } = [];
+    public decimal TotalSourceUsd => Items.Where(x => x.CurrencyCode == "USD").Sum(x => x.SourceAmount);
+    public decimal TotalSourceAfn => Items.Where(x => x.CurrencyCode == "AFN").Sum(x => x.SourceAmount);
 }
 
 public sealed class CorrespondentCommissionItemDto
@@ -90,5 +92,7 @@ public sealed class CorrespondentCommissionBatchDto
     public DateTime? ReversedAt { get; set; }
     public string? ReversalReason { get; set; }
     public List<CorrespondentCommissionItemDto> Items { get; set; } = [];
+    public decimal TotalSourceUsd => Items.Where(x => x.CurrencyCode == "USD").Sum(x => x.SourceAmount);
+    public decimal TotalSourceAfn => Items.Where(x => x.CurrencyCode == "AFN").Sum(x => x.SourceAmount);
     public List<LedgerEntryDto> LedgerEntries { get; set; } = [];
 }

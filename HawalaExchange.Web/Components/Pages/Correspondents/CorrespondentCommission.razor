@@ -82,10 +82,12 @@
                 <h6 class="fw-bold">کمیشن هر لک به تفکیک محل پرداخت</h6>
                 <p class="text-muted small">نرخ‌ها برای همین محاسبه اعمال می‌شوند. پس از تغییر هر نرخ، «بازمحاسبه» را بزنید و سپس ثبت حسابداری کنید.</p>
                 <div class="table-responsive"><table class="table table-sm align-middle">
-                    <thead><tr><th>محل پرداخت</th><th>تعداد حواله</th><th>کمیشن هر لک</th><th>کمیشن AFN</th><th>کمیشن USD</th><th>بدهی مبدأ USD</th></tr></thead>
+                    <thead><tr><th>محل پرداخت</th><th>تعداد حواله</th><th>مجموع حواله AFN</th><th>مجموع حواله USD</th><th>کمیشن هر لک</th><th>کمیشن AFN</th><th>کمیشن USD</th><th>بدهی مبدأ USD</th></tr></thead>
                     <tbody>@foreach (var locationRate in request.PaymentLocationRates)
                     {
                         <tr><td>@locationRate.PaymentLocationName</td><td>@locationRate.HawalaCount</td>
+                            <td dir="ltr">@(calculated ? preview!.Items.Where(x => x.PaymentLocationId == locationRate.PaymentLocationId && x.CurrencyCode == "AFN").Sum(x => x.SourceAmount).ToString("N0") : "—")</td>
+                            <td dir="ltr">@(calculated ? preview!.Items.Where(x => x.PaymentLocationId == locationRate.PaymentLocationId && x.CurrencyCode == "USD").Sum(x => x.SourceAmount).ToString("N0") : "—")</td>
                             <td style="width:180px"><input type="number" min="0.0001" step="0.0001" class="form-control"
                                    @bind="locationRate.PerLakhRate" @bind:after="InvalidatePreview" /></td>
                             <td dir="ltr">@(calculated ? locationRate.TotalCommissionAfn.ToString("N0") : "—")</td>
@@ -110,6 +112,8 @@
                     <div class="col-md-3"><div class="modern-card p-3"><small>@(isOutgoing ? "بدهی فرستنده (USD)" : "مجموع مبنا (USD)")</small><h4>@preview.TotalBaseAfn.ToString("N0")</h4></div></div>
                     @if (isOutgoing)
                     {
+                        <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های ارسالی (USD)</small><h4>@preview.TotalSourceUsd.ToString("N0")</h4></div></div>
+                        <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های ارسالی (AFN)</small><h4>@preview.TotalSourceAfn.ToString("N0")</h4></div></div>
                         <div class="col-md-3"><div class="modern-card p-3"><small>طلب مقصد (AFN)</small><h4>@preview.TotalCommissionAfn.ToString("N0")</h4></div></div>
                         <div class="col-md-3"><div class="modern-card p-3"><small>طلب مقصد (USD)</small><h4>@preview.TotalCommissionUsd.ToString("N0")</h4></div></div>
                     }
@@ -211,6 +215,11 @@
                     <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">تعداد حواله</small><div class="fw-bold">@selectedDetails.HawalaCount</div></div></div>
                     <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">کمیشن هر لک</small><div class="fw-bold">@selectedDetails.CommissionPerLakhAfn.ToString("N0")</div></div></div>
                     <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">وضعیت</small><div><span class="badge @(selectedDetails.Status == "Posted" ? "bg-success" : "bg-secondary")">@(selectedDetails.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></div></div></div>
+                    @if (detailsOutgoing)
+                    {
+                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های ارسالی USD</small><div class="fw-bold">@selectedDetails.TotalSourceUsd.ToString("N0") USD</div></div></div>
+                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های ارسالی AFN</small><div class="fw-bold">@selectedDetails.TotalSourceAfn.ToString("N0") AFN</div></div></div>
+                    }
                     <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">@(detailsOutgoing ? "بدهی فرستنده" : "مبنای محاسبه")</small><div class="fw-bold">@selectedDetails.TotalBaseAfn.ToString("N0") USD</div></div></div>
                     <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن AFN</small><div class="fw-bold">@selectedDetails.TotalCommissionAfn.ToString("N0") AFN</div></div></div>
                     <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن USD</small><div class="fw-bold">@selectedDetails.TotalCommissionUsd.ToString("N0") USD</div></div></div>

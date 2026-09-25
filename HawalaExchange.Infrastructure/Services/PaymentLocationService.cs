@@ -88,6 +88,17 @@ namespace HawalaExchange.Application.Services
 
         public async Task<PaymentLocationDto> CreateAsync(CreatePaymentLocationDto dto)
         {
+            if (dto.ResponsibleCorrespondentId.HasValue)
+            {
+                if (!dto.IsActive)
+                    throw new InvalidOperationException("برای محل پرداخت غیرفعال نمی‌توان نمایندگی مسئول تعیین کرد.");
+
+                var correspondentExists = await _context.Correspondents.AsNoTracking().AnyAsync(
+                    x => x.Id == dto.ResponsibleCorrespondentId.Value && !x.IsArchived);
+                if (!correspondentExists)
+                    throw new InvalidOperationException("نمایندگی مسئول فعال پیدا نشد.");
+            }
+
             var entity = _mapper.Map<PaymentLocation>(dto);
             entity.Name = CleanDisplayName(dto.Name);
             entity.NormalizedName = PaymentLocationNameNormalizer.Normalize(entity.Name);
@@ -101,6 +112,17 @@ namespace HawalaExchange.Application.Services
             entity.Aliases = BuildAliases(dto.Aliases, entity);
 
             await _context.PaymentLocations.AddAsync(entity);
+            if (dto.ResponsibleCorrespondentId.HasValue)
+            {
+                _context.PaymentLocationCorrespondentAssignments.Add(new PaymentLocationCorrespondentAssignment
+                {
+                    PaymentLocation = entity,
+                    CorrespondentId = dto.ResponsibleCorrespondentId.Value,
+                    EffectiveFrom = DateTime.Today,
+                    CreatedBy = entity.CreatedBy,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
             await _context.SaveChangesAsync();
 
             await _auditLogService.LogAsync(
@@ -162,6 +184,9 @@ namespace HawalaExchange.Application.Services
             var isUsed = await _context.Hawalas.AnyAsync(h => h.PaymentLocationId == id);
             if (isUsed)
                 throw new InvalidOperationException("این محل در حواله‌ها استفاده شده است و قابل حذف نیست.");
+
+            if (await _context.PaymentLocationCorrespondentAssignments.AnyAsync(x => x.PaymentLocationId == id))
+                throw new InvalidOperationException("برای این محل پرداخت تاریخچه نمایندگی مسئول ثبت شده است؛ به‌جای حذف، آن را غیرفعال کنید.");
 
             _context.PaymentLocations.Remove(entity);
             await _context.SaveChangesAsync();

@@ -19,6 +19,7 @@ namespace HawalaExchange.Application.DTOs
     public class CreatePaymentLocationDto
     {
         public string Name { get; set; } = string.Empty;
+        public long? ResponsibleCorrespondentId { get; set; }
         public string Address { get; set; } = string.Empty;
         public string? Phone { get; set; }
         public string? ContactPerson { get; set; }

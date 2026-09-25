@@ -2,6 +2,8 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @inject IPaymentLocationService PaymentLocationService
+@inject IPaymentLocationAssignmentService AssignmentService
+@inject ICorrespondentService CorrespondentService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
@@ -24,6 +26,11 @@
             </button>
         </Actions>
     </AppPageHeader>
+
+    @if (!string.IsNullOrWhiteSpace(assignmentNotice))
+    {
+        <div class="alert @(assignmentHasError ? "alert-danger" : "alert-success")" role="alert">@assignmentNotice</div>
+    }
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر محل‌های پرداخت"
                       HasActiveFilters="@HasActiveFilters"
@@ -73,6 +80,7 @@
                             <th style="min-width:250px;">آدرس</th>
                             <th style="min-width:120px;">تلفن</th>
                             <th style="min-width:120px;">مسئول</th>
+                            <th style="min-width:150px;">نمایندگی مسئول پرداخت</th>
                             <th class="sortable-header @(sortColumn == "Status" ? "active" : "")" style="min-width:100px;" @onclick='() => SortBy("Status")'>
                                 وضعیت
                                 @if (sortColumn == "Status")
@@ -86,12 +94,12 @@
                     <tbody>
                         @if (isLoading)
                         {
-                            <tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+                            <tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
                         }
                         else if (!pagedLocations.Any())
                         {
                             <tr>
-                                <td colspan="8" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ محل پرداختی یافت نشد</span>
@@ -112,6 +120,7 @@
                                     <td>@location.Address</td>
                                     <td>@location.Phone</td>
                                     <td>@location.ContactPerson</td>
+                                    <td>@CurrentAssignmentName(location.Id)</td>
                                     <td>
                                         <span class="badge-modern @(location.IsActive ? "badge-success" : "badge-danger")">
                                             @(location.IsActive ? "فعال" : "غیرفعال")
@@ -119,6 +128,10 @@
                                     </td>
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات محل پرداخت {location.Name}")">
+                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenAssignmentModal(location)">
+                                                <i class="bi bi-person-check text-primary"></i>
+                                                تعیین نمایندگی مسئول
+                                            </button>
                                             <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(location.Id)">
                                                 <i class="bi bi-pencil text-primary"></i>
                                                 ویرایش
@@ -158,6 +171,66 @@
         </div>
     </div>
 </div>
+
+@if (showAssignmentModal && assignmentLocation is not null)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">نمایندگی مسئول پرداخت: @assignmentLocation.Name</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseAssignmentModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">تغییر مسئولیت فقط از تاریخ انتخاب‌شده به بعد اعمال می‌شود؛ حواله‌های قبلی و حسابداری آن‌ها تغییر نمی‌کنند.</p>
+                    @if (!string.IsNullOrWhiteSpace(assignmentModalError))
+                    {
+                        <div class="alert alert-danger" role="alert">@assignmentModalError</div>
+                    }
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-7">
+                            <label class="form-label" for="responsibleCorrespondent">نمایندگی مسئول</label>
+                            <select id="responsibleCorrespondent" class="form-select" @bind="selectedCorrespondentId">
+                                <option value="">انتخاب کنید</option>
+                                @foreach (var correspondent in activeCorrespondents)
+                                {
+                                    <option value="@correspondent.Id">@correspondent.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label" for="assignmentEffectiveFrom">تاریخ شروع (میلادی)</label>
+                            <input id="assignmentEffectiveFrom" type="date" class="form-control" min="@DateTime.Today.ToString("yyyy-MM-dd")" @bind="assignmentEffectiveFrom" @bind:format="yyyy-MM-dd" />
+                        </div>
+                    </div>
+                    <h6>تاریخچه مسئولیت</h6>
+                    @if (!LocationAssignments(assignmentLocation.Id).Any())
+                    {
+                        <p class="text-muted">هنوز نمایندگی مسئول ثبت نشده است.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead><tr><th>نمایندگی</th><th>از تاریخ</th><th>تا پیش از تاریخ</th></tr></thead>
+                                <tbody>
+                                    @foreach (var assignment in LocationAssignments(assignmentLocation.Id))
+                                    {
+                                        <tr><td>@assignment.CorrespondentName</td><td>@assignment.EffectiveFrom.ToString("yyyy-MM-dd")</td><td>@(assignment.EffectiveTo?.ToString("yyyy-MM-dd") ?? "ادامه دارد")</td></tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-modern btn-light-modern" @onclick="CloseAssignmentModal">بازگشت</button>
+                    <button class="btn-modern btn-primary-modern" @onclick="SaveAssignment" disabled="@isSavingAssignment">ثبت مسئولیت</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 <!-- مودال ایجاد/ویرایش -->
 @if (showModal)
@@ -207,6 +280,20 @@
                             <label class="form-label fw-bold">مسئول</label>
                             <input type="text" class="form-control" @bind="currentLocation.ContactPerson" placeholder="نام مسئول" />
                         </div>
+                        @if (!isEditMode)
+                        {
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold" for="newLocationCorrespondent">نمایندگی مسئول پرداخت</label>
+                                <select id="newLocationCorrespondent" class="form-select" @bind="currentLocation.ResponsibleCorrespondentId">
+                                    <option value="">فعلاً تعیین نشود</option>
+                                    @foreach (var correspondent in activeCorrespondents)
+                                    {
+                                        <option value="@correspondent.Id">@correspondent.Name</option>
+                                    }
+                                </select>
+                                <small class="text-muted">مسئولیت از تاریخ ایجاد محل پرداخت آغاز می‌شود.</small>
+                            </div>
+                        }
                         <div class="col-md-6 mb-3 d-flex align-items-end">
                             <div class="form-check form-switch payment-location-status-toggle">
                                 <input class="form-check-input" type="checkbox" id="isActive" @bind="currentLocation.IsActive" />
@@ -263,6 +350,16 @@
 
 @code {
     private List<PaymentLocationDto> paymentLocations = new();
+    private List<PaymentLocationAssignmentDto> assignments = new();
+    private List<CorrespondentDto> activeCorrespondents = new();
+    private PaymentLocationDto? assignmentLocation;
+    private long? selectedCorrespondentId;
+    private DateTime assignmentEffectiveFrom = DateTime.Today;
+    private bool showAssignmentModal;
+    private bool isSavingAssignment;
+    private bool assignmentHasError;
+    private string assignmentNotice = string.Empty;
+    private string assignmentModalError = string.Empty;
     private List<PaymentLocationDto> filteredLocations = new();
     private string _searchTerm = "";
     private string statusFilter = string.Empty;
@@ -326,13 +423,70 @@
             isLoading = true;
             var result = await PaymentLocationService.GetAllAsync();
             paymentLocations = result.ToList();
+            assignments = (await AssignmentService.GetAllAsync()).ToList();
+            activeCorrespondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList();
             ApplyFilters();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            assignmentHasError = true;
+            assignmentNotice = $"بارگذاری محل‌های پرداخت یا نمایندگی‌های مسئول ناموفق بود: {ex.Message}";
+        }
         finally
         {
             isLoading = false;
             StateHasChanged();
+        }
+    }
+
+    private IEnumerable<PaymentLocationAssignmentDto> LocationAssignments(long locationId) =>
+        assignments.Where(x => x.PaymentLocationId == locationId).OrderByDescending(x => x.EffectiveFrom);
+
+    private string CurrentAssignmentName(long locationId)
+    {
+        var today = DateTime.Today;
+        return LocationAssignments(locationId)
+            .FirstOrDefault(x => x.EffectiveFrom <= today && (x.EffectiveTo is null || today < x.EffectiveTo))
+            ?.CorrespondentName ?? "تعیین نشده";
+    }
+
+    private void OpenAssignmentModal(PaymentLocationDto location)
+    {
+        assignmentLocation = location;
+        selectedCorrespondentId = null;
+        assignmentEffectiveFrom = DateTime.Today;
+        assignmentModalError = string.Empty;
+        assignmentNotice = string.Empty;
+        showAssignmentModal = true;
+    }
+
+    private void CloseAssignmentModal() => showAssignmentModal = false;
+
+    private async Task SaveAssignment()
+    {
+        if (assignmentLocation is null || !selectedCorrespondentId.HasValue)
+        {
+            assignmentModalError = "نمایندگی مسئول را انتخاب کنید.";
+            return;
+        }
+
+        try
+        {
+            isSavingAssignment = true;
+            assignmentModalError = string.Empty;
+            await AssignmentService.AssignAsync(assignmentLocation.Id, selectedCorrespondentId.Value, assignmentEffectiveFrom);
+            assignments = (await AssignmentService.GetAllAsync()).ToList();
+            showAssignmentModal = false;
+            assignmentHasError = false;
+            assignmentNotice = "مسئولیت محل پرداخت ثبت شد؛ حواله‌های قبلی بدون تغییر باقی می‌مانند.";
+        }
+        catch (Exception ex)
+        {
+            assignmentModalError = ex.Message;
+        }
+        finally
+        {
+            isSavingAssignment = false;
         }
     }
 

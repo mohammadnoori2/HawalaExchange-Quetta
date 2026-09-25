@@ -126,6 +126,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<AccountCurrencyBalance> AccountCurrencyBalances { get; set; }
         public DbSet<PaymentLocation> PaymentLocations { get; set; }
         public DbSet<PaymentLocationAlias> PaymentLocationAliases { get; set; }
+        public DbSet<PaymentLocationCorrespondentAssignment> PaymentLocationCorrespondentAssignments { get; set; }
 
         public DbSet<CapitalInvestment> CapitalInvestments { get; set; }
         public DbSet<AccountMoneyOperation> AccountMoneyOperations { get; set; }
@@ -1664,6 +1665,11 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<PaymentLocationAlias>()
                 .HasIndex(x => new { x.TenantId, x.NormalizedName })
                 .IsUnique();
+            modelBuilder.Entity<PaymentLocationCorrespondentAssignment>()
+                .HasIndex(x => new { x.TenantId, x.PaymentLocationId, x.EffectiveFrom })
+                .IsUnique();
+            modelBuilder.Entity<PaymentLocationCorrespondentAssignment>()
+                .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.EffectiveFrom });
             modelBuilder.Entity<CashDailyBalance>()
                 .HasIndex(x => new { x.TenantId, x.JournalDate, x.AccountId, x.CurrencyId })
                 .IsUnique();
@@ -1939,6 +1945,18 @@ namespace HawalaExchange.Infrastructure.Data
                 .WithMany()
                 .HasForeignKey(x => x.CreatedBy)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PaymentLocationCorrespondentAssignment>(entity =>
+            {
+                entity.HasOne(x => x.PaymentLocation).WithMany()
+                    .HasForeignKey(x => new { x.TenantId, x.PaymentLocationId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id })
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Correspondent).WithMany()
+                    .HasForeignKey(x => new { x.TenantId, x.CorrespondentId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id })
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
 
             modelBuilder.Entity<Correspondent>()
                 .HasOne(x => x.SettlementCurrency)

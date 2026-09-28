@@ -133,6 +133,123 @@ public sealed class HawalaImportService : IHawalaImportService
         return BuildPreview(batch, correspondent.Name, ownLocation?.Id, ownLocation?.Name ?? string.Empty, currentAssignments);
     }
 
+    public async Task<HawalaImportPreviewDto?> GetPreviewAsync(
+        long batchId,
+        CancellationToken cancellationToken = default)
+    {
+        var batch = await _context.HawalaImportBatches.AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.Correspondent)
+            .Include(x => x.Rows).ThenInclude(x => x.PaymentLocation)
+            .Include(x => x.Rows).ThenInclude(x => x.DestinationCorrespondent)
+            .SingleOrDefaultAsync(x => x.Id == batchId && x.Status == "Preview", cancellationToken);
+        if (batch is null) return null;
+        var ownLocationName = batch.OwnPaymentLocationId.HasValue
+            ? await _context.PaymentLocations.AsNoTracking()
+                .Where(x => x.Id == batch.OwnPaymentLocationId.Value)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(cancellationToken) ?? string.Empty
+            : string.Empty;
+        var locationIds = batch.Rows.Where(x => x.PaymentLocationId.HasValue)
+            .Select(x => x.PaymentLocationId!.Value).Distinct().ToList();
+        var currentAssignments = await _context.PaymentLocationCorrespondentAssignments.AsNoTracking()
+            .Where(x => locationIds.Contains(x.PaymentLocationId) && x.EffectiveFrom <= DateTime.Today &&
+                        (x.EffectiveTo == null || DateTime.Today < x.EffectiveTo))
+            .Include(x => x.Correspondent)
+            .ToDictionaryAsync(x => x.PaymentLocationId, cancellationToken);
+        return BuildPreview(batch, batch.Correspondent?.Name ?? string.Empty,
+            batch.OwnPaymentLocationId, ownLocationName, currentAssignments);
+    }
+
+    public async Task<IReadOnlyList<HawalaImportHistoryDto>> GetHistoryAsync(
+        CancellationToken cancellationToken = default) =>
+        await _context.HawalaImportBatches.AsNoTracking()
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new HawalaImportHistoryDto
+            {
+                BatchId = x.Id,
+                FileName = x.FileName,
+                SourceCorrespondentName = x.Correspondent!.Name,
+                Status = x.Status,
+                RowCount = x.RowCount,
+                CreatedAt = x.CreatedAt,
+                ConfirmedAt = x.ConfirmedAt,
+                UploadedBy = x.ConfirmedByUser != null
+                    ? x.ConfirmedByUser.FullName
+                    : x.CreatedByUser!.FullName
+            })
+            .ToListAsync(cancellationToken);
+
+    public async Task<HawalaImportDetailsDto?> GetDetailsAsync(
+        long batchId,
+        CancellationToken cancellationToken = default)
+    {
+        var batch = await _context.HawalaImportBatches.AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.Correspondent)
+            .Include(x => x.CreatedByUser)
+            .Include(x => x.ConfirmedByUser)
+            .Include(x => x.Rows).ThenInclude(x => x.PaymentLocation)
+            .Include(x => x.Rows).ThenInclude(x => x.DestinationCorrespondent)
+            .Include(x => x.Rows).ThenInclude(x => x.Hawala)
+            .SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken);
+        if (batch is null) return null;
+
+        var rows = batch.Rows.OrderBy(x => x.ExcelRowNumber).ToList();
+        var groups = rows.GroupBy(row =>
+        {
+            var isOwn = row.PaymentLocationId == batch.OwnPaymentLocationId;
+            return new
+            {
+                IsOwn = isOwn,
+                CorrespondentId = isOwn ? null : row.DestinationCorrespondentId,
+                Name = isOwn
+                    ? "دفتر خود ما"
+                    : row.DestinationCorrespondent?.Name ?? "نمایندگی تعیین نشده"
+            };
+        }).Select(group => new HawalaImportGroupDetailsDto
+        {
+            CorrespondentId = group.Key.CorrespondentId,
+            CorrespondentName = group.Key.Name,
+            IsOwnOffice = group.Key.IsOwn,
+            HawalaCount = group.Count(),
+            Totals = BuildTotals(group),
+            Hawalas = group.Select(row => new HawalaImportHawalaDetailsDto
+            {
+                RowId = row.Id,
+                ExcelRowNumber = row.ExcelRowNumber,
+                HawalaId = row.HawalaId,
+                GeneratedSendHawalaId = row.GeneratedSendHawalaId,
+                HawalaNumber = row.HawalaNumber,
+                ReferenceNumber = row.ReferenceNumber,
+                SenderName = row.SenderName,
+                ReceiverName = row.ReceiverName,
+                PaymentLocationName = row.PaymentLocation?.Name ?? row.PaymentLocationText ?? string.Empty,
+                Amount = row.Amount ?? 0,
+                CurrencyCode = row.CurrencyCode ?? string.Empty,
+                Status = row.Hawala?.Status ?? (batch.Status == "Posted" ? "ثبت‌شده" : "پیش‌نمایش")
+            }).ToList()
+        }).OrderByDescending(x => x.IsOwnOffice).ThenBy(x => x.CorrespondentName).ToList();
+
+        return new HawalaImportDetailsDto
+        {
+            BatchId = batch.Id,
+            FileName = batch.FileName,
+            SourceCorrespondentName = batch.Correspondent?.Name ?? string.Empty,
+            Status = batch.Status,
+            RowCount = batch.RowCount,
+            CreatedAt = batch.CreatedAt,
+            ConfirmedAt = batch.ConfirmedAt,
+            UploadedBy = batch.ConfirmedByUser?.FullName ?? batch.CreatedByUser?.FullName ?? string.Empty,
+            ImportedCount = rows.Count(x => x.HawalaId.HasValue),
+            GeneratedSendCount = rows.Count(x => x.GeneratedSendHawalaId.HasValue),
+            OwnOfficeCount = rows.Count(x => x.PaymentLocationId == batch.OwnPaymentLocationId),
+            ReceivedTotals = BuildTotals(rows),
+            SentTotals = BuildTotals(rows.Where(x => x.GeneratedSendHawalaId.HasValue)),
+            Groups = groups
+        };
+    }
+
     public async Task<HawalaImportResultDto> ConfirmAsync(
         ConfirmHawalaImportDto request,
         IProgress<HawalaImportProgressDto>? progress = null,
@@ -235,6 +352,40 @@ public sealed class HawalaImportService : IHawalaImportService
                 if (string.IsNullOrWhiteSpace(key) || !mappings.TryAdd(key, mapping))
                     throw new InvalidOperationException("برای هر محل پرداخت باید دقیقاً یک تعیین نمایندگی ثبت شود.");
             }
+            var requestedNewCorrespondents = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var mapping in mappings.Values)
+            {
+                var newName = CleanText(mapping.NewCorrespondentName);
+                if (string.IsNullOrWhiteSpace(newName) && mapping.CreateCorrespondent)
+                    newName = CleanText(mapping.PaymentLocationName);
+                var hasExisting = mapping.CorrespondentId.HasValue;
+                var hasNew = !string.IsNullOrWhiteSpace(newName);
+                if (hasExisting == hasNew)
+                    throw new InvalidOperationException(
+                        $"برای محل پرداخت «{mapping.PaymentLocationName}» فقط یک نمایندگی موجود یا جدید انتخاب کنید.");
+                if (hasNew)
+                    requestedNewCorrespondents.TryAdd(
+                        PaymentLocationNameNormalizer.Normalize(newName), newName);
+            }
+
+            var createdCorrespondents = new Dictionary<string, Correspondent>(StringComparer.Ordinal);
+            foreach (var requested in requestedNewCorrespondents)
+            {
+                if (activeCorrespondents.ContainsKey(requested.Key))
+                    throw new InvalidOperationException(
+                        $"نمایندگی «{requested.Value}» از قبل وجود دارد؛ آن را از فهرست نمایندگی‌های موجود انتخاب کنید.");
+                var createdRepresentative = await _correspondentService.CreateAsync(new CreateCorrespondentDto
+                {
+                    Name = requested.Value,
+                    City = requested.Value,
+                    CommissionMethod = "PerTransaction"
+                });
+                var entity = await _context.Correspondents.SingleAsync(
+                    x => x.Id == createdRepresentative.Id, cancellationToken);
+                createdCorrespondents[requested.Key] = entity;
+                activeCorrespondentsById[entity.Id] = entity;
+                activeCorrespondents[requested.Key] = entity;
+            }
             var assignmentHistory = await _context.PaymentLocationCorrespondentAssignments.AsNoTracking()
                 .Where(x => locationIds.Contains(x.PaymentLocationId))
                 .OrderByDescending(x => x.EffectiveFrom)
@@ -257,30 +408,25 @@ public sealed class HawalaImportService : IHawalaImportService
                 Correspondent destination;
                 if (useExplicitMappings)
                 {
-                    if (!mappings.TryGetValue(locationKey, out var mapping) ||
-                        (mapping.CreateCorrespondent == mapping.CorrespondentId.HasValue))
+                    if (!mappings.TryGetValue(locationKey, out var mapping))
                         throw new InvalidOperationException($"برای محل پرداخت «{locationName}» یک نمایندگی مسئول انتخاب کنید.");
+                    var requestedNewName = CleanText(mapping.NewCorrespondentName);
+                    if (string.IsNullOrWhiteSpace(requestedNewName) && mapping.CreateCorrespondent)
+                        requestedNewName = locationName;
                     if (currentAssignment is not null)
                     {
-                        if (mapping.CorrespondentId != currentAssignment.CorrespondentId)
+                        if (!mapping.CorrespondentId.HasValue ||
+                            mapping.CorrespondentId != currentAssignment.CorrespondentId)
                             throw new InvalidOperationException($"مسئول محل پرداخت «{locationName}» قبلاً ثبت شده است؛ برای تغییر آن از صفحهٔ محل‌های پرداخت و تاریخ مؤثر استفاده کنید.");
                         destination = activeCorrespondentsById.GetValueOrDefault(currentAssignment.CorrespondentId)
                             ?? throw new InvalidOperationException($"نمایندگی مسئول محل پرداخت «{locationName}» غیرفعال است.");
                     }
-                    else if (mapping.CreateCorrespondent)
+                    else if (!string.IsNullOrWhiteSpace(requestedNewName))
                     {
-                        if (activeCorrespondents.ContainsKey(locationKey))
-                            throw new InvalidOperationException($"نمایندگی «{locationName}» از قبل وجود دارد؛ آن را از فهرست انتخاب کنید.");
-                        var createdDestination = await _correspondentService.CreateAsync(new CreateCorrespondentDto
-                        {
-                            Name = locationName,
-                            City = locationName,
-                            CommissionMethod = "PerTransaction"
-                        });
-                        destination = await _context.Correspondents.SingleAsync(
-                            x => x.Id == createdDestination.Id, cancellationToken);
-                        activeCorrespondentsById[destination.Id] = destination;
-                        activeCorrespondents[locationKey] = destination;
+                        var newKey = PaymentLocationNameNormalizer.Normalize(requestedNewName);
+                        destination = createdCorrespondents.GetValueOrDefault(newKey)
+                            ?? throw new InvalidOperationException(
+                                $"نمایندگی جدید «{requestedNewName}» برای محل پرداخت «{locationName}» ساخته نشد.");
                     }
                     else if (!activeCorrespondentsById.TryGetValue(mapping.CorrespondentId!.Value, out destination!))
                         throw new InvalidOperationException($"نمایندگی انتخاب‌شده برای «{locationName}» فعال یا معتبر نیست.");
@@ -427,8 +573,25 @@ public sealed class HawalaImportService : IHawalaImportService
                 BatchId = batchId,
                 ImportedCount = created.Count,
                 GeneratedSendCount = generatedBySource.Count,
+                OwnOfficeCount = orderedRows.Count(x => x.PaymentLocationId == ownLocationId),
                 MissingCommissionCount = orderedRows.Count(x => x.GeneratedSendHawalaId.HasValue && !x.AgentCommissionAmount.HasValue),
-                Totals = BuildTotals(orderedRows)
+                Totals = BuildTotals(orderedRows),
+                ReceivedTotals = BuildTotals(orderedRows),
+                SentTotals = BuildTotals(orderedRows.Where(x => x.GeneratedSendHawalaId.HasValue)),
+                OwnOfficeTotals = BuildTotals(orderedRows.Where(x => x.PaymentLocationId == ownLocationId)),
+                DestinationSummaries = orderedRows
+                    .Where(x => x.GeneratedSendHawalaId.HasValue && x.DestinationCorrespondentId.HasValue)
+                    .GroupBy(x => x.DestinationCorrespondentId!.Value)
+                    .Select(group => new HawalaImportDestinationSummaryDto
+                    {
+                        CorrespondentId = group.Key,
+                        CorrespondentName = activeCorrespondentsById.GetValueOrDefault(group.Key)?.Name
+                            ?? "نمایندگی نامشخص",
+                        HawalaCount = group.Count(),
+                        Totals = BuildTotals(group)
+                    })
+                    .OrderBy(x => x.CorrespondentName)
+                    .ToList()
             };
         }
         catch

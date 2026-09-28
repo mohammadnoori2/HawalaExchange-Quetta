@@ -1,0 +1,147 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Services
+@inject IJSRuntime JS
+
+<div class="searchable-dropdown" @ref="dropdownElement">
+    <div class="searchable-dropdown-input" @onclick="Open">
+        <input type="text" class="@CssClass" value="@DisplayText" placeholder="@Placeholder"
+               autocomplete="off" disabled="@Disabled" @oninput="HandleInputAsync" @onfocus="Open"
+               @onblur="Close" @onkeydown="HandleKeyDownAsync" @onkeydown:stopPropagation="true" />
+    </div>
+    <div class="searchable-dropdown-menu searchable-dropdown-menu-floating" @ref="menuElement" popover="manual">
+        @if (isOpen && !Disabled)
+        {
+            @if (!MatchingOptions.Any())
+            { <div class="searchable-dropdown-item text-muted">نمایندگی یافت نشد</div> }
+            else
+            {
+                @foreach (var option in MatchingOptions.Take(MaxResults))
+                {
+                    <div class="searchable-dropdown-item" @onmousedown:preventDefault="true" @onclick="() => SelectAsync(option)">
+                        <div class="fw-bold">@option.Name</div>
+                        <small class="text-muted">@option.Description</small>
+                    </div>
+                }
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public IEnumerable<CorrespondentDto>? Correspondents { get; set; }
+    [Parameter] public IEnumerable<string>? PlannedNames { get; set; }
+    [Parameter] public string? CreateName { get; set; }
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "جستجوی نمایندگی مسئول...";
+    [Parameter] public string CssClass { get; set; } = "form-control";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public int MaxResults { get; set; } = 40;
+
+    private string searchText = string.Empty;
+    private bool isOpen;
+    private string lastObservedValue = string.Empty;
+    private ElementReference dropdownElement;
+    private ElementReference menuElement;
+    private bool openMenuAfterRender;
+
+    private List<Option> Options
+    {
+        get
+        {
+            var result = (Correspondents ?? [])
+                .Select(x => new Option($"existing:{x.Id}", x.Name,
+                    string.Join(" — ", new[] { x.Code, x.City, x.PhoneNumber }.Where(v => !string.IsNullOrWhiteSpace(v))),
+                    $"{x.Name} {x.Code} {x.City} {x.PhoneNumber}"))
+                .ToList();
+            var existingNames = result.Select(x => PaymentLocationNameNormalizer.Normalize(x.Name))
+                .ToHashSet(StringComparer.Ordinal);
+            foreach (var name in (PlannedNames ?? []).Where(x => !string.IsNullOrWhiteSpace(x))
+                         .Distinct(StringComparer.CurrentCultureIgnoreCase))
+            {
+                result.Add(new Option(NewValue(name), name, "نمایندگی جدید — هنگام ثبت ساخته می‌شود", name));
+            }
+            if (!string.IsNullOrWhiteSpace(CreateName) &&
+                !existingNames.Contains(PaymentLocationNameNormalizer.Normalize(CreateName)) &&
+                !result.Any(x => x.Value == NewValue(CreateName)))
+            {
+                result.Add(new Option(NewValue(CreateName), CreateName,
+                    "ایجاد نمایندگی جدید با این نام", CreateName));
+            }
+            return result;
+        }
+    }
+
+    private IEnumerable<Option> MatchingOptions => string.IsNullOrWhiteSpace(searchText)
+        ? Options
+        : Options.Where(x => x.SearchText.Contains(searchText, StringComparison.CurrentCultureIgnoreCase));
+
+    private string DisplayText => !string.IsNullOrWhiteSpace(searchText)
+        ? searchText
+        : Options.FirstOrDefault(x => x.Value == Value)?.Name ?? string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (lastObservedValue == Value) return;
+        lastObservedValue = Value;
+        searchText = string.Empty;
+        isOpen = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!openMenuAfterRender || !isOpen || Disabled) return;
+        openMenuAfterRender = false;
+        await JS.InvokeVoidAsync("hawalaTools.openFloatingDropdown", dropdownElement, menuElement);
+    }
+
+    private void Open()
+    {
+        if (Disabled) return;
+        isOpen = true;
+        openMenuAfterRender = true;
+    }
+
+    private async Task Close()
+    {
+        searchText = string.Empty;
+        isOpen = false;
+        await JS.InvokeVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
+    }
+
+    private async Task HandleInputAsync(ChangeEventArgs args)
+    {
+        searchText = args.Value?.ToString() ?? string.Empty;
+        isOpen = true;
+        openMenuAfterRender = true;
+        if (!string.IsNullOrWhiteSpace(Value))
+        {
+            Value = string.Empty;
+            lastObservedValue = string.Empty;
+            await ValueChanged.InvokeAsync(string.Empty);
+        }
+    }
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") { await Close(); return; }
+        if (args.Key != "Enter") return;
+        var matches = MatchingOptions.Take(2).ToList();
+        if (matches.Count == 1) await SelectAsync(matches[0]);
+    }
+
+    private async Task SelectAsync(Option option)
+    {
+        Value = option.Value;
+        lastObservedValue = option.Value;
+        searchText = string.Empty;
+        isOpen = false;
+        await JS.InvokeVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
+        await ValueChanged.InvokeAsync(option.Value);
+    }
+
+    private static string NewValue(string name) =>
+        $"new:{PaymentLocationNameNormalizer.Normalize(name)}";
+
+    private sealed record Option(string Value, string Name, string Description, string SearchText);
+}

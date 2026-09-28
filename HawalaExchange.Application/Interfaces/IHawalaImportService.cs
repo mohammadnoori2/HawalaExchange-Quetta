@@ -15,5 +15,16 @@ namespace HawalaExchange.Application.Interfaces.Services
             ConfirmHawalaImportDto request,
             IProgress<HawalaImportProgressDto>? progress = null,
             CancellationToken cancellationToken = default);
+
+        Task<HawalaImportPreviewDto?> GetPreviewAsync(
+            long batchId,
+            CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<HawalaImportHistoryDto>> GetHistoryAsync(
+            CancellationToken cancellationToken = default);
+
+        Task<HawalaImportDetailsDto?> GetDetailsAsync(
+            long batchId,
+            CancellationToken cancellationToken = default);
     }
 }

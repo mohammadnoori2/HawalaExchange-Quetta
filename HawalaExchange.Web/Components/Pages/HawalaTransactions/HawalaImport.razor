@@ -1,4 +1,5 @@
 @page "/correspondents/{CorrespondentId:long}/hawala-import"
+@page "/correspondents/{CorrespondentId:long}/hawala-import/preview/{PreviewBatchId:long}"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Application.Services
@@ -10,14 +11,17 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<PageTitle>آپلود گروهی حواله‌های دریافتی</PageTitle>
+<PageTitle>@(IsPreviewPage ? "پیش‌نمایش و تأیید فایل حواله‌ها" : "آپلود گروهی حواله‌های دریافتی")</PageTitle>
 
-<div class="page-wrapper" dir="rtl">
-    <AppPageHeader Title="آپلود گروهی حواله‌های دریافتی" Subtitle="بررسی فایل Excel و ساخت حواله ارسالی برای محل‌های پرداخت بیرون از دفتر صرافی" Icon="bi-file-earmark-spreadsheet">
+<div class="page-wrapper @(IsPreviewPage ? "import-preview-workspace" : string.Empty)" dir="rtl">
+    <AppPageHeader Title="@(IsPreviewPage ? "پیش‌نمایش و تأیید فایل" : "آپلود گروهی حواله‌های دریافتی")"
+                   Subtitle="@(IsPreviewPage ? $"محیط مستقل بررسی فایل {preview?.FileName ?? string.Empty}" : "انتخاب فایل Excel و مشاهده تاریخچه آپلودها")"
+                   Icon="@(IsPreviewPage ? "bi-layout-text-window-reverse" : "bi-file-earmark-spreadsheet")">
         <Actions>
-            <button class="btn btn-outline-secondary" disabled="@isBusy" title="@(isBusy ? "تا پایان عملیات ثبت منتظر بمانید." : null)" @onclick="BackToCorrespondent">
-                <i class="bi bi-arrow-right ms-1"></i>بازگشت به نمایندگی
-            </button>
+            @if (IsPreviewPage)
+            { <button class="btn btn-outline-secondary" disabled="@isBusy" @onclick="BackToImport"><i class="bi bi-arrow-right ms-1"></i>بازگشت به آپلودها</button> }
+            else
+            { <button class="btn btn-outline-secondary" disabled="@isBusy" title="@(isBusy ? "تا پایان عملیات ثبت منتظر بمانید." : null)" @onclick="BackToCorrespondent"><i class="bi bi-arrow-right ms-1"></i>بازگشت به نمایندگی</button> }
         </Actions>
     </AppPageHeader>
 
@@ -48,18 +52,50 @@
             </div>
         </div>
     }
-    @if (result is not null)
+    @if (!IsPreviewPage && result is not null)
     {
-        <div class="alert alert-success mt-3">
+        <div class="alert alert-success mt-3 mb-0">
             <h5 class="alert-heading">آپلود با موفقیت ثبت شد</h5>
             <div>@result.ImportedCount.ToString("N0") حواله دریافتی و @result.GeneratedSendCount.ToString("N0") حواله ارسالی ثبت گردید.</div>
             @if (result.MissingCommissionCount > 0)
             { <div class="mt-1">@result.MissingCommissionCount.ToString("N0") حواله ارسالی بدون کمیشن و در حالت انتظار قرار گرفت.</div> }
-            @foreach (var total in result.Totals)
-            { <span class="badge bg-success ms-2 mt-2">@total.Amount.ToString("N0") @total.CurrencyCode (@total.RowCount.ToString("N0") ردیف)</span> }
         </div>
+        <div class="row g-3 mt-0">
+            <div class="col-lg-4"><div class="card h-100 border-success"><div class="card-body">
+                <small class="text-muted">تمام حواله‌های دریافتی</small><div class="fs-4 fw-bold">@result.ImportedCount.ToString("N0")</div>
+                @foreach (var total in result.ReceivedTotals)
+                { <div class="d-flex justify-content-between border-top pt-1 mt-1"><span>@total.CurrencyCode</span><strong dir="ltr">@total.Amount.ToString("N0")</strong></div> }
+            </div></div></div>
+            <div class="col-lg-4"><div class="card h-100 border-primary"><div class="card-body">
+                <small class="text-muted">حواله‌های ارسالی خودکار</small><div class="fs-4 fw-bold">@result.GeneratedSendCount.ToString("N0")</div>
+                @foreach (var total in result.SentTotals)
+                { <div class="d-flex justify-content-between border-top pt-1 mt-1"><span>@total.CurrencyCode</span><strong dir="ltr">@total.Amount.ToString("N0")</strong></div> }
+            </div></div></div>
+            <div class="col-lg-4"><div class="card h-100 border-secondary"><div class="card-body">
+                <small class="text-muted">اجراشده در دفتر خود ما</small><div class="fs-4 fw-bold">@result.OwnOfficeCount.ToString("N0")</div>
+                @foreach (var total in result.OwnOfficeTotals)
+                { <div class="d-flex justify-content-between border-top pt-1 mt-1"><span>@total.CurrencyCode</span><strong dir="ltr">@total.Amount.ToString("N0")</strong></div> }
+            </div></div></div>
+        </div>
+        @if (result.DestinationSummaries.Count > 0)
+        {
+            <div class="card shadow-sm mt-3"><div class="card-header"><strong>تفکیک حواله‌های ارسالی بر اساس نمایندگی مسئول</strong></div>
+                <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th>نمایندگی</th><th>تعداد حواله</th><th>مجموع به تفکیک ارز</th></tr></thead>
+                    <tbody>@foreach (var summary in result.DestinationSummaries)
+                    {
+                        <tr><td><strong>@summary.CorrespondentName</strong></td><td>@summary.HawalaCount.ToString("N0")</td><td>
+                            @foreach (var total in summary.Totals)
+                            { <span class="badge text-bg-primary ms-2">@total.Amount.ToString("N0") @total.CurrencyCode (@total.RowCount.ToString("N0"))</span> }
+                        </td></tr>
+                    }</tbody>
+                </table></div>
+            </div>
+        }
     }
 
+    @if (!IsPreviewPage)
+    {
     <div class="card shadow-sm mt-3"><div class="card-body"><div class="row g-3 align-items-end">
         <div class="col-lg-9">
             <label class="form-label">فایل Excel بدون عنوان ستون</label>
@@ -68,6 +104,7 @@
         </div>
         <div class="col-lg-3">@if (preview is not null){<button class="btn btn-outline-secondary w-100" @onclick="Reset" disabled="@isBusy"><i class="bi bi-arrow-repeat ms-1"></i>انتخاب فایل دیگر</button>}</div>
     </div></div></div>
+    }
 
     @if (isBusy)
     {
@@ -78,8 +115,13 @@
             </div>
         </div></div>
     }
-    else if (preview is not null)
+    else if (IsPreviewPage && preview is not null)
     {
+        <div class="preview-stage mt-3">
+        <div class="preview-stage-banner">
+            <div><span class="preview-step">مرحله نهایی</span><h4 class="mb-1 mt-2">بررسی، تعیین مسئول و ثبت فایل</h4><div class="text-muted">هیچ حواله‌ای تا زمان فشردن «تأیید و ثبت» وارد سیستم نمی‌شود.</div></div>
+            <div class="text-start"><div class="fw-bold">@preview.FileName</div><small>@preview.CorrespondentName</small></div>
+        </div>
         <div class="alert alert-info mt-3 mb-0">محل پرداخت خود صرافی را برای این فایل مشخص کنید. ردیف‌های آن فقط دریافتی ثبت می‌شوند؛ برای سایر محل‌ها حواله ارسالی جفت‌شده ساخته می‌شود.</div>
         <div class="card shadow-sm mt-3"><div class="card-body row g-2 align-items-end">
             <div class="col-md-6">
@@ -150,15 +192,15 @@
                         <label class="form-label fw-bold" for="@($"destination-{location.Name}")">@location.Name</label>
                         @if (!location.PaymentLocationId.HasValue){<span class="badge bg-warning text-dark me-2">محل جدید</span>}
                         @if (location.ResponsibleCorrespondentId.HasValue){<span class="badge bg-info text-dark me-2">مسئول ثبت‌شده</span>}
-                        <select id="@($"destination-{location.Name}")" class="form-select" value="@DestinationChoice(location.Name)" disabled="@location.ResponsibleCorrespondentId.HasValue" @onchange="args => ChangeDestination(location.Name, args)">
-                            <option value="0">انتخاب نمایندگی مسئول</option>
-                            @foreach (var correspondent in activeCorrespondents)
-                            { <option value="@correspondent.Id">@correspondent.Name</option> }
-                            @if (!location.ResponsibleCorrespondentId.HasValue &&
-                                !activeCorrespondents.Any(x => PaymentLocationNameNormalizer.Normalize(x.Name) ==
-                                    PaymentLocationNameNormalizer.Normalize(location.Name)))
-                            { <option value="-1">ایجاد نمایندگی جدید به نام @location.Name</option> }
-                        </select>
+                        @if (location.ResponsibleCorrespondentId.HasValue)
+                        { <div class="form-control bg-light">@location.ResponsibleCorrespondentName</div> }
+                        else
+                        {
+                            <HawalaImportCorrespondentSelect Correspondents="@activeCorrespondents"
+                                PlannedNames="@plannedNewCorrespondents.Values"
+                                CreateName="@location.Name" Value="@DestinationChoice(location.Name)"
+                                ValueChanged="choice => ChangeDestination(location.Name, choice)" />
+                        }
                     </div></div>
                 }
                 </div>
@@ -191,18 +233,129 @@
                 </Virtualize></tbody>
             </table></div>
         </div>
+        </div>
+    }
+
+    @if (!IsPreviewPage)
+    {
+    <div class="card shadow-sm mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong><i class="bi bi-clock-history ms-1"></i>تاریخچه تمام فایل‌های آپلودشده</strong>
+            <button class="btn btn-sm btn-outline-secondary" disabled="@isHistoryBusy" @onclick="LoadHistoryAsync">
+                <i class="bi bi-arrow-clockwise ms-1"></i>تازه‌سازی
+            </button>
+        </div>
+        @if (isHistoryBusy && importHistory.Count == 0)
+        { <div class="card-body text-muted">در حال بارگذاری تاریخچه...</div> }
+        else if (importHistory.Count == 0)
+        { <div class="card-body text-muted">هنوز فایلی آپلود نشده است.</div> }
+        else
+        {
+            <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>فایل</th><th>نمایندگی فرستنده</th><th>تعداد ردیف</th><th>وضعیت</th><th>کاربر</th><th>زمان</th><th></th></tr></thead>
+                <tbody>@foreach (var item in importHistory)
+                {
+                    <tr class="@(selectedHistory?.BatchId == item.BatchId ? "table-primary" : string.Empty)">
+                        <td><strong>@item.FileName</strong></td><td>@item.SourceCorrespondentName</td>
+                        <td>@item.RowCount.ToString("N0")</td><td><span class="badge @HistoryStatusClass(item.Status)">@HistoryStatusText(item.Status)</span></td>
+                        <td>@item.UploadedBy</td><td><AppDateTime Value="@(item.ConfirmedAt ?? item.CreatedAt)" /></td>
+                        <td><button class="btn btn-sm btn-outline-primary" disabled="@isHistoryBusy" @onclick="() => OpenHistoryDetailsAsync(item.BatchId)">جزئیات</button></td>
+                    </tr>
+                }</tbody>
+            </table></div>
+        }
+    </div>
+
+    @if (selectedHistory is not null)
+    {
+        <div class="card shadow-sm mt-3 border-primary">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div><strong>جزئیات آپلود: @selectedHistory.FileName</strong><div class="small text-muted">@selectedHistory.SourceCorrespondentName · @selectedHistory.RowCount.ToString("N0") ردیف</div></div>
+                <button type="button" class="btn-close" aria-label="بستن" @onclick="CloseHistoryDetails"></button>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4"><div class="border rounded p-2"><small class="text-muted">حواله دریافتی ثبت‌شده</small><div class="fs-5 fw-bold">@selectedHistory.ImportedCount.ToString("N0")</div>@foreach(var total in selectedHistory.ReceivedTotals){<span class="badge text-bg-success ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</div></div>
+                    <div class="col-md-4"><div class="border rounded p-2"><small class="text-muted">حواله ارسالی خودکار</small><div class="fs-5 fw-bold">@selectedHistory.GeneratedSendCount.ToString("N0")</div>@foreach(var total in selectedHistory.SentTotals){<span class="badge text-bg-primary ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</div></div>
+                    <div class="col-md-4"><div class="border rounded p-2"><small class="text-muted">اجرا در دفتر خود ما</small><div class="fs-5 fw-bold">@selectedHistory.OwnOfficeCount.ToString("N0")</div>@foreach(var total in selectedHistory.Groups.FirstOrDefault(x => x.IsOwnOffice)?.Totals ?? []){<span class="badge text-bg-secondary ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</div></div>
+                </div>
+                <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+                    <thead class="table-light"><tr><th>نمایندگی/محل اجرا</th><th>تعداد حواله</th><th>مجموع به تفکیک ارز</th><th></th></tr></thead>
+                    <tbody>@foreach (var group in selectedHistory.Groups)
+                    {
+                        <tr class="@(selectedHistoryGroup == group ? "table-info" : string.Empty)">
+                            <td><strong>@group.CorrespondentName</strong>@if(group.IsOwnOffice){<span class="badge text-bg-secondary me-2">دفتر</span>}</td>
+                            <td>@group.HawalaCount.ToString("N0")</td><td>@foreach(var total in group.Totals){<span class="badge @(group.IsOwnOffice ? "text-bg-secondary" : "text-bg-primary") ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</td>
+                            <td><button class="btn btn-sm btn-outline-info" @onclick="() => selectedHistoryGroup = group">جزئیات حواله‌ها</button></td>
+                        </tr>
+                    }</tbody>
+                </table></div>
+            </div>
+        </div>
+    }
+
+    @if (selectedHistoryGroup is not null)
+    {
+        <div class="modal d-block history-hawala-modal" tabindex="-1" role="dialog" aria-modal="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-info-subtle">
+                    <div>
+                        <div class="d-flex align-items-center gap-2"><i class="bi bi-building fs-4 text-info-emphasis"></i><h5 class="modal-title mb-0">@selectedHistoryGroup.CorrespondentName</h5>
+                            <span class="badge @(selectedHistoryGroup.IsOwnOffice ? "text-bg-secondary" : "text-bg-primary")">@(selectedHistoryGroup.IsOwnOffice ? "دفتر خود ما" : "نمایندگی مسئول")</span></div>
+                        <div class="small text-muted mt-1">حواله‌های مربوط به همین نمایندگی از فایل «@selectedHistory?.FileName»</div>
+                    </div>
+                    <button type="button" class="btn-close" aria-label="بستن" @onclick="() => selectedHistoryGroup = null"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="p-3 border-bottom bg-light">
+                        <div class="row g-3">
+                            <div class="col-md-3"><div class="history-summary-box"><small>تعداد حواله‌ها</small><strong>@selectedHistoryGroup.HawalaCount.ToString("N0")</strong></div></div>
+                            @foreach (var total in selectedHistoryGroup.Totals)
+                            { <div class="col-md-3"><div class="history-summary-box"><small>مجموع @total.CurrencyCode</small><strong dir="ltr">@total.Amount.ToString("N0")</strong><span>@total.RowCount.ToString("N0") حواله</span></div></div> }
+                        </div>
+                        <div class="alert alert-info py-2 mt-3 mb-0">
+                            @if (selectedHistoryGroup.IsOwnOffice)
+                            { <span>این حواله‌ها در دفتر خود ما اجرا شده‌اند و حواله ارسالی خودکار ندارند.</span> }
+                            else
+                            { <span>برای این ردیف‌ها حواله دریافتی ثبت شده و حواله ارسالی خودکار به نمایندگی <strong>@selectedHistoryGroup.CorrespondentName</strong> ساخته شده است.</span> }
+                        </div>
+                    </div>
+                    <div class="table-responsive" style="max-height: 58vh;"><table class="table table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top"><tr><th>ردیف</th><th>شماره و رفرنس</th><th>فرستنده و گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>نوع ثبت</th><th>وضعیت</th></tr></thead>
+                        <tbody>@foreach (var hawala in selectedHistoryGroup.Hawalas)
+                        {
+                            <tr><td><span class="badge text-bg-light border">@hawala.ExcelRowNumber</span></td>
+                                <td><strong>@hawala.HawalaNumber</strong><br/><small class="text-muted">@hawala.ReferenceNumber</small></td>
+                                <td><div><i class="bi bi-person-up ms-1 text-muted"></i>@hawala.SenderName</div><small><i class="bi bi-person-down ms-1 text-muted"></i>@hawala.ReceiverName</small></td>
+                                <td>@hawala.PaymentLocationName</td><td><strong dir="ltr">@hawala.Amount.ToString("N0") @hawala.CurrencyCode</strong></td>
+                                <td>@if(hawala.GeneratedSendHawalaId.HasValue){<span class="badge text-bg-primary">دریافتی + ارسالی</span>}else{<span class="badge text-bg-secondary">فقط دریافتی</span>}</td>
+                                <td><span class="badge text-bg-light border text-dark">@AppDisplayText.Status(hawala.Status, "HawalaReceive")</span></td></tr>
+                        }</tbody>
+                    </table></div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-secondary" @onclick="() => selectedHistoryGroup = null">بستن</button></div>
+            </div></div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
     }
 </div>
 
 @code {
     [Parameter] public long CorrespondentId { get; set; }
+    [Parameter] public long? PreviewBatchId { get; set; }
     private const long MaximumFileSize = 10 * 1024 * 1024;
     private List<CurrencyDto> currencies = [];
     private List<CorrespondentDto> activeCorrespondents = [];
     private HawalaImportPreviewDto? preview;
     private HawalaImportResultDto? result;
+    private List<HawalaImportHistoryDto> importHistory = [];
+    private HawalaImportDetailsDto? selectedHistory;
+    private HawalaImportGroupDetailsDto? selectedHistoryGroup;
+    private bool isHistoryBusy;
     private readonly HashSet<string> locationsToCreate = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, long> destinationChoices = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> destinationChoices = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> plannedNewCorrespondents = new(StringComparer.Ordinal);
     private string selectedOwnLocationName = string.Empty;
     private decimal? bulkCommissionAmount;
     private long bulkCommissionCurrencyId;
@@ -210,11 +363,12 @@
     private bool isBusy;
     private int progressPercent;
     private string progressMessage = "در حال آماده‌سازی...";
+    private bool IsPreviewPage => PreviewBatchId.HasValue;
 
     private bool CanConfirm => preview is not null && preview.InvalidRowCount == 0 &&
         !string.IsNullOrWhiteSpace(selectedOwnLocationName) &&
         preview.MissingLocations.All(locationsToCreate.Contains) &&
-        preview.PaymentLocations.Where(x => !IsOwnLocation(x.Name)).All(x => DestinationChoice(x.Name) != 0) &&
+        preview.PaymentLocations.Where(x => !IsOwnLocation(x.Name)).All(x => !string.IsNullOrWhiteSpace(DestinationChoice(x.Name))) &&
         preview.Rows.Where(x => IsOutgoing(x) && x.AgentCommissionAmount is > 0)
             .All(x => x.AgentCommissionCurrencyId is > 0) && !isBusy;
     private string? ConfirmDisabledReason => preview is null
@@ -227,7 +381,7 @@
                     ? "محل پرداخت خود صرافی را برای این فایل انتخاب کنید."
                 : preview.MissingLocations.Any(x => !locationsToCreate.Contains(x))
                     ? "ایجاد تمام محل‌های پرداخت جدید را تأیید کنید."
-                    : preview.PaymentLocations.Any(x => !IsOwnLocation(x.Name) && DestinationChoice(x.Name) == 0)
+                    : preview.PaymentLocations.Any(x => !IsOwnLocation(x.Name) && string.IsNullOrWhiteSpace(DestinationChoice(x.Name)))
                         ? "برای هر محل پرداخت غیر از دفتر خود صرافی، نمایندگی مسئول را انتخاب کنید."
                         : preview.Rows.Any(x => IsOutgoing(x) && x.AgentCommissionAmount is > 0 && x.AgentCommissionCurrencyId is not > 0)
                             ? "برای تمام کمیشن‌های واردشده، ارز کمیشن را انتخاب کنید."
@@ -244,7 +398,90 @@
         .ToList() ?? [];
 
     protected override async Task OnInitializedAsync()
-    { try { currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); activeCorrespondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList(); } catch (Exception ex) { importError = BuildImportError(ex, "بارگذاری ارزها یا نمایندگی‌های فعال", false); } }
+    {
+        try
+        {
+            currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync())
+                .OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList();
+            activeCorrespondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList();
+            if (!IsPreviewPage)
+                await LoadHistoryAsync();
+        }
+        catch (Exception ex)
+        {
+            importError = BuildImportError(ex, "بارگذاری ارزها، نمایندگی‌ها یا تاریخچه آپلود", false);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!PreviewBatchId.HasValue || preview?.BatchId == PreviewBatchId.Value)
+            return;
+        isBusy = true;
+        progressMessage = "در حال بارگذاری پیش‌نمایش فایل...";
+        try
+        {
+            preview = await HawalaImportService.GetPreviewAsync(PreviewBatchId.Value)
+                ?? throw new InvalidOperationException("این پیش‌نمایش پیدا نشد یا قبلاً ثبت شده است.");
+            InitializePreviewState();
+        }
+        catch (Exception ex)
+        {
+            importError = BuildImportError(ex, progressMessage, false);
+        }
+        finally { isBusy = false; }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        isHistoryBusy = true;
+        try
+        {
+            importHistory = (await HawalaImportService.GetHistoryAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            importError = BuildImportError(ex, "بارگذاری تاریخچه آپلود گروهی", false);
+        }
+        finally { isHistoryBusy = false; }
+    }
+
+    private async Task OpenHistoryDetailsAsync(long batchId)
+    {
+        isHistoryBusy = true;
+        selectedHistoryGroup = null;
+        try
+        {
+            selectedHistory = await HawalaImportService.GetDetailsAsync(batchId);
+            if (selectedHistory is null)
+                throw new InvalidOperationException("جزئیات این فایل آپلودشده پیدا نشد.");
+        }
+        catch (Exception ex)
+        {
+            importError = BuildImportError(ex, "بارگذاری جزئیات فایل آپلودشده", false);
+        }
+        finally { isHistoryBusy = false; }
+    }
+
+    private void CloseHistoryDetails()
+    {
+        selectedHistory = null;
+        selectedHistoryGroup = null;
+    }
+
+    private static string HistoryStatusText(string status) => status switch
+    {
+        "Posted" => "ثبت‌شده",
+        "Preview" => "پیش‌نمایش",
+        _ => AppDisplayText.Status(status)
+    };
+
+    private static string HistoryStatusClass(string status) => status switch
+    {
+        "Posted" => "text-bg-success",
+        "Preview" => "text-bg-warning",
+        _ => "text-bg-secondary"
+    };
 
     private async Task PreviewFileAsync(InputFileChangeEventArgs args)
     {
@@ -253,17 +490,27 @@
         {
             await using var stream = args.File.OpenReadStream(MaximumFileSize);
             preview = await HawalaImportService.PreviewAsync(stream, args.File.Name, CorrespondentId, CreateProgressReporter());
-            locationsToCreate.Clear();
-            destinationChoices.Clear();
-            selectedOwnLocationName = preview.PaymentLocations.FirstOrDefault(x =>
-                x.PaymentLocationId == preview.OwnPaymentLocationId)?.Name
-                ?? preview.OwnPaymentLocationName;
-            foreach (var location in preview.PaymentLocations)
-                destinationChoices[location.Name] = location.ResponsibleCorrespondentId ?? 0;
-            RefreshPreviewClassification();
+            InitializePreviewState();
+            NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/hawala-import/preview/{preview.BatchId}");
         }
         catch (Exception ex) { importError = BuildImportError(ex, progressMessage, false); preview = null; }
         finally { isBusy = false; }
+    }
+
+    private void InitializePreviewState()
+    {
+        if (preview is null) return;
+        locationsToCreate.Clear();
+        destinationChoices.Clear();
+        plannedNewCorrespondents.Clear();
+        selectedOwnLocationName = preview.PaymentLocations.FirstOrDefault(x =>
+            x.PaymentLocationId == preview.OwnPaymentLocationId)?.Name
+            ?? preview.OwnPaymentLocationName;
+        foreach (var location in preview.PaymentLocations)
+            destinationChoices[location.Name] = location.ResponsibleCorrespondentId.HasValue
+                ? ExistingChoice(location.ResponsibleCorrespondentId.Value)
+                : string.Empty;
+        RefreshPreviewClassification();
     }
 
     private static void ToggleSet(HashSet<string> set, string value, ChangeEventArgs args)
@@ -283,7 +530,18 @@
 
     private bool IsOutgoing(HawalaImportRowDto row) => !IsOwnLocation(row.PaymentLocationName ?? row.PaymentLocationText);
 
-    private long DestinationChoice(string name) => destinationChoices.GetValueOrDefault(name);
+    private string DestinationChoice(string name) => destinationChoices.GetValueOrDefault(name, string.Empty);
+    private static string ExistingChoice(long id) => $"existing:{id}";
+
+    private static long? TryGetExistingCorrespondentId(string choice) =>
+        choice.StartsWith("existing:", StringComparison.Ordinal) &&
+        long.TryParse(choice[9..], out var id) ? id : null;
+
+    private string? GetNewCorrespondentName(string choice)
+    {
+        if (!choice.StartsWith("new:", StringComparison.Ordinal)) return null;
+        return plannedNewCorrespondents.GetValueOrDefault(choice[4..]);
+    }
 
     private void ChangeOwnLocation(ChangeEventArgs args)
     {
@@ -291,9 +549,15 @@
         RefreshPreviewClassification();
     }
 
-    private void ChangeDestination(string name, ChangeEventArgs args)
+    private void ChangeDestination(string name, string choice)
     {
-        destinationChoices[name] = long.TryParse(args.Value?.ToString(), out var value) ? value : 0;
+        if (choice.StartsWith("new:", StringComparison.Ordinal))
+        {
+            var key = choice[4..];
+            if (!plannedNewCorrespondents.ContainsKey(key))
+                plannedNewCorrespondents[key] = name;
+        }
+        destinationChoices[name] = choice;
         RefreshPreviewClassification();
     }
 
@@ -305,9 +569,10 @@
             row.RequiresOutgoingHawala = IsOutgoing(row);
             var key = row.PaymentLocationName ?? row.PaymentLocationText ?? string.Empty;
             var selected = DestinationChoice(key);
+            var existingId = TryGetExistingCorrespondentId(selected);
             row.DestinationCorrespondentName = row.RequiresOutgoingHawala
-                ? selected == -1 ? $"نمایندگی جدید: {key}"
-                    : activeCorrespondents.FirstOrDefault(x => x.Id == selected)?.Name
+                ? GetNewCorrespondentName(selected) is string newName ? $"نمایندگی جدید: {newName}"
+                    : activeCorrespondents.FirstOrDefault(x => x.Id == existingId)?.Name
                 : null;
         }
     }
@@ -333,13 +598,17 @@
                     .Select(x => new HawalaImportLocationMappingDto
                     {
                         PaymentLocationName = x.Name,
-                        CorrespondentId = DestinationChoice(x.Name) > 0 ? DestinationChoice(x.Name) : null,
-                        CreateCorrespondent = DestinationChoice(x.Name) == -1
+                        CorrespondentId = TryGetExistingCorrespondentId(DestinationChoice(x.Name)),
+                        CreateCorrespondent = GetNewCorrespondentName(DestinationChoice(x.Name)) is not null,
+                        NewCorrespondentName = GetNewCorrespondentName(DestinationChoice(x.Name))
                     }).ToList(),
                 Commissions = preview.Rows.Where(IsOutgoing).Select(x => new HawalaImportCommissionDto
                 { RowId = x.Id, Amount = x.AgentCommissionAmount, CurrencyId = x.AgentCommissionCurrencyId }).ToList()
             }, CreateProgressReporter());
-            preview = null; locationsToCreate.Clear(); destinationChoices.Clear(); selectedOwnLocationName = string.Empty;
+            await LoadHistoryAsync();
+            preview = null; locationsToCreate.Clear(); destinationChoices.Clear();
+            plannedNewCorrespondents.Clear(); selectedOwnLocationName = string.Empty;
+            NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/hawala-import");
         }
         catch (Exception ex) { importError = BuildImportError(ex, progressMessage, true); }
         finally { isBusy = false; }
@@ -352,7 +621,8 @@
         _ = InvokeAsync(StateHasChanged);
     });
 
-    private void Reset() { preview = null; result = null; importError = null; locationsToCreate.Clear(); destinationChoices.Clear(); selectedOwnLocationName = string.Empty; bulkCommissionAmount = null; bulkCommissionCurrencyId = 0; progressPercent = 0; progressMessage = "در حال آماده‌سازی..."; }
+    private void Reset() { preview = null; result = null; importError = null; locationsToCreate.Clear(); destinationChoices.Clear(); plannedNewCorrespondents.Clear(); selectedOwnLocationName = string.Empty; bulkCommissionAmount = null; bulkCommissionCurrencyId = 0; progressPercent = 0; progressMessage = "در حال آماده‌سازی..."; }
+    private void BackToImport() { Reset(); NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/hawala-import"); }
     private void BackToCorrespondent() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}");
 
     private static IEnumerable<string> SplitValidationErrors(string? errors) =>

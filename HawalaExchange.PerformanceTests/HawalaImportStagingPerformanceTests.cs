@@ -424,6 +424,103 @@ public sealed class HawalaImportStagingPerformanceTests(
     }
 
     [Fact]
+    public async Task Confirm_can_assign_multiple_payment_places_to_one_planned_correspondent_and_returns_breakdown()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var suffix = Guid.NewGuid().ToString("N");
+        var firstLocation = new PaymentLocation
+        {
+            Name = $"Planned Place A {suffix}",
+            NormalizedName = PaymentLocationNameNormalizer.Normalize($"Planned Place A {suffix}"),
+            Address = "Test", CreatedBy = fixture.UserId
+        };
+        var secondLocation = new PaymentLocation
+        {
+            Name = $"Planned Place B {suffix}",
+            NormalizedName = PaymentLocationNameNormalizer.Normalize($"Planned Place B {suffix}"),
+            Address = "Test", CreatedBy = fixture.UserId
+        };
+        context.PaymentLocations.AddRange(firstLocation, secondLocation);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var mapper = new MapperConfiguration(
+            config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
+        var correspondents = new CorrespondentService(
+            context, mapper, fixture.CreateAccountService(context),
+            Mock.Of<ILedgerService>(), Mock.Of<IAuditLogService>(),
+            NullLogger<CorrespondentService>.Instance);
+        var service = new HawalaImportService(
+            context, fixture.CreateService(context), Mock.Of<IPaymentLocationService>(),
+            correspondents, Mock.Of<IAuditLogService>());
+        var plannedName = $"Planned Agent {suffix}";
+        var number = Random.Shared.NextInt64(200_000_000, 900_000_000);
+        await using var workbook = CreateWorkbook([
+            [number, $"PLAN-OWN-{suffix}", "Sender 1", "Receiver 1", fixture.OwnLocation.Name, 100_000, "AFN"],
+            [number + 1, $"PLAN-A-{suffix}", "Sender 2", "Receiver 2", firstLocation.Name, 200_000, "AFN"],
+            [number + 2, $"PLAN-B-{suffix}", "Sender 3", "Receiver 3", secondLocation.Name, 300, "USD"]
+        ]);
+        var preview = await service.PreviewAsync(workbook, "planned-agent.xlsx", fixture.SourceCorrespondent.Id);
+        var reloadedPreview = await service.GetPreviewAsync(preview.BatchId);
+        Assert.NotNull(reloadedPreview);
+        Assert.Equal(3, reloadedPreview.RowCount);
+        Assert.Equal(preview.FileName, reloadedPreview.FileName);
+        var result = await service.ConfirmAsync(new ConfirmHawalaImportDto
+        {
+            BatchId = preview.BatchId,
+            OwnPaymentLocationName = fixture.OwnLocation.Name,
+            LocationMappings =
+            [
+                new HawalaImportLocationMappingDto
+                {
+                    PaymentLocationName = firstLocation.Name,
+                    CreateCorrespondent = true,
+                    NewCorrespondentName = plannedName
+                },
+                new HawalaImportLocationMappingDto
+                {
+                    PaymentLocationName = secondLocation.Name,
+                    CreateCorrespondent = true,
+                    NewCorrespondentName = plannedName
+                }
+            ]
+        });
+
+        var agent = await context.Correspondents.AsNoTracking().SingleAsync(x => x.Name == plannedName);
+        var assignments = await context.PaymentLocationCorrespondentAssignments.AsNoTracking()
+            .Where(x => x.PaymentLocationId == firstLocation.Id || x.PaymentLocationId == secondLocation.Id)
+            .ToListAsync();
+        Assert.Equal(2, assignments.Count);
+        Assert.All(assignments, x => Assert.Equal(agent.Id, x.CorrespondentId));
+        Assert.Equal(3, result.ImportedCount);
+        Assert.Equal(2, result.GeneratedSendCount);
+        Assert.Equal(1, result.OwnOfficeCount);
+        Assert.Equal(100_000m, Assert.Single(result.OwnOfficeTotals, x => x.CurrencyCode == "AFN").Amount);
+        var destination = Assert.Single(result.DestinationSummaries);
+        Assert.Equal(plannedName, destination.CorrespondentName);
+        Assert.Equal(2, destination.HawalaCount);
+        Assert.Equal(200_000m, Assert.Single(destination.Totals, x => x.CurrencyCode == "AFN").Amount);
+        Assert.Equal(300m, Assert.Single(destination.Totals, x => x.CurrencyCode == "USD").Amount);
+
+        var history = await service.GetHistoryAsync();
+        Assert.Contains(history, x => x.BatchId == result.BatchId && x.FileName == "planned-agent.xlsx" &&
+            x.Status == "Posted" && x.RowCount == 3);
+        var details = await service.GetDetailsAsync(result.BatchId);
+        Assert.NotNull(details);
+        Assert.Equal(3, details.ImportedCount);
+        Assert.Equal(2, details.GeneratedSendCount);
+        Assert.Equal(1, details.OwnOfficeCount);
+        var ownGroup = Assert.Single(details.Groups, x => x.IsOwnOffice);
+        Assert.Single(ownGroup.Hawalas);
+        var agentGroup = Assert.Single(details.Groups, x => x.CorrespondentId == agent.Id);
+        Assert.Equal(2, agentGroup.Hawalas.Count);
+        Assert.All(agentGroup.Hawalas, x => Assert.True(x.GeneratedSendHawalaId.HasValue));
+        Assert.Null(await service.GetPreviewAsync(result.BatchId));
+    }
+
+    [Fact]
     public async Task Staging_procedure_detects_existing_number_and_reference()
     {
         await using var context = fixture.CreateContext();

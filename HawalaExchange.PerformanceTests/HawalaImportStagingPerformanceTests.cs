@@ -321,6 +321,8 @@ public sealed class HawalaImportStagingPerformanceTests(
             Assert.All(outgoing, x => Assert.Equal(fixture.DestinationCorrespondent.Id, x.CorrespondentId));
             var batch = await context.HawalaImportBatches.AsNoTracking().SingleAsync(x => x.Id == preview.BatchId);
             Assert.Equal(fixture.OwnLocation.Id, batch.OwnPaymentLocationId);
+            var savedSetting = await context.CompanySettings.AsNoTracking().SingleAsync();
+            Assert.Equal(fixture.OwnLocation.Id, savedSetting.OwnPaymentLocationId);
         }
         finally
         {

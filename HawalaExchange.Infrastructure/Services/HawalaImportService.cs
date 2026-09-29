@@ -333,6 +333,24 @@ public sealed class HawalaImportService : IHawalaImportService
                 (ownLocationId != batch.OwnPaymentLocationId && !locations.ContainsKey(ownLocationId.Value)))
                 throw new InvalidOperationException("محل پرداخت دفتر خود صرافی را پیش از ثبت از فهرست فایل انتخاب کنید.");
 
+            var companySetting = await _context.CompanySettings.FirstOrDefaultAsync(cancellationToken);
+            if (companySetting is null)
+            {
+                companySetting = new CompanySetting
+                {
+                    CompanyName = "نام شرکت",
+                    OwnPaymentLocationId = ownLocationId.Value,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.CompanySettings.Add(companySetting);
+            }
+            else if (companySetting.OwnPaymentLocationId != ownLocationId.Value)
+            {
+                companySetting.OwnPaymentLocationId = ownLocationId.Value;
+                companySetting.UpdatedAt = DateTime.UtcNow;
+            }
+            await _context.SaveChangesAsync(cancellationToken);
+
             var activeCorrespondentList = await _context.Correspondents
                     .Where(x => !x.IsArchived)
                     .ToListAsync(cancellationToken);

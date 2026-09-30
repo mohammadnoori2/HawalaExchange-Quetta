@@ -14,13 +14,13 @@ public sealed class SplitOriginDestinationCommissions : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.AddColumn<string>(
-            name: "CommissionScope",
-            table: "CorrespondentCommissionBatches",
-            type: "nvarchar(20)",
-            maxLength: 20,
-            nullable: false,
-            defaultValue: "Standard");
+        migrationBuilder.Sql("""
+            IF COL_LENGTH(N'dbo.CorrespondentCommissionBatches', N'CommissionScope') IS NULL
+                ALTER TABLE [dbo].[CorrespondentCommissionBatches]
+                    ADD [CommissionScope] nvarchar(20) NOT NULL
+                    CONSTRAINT [DF_CorrespondentCommissionBatches_CommissionScope]
+                    DEFAULT N'Standard';
+            """);
 
         migrationBuilder.Sql(LoadProcedure());
     }

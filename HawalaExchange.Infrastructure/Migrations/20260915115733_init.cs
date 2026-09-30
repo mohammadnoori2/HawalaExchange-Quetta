@@ -3311,6 +3311,11 @@ namespace HawalaExchange.Infrastructure.Migrations
                     ALTER TABLE [dbo].[Hawalas] ADD [CommissionValuationDate] datetime2 NULL;
                 IF COL_LENGTH(N'dbo.Hawalas', N'CommissionValuedAt') IS NULL
                     ALTER TABLE [dbo].[Hawalas] ADD [CommissionValuedAt] datetime2 NULL;
+                IF COL_LENGTH(N'dbo.CorrespondentCommissionBatches', N'CommissionScope') IS NULL
+                    ALTER TABLE [dbo].[CorrespondentCommissionBatches]
+                        ADD [CommissionScope] nvarchar(20) NOT NULL
+                        CONSTRAINT [DF_CorrespondentCommissionBatches_CommissionScope]
+                        DEFAULT N'Standard';
                 """);
 
             foreach (var batch in LoadDatabaseObjectBatches())

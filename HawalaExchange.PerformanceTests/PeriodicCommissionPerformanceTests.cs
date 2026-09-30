@@ -409,6 +409,79 @@ public sealed class PeriodicCommissionPerformanceTests(
     }
 
     [Fact]
+    public async Task Origin_commission_for_100_hawalas_reuses_valuations_and_finishes_within_30_seconds()
+    {
+        const int rowCount = 100;
+        var period = new DateTime(2034, 4, 10);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        context.CorrespondentDailyCommissionRates.Add(
+            NewSourceDailyRate(fixture.SourceCorrespondent.Id, period, 70m));
+        var sources = Enumerable.Range(0, rowCount)
+            .Select(index =>
+            {
+                var hawala = NewHawala(98_800_000 + index,
+                    index % 2 == 0 ? 1 : 2,
+                    index % 2 == 0 ? 70_000m : 1_000m,
+                    period, "Paid");
+                hawala.PaymentLocationId = index % 2 == 0
+                    ? fixture.OwnLocation.Id : fixture.RemoteLocation.Id;
+                return hawala;
+            }).ToList();
+        context.Hawalas.AddRange(sources);
+        await context.SaveChangesAsync();
+        context.Hawalas.AddRange(sources.Select((source, index) =>
+            NewOutgoingHawala(98_801_000 + index, source.FromCurrencyId,
+                source.FromAmount, period, source.Id)));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+
+        var request = NewRequest(period, period, 70m);
+        request.CommissionScope = "Origin";
+        request.PaymentLocationRates =
+        [
+            new() { PaymentLocationId = fixture.OwnLocation.Id, PerLakhRate = 200m },
+            new() { PaymentLocationId = fixture.RemoteLocation.Id, PerLakhRate = 300m }
+        ];
+        var service = fixture.CreateCommissionService(context);
+
+        var previewWatch = Stopwatch.StartNew();
+        var preview = await service.PreviewAsync(request);
+        previewWatch.Stop();
+        Assert.Equal(rowCount, preview.HawalaCount);
+        Assert.Equal(100_000m, preview.TotalBaseAfn);
+        Assert.Equal(250m, preview.TotalCommissionUsd);
+        var firstValuedAt = await context.Hawalas.AsNoTracking()
+            .Where(x => x.Number == 98_800_000)
+            .Select(x => x.CommissionValuedAt).SingleAsync();
+
+        var repeatWatch = Stopwatch.StartNew();
+        var repeated = await service.PreviewAsync(request);
+        repeatWatch.Stop();
+        var secondValuedAt = await context.Hawalas.AsNoTracking()
+            .Where(x => x.Number == 98_800_000)
+            .Select(x => x.CommissionValuedAt).SingleAsync();
+        Assert.Equal(preview.TotalCommissionUsd, repeated.TotalCommissionUsd);
+        Assert.Equal(firstValuedAt, secondValuedAt);
+
+        var postWatch = Stopwatch.StartNew();
+        var posted = await service.PostAsync(request);
+        postWatch.Stop();
+        Assert.Equal(rowCount, posted.HawalaCount);
+        Assert.Equal(250m, posted.TotalCommissionUsd);
+        Assert.True(previewWatch.Elapsed < TimeSpan.FromSeconds(30));
+        Assert.True(repeatWatch.Elapsed < TimeSpan.FromSeconds(30));
+        Assert.True(postWatch.Elapsed < TimeSpan.FromSeconds(30));
+        output.WriteLine(JsonSerializer.Serialize(new
+        {
+            rowCount,
+            previewMilliseconds = previewWatch.Elapsed.TotalMilliseconds,
+            repeatPreviewMilliseconds = repeatWatch.Elapsed.TotalMilliseconds,
+            postMilliseconds = postWatch.Elapsed.TotalMilliseconds
+        }));
+    }
+
+    [Fact]
     public async Task Measure_periodic_commission_procedure_for_10000_hawalas()
     {
         if (!string.Equals(Environment.GetEnvironmentVariable("RUN_HAWALA_PERF"), "1", StringComparison.Ordinal))

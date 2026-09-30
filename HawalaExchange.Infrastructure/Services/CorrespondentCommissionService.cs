@@ -751,6 +751,12 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         CorrespondentCommissionPreviewRequestDto request,
         CancellationToken cancellationToken)
     {
+        if (request.CommissionScope == "Origin")
+        {
+            await EnsureOriginUsdValuationsAsync(request, cancellationToken);
+            return;
+        }
+
         var localStart = request.PeriodFrom.Date;
         var localEnd = request.PeriodTo.Date.AddDays(1);
         var utcStart = localStart.ToUniversalTime();
@@ -854,6 +860,99 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         }
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    private async Task EnsureOriginUsdValuationsAsync(
+        CorrespondentCommissionPreviewRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var utcStart = request.PeriodFrom.Date.ToUniversalTime();
+        var utcEnd = request.PeriodTo.Date.AddDays(1).ToUniversalTime();
+        var currencies = await context.Currencies.AsNoTracking()
+            .Where(x => x.Code == "AFN" || x.Code == "USD")
+            .ToDictionaryAsync(x => x.Code, x => x.Id, cancellationToken);
+        if (!currencies.TryGetValue("AFN", out var afnId) ||
+            !currencies.TryGetValue("USD", out var usdId))
+            throw new InvalidOperationException("ارزهای فعال USD و AFN در سیستم یافت نشد.");
+
+        // Only transfer the columns needed for valuation. Loading tracked Hawala entities
+        // and saving every row made each preview and post repeat hundreds of UPDATEs.
+        var hawalas = await context.Hawalas.AsNoTracking()
+            .Where(x => x.CorrespondentId == request.CorrespondentId &&
+                        x.HawalaType == "HawalaReceive" && x.Status != "Cancel" &&
+                        x.CreatedAt >= utcStart && x.CreatedAt < utcEnd &&
+                        (x.CommissionAmount == null || x.CommissionAmount == 0) &&
+                        (x.FromCurrencyId == afnId || x.FromCurrencyId == usdId) &&
+                        context.Hawalas.Any(generated => generated.SourceHawalaId == x.Id &&
+                                                         generated.HawalaType == "HawalaSend" &&
+                                                         generated.Status != "Cancel") &&
+                        !context.CorrespondentCommissionBatchItems.Any(item =>
+                            item.HawalaId == x.Id && item.IsActive))
+            .Select(x => new
+            {
+                x.Id, x.CreatedAt, x.FromCurrencyId, x.FromAmount,
+                x.CommissionBaseUsdAmount, x.CommissionUsdToAfnRate,
+                x.CommissionValuationDate
+            })
+            .ToListAsync(cancellationToken);
+        if (hawalas.Count == 0)
+            return;
+
+        var rateDates = hawalas.Where(x => x.FromCurrencyId == afnId)
+            .Select(x => x.CreatedAt.ToLocalTime().Date).Distinct().ToArray();
+        var rates = rateDates.Length == 0
+            ? new Dictionary<DateTime, decimal>()
+            : await context.CorrespondentDailyCommissionRates.AsNoTracking()
+                .Where(x => x.CorrespondentId == request.CorrespondentId &&
+                            rateDates.Contains(x.RateDate))
+                .ToDictionaryAsync(x => x.RateDate, x => x.UsdToAfnRate, cancellationToken);
+        var missingDate = rateDates.OrderBy(x => x).FirstOrDefault(x =>
+            !rates.TryGetValue(x, out var rate) || rate <= 0);
+        if (missingDate != default)
+            throw new InvalidOperationException(
+                $"نرخ روز {missingDate:yyyy-MM-dd} برای نمایندگی مبدأ ثبت نشده است.");
+
+        var pending = new List<OriginValuation>();
+        foreach (var hawala in hawalas)
+        {
+            var valuationDate = hawala.CreatedAt.ToLocalTime().Date;
+            decimal? rate = hawala.FromCurrencyId == afnId ? rates[valuationDate] : null;
+            var baseUsd = hawala.FromCurrencyId == usdId
+                ? decimal.Round(hawala.FromAmount, 8, MidpointRounding.AwayFromZero)
+                : decimal.Round(hawala.FromAmount / rate!.Value, 8,
+                    MidpointRounding.AwayFromZero);
+            if (hawala.CommissionBaseUsdAmount == baseUsd &&
+                hawala.CommissionUsdToAfnRate == rate &&
+                hawala.CommissionValuationDate?.Date == valuationDate)
+                continue;
+
+            pending.Add(new OriginValuation(hawala.Id, baseUsd, rate, valuationDate));
+        }
+
+        const string sql = """
+            UPDATE h
+            SET h.[CommissionBaseUsdAmount] = v.[BaseUsd],
+                h.[CommissionUsdToAfnRate] = v.[Rate],
+                h.[CommissionValuationDate] = v.[ValuationDate],
+                h.[CommissionValuedAt] = SYSUTCDATETIME()
+            FROM [dbo].[Hawalas] h
+            INNER JOIN OPENJSON(@valuations)
+                WITH ([Id] bigint '$.Id', [BaseUsd] decimal(18,8) '$.BaseUsd',
+                      [Rate] decimal(18,8) '$.Rate',
+                      [ValuationDate] date '$.ValuationDate') v ON v.[Id] = h.[Id]
+            WHERE h.[TenantId] = @tenantId;
+            """;
+        foreach (var chunk in pending.Chunk(1000))
+        {
+            await context.Database.ExecuteSqlRawAsync(sql,
+                [new SqlParameter("@valuations", SqlDbType.NVarChar, -1)
+                    { Value = JsonSerializer.Serialize(chunk) },
+                 new SqlParameter("@tenantId", SqlDbType.BigInt)
+                    { Value = context.CurrentTenantId }], cancellationToken);
+        }
+    }
+
+    private sealed record OriginValuation(
+        long Id, decimal BaseUsd, decimal? Rate, DateTime ValuationDate);
 
     private static LedgerEntry NewEntry(long transactionId, long accountId, long currencyId,
         decimal talabKar, decimal badehKar, string description) => new()

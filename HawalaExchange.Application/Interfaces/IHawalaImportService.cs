@@ -26,5 +26,9 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<HawalaImportDetailsDto?> GetDetailsAsync(
             long batchId,
             CancellationToken cancellationToken = default);
+
+        Task DeleteBatchAsync(
+            long batchId,
+            CancellationToken cancellationToken = default);
     }
 }

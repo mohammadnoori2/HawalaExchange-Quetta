@@ -1628,6 +1628,8 @@ namespace HawalaExchange.Infrastructure.Data
                 .IsUnique();
             modelBuilder.Entity<CorrespondentCommissionBatch>()
                 .HasIndex(x => new { x.TenantId, x.CorrespondentId, x.CreatedAt });
+            modelBuilder.Entity<CorrespondentCommissionBatch>()
+                .Property(x => x.CommissionScope).HasDefaultValue("Standard");
             modelBuilder.Entity<CorrespondentCommissionBatchItem>()
                 .HasIndex(x => new { x.TenantId, x.HawalaId, x.IsActive })
                 .IsUnique()

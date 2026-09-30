@@ -517,6 +517,16 @@
                     if (hawala == null)
                         throw new KeyNotFoundException($"حواله با شناسه {id} یافت نشد.");
 
+                    // حواله ارسالی خودکار بخشی از همان ردیف آپلود است. ویرایش آن باید
+                    // از حواله دریافتی منبع انجام شود تا هر دو حواله و لیجرهایشان
+                    // به صورت هماهنگ دوباره ساخته شوند.
+                    if (hawala.IsSystemGenerated && hawala.SourceHawalaId.HasValue)
+                    {
+                        hawala = await _context.Hawalas
+                            .FirstOrDefaultAsync(x => x.Id == hawala.SourceHawalaId.Value)
+                            ?? throw new KeyNotFoundException("حواله اصلی مربوط به آپلود گروهی یافت نشد.");
+                    }
+
                     if (hawala.Status == "Cancel")
                         throw new InvalidOperationException("حواله لغو شده قابل ویرایش نیست.");
                     if (dto.Status is not null and not ("Pending" or "Paid"))
@@ -546,14 +556,6 @@
                     }
 
                     var settlementReconversion = await DetachSettlementConversionAsync(hawala.Id);
-
-                    if (hawala.IsSystemGenerated && await _context.HawalaImportRows
-                            .AsNoTracking()
-                            .AnyAsync(x => x.GeneratedSendHawalaId == hawala.Id))
-                    {
-                        throw new InvalidOperationException(
-                            "حواله ارسالی ایجادشده توسط آپلود گروهی قابل ویرایش نیست.");
-                    }
 
                     var oldSenderTazkiraImagePath = hawala.SenderTazkiraImagePath;
                     var oldReceiverTazkiraImagePath = hawala.ReceiverTazkiraImagePath;
@@ -1241,7 +1243,9 @@
             }
             public async Task DeleteHawalaAsync(long id)
             {
-                using var transaction = await _context.Database.BeginTransactionAsync();
+                await using var transaction = _context.Database.CurrentTransaction == null
+                    ? await _context.Database.BeginTransactionAsync()
+                    : null;
 
                 try
                 {
@@ -1274,6 +1278,21 @@
                     await EnsureNotSettlementConvertedAsync(generatedHawala == null
                         ? [hawala.Id]
                         : [hawala.Id, generatedHawala.Id]);
+
+                    // تاریخچه فایل حفظ می‌شود، اما ارتباط آن با حواله‌های حذف‌شده
+                    // باید قبل از حذف برداشته شود (روابط پایگاه داده Restrict هستند).
+                    var linkedImportRows = await _context.HawalaImportRows
+                        .Where(x => x.HawalaId == hawala.Id ||
+                                    (generatedHawala != null && x.GeneratedSendHawalaId == generatedHawala.Id))
+                        .ToListAsync();
+                    foreach (var importRow in linkedImportRows)
+                    {
+                        if (importRow.HawalaId == hawala.Id)
+                            importRow.HawalaId = null;
+                        if (generatedHawala != null && importRow.GeneratedSendHawalaId == generatedHawala.Id)
+                            importRow.GeneratedSendHawalaId = null;
+                    }
+
                     if (generatedHawala != null)
                     {
                         await DeleteHawalaLedgerEntriesAsync(generatedHawala.Id);
@@ -1299,11 +1318,13 @@
                             : $"حواله با شناسه {hawala.Id}، حواله ارسالی خودکار و لیجرهای مربوطه حذف شدند",
                         GetCurrentUserId());
 
-                    await transaction.CommitAsync();
+                    if (transaction != null)
+                        await transaction.CommitAsync();
                 }
                 catch
                 {
-                    await transaction.RollbackAsync();
+                    if (transaction != null)
+                        await transaction.RollbackAsync();
                     throw;
                 }
             }

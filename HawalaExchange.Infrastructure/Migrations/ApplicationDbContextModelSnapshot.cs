@@ -1290,6 +1290,12 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.Property<decimal>("CommissionPerLakhAfn")
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("CommissionScope")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Standard");
+
                     b.Property<long>("CorrespondentId")
                         .HasColumnType("bigint");
 

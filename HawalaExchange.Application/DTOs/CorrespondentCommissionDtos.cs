@@ -22,9 +22,20 @@ public sealed class PaymentLocationCommissionRateDto
     public decimal TotalDebitUsd { get; set; }
 }
 
+public sealed class CurrencyCommissionRateDto
+{
+    public long CurrencyId { get; set; }
+    public string CurrencyCode { get; set; } = string.Empty;
+    public decimal TotalAmount { get; set; }
+    public int HawalaCount { get; set; }
+    public decimal PerLakhRate { get; set; }
+    public decimal CommissionAmount { get; set; }
+}
+
 public sealed class CorrespondentCommissionPreviewRequestDto
 {
     public string HawalaType { get; set; } = "HawalaReceive";
+    public string CommissionScope { get; set; } = "Standard";
     public long CorrespondentId { get; set; }
     public DateTime PeriodFrom { get; set; }
     public DateTime PeriodTo { get; set; }
@@ -32,6 +43,7 @@ public sealed class CorrespondentCommissionPreviewRequestDto
     [Range(typeof(decimal), "0.00000001", "999999999999")] public decimal UsdToAfnRate { get; set; }
     public List<CorrespondentCommissionRateDto> Rates { get; set; } = [];
     public List<PaymentLocationCommissionRateDto> PaymentLocationRates { get; set; } = [];
+    public List<CurrencyCommissionRateDto> CurrencyRates { get; set; } = [];
 }
 
 public sealed class CorrespondentCommissionPreviewDto
@@ -46,6 +58,7 @@ public sealed class CorrespondentCommissionPreviewDto
     public decimal TotalCommissionUsd { get; set; }
     public List<CorrespondentCommissionRateDto> Rates { get; set; } = [];
     public List<PaymentLocationCommissionRateDto> PaymentLocationRates { get; set; } = [];
+    public List<CurrencyCommissionRateDto> CurrencyRates { get; set; } = [];
     public List<CorrespondentCommissionItemDto> Items { get; set; } = [];
     public decimal TotalSourceUsd => Items.Where(x => x.CurrencyCode == "USD").Sum(x => x.SourceAmount);
     public decimal TotalSourceAfn => Items.Where(x => x.CurrencyCode == "AFN").Sum(x => x.SourceAmount);
@@ -73,6 +86,7 @@ public sealed class CorrespondentCommissionItemDto
 public sealed class CorrespondentCommissionBatchDto
 {
     public string HawalaType { get; set; } = "HawalaReceive";
+    public string CommissionScope { get; set; } = "Standard";
     public long Id { get; set; }
     public long CorrespondentId { get; set; }
     public string CorrespondentName { get; set; } = string.Empty;
@@ -92,6 +106,7 @@ public sealed class CorrespondentCommissionBatchDto
     public DateTime? ReversedAt { get; set; }
     public string? ReversalReason { get; set; }
     public List<CorrespondentCommissionItemDto> Items { get; set; } = [];
+    public List<PaymentLocationCommissionRateDto> LocationSummaries { get; set; } = [];
     public decimal TotalSourceUsd => Items.Where(x => x.CurrencyCode == "USD").Sum(x => x.SourceAmount);
     public decimal TotalSourceAfn => Items.Where(x => x.CurrencyCode == "AFN").Sum(x => x.SourceAmount);
     public List<LedgerEntryDto> LedgerEntries { get; set; } = [];

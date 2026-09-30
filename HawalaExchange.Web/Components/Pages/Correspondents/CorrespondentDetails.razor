@@ -61,9 +61,19 @@
                     <button class="btn btn-success" @onclick="OpenCommissionPage">
                         <i class="bi bi-calculator me-1"></i> کمیشن دریافتی
                     </button>
+                }
+                @if (!correspondent.IsArchived)
+                {
                     <button class="btn btn-warning" @onclick="OpenOutgoingCommissionPage">
                         <i class="bi bi-calculator-fill me-1"></i> کمیشن ارسالی
                     </button>
+                    @if (correspondent.Name.Contains("Quetta", StringComparison.OrdinalIgnoreCase) ||
+                         correspondent.Name.Contains("کویته", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <button class="btn btn-primary" @onclick="OpenOriginCommissionPage">
+                            <i class="bi bi-cash-coin me-1"></i> کمیشن کویته
+                        </button>
+                    }
                 }
                 <CorrespondentActionsMenu IsArchived="@correspondent.IsArchived"
                                            CanUseFinancialActions="@(correspondentAccountId.HasValue && !correspondent.IsArchived)"
@@ -512,6 +522,9 @@
 
     private void OpenOutgoingCommissionPage() =>
         NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/outgoing-commission");
+
+    private void OpenOriginCommissionPage() =>
+        NavigationManager.NavigateTo($"/commissions/{CorrespondentId}");
 
     private async Task SaveEditAsync()
     {

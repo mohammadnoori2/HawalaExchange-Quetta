@@ -1,5 +1,6 @@
 @page "/correspondents/{CorrespondentId:long}/commission"
 @page "/correspondents/{CorrespondentId:long}/outgoing-commission"
+@page "/commissions/{CorrespondentId:long}"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
@@ -9,11 +10,11 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 
-<PageTitle>@(isOutgoing ? "کمیشن حواله‌های ارسالی" : "محاسبه کمیشن دوره‌ای")</PageTitle>
+<PageTitle>@(isOrigin ? "کمیشن کویته" : isOutgoing ? "کمیشن حواله‌های ارسالی" : "محاسبه کمیشن دوره‌ای")</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
-    <AppPageHeader Title="@(isOutgoing ? "محاسبه کمیشن حواله‌های ارسالی" : "محاسبه کمیشن حواله‌های دریافتی")"
-                   Subtitle="@(isOutgoing ? "کمیشن جداگانه هر محل پرداخت و تبدیل با نرخ روز نمایندگی مبدأ" : "محاسبه کمیشن حواله‌های دریافتی بر اساس هر لک")"
+    <AppPageHeader Title="@(isOrigin ? "کمیشن کویته" : isOutgoing ? "محاسبه کمیشن حواله‌های ارسالی" : "محاسبه کمیشن حواله‌های دریافتی")"
+                   Subtitle="@(isOrigin ? "کمیشن مبدأ به تفکیک محل پرداخت با نرخ پایان روز نمایندگی" : isOutgoing ? "کمیشن شعبه مقصد به تفکیک ارز و نرخ پایان روز نمایندگی مبدأ" : "محاسبه کمیشن حواله‌های دریافتی بر اساس هر لک")"
                    Icon="bi-calculator">
         <Actions>
             <button class="btn-modern btn-light-modern" @onclick="BackToCorrespondent">
@@ -53,15 +54,22 @@
                         <label class="form-label fw-bold">تا تاریخ</label>
                         <input type="date" class="form-control" @bind="request.PeriodTo" @bind:format="yyyy-MM-dd" @bind:after="InvalidatePreview" />
                     </div>
+                    @if (!isOrigin && !isOutgoing)
+                    {
                     <div class="col-md-3">
                         <label class="form-label fw-bold">کمیشن هر لک (هم‌ارز ارز حواله)</label>
                         <MoneyInput class="form-control" DecimalPlaces="0" @bind-Value="request.CommissionPerLakhAfn" @bind-Value:after="InvalidatePreview" />
                     </div>
+                    }
                 </div>
                 <div class="alert alert-info mt-3 mb-0">
                     @if (isOutgoing)
                     {
-                        <span>برای هر محل پرداخت می‌توانید کمیشن هر لک را جدا تعیین کنید. حواله‌های دارای کارمزد قبلی و حواله‌های فرستاده‌شده از خود صرافی دوباره محاسبه نمی‌شوند. بدهی مبدأ با نرخ روز ثبت‌شده در صفحهٔ نمایندگی مبدأ به USD محاسبه می‌شود.</span>
+                        <span>برای هر ارز کمیشن هر لک را جدا وارد کنید. معادل دلاری با نرخ پایان روز نمایندگی مبدأ محاسبه می‌شود.</span>
+                    }
+                    else if (isOrigin)
+                    {
+                        <span>برای هر محل پرداخت، مبلغ کمیشن به دالر برای هر لک را وارد کنید. تبدیل ارز با نرخ پایان روز ثبت‌شده در نمایندگی کویته انجام می‌شود.</span>
                     }
                     else
                     {
@@ -69,30 +77,48 @@
                     }
                 </div>
                 <div class="mt-3">
-                    <button class="btn-modern btn-primary-modern" disabled="@busy" @onclick="LoadPreview">
-                        <i class="bi bi-search"></i> @(preview is not null && isOutgoing ? "بازمحاسبه با نرخ‌های محل پرداخت" : "نمایش حواله‌های محاسبه‌نشده")
+                    <button class="btn-modern btn-primary-modern" disabled="@(busy || calculating)" @onclick="LoadPreview">
+                        @if (calculating)
+                        { <span class="spinner-border spinner-border-sm ms-1" aria-hidden="true"></span><span>در حال محاسبه...</span> }
+                        else
+                        { <i class="bi bi-search"></i><span>@(preview is not null && (isOutgoing || isOrigin) ? "بازمحاسبه با نرخ‌های واردشده" : "نمایش حواله‌های محاسبه‌نشده")</span> }
                     </button>
                 </div>
             </div>
         </div>
 
-        @if (isOutgoing && request.PaymentLocationRates.Count > 0)
+        @if (isOutgoing && request.CurrencyRates.Count > 0)
         {
             <div class="modern-card mb-4 p-3">
-                <h6 class="fw-bold">کمیشن هر لک به تفکیک محل پرداخت</h6>
+                <h6 class="fw-bold">کمیشن هر لک به تفکیک ارز در شعبه مقصد</h6>
                 <p class="text-muted small">نرخ‌ها برای همین محاسبه اعمال می‌شوند. پس از تغییر هر نرخ، «بازمحاسبه» را بزنید و سپس ثبت حسابداری کنید.</p>
                 <div class="table-responsive"><table class="table table-sm align-middle">
-                    <thead><tr><th>محل پرداخت</th><th>تعداد حواله</th><th>مجموع حواله AFN</th><th>مجموع حواله USD</th><th>کمیشن هر لک</th><th>کمیشن AFN</th><th>کمیشن USD</th><th>بدهی مبدأ USD</th></tr></thead>
+                    <thead><tr><th>ارز</th><th>تعداد حواله</th><th>مجموع مبلغ</th><th>کمیشن هر لک</th><th>کمیشن</th></tr></thead>
+                    <tbody>@foreach (var currencyRate in request.CurrencyRates)
+                    {
+                        <tr><td>@currencyRate.CurrencyCode</td><td>@currencyRate.HawalaCount</td>
+                            <td dir="ltr">@currencyRate.TotalAmount.ToString("N0") @currencyRate.CurrencyCode</td>
+                            <td style="width:180px"><input type="number" min="0.0001" step="0.0001" class="form-control"
+                                   @bind="currencyRate.PerLakhRate" @bind:after="InvalidatePreview" /></td>
+                            <td dir="ltr">@(calculated ? currencyRate.CommissionAmount.ToString("N0") : "—") @currencyRate.CurrencyCode</td></tr>
+                    }</tbody>
+                </table></div>
+            </div>
+        }
+
+        @if (isOrigin && request.PaymentLocationRates.Count > 0)
+        {
+            <div class="modern-card mb-4 p-3">
+                <h6 class="fw-bold">کمیشن کویته به تفکیک محل پرداخت</h6>
+                <p class="text-muted small">مبلغ دلاری هر لک را برای هر محل وارد کرده و سپس باز‌محاسبه کنید.</p>
+                <div class="table-responsive"><table class="table table-sm align-middle">
+                    <thead><tr><th>محل پرداخت</th><th>حواله</th><th>مبلغ مبنا USD</th><th>کمیشن USD هر لک</th><th>کمیشن USD</th></tr></thead>
                     <tbody>@foreach (var locationRate in request.PaymentLocationRates)
                     {
                         <tr><td>@locationRate.PaymentLocationName</td><td>@locationRate.HawalaCount</td>
-                            <td dir="ltr">@(calculated ? preview!.Items.Where(x => x.PaymentLocationId == locationRate.PaymentLocationId && x.CurrencyCode == "AFN").Sum(x => x.SourceAmount).ToString("N0") : "—")</td>
-                            <td dir="ltr">@(calculated ? preview!.Items.Where(x => x.PaymentLocationId == locationRate.PaymentLocationId && x.CurrencyCode == "USD").Sum(x => x.SourceAmount).ToString("N0") : "—")</td>
-                            <td style="width:180px"><input type="number" min="0.0001" step="0.0001" class="form-control"
-                                   @bind="locationRate.PerLakhRate" @bind:after="InvalidatePreview" /></td>
-                            <td dir="ltr">@(calculated ? locationRate.TotalCommissionAfn.ToString("N0") : "—")</td>
-                            <td dir="ltr">@(calculated ? locationRate.TotalCommissionUsd.ToString("N0") : "—")</td>
-                            <td dir="ltr">@(calculated ? locationRate.TotalDebitUsd.ToString("N0") : "—")</td></tr>
+                            <td dir="ltr">@locationRate.TotalDebitUsd.ToString("N2")</td>
+                            <td><input type="number" min="0.0001" step="0.0001" class="form-control" @bind="locationRate.PerLakhRate" @bind:after="InvalidatePreview" /></td>
+                            <td dir="ltr">@(calculated ? locationRate.TotalCommissionUsd.ToString("N2") : "—")</td></tr>
                     }</tbody>
                 </table></div>
             </div>
@@ -119,7 +145,8 @@
                     }
                     else
                     {
-                        <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن هر لک (USD)</small><h4>@request.CommissionPerLakhAfn.ToString("N0")</h4></div></div>
+                        @if (!isOrigin)
+                        { <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن هر لک (USD)</small><h4>@request.CommissionPerLakhAfn.ToString("N0")</h4></div></div> }
                         <div class="col-md-3"><div class="modern-card p-3"><small>کمیشن نهایی (USD)</small><h4>@preview.TotalCommissionUsd.ToString("N0")</h4></div></div>
                     }
                 </div>
@@ -127,12 +154,12 @@
                 <div class="table-card mb-4">
                     <div class="table-card-body"><div class="table-scroll-wrapper">
                         <GlobalDataGrid class="table-modern table-striped-modern">
-                            <thead><tr><th>نمبر</th><th>تاریخ</th>@if (isOutgoing){<th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th><th>نرخ روز USD/AFN</th><th>@(isOutgoing ? "کمیشن" : "معادل USD")</th><th>@(isOutgoing ? "بدهی فرستنده (USD)" : "سهم کمیشن (USD)")</th></tr></thead>
+                            <thead><tr><th>نمبر</th><th>تاریخ</th>@if (isOutgoing || isOrigin){<th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th><th>نرخ روز USD/AFN</th><th>@(isOutgoing ? "کمیشن" : "معادل USD")</th><th>@(isOutgoing ? "بدهی فرستنده (USD)" : "سهم کمیشن (USD)")</th></tr></thead>
                             <tbody>
                             @foreach (var item in preview.Items)
                             {
                                 <tr><td>@item.HawalaNumber</td><td>@item.HawalaDate.ToLocalTime().ToString("yyyy-MM-dd")</td>
-                                    @if (isOutgoing)
+                                    @if (isOutgoing || isOrigin)
                                     {
                                         <td>@item.PaymentLocationName</td><td dir="ltr">@item.PerLakhRate.ToString("N2")</td>
                                     }
@@ -189,6 +216,17 @@
                                     @if (batch.Status == "Posted")
                                     {<button class="btn btn-sm btn-outline-danger" @onclick="() => SelectReverse(batch.Id)">برگشت</button>}
                                 </div></td></tr>
+                            @if (isOrigin && batch.LocationSummaries.Count > 0)
+                            {
+                                <tr><td colspan="5" class="bg-light">
+                                    <div class="d-flex flex-wrap gap-2">
+                                        @foreach (var location in batch.LocationSummaries)
+                                        {
+                                            <span class="badge text-bg-light border text-dark">@location.PaymentLocationName: @location.TotalCommissionUsd.ToString("N2") USD (@location.HawalaCount حواله)</span>
+                                        }
+                                    </div>
+                                </td></tr>
+                            }
                         }</tbody>
                     </table></div>
                 }
@@ -211,9 +249,10 @@
             </div>
             <div class="modal-body">
                 <div class="row g-3 mb-4">
-                    <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">نوع محاسبه</small><div class="fw-bold">@(detailsOutgoing ? "حواله‌های ارسالی" : "حواله‌های دریافتی")</div></div></div>
+                    <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">نوع محاسبه</small><div class="fw-bold">@(selectedDetails.CommissionScope == "Origin" ? "کمیشن مبدأ کویته" : detailsOutgoing ? "حواله‌های ارسالی" : "حواله‌های دریافتی")</div></div></div>
                     <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">تعداد حواله</small><div class="fw-bold">@selectedDetails.HawalaCount</div></div></div>
-                    <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">کمیشن هر لک</small><div class="fw-bold">@selectedDetails.CommissionPerLakhAfn.ToString("N0")</div></div></div>
+                    @if (selectedDetails.CommissionScope == "Standard")
+                    { <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">کمیشن هر لک</small><div class="fw-bold">@selectedDetails.CommissionPerLakhAfn.ToString("N0")</div></div></div> }
                     <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">وضعیت</small><div><span class="badge @(selectedDetails.Status == "Posted" ? "bg-success" : "bg-secondary")">@(selectedDetails.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></div></div></div>
                     @if (detailsOutgoing)
                     {
@@ -239,14 +278,26 @@
                     <div class="alert alert-secondary"><strong>دلیل برگشت:</strong> @selectedDetails.ReversalReason</div>
                 }
 
+                @if (selectedDetails.CommissionScope == "Origin")
+                {
+                    <h6 class="fw-bold mb-3">خلاصه به تفکیک محل پرداخت</h6>
+                    <div class="table-responsive mb-4"><table class="table table-sm table-bordered align-middle">
+                        <thead><tr><th>محل پرداخت</th><th>تعداد</th><th>مبنای USD</th><th>کمیشن USD</th></tr></thead>
+                        <tbody>@foreach (var location in selectedDetails.Items.GroupBy(x => x.PaymentLocationName).OrderBy(x => x.Key))
+                        {
+                            <tr><td>@location.Key</td><td>@location.Count()</td><td dir="ltr">@location.Sum(x => x.AfnEquivalent).ToString("N2")</td><td dir="ltr">@location.Sum(x => x.CommissionAfn).ToString("N2")</td></tr>
+                        }</tbody>
+                    </table></div>
+                }
+
                 <h6 class="fw-bold mb-3">جزئیات تمام حواله‌ها</h6>
                 <div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle">
-                    <thead><tr><th>نمبر</th><th>تاریخ</th>@if (detailsOutgoing){<th>منبع حواله</th><th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th><th>نرخ روز</th><th>@(detailsOutgoing ? "کمیشن" : "مبنای USD")</th><th>@(detailsOutgoing ? "معادل USD" : "سهم کمیشن USD")</th><th>وضعیت</th></tr></thead>
+                    <thead><tr><th>نمبر</th><th>تاریخ</th>@if (detailsOutgoing || selectedDetails.CommissionScope == "Origin"){<th>منبع حواله</th><th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th><th>نرخ روز</th><th>@(detailsOutgoing ? "کمیشن" : "مبنای USD")</th><th>@(detailsOutgoing ? "معادل USD" : "سهم کمیشن USD")</th><th>وضعیت</th></tr></thead>
                     <tbody>@foreach (var item in selectedDetails.Items)
                     {
                         <tr class="@(!item.IsActive ? "table-secondary" : null)">
                             <td>@item.HawalaNumber</td><td>@item.HawalaDate.ToLocalTime().ToString("yyyy-MM-dd")</td>
-                            @if (detailsOutgoing)
+                            @if (detailsOutgoing || selectedDetails.CommissionScope == "Origin")
                             {
                                 <td><span class="badge @(item.SourceType == "OwnOffice" ? "bg-primary" : "bg-info text-dark")">@item.SourceName</span></td>
                                 <td>@item.PaymentLocationName</td><td dir="ltr">@item.PerLakhRate.ToString("N2")</td>
@@ -300,6 +351,7 @@
     private List<CorrespondentCommissionBatchDto> history = [];
     private bool loadingPage = true;
     private bool busy;
+    private bool calculating;
     private bool calculated;
     private string error = string.Empty;
     private string success = string.Empty;
@@ -307,16 +359,19 @@
     private long? reverseBatchId;
     private string reverseReason = string.Empty;
     private bool isOutgoing;
+    private bool isOrigin;
 
     protected override async Task OnInitializedAsync()
     {
         isOutgoing = Navigation.Uri.Contains("/outgoing-commission", StringComparison.OrdinalIgnoreCase);
+        isOrigin = Navigation.Uri.Contains("/commissions/", StringComparison.OrdinalIgnoreCase);
         correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId);
         request = new CorrespondentCommissionPreviewRequestDto
         {
             CorrespondentId = CorrespondentId, PeriodFrom = DateTime.Today.AddMonths(-1),
             PeriodTo = DateTime.Today, CommissionPerLakhAfn = 200,
-            HawalaType = isOutgoing ? "HawalaSend" : "HawalaReceive"
+            HawalaType = isOutgoing ? "HawalaSend" : "HawalaReceive",
+            CommissionScope = isOrigin ? "Origin" : isOutgoing ? "Destination" : "Standard"
         };
         await LoadHistory();
         loadingPage = false;
@@ -324,16 +379,43 @@
 
     private async Task LoadPreview()
     {
-        await Execute(async () =>
+        if (busy || calculating) return;
+        error = string.Empty;
+        success = string.Empty;
+        busy = true;
+        calculating = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+        try
         {
             calculated = false;
+            var previousCurrencyRates = request.CurrencyRates.ToDictionary(x => x.CurrencyId, x => x.PerLakhRate);
+            var previousLocationRates = request.PaymentLocationRates.ToDictionary(x => x.PaymentLocationId, x => x.PerLakhRate);
             preview = await CommissionService.PreviewAsync(request);
             request.Rates = preview.Rates;
             if (isOutgoing)
+                request.CurrencyRates = preview.CurrencyRates.Select(x =>
+                {
+                    x.PerLakhRate = previousCurrencyRates.GetValueOrDefault(x.CurrencyId);
+                    return x;
+                }).ToList();
+            if (isOrigin)
                 request.PaymentLocationRates = preview.PaymentLocationRates
-                    .Where(x => x.PaymentLocationId > 0).ToList();
-            calculated = true;
-        });
+                    .Where(x => x.PaymentLocationId > 0).Select(x =>
+                    {
+                        x.PerLakhRate = previousLocationRates.GetValueOrDefault(x.PaymentLocationId);
+                        return x;
+                    }).ToList();
+            calculated = isOutgoing ? request.CurrencyRates.All(x => x.PerLakhRate > 0) && request.CurrencyRates.Count > 0
+                : isOrigin ? request.PaymentLocationRates.All(x => x.PerLakhRate > 0) && request.PaymentLocationRates.Count > 0
+                : true;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally
+        {
+            calculating = false;
+            busy = false;
+        }
     }
 
     private async Task PostBatch()
@@ -366,10 +448,14 @@
     }
 
     private async Task LoadHistory() => history = (await CommissionService.GetHistoryAsync(CorrespondentId))
-        .Where(x => x.HawalaType == request.HawalaType).ToList();
+        .Where(x => x.HawalaType == request.HawalaType &&
+                    (isOrigin ? x.CommissionScope == "Origin" : x.CommissionScope != "Origin")).ToList();
     private async Task Execute(Func<Task> action)
     {
+        if (busy) return;
         error = string.Empty; success = string.Empty; busy = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
         try { await action(); }
         catch (Exception ex) { error = ex.Message; }
         finally { busy = false; }

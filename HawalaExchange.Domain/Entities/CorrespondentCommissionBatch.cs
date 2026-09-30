@@ -9,6 +9,7 @@ public sealed class CorrespondentCommissionBatch : ITenantEntity
     [Key, DatabaseGenerated(DatabaseGeneratedOption.Identity)] public long Id { get; set; }
     public long TenantId { get; set; }
     public long CorrespondentId { get; set; }
+    [Required, MaxLength(20)] public string CommissionScope { get; set; } = "Standard";
     public DateTime PeriodFrom { get; set; }
     public DateTime PeriodTo { get; set; }
     [Column(TypeName = "decimal(18,4)")] public decimal CommissionPerLakhAfn { get; set; }

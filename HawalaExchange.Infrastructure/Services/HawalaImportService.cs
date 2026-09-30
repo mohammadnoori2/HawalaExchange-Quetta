@@ -17,6 +17,7 @@ public sealed class HawalaImportService : IHawalaImportService
 {
     private const int MaximumRows = 10_000;
     private const long MaximumFileSize = 10 * 1024 * 1024;
+    private static readonly TimeSpan MaximumBatchDeleteDuration = TimeSpan.FromSeconds(30);
     private readonly ApplicationDbContext _context;
     private readonly IHawalaService _hawalaService;
     private readonly IPaymentLocationService _paymentLocationService;
@@ -248,6 +249,54 @@ public sealed class HawalaImportService : IHawalaImportService
             SentTotals = BuildTotals(rows.Where(x => x.GeneratedSendHawalaId.HasValue)),
             Groups = groups
         };
+    }
+
+    public async Task DeleteBatchAsync(
+        long batchId,
+        CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(MaximumBatchDeleteDuration);
+        var operationToken = timeoutSource.Token;
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+            await connection.OpenAsync(operationToken);
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "[dbo].[usp_DeleteHawalaImportBatch_v1]";
+            command.CommandType = CommandType.StoredProcedure;
+            command.CommandTimeout = 30;
+            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+            command.Parameters.Add("@BatchId", SqlDbType.BigInt).Value = batchId;
+            var fileNameParameter = command.Parameters.Add("@FileName", SqlDbType.NVarChar, 260);
+            fileNameParameter.Direction = ParameterDirection.Output;
+            var rowCountParameter = command.Parameters.Add("@RowCount", SqlDbType.Int);
+            rowCountParameter.Direction = ParameterDirection.Output;
+            var deletedCountParameter = command.Parameters.Add("@DeletedHawalaCount", SqlDbType.Int);
+            deletedCountParameter.Direction = ParameterDirection.Output;
+
+            await command.ExecuteNonQueryAsync(operationToken);
+            _context.ChangeTracker.Clear();
+
+            var fileName = Convert.ToString(fileNameParameter.Value) ?? string.Empty;
+            var rowCount = Convert.ToInt32(rowCountParameter.Value, CultureInfo.InvariantCulture);
+            var deletedCount = Convert.ToInt32(deletedCountParameter.Value, CultureInfo.InvariantCulture);
+            await _auditLogService.LogAsync(
+                "DELETE",
+                "HawalaImportBatches",
+                batchId,
+                null,
+                $"فایل آپلود گروهی '{fileName}' با {rowCount} ردیف و {deletedCount} حواله وابسته توسط Stored Procedure حذف شد.",
+                _context.RequireCurrentUserId());
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
     }
 
     public async Task<HawalaImportResultDto> ConfirmAsync(

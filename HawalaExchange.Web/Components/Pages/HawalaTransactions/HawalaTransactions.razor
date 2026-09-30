@@ -798,6 +798,10 @@
 }
 
 @code {
+    [SupplyParameterFromQuery(Name = "editId")]
+    public long? RequestedEditId { get; set; }
+
+    private long? handledRequestedEditId;
     // ===== لیست‌ها =====
     private List<HawalaDto> filteredHawalas = new();
     private List<CorrespondentDto> correspondents = new();
@@ -1079,6 +1083,15 @@
         await LoadPaymentLocations();
     }
 
+    protected override async Task OnParametersSetAsync()
+    {
+        if (RequestedEditId is > 0 && RequestedEditId != handledRequestedEditId)
+        {
+            handledRequestedEditId = RequestedEditId;
+            await OpenEditModal(RequestedEditId.Value);
+        }
+    }
+
     private async Task LoadLookupData()
     {
         try
@@ -1322,8 +1335,9 @@
             var hawalaIdToEdit = id;
             if (hawala?.IsBulkImportGeneratedSend == true)
             {
-                validationErrors.Add("حواله ارسالی ایجادشده توسط آپلود گروهی قابل ویرایش نیست.");
-                return;
+                hawalaIdToEdit = hawala.SourceHawalaId
+                    ?? throw new InvalidOperationException("حواله اصلی مربوط به آپلود گروهی یافت نشد.");
+                hawala = await HawalaService.GetHawalaByIdAsync(hawalaIdToEdit);
             }
 
             if (hawala != null)

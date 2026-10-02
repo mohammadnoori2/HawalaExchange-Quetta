@@ -32,6 +32,18 @@ public sealed class CurrencyCommissionRateDto
     public decimal CommissionAmount { get; set; }
 }
 
+public sealed class LocationCurrencyCommissionRateDto
+{
+    public long PaymentLocationId { get; set; }
+    public string PaymentLocationName { get; set; } = string.Empty;
+    public long CurrencyId { get; set; }
+    public string CurrencyCode { get; set; } = string.Empty;
+    public decimal TotalAmount { get; set; }
+    public int HawalaCount { get; set; }
+    public decimal PerLakhRate { get; set; }
+    public decimal CommissionAmount { get; set; }
+}
+
 public sealed class CorrespondentCommissionPreviewRequestDto
 {
     public string HawalaType { get; set; } = "HawalaReceive";
@@ -44,6 +56,7 @@ public sealed class CorrespondentCommissionPreviewRequestDto
     public List<CorrespondentCommissionRateDto> Rates { get; set; } = [];
     public List<PaymentLocationCommissionRateDto> PaymentLocationRates { get; set; } = [];
     public List<CurrencyCommissionRateDto> CurrencyRates { get; set; } = [];
+    public List<LocationCurrencyCommissionRateDto> LocationCurrencyRates { get; set; } = [];
 }
 
 public sealed class CorrespondentCommissionPreviewDto
@@ -59,6 +72,7 @@ public sealed class CorrespondentCommissionPreviewDto
     public List<CorrespondentCommissionRateDto> Rates { get; set; } = [];
     public List<PaymentLocationCommissionRateDto> PaymentLocationRates { get; set; } = [];
     public List<CurrencyCommissionRateDto> CurrencyRates { get; set; } = [];
+    public List<LocationCurrencyCommissionRateDto> LocationCurrencyRates { get; set; } = [];
     public List<CorrespondentCommissionItemDto> Items { get; set; } = [];
     public decimal TotalSourceUsd => Items.Where(x => x.CurrencyCode == "USD").Sum(x => x.SourceAmount);
     public decimal TotalSourceAfn => Items.Where(x => x.CurrencyCode == "AFN").Sum(x => x.SourceAmount);

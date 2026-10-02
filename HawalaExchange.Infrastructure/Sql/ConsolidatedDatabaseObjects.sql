@@ -390,7 +390,8 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                     @LocationRatesJson nvarchar(max) = N'[]',
                     @CurrencyRatesJson nvarchar(max) = N'[]',
                     @CommissionScope nvarchar(20) = N'Standard',
-                    @UtcOffsetMinutes int = 0
+                    @UtcOffsetMinutes int = 0,
+                    @LocationCurrencyRatesJson nvarchar(max) = N'[]'
                 AS
                 BEGIN
                     SET NOCOUNT ON;
@@ -479,6 +480,26 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                                 THROW 50021, N'کمیشن هر لک برای ارز باید بزرگ‌تر از صفر باشد.', 1;
                         END;
 
+                        CREATE TABLE #LocationCurrencyRates
+                        (
+                            [PaymentLocationId] bigint NOT NULL,
+                            [CurrencyId] bigint NOT NULL,
+                            [PerLakhRate] decimal(18,4) NOT NULL,
+                            PRIMARY KEY ([PaymentLocationId], [CurrencyId])
+                        );
+                        IF @CommissionScope = N'Destination'
+                        BEGIN
+                            INSERT INTO #LocationCurrencyRates ([PaymentLocationId], [CurrencyId], [PerLakhRate])
+                            SELECT [PaymentLocationId], [CurrencyId], [PerLakhRate]
+                            FROM OPENJSON(@LocationCurrencyRatesJson)
+                            WITH ([PaymentLocationId] bigint '$.PaymentLocationId',
+                                  [CurrencyId] bigint '$.CurrencyId',
+                                  [PerLakhRate] decimal(18,4) '$.PerLakhRate');
+                            IF EXISTS (SELECT 1 FROM #LocationCurrencyRates
+                                       WHERE [PaymentLocationId] <= 0 OR [CurrencyId] <= 0 OR [PerLakhRate] <= 0)
+                                THROW 50027, N'نرخ کمیشن هر محل پرداخت و ارز باید معتبر و بزرگ‌تر از صفر باشد.', 1;
+                        END;
+
                         CREATE TABLE #Eligible
                         (
                             [HawalaId] bigint NOT NULL PRIMARY KEY,
@@ -564,11 +585,16 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             ON suppliedLocationRate.[PaymentLocationId] = h.[PaymentLocationId]
                         LEFT JOIN #CurrencyRates suppliedCurrencyRate
                             ON suppliedCurrencyRate.[CurrencyId] = currencyData.[CurrencyId]
+                        LEFT JOIN #LocationCurrencyRates suppliedLocationCurrencyRate
+                            ON suppliedLocationCurrencyRate.[PaymentLocationId] = h.[PaymentLocationId]
+                           AND suppliedLocationCurrencyRate.[CurrencyId] = currencyData.[CurrencyId]
                         CROSS APPLY
                         (
                             SELECT CASE WHEN @CommissionScope IN (N'Origin', N'Forwarding')
                                         THEN COALESCE(suppliedLocationRate.[PerLakhRate], @CommissionPerLakhAfn)
                                         WHEN @CommissionScope = N'Incoming' THEN @CommissionPerLakhAfn
+                                        WHEN @CommissionScope = N'Destination'
+                                        THEN COALESCE(suppliedLocationCurrencyRate.[PerLakhRate], 0)
                                         ELSE COALESCE(suppliedCurrencyRate.[PerLakhRate],
                                                       suppliedLocationRate.[PerLakhRate], @CommissionPerLakhAfn)
                                    END
@@ -624,8 +650,9 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
 
                         IF @Mode = N'Post' AND @CommissionScope = N'Destination' AND
                            EXISTS (SELECT 1 FROM #Eligible e WHERE NOT EXISTS
-                               (SELECT 1 FROM #CurrencyRates r WHERE r.[CurrencyId] = e.[CurrencyId]))
-                            THROW 50023, N'نرخ کمیشن همه ارزهای حواله‌های این دوره را وارد کنید.', 1;
+                               (SELECT 1 FROM #LocationCurrencyRates r
+                                WHERE r.[PaymentLocationId] = e.[PaymentLocationId] AND r.[CurrencyId] = e.[CurrencyId]))
+                            THROW 50023, N'نرخ کمیشن هر محل پرداخت و ارز این دوره را وارد کنید.', 1;
                         IF @Mode = N'Post' AND @CommissionScope IN (N'Origin', N'Forwarding') AND
                            EXISTS (SELECT 1 FROM #Eligible e WHERE NOT EXISTS
                                (SELECT 1 FROM #LocationRates r WHERE r.[PaymentLocationId] = e.[PaymentLocationId]))
@@ -653,16 +680,17 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             ;WITH shares AS
                             (
                                 SELECT [HawalaId], [CommissionAfn],
-                                    CASE @CommissionScope WHEN N'Forwarding' THEN [PaymentLocationId]
-                                         WHEN N'Destination' THEN [CurrencyId] ELSE 0 END AS [GroupId],
+                                    CASE WHEN @CommissionScope IN (N'Forwarding', N'Destination')
+                                         THEN [PaymentLocationId] ELSE 0 END AS [GroupId],
+                                    CASE WHEN @CommissionScope = N'Destination' THEN [CurrencyId] ELSE 0 END AS [GroupCurrencyId],
                                     FLOOR([CommissionAfn] * 100) / 100 AS [WholeCents]
                                 FROM #Eligible
                             ), allocations AS
                             (
                                 SELECT [HawalaId], [WholeCents],
-                                    ROUND(SUM([CommissionAfn]) OVER (PARTITION BY [GroupId]), 2) AS [GroupTotal],
-                                    SUM([WholeCents]) OVER (PARTITION BY [GroupId]) AS [FloorTotal],
-                                    ROW_NUMBER() OVER (PARTITION BY [GroupId]
+                                    ROUND(SUM([CommissionAfn]) OVER (PARTITION BY [GroupId], [GroupCurrencyId]), 2) AS [GroupTotal],
+                                    SUM([WholeCents]) OVER (PARTITION BY [GroupId], [GroupCurrencyId]) AS [FloorTotal],
+                                    ROW_NUMBER() OVER (PARTITION BY [GroupId], [GroupCurrencyId]
                                         ORDER BY [CommissionAfn] - [WholeCents] DESC, [HawalaId]) AS [CentOrder]
                                 FROM shares
                             )
@@ -716,7 +744,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             FROM #Eligible
                             ORDER BY [HawalaDate], [HawalaNumber];
 
-                            SELECT [PaymentLocationId], [PaymentLocationName], [PerLakhRate],
+                            SELECT [PaymentLocationId], [PaymentLocationName], MAX([PerLakhRate]) AS [PerLakhRate],
                                    COUNT(*) AS [HawalaCount],
                                    CAST(SUM([SourceAmount]) AS decimal(18,4)) AS [TotalAmount],
                                    CAST(SUM(CASE WHEN @CommissionScope NOT IN (N'Origin', N'Forwarding') AND [CurrencyId] = @AfnCurrencyId
@@ -729,7 +757,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                                    CAST(SUM([AfnEquivalent]) AS decimal(18,4)) AS [TotalDebitUsd]
                             FROM #Eligible
                             WHERE @HawalaType = N'HawalaSend' OR @CommissionScope = N'Origin'
-                            GROUP BY [PaymentLocationId], [PaymentLocationName], [PerLakhRate]
+                            GROUP BY [PaymentLocationId], [PaymentLocationName]
                             ORDER BY [PaymentLocationName];
                             RETURN;
                         END;

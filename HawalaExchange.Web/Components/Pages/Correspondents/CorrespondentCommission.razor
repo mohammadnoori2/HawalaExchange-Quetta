@@ -15,7 +15,7 @@
 
 <div class="page-wrapper" dir="rtl">
     <AppPageHeader Title="@(isOrigin ? "کمیشن ارسالی به نمایندگی‌ها" : isOutgoing ? "کمیشن پرداختی به نمایندگی‌ها" : "کمیشن حواله‌های دریافتی")"
-                   Subtitle="@(isOrigin ? "درآمد ارسال مجدد به تفکیک محل پرداخت در حساب نمایندگی فرستنده" : isOutgoing ? "هزینه شرکت و طلب نمایندگی مقصد، به تفکیک ارز" : "درآمد دریافت حواله با نرخ پایان روز نمایندگی فرستنده")"
+                   Subtitle="@(isOrigin ? "درآمد ارسال مجدد به تفکیک محل پرداخت در حساب نمایندگی فرستنده" : isOutgoing ? "هزینه شرکت و طلب نمایندگی مقصد، به تفکیک محل پرداخت و ارز" : "درآمد دریافت حواله با نرخ پایان روز نمایندگی فرستنده")"
                    Icon="bi-calculator">
         <Actions>
             <button class="btn-modern btn-light-modern" @onclick="BackToCorrespondent">
@@ -66,7 +66,7 @@
                 <div class="alert alert-info mt-3 mb-0">
                     @if (isOutgoing)
                     {
-                        <span>برای هر ارز کمیشن هر لک را جدا وارد کنید. مقصد به همان ارز طلبکار و حساب هزینه شرکت بدهکار می‌شود؛ بدهی برای فرستنده ثبت نمی‌شود.</span>
+                        <span>برای هر محل پرداخت، کمیشن هر لک AFN و USD را جدا وارد کنید؛ نرخ محل‌های مختلف می‌تواند متفاوت باشد. مقصد به همان ارز طلبکار و حساب هزینه شرکت بدهکار می‌شود؛ بدهی برای فرستنده ثبت نمی‌شود.</span>
                     }
                     else if (isOrigin)
                     {
@@ -88,16 +88,16 @@
             </div>
         </div>
 
-        @if (isOutgoing && request.CurrencyRates.Count > 0)
+        @if (isOutgoing && request.LocationCurrencyRates.Count > 0)
         {
             <div class="modern-card mb-4 p-3">
-                <h6 class="fw-bold">کمیشن هر لک به تفکیک ارز در شعبه مقصد</h6>
+                <h6 class="fw-bold">کمیشن هر لک به تفکیک محل پرداخت و ارز در نمایندگی مقصد</h6>
                 <p class="text-muted small">نرخ‌ها برای همین محاسبه اعمال می‌شوند. پس از تغییر هر نرخ، «بازمحاسبه» را بزنید و سپس ثبت حسابداری کنید.</p>
                 <div class="table-responsive"><table class="table table-sm align-middle">
-                    <thead><tr><th>ارز</th><th>تعداد حواله</th><th>مجموع مبلغ</th><th>کمیشن هر لک</th><th>کمیشن</th></tr></thead>
-                    <tbody>@foreach (var currencyRate in request.CurrencyRates)
+                    <thead><tr><th>محل پرداخت</th><th>ارز</th><th>تعداد حواله</th><th>مجموع مبلغ</th><th>کمیشن هر لک</th><th>کمیشن</th></tr></thead>
+                    <tbody>@foreach (var currencyRate in request.LocationCurrencyRates)
                     {
-                        <tr><td>@currencyRate.CurrencyCode</td><td>@currencyRate.HawalaCount</td>
+                        <tr><td>@currencyRate.PaymentLocationName</td><td>@currencyRate.CurrencyCode</td><td>@currencyRate.HawalaCount</td>
                             <td dir="ltr">@currencyRate.TotalAmount.ToString("N2") @currencyRate.CurrencyCode</td>
                             <td style="width:180px"><input type="number" lang="en" min="0.0001" step="0.0001" class="form-control"
                                    @bind="currencyRate.PerLakhRate" @bind:after="InvalidatePreview" /></td>
@@ -307,6 +307,23 @@
                     <div class="alert alert-secondary"><strong>دلیل برگشت:</strong> @selectedDetails.ReversalReason</div>
                 }
 
+                @if (detailsOutgoing)
+                {
+                    <h6 class="fw-bold mb-3">کمیشن به تفکیک محل پرداخت، ارز و نرخ ثبت‌شده</h6>
+                    <div class="table-responsive mb-4"><table class="table table-sm table-bordered align-middle">
+                        <thead><tr><th>محل پرداخت</th><th>ارز</th><th>تعداد</th><th>مجموع مبلغ</th><th>کمیشن هر لک</th><th>کمیشن</th></tr></thead>
+                        <tbody>@foreach (var location in selectedDetails.Items
+                            .GroupBy(x => new { x.PaymentLocationId, x.PaymentLocationName, x.CurrencyCode, x.PerLakhRate })
+                            .OrderBy(x => x.Key.PaymentLocationName).ThenBy(x => x.Key.CurrencyCode).ThenBy(x => x.Key.PerLakhRate))
+                        {
+                            <tr><td>@location.Key.PaymentLocationName</td><td>@location.Key.CurrencyCode</td><td>@location.Count()</td>
+                                <td dir="ltr">@location.Sum(x => x.SourceAmount).ToString("N2") @location.Key.CurrencyCode</td>
+                                <td dir="ltr">@location.Key.PerLakhRate.ToString("N2")</td>
+                                <td dir="ltr">@location.Sum(x => x.CommissionAfn).ToString("N2") @location.Key.CurrencyCode</td></tr>
+                        }</tbody>
+                    </table></div>
+                }
+
                 @if (detailsOrigin)
                 {
                     <CommissionCurrencySummary Items="selectedDetails.Items" />
@@ -438,14 +455,15 @@
         try
         {
             calculated = false;
-            var previousCurrencyRates = request.CurrencyRates.ToDictionary(x => x.CurrencyId, x => x.PerLakhRate);
+            var previousCurrencyRates = request.LocationCurrencyRates
+                .ToDictionary(x => (x.PaymentLocationId, x.CurrencyId), x => x.PerLakhRate);
             var previousLocationRates = request.PaymentLocationRates.ToDictionary(x => x.PaymentLocationId, x => x.PerLakhRate);
             preview = await CommissionService.PreviewAsync(request);
             request.Rates = preview.Rates;
             if (isOutgoing)
-                request.CurrencyRates = preview.CurrencyRates.Select(x =>
+                request.LocationCurrencyRates = preview.LocationCurrencyRates.Select(x =>
                 {
-                    x.PerLakhRate = previousCurrencyRates.GetValueOrDefault(x.CurrencyId);
+                    x.PerLakhRate = previousCurrencyRates.GetValueOrDefault((x.PaymentLocationId, x.CurrencyId));
                     return x;
                 }).ToList();
             if (isOrigin)
@@ -456,7 +474,7 @@
                             x.PaymentLocationId, request.CommissionPerLakhAfn);
                         return x;
                     }).ToList();
-            calculated = isOutgoing ? request.CurrencyRates.All(x => x.PerLakhRate > 0) && request.CurrencyRates.Count > 0
+            calculated = isOutgoing ? request.LocationCurrencyRates.All(x => x.PerLakhRate > 0) && request.LocationCurrencyRates.Count > 0
                 : isOrigin ? request.PaymentLocationRates.All(x => x.PerLakhRate > 0) && request.PaymentLocationRates.Count > 0
                 : true;
         }

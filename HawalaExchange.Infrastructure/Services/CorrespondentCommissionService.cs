@@ -40,8 +40,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         ValidateRequest(request);
         using var budget = CreateCalculationBudget(request, cancellationToken);
         cancellationToken = budget.Token;
-        if (request.CommissionScope == "Destination" && request.CurrencyRates.Count == 0)
-            throw new InvalidOperationException("نرخ کمیشن هر ارز را وارد و پیش‌نمایش را باز‌محاسبه کنید.");
+        if (request.CommissionScope == "Destination" && request.LocationCurrencyRates.Count == 0)
+            throw new InvalidOperationException("نرخ کمیشن هر محل پرداخت و ارز را وارد و پیش‌نمایش را باز‌محاسبه کنید.");
         if (request.CommissionScope is "Origin" or "Forwarding" && request.PaymentLocationRates.Count == 0)
             throw new InvalidOperationException("نرخ کمیشن هر محل پرداخت را وارد و پیش‌نمایش را باز‌محاسبه کنید.");
         var rates = CreateRatesTable(request.Rates);
@@ -182,7 +182,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         }
         if (isOutgoing || isOrigin)
         {
-            var locationRates = preview.PaymentLocationRates.ToDictionary(x => x.PaymentLocationId, x => x.PerLakhRate);
+            var locationRates = preview.PaymentLocationRates.GroupBy(x => x.PaymentLocationId)
+                .ToDictionary(x => x.Key, x => x.First().PerLakhRate);
             preview.PaymentLocationRates = preview.Items.Where(x => x.PaymentLocationId.HasValue)
                 .GroupBy(x => new { x.PaymentLocationId, x.PaymentLocationName })
                 .Select(group => new PaymentLocationCommissionRateDto
@@ -704,6 +705,20 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                         PerLakhRate = group.First().PerLakhRate,
                         CommissionAmount = group.Sum(x => x.CommissionAfn)
                     }).OrderBy(x => x.CurrencyCode).ToList();
+                // Editable rates belong only to newly eligible transfers. Cancellation
+                // deductions retain their saved rates and must not request a new rate.
+                result.LocationCurrencyRates = result.Items
+                    .Where(x => x.PaymentLocationId.HasValue && x.SourceAmount > 0)
+                    .GroupBy(x => new { x.PaymentLocationId, x.PaymentLocationName, x.CurrencyId, x.CurrencyCode })
+                    .Select(group => new LocationCurrencyCommissionRateDto
+                    {
+                        PaymentLocationId = group.Key.PaymentLocationId!.Value,
+                        PaymentLocationName = group.Key.PaymentLocationName,
+                        CurrencyId = group.Key.CurrencyId, CurrencyCode = group.Key.CurrencyCode,
+                        TotalAmount = group.Sum(x => x.SourceAmount), HawalaCount = group.Count(),
+                        PerLakhRate = group.First().PerLakhRate,
+                        CommissionAmount = group.Sum(x => x.CommissionAfn)
+                    }).OrderBy(x => x.PaymentLocationName).ThenBy(x => x.CurrencyCode).ToList();
                 return result;
             }, cancellationToken);
     }
@@ -773,6 +788,11 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 .Where(x => x.CurrencyId > 0)
                 .Select(x => new { x.CurrencyId, x.PerLakhRate }))
         });
+        command.Parameters.Add(new SqlParameter("@LocationCurrencyRatesJson", SqlDbType.NVarChar, -1)
+        {
+            Value = JsonSerializer.Serialize(request.LocationCurrencyRates
+                .Select(x => new { x.PaymentLocationId, x.CurrencyId, x.PerLakhRate }))
+        });
     }
 
     private static DataTable CreateRatesTable(IEnumerable<CorrespondentCommissionRateDto> suppliedRates)
@@ -819,6 +839,10 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         if (request.CurrencyRates.Any(x => x.CurrencyId <= 0 || x.PerLakhRate <= 0) ||
             request.CurrencyRates.Select(x => x.CurrencyId).Distinct().Count() != request.CurrencyRates.Count)
             throw new InvalidOperationException("نرخ کمیشن ارز معتبر نیست یا ارز تکراری انتخاب شده است.");
+        if (request.LocationCurrencyRates.Any(x => x.PaymentLocationId <= 0 || x.CurrencyId <= 0 || x.PerLakhRate <= 0) ||
+            request.LocationCurrencyRates.Select(x => (x.PaymentLocationId, x.CurrencyId)).Distinct().Count() !=
+            request.LocationCurrencyRates.Count)
+            throw new InvalidOperationException("نرخ کمیشن محل پرداخت و ارز معتبر نیست یا تکراری انتخاب شده است.");
     }
 
     private async Task EnsureCommissionUsdValuationsAsync(

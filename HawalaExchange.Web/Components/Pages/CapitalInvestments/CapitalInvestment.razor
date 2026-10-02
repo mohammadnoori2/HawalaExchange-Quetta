@@ -11,6 +11,7 @@
 @inject ICapitalInvestmentService CapitalInvestmentService
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
+@inject ICompanySettingService CompanySettingService
 
 @rendermode InteractiveServer
 
@@ -459,6 +460,7 @@
     private List<AccountDto> receivingAccounts = new();
     private List<AccountDto> capitalAccounts = new();
     private List<CapitalInvestmentDto> investments = new();
+    private long defaultProfitCurrencyId;
 
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
@@ -487,6 +489,9 @@
         try
         {
             currencies = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
+            var companySetting = await CompanySettingService.GetAsync();
+            defaultProfitCurrencyId = currencies
+                .FirstOrDefault(x => x.Id == companySetting.DefaultProfitCurrencyId)?.Id ?? 0;
 
             accounts = (await AccountService.GetAllAsync())
                 .Where(x => !x.IsArchived)
@@ -559,7 +564,7 @@
         model = new CreateCapitalInvestmentDto
         {
             CurrencyId = afn?.Id ?? 0,
-            ProfitCurrencyId = afn?.Id ?? 0,
+            ProfitCurrencyId = defaultProfitCurrencyId,
             ProfitCurrencyAmount = 0,
             ReceivingAccountId = cash?.Id ?? 0,
             CapitalAccountId = ownerCapital?.Id ?? 0,

@@ -1,5 +1,6 @@
 using System.Data;
 using HawalaExchange.Application.DTOs;
+using HawalaExchange.Application.Helpers;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
@@ -13,6 +14,7 @@ namespace HawalaExchange.Application.Services;
 public class JournalService : IJournalService
 {
     private readonly ApplicationDbContext _context;
+    private readonly DisplayDateFormatter displayDates = new();
 
     public JournalService(ApplicationDbContext context)
     {
@@ -948,6 +950,9 @@ public class JournalService : IJournalService
 
     private async Task PopulateSourceDetailsAsync(List<JournalOperationDto> operations)
     {
+        if (operations.Count == 0) return;
+        displayDates.SetCalendar(await _context.CompanySettings.AsNoTracking()
+            .Select(x => (bool?)x.UsePersianCalendar).FirstOrDefaultAsync() ?? true);
         await PopulateHawalaDetailsAsync(operations);
         await PopulateExchangeDetailsAsync(operations);
         await PopulateCapitalDetailsAsync(operations);
@@ -1036,7 +1041,7 @@ public class JournalService : IJournalService
                 continue;
 
             Add(operation, "نوع عملیات", source.OperationType == "Customer" ? "تبدیل پول مشتری" : "تبدیل پول خود صرافی");
-            Add(operation, "تاریخ تبدیل", source.ExchangeDate.ToString("yyyy/MM/dd HH:mm"));
+            Add(operation, "تاریخ تبدیل", displayDates.DateTime(source.ExchangeDate, true));
             Add(operation, "حساب ارز فروش", source.FromAccount.AccountName);
             Add(operation, "ارز فروش / مبلغ پرداختی", Money(source.FromAmount, source.FromCurrency.Code));
             Add(operation, "حساب ارز خرید", source.ToAccount.AccountName);
@@ -1072,10 +1077,13 @@ public class JournalService : IJournalService
                 !sources.TryGetValue(operation.SourceId.Value, out var source))
                 continue;
 
-            Add(operation, "تاریخ ثبت سرمایه", source.InvestmentDate.ToString("yyyy/MM/dd HH:mm"));
-            Add(operation, "مبلغ سرمایه", Money(source.Amount, source.Currency.Code));
+            if (source.IsWithdrawal) operation.SourceType = "برداشت مالک";
+            Add(operation, source.IsWithdrawal ? "تاریخ برداشت مالک" : "تاریخ ثبت سرمایه", displayDates.DateTime(source.InvestmentDate, true));
+            Add(operation, source.IsWithdrawal ? "مبلغ برداشت" : "مبلغ سرمایه", Money(source.Amount, source.Currency.Code));
             Add(operation, "ارزش در ارز اصلی", Money(source.ProfitCurrencyAmount, source.ProfitCurrency?.Code));
-            Add(operation, "حساب دریافت‌کننده", source.ReceivingAccount.AccountName);
+            Add(operation, source.IsWithdrawal ? "حساب پرداخت‌کننده" : "حساب دریافت‌کننده", source.ReceivingAccount.AccountName);
+            if (source.CancelledAt.HasValue)
+                Add(operation, "لغو برداشت", displayDates.DateTime(source.CancelledAt.Value, true));
             Add(operation, "حساب سرمایه مالک", source.CapitalAccount.AccountName);
             Add(operation, "توضیحات", source.Description);
         }
@@ -1103,7 +1111,7 @@ public class JournalService : IJournalService
 
             operation.DocumentNumber = source.Id.ToString();
             Add(operation, "عنوان مصرف", source.Title);
-            Add(operation, "تاریخ مصرف", source.ExpenseDate.ToString("yyyy/MM/dd HH:mm"));
+            Add(operation, "تاریخ مصرف", displayDates.DateTime(source.ExpenseDate, true));
             Add(operation, "مبلغ مصرف", Money(source.Amount, source.Currency.Code));
             Add(operation, "حساب مصرف", source.ExpenseAccount.AccountName);
             Add(operation, "پرداخت از حساب", source.PaidFromAccount.AccountName);
@@ -1132,7 +1140,7 @@ public class JournalService : IJournalService
                 continue;
 
             Add(operation, "نوع عملیات", source.OperationType == "Deposit" ? "رسید" : source.OperationType == "Withdraw" ? "برد" : "عملیات حساب");
-            Add(operation, "تاریخ عملیات", source.OperationDate.ToString("yyyy/MM/dd HH:mm"));
+            Add(operation, "تاریخ عملیات", displayDates.DateTime(source.OperationDate, true));
             Add(operation, "مبلغ", Money(source.Amount, source.Currency.Code));
             Add(operation, "حساب طرف", source.Account.AccountName);
             Add(operation, "صندوق / بانک", source.CashOrBankAccount.AccountName);
@@ -1348,6 +1356,9 @@ public class JournalService : IJournalService
 
             "ثبت سرمایه" =>
                 $"سرمایه مالک به مبلغ {Detail(operation, "مبلغ سرمایه", CurrencyMovement(operation))} در حساب {Detail(operation, "حساب دریافت‌کننده", accounts)} ثبت و حساب {Detail(operation, "حساب سرمایه مالک", "سرمایه مالک")} طرف مقابل گردید{suffix}",
+
+            "برداشت مالک" =>
+                $"مالک مبلغ {Detail(operation, "مبلغ برداشت", CurrencyMovement(operation))} از حساب {Detail(operation, "حساب پرداخت‌کننده", accounts)} برداشت کرد؛ این عملیات مصرف نیست{suffix}",
 
             "مصرف" =>
                 $"مصرف «{Detail(operation, "عنوان مصرف", "بدون عنوان")}» به مبلغ {Detail(operation, "مبلغ مصرف", CurrencyMovement(operation))} از حساب {Detail(operation, "پرداخت از حساب", accounts)} پرداخت و در {Detail(operation, "حساب مصرف", "حساب مصرف")} ثبت شد{suffix}",

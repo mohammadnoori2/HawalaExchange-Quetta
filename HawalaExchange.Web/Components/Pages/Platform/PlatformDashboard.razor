@@ -56,7 +56,7 @@
                                 <td class="fw-bold">@tenant.Name</td>
                                 <td>@(tenant.PlanName ?? "بدون پلن")</td>
                                 <td><span class="badge-modern @GetStatusBadge(tenant.SubscriptionStatus)">@GetStatusText(tenant.SubscriptionStatus)</span></td>
-                                <td>@(tenant.SubscriptionEndAt?.ToLocalTime().ToString("yyyy/MM/dd") ?? "-")</td>
+                                <td>@(DisplayDates.Date(tenant.SubscriptionEndAt, "-"))</td>
                                 <td>@tenant.UserCount</td>
                                 <td>@tenant.BranchCount</td>
                             </tr>

@@ -1,13 +1,14 @@
 ﻿using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Services;
+using HawalaExchange.Application.Helpers;
 
 namespace HawalaExchange.Web.Helpers;
 
 public static class HawalaShareHelper
 {
-    public static string BuildText(HawalaDto hawala)
+    public static string BuildText(HawalaDto hawala, DisplayDateFormatter? dates = null)
     {
-        var createdDate = PersianDateHelper.ToPersianDate(hawala.CreatedAt);
+        var createdDate = (dates ?? new DisplayDateFormatter()).Date(hawala.CreatedAt);
 
         var paymentLocation =
             hawala.PaymentLocationName ??

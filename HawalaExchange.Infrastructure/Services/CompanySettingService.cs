@@ -41,6 +41,7 @@ public class CompanySettingService : ICompanySettingService
         return new CompanySettingDto
         {
             Id = setting.Id,
+            UsePersianCalendar = setting.UsePersianCalendar,
             CompanyName = setting.CompanyName,
             LogoPath = setting.LogoPath,
             PhoneNumber = setting.PhoneNumber,
@@ -101,6 +102,7 @@ public class CompanySettingService : ICompanySettingService
         setting.FooterNote = dto.FooterNote;
         setting.DefaultProfitCurrencyId = profitCurrency.Id;
         setting.OwnPaymentLocationId = dto.OwnPaymentLocationId;
+        setting.UsePersianCalendar = dto.UsePersianCalendar;
         setting.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
@@ -108,6 +110,7 @@ public class CompanySettingService : ICompanySettingService
         return new CompanySettingDto
         {
             Id = setting.Id,
+            UsePersianCalendar = setting.UsePersianCalendar,
             CompanyName = setting.CompanyName,
             LogoPath = setting.LogoPath,
             PhoneNumber = setting.PhoneNumber,

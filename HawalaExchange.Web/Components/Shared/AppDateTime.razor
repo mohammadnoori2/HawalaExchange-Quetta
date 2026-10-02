@@ -21,9 +21,6 @@ else
     public bool ShowSeconds { get; set; }
 
     [Parameter]
-    public bool UsePersianCalendar { get; set; } = true;
-
-    [Parameter]
     public string EmptyText { get; set; } = "—";
 
     private DateTime LocalValue => Value!.Value.Kind == DateTimeKind.Utc
@@ -32,9 +29,7 @@ else
 
     private string DatePart => !Value.HasValue
         ? string.Empty
-        : UsePersianCalendar
-            ? PersianDateHelper.ToPersianDate(Value.Value)
-            : LocalValue.ToString("yyyy/MM/dd", System.Globalization.CultureInfo.InvariantCulture);
+        : DisplayDates.Date(Value);
 
     private string TimePart
     {

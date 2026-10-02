@@ -182,6 +182,7 @@
 
     private bool showCalendar = false;
     private bool gregorianMode;
+    private bool? lastPreferredCalendar;
 
     private int viewYear;
     private int viewMonth;
@@ -230,6 +231,13 @@
     protected override void OnParametersSet()
     {
         var date = Value == DateTime.MinValue ? DateTime.Now : DualCalendarDateHelper.LocalDate(Value);
+
+        if (lastPreferredCalendar != DisplayDates.UsePersianCalendar)
+        {
+            lastPreferredCalendar = DisplayDates.UsePersianCalendar;
+            gregorianMode = !DisplayDates.UsePersianCalendar;
+            SetView(date);
+        }
 
         selectedPersianYear = persianCalendar.GetYear(date);
         selectedPersianMonth = persianCalendar.GetMonth(date);

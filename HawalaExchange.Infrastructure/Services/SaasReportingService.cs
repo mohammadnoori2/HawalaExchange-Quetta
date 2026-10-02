@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Security;
 using System.Text;
 using HawalaExchange.Application.DTOs;
+using HawalaExchange.Application.Helpers;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
@@ -90,7 +91,10 @@ public sealed class SaasReportingService(ApplicationDbContext context) : ISaasRe
         var first = await GetReportAsync(exportFilter, cancellationToken); var all = first.Tenants.ToList();
         for (var page = 2; all.Count < first.TotalRows; page++) { exportFilter.Page=page; var next=await GetReportAsync(exportFilter,cancellationToken); if(next.Tenants.Count==0)break; all.AddRange(next.Tenants); }
         first.Tenants=all;
-        return new SaasReportExportDto { Content=BuildWorkbook(first,filter),FileName=$"saas-management-report-{DateTime.UtcNow:yyyyMMdd-HHmm}.xlsx",ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+        var dates = new DisplayDateFormatter();
+        dates.SetCalendar(await context.CompanySettings.AsNoTracking().Select(x => (bool?)x.UsePersianCalendar)
+            .FirstOrDefaultAsync(cancellationToken) ?? true);
+        return new SaasReportExportDto { Content=BuildWorkbook(first,filter,dates),FileName=$"saas-management-report-{DateTime.UtcNow:yyyyMMdd-HHmm}.xlsx",ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
     }
 
     private static IEnumerable<SaasTenantReportRowDto> Sort(IEnumerable<SaasTenantReportRowDto> rows, string sort, bool desc)
@@ -100,16 +104,16 @@ public sealed class SaasReportingService(ApplicationDbContext context) : ISaasRe
     }
     private static DateTime? ToUtc(DateTime? value) => value.HasValue ? DateTime.SpecifyKind(value.Value,DateTimeKind.Utc) : null;
 
-    private static byte[] BuildWorkbook(SaasManagementReportDto report, SaasReportFilterDto filter)
+    private static byte[] BuildWorkbook(SaasManagementReportDto report, SaasReportFilterDto filter, DisplayDateFormatter dates)
     {
         using var stream=new MemoryStream(); using(var zip=new ZipArchive(stream,ZipArchiveMode.Create,true))
         {
             Entry(zip,"[Content_Types].xml",ContentTypes(6)); Entry(zip,"_rels/.rels",RootRelationships()); Entry(zip,"xl/workbook.xml",WorkbookXml()); Entry(zip,"xl/_rels/workbook.xml.rels",WorkbookRelationships(6)); Entry(zip,"xl/styles.xml",Styles());
-            Entry(zip,"xl/worksheets/sheet1.xml",Sheet(new[]{new[]{"گزارش مدیریتی SaaS",""},new[]{"تاریخ تولید",report.GeneratedAt.ToString("yyyy-MM-dd HH:mm")},new[]{"بازه",$"{filter.FromDate:yyyy-MM-dd} تا {filter.ToDate:yyyy-MM-dd}"},new[]{"کل صرافی‌ها",report.TotalTenants.ToString()},new[]{"فعال",report.ActiveTenants.ToString()},new[]{"غیرفعال",report.InactiveTenants.ToString()},new[]{"منقضی",report.ExpiredTenants.ToString()},new[]{"تعلیق",report.SuspendedTenants.ToString()},new[]{"کل کاربران",report.TotalUsers.ToString()}},titleRows:1));
-            Entry(zip,"xl/worksheets/sheet2.xml",Sheet(new[]{new[]{"صرافی","وضعیت صرافی","پلن","وضعیت اشتراک","ایجاد","پایان","کاربران","شعبه‌ها","تراکنش‌ها","فضای اسناد (MB)","قیمت","ارز","مطالبات"}}.Concat(report.Tenants.Select(x=>new[]{x.TenantName,x.TenantIsActive?"فعال":"غیرفعال",x.PlanName,x.Status?.ToString()??"-",x.CreatedAt.ToString("yyyy-MM-dd"),x.EndAt?.ToString("yyyy-MM-dd")??"-",x.Users.ToString(),x.Branches.ToString(),x.Transactions.ToString(),(x.StorageBytes/1048576m).ToString(CultureInfo.InvariantCulture),x.SubscriptionPrice.ToString(CultureInfo.InvariantCulture),x.CurrencyCode,x.Outstanding.ToString(CultureInfo.InvariantCulture)})).ToArray(),numericColumns:[6,7,8,9,10,12]));
-            Entry(zip,"xl/worksheets/sheet3.xml",Sheet(new[]{new[]{"ماه","ارز","فاکتور شده","وصول شده","باقی‌مانده"}}.Concat(report.Revenue.Select(x=>new[]{x.Month.ToString("yyyy-MM"),x.CurrencyCode,x.Billed.ToString(CultureInfo.InvariantCulture),x.Collected.ToString(CultureInfo.InvariantCulture),x.Outstanding.ToString(CultureInfo.InvariantCulture)})).ToArray(),numericColumns:[2,3,4]));
-            Entry(zip,"xl/worksheets/sheet4.xml",Sheet(new[]{new[]{"شماره فاکتور","صرافی","سررسید","مبلغ","پرداخت","باقی‌مانده","ارز"}}.Concat(report.OverdueInvoices.Select(x=>new[]{x.InvoiceNumber,x.TenantName,x.DueAt.ToString("yyyy-MM-dd"),x.Total.ToString(CultureInfo.InvariantCulture),x.Paid.ToString(CultureInfo.InvariantCulture),x.Balance.ToString(CultureInfo.InvariantCulture),x.CurrencyCode})).ToArray(),numericColumns:[3,4,5]));
-            Entry(zip,"xl/worksheets/sheet5.xml",Sheet(new[]{new[]{"ماه","صرافی جدید","کاربر جدید","اشتراک جدید"}}.Concat(report.Growth.Select(x=>new[]{x.Month.ToString("yyyy-MM"),x.NewTenants.ToString(),x.NewUsers.ToString(),x.NewSubscriptions.ToString()})).ToArray(),numericColumns:[1,2,3]));
+            Entry(zip,"xl/worksheets/sheet1.xml",Sheet(new[]{new[]{"گزارش مدیریتی SaaS",""},new[]{"تاریخ تولید",dates.DateTime(report.GeneratedAt, true)},new[]{"بازه",$"{dates.Date(filter.FromDate, "ابتدا")} تا {dates.Date(filter.ToDate, "امروز")}"},new[]{"کل صرافی‌ها",report.TotalTenants.ToString()},new[]{"فعال",report.ActiveTenants.ToString()},new[]{"غیرفعال",report.InactiveTenants.ToString()},new[]{"منقضی",report.ExpiredTenants.ToString()},new[]{"تعلیق",report.SuspendedTenants.ToString()},new[]{"کل کاربران",report.TotalUsers.ToString()}},titleRows:1));
+            Entry(zip,"xl/worksheets/sheet2.xml",Sheet(new[]{new[]{"صرافی","وضعیت صرافی","پلن","وضعیت اشتراک","ایجاد","پایان","کاربران","شعبه‌ها","تراکنش‌ها","فضای اسناد (MB)","قیمت","ارز","مطالبات"}}.Concat(report.Tenants.Select(x=>new[]{x.TenantName,x.TenantIsActive?"فعال":"غیرفعال",x.PlanName,x.Status?.ToString()??"-",dates.Date(x.CreatedAt),dates.Date(x.EndAt, "-"),x.Users.ToString(),x.Branches.ToString(),x.Transactions.ToString(),(x.StorageBytes/1048576m).ToString(CultureInfo.InvariantCulture),x.SubscriptionPrice.ToString(CultureInfo.InvariantCulture),x.CurrencyCode,x.Outstanding.ToString(CultureInfo.InvariantCulture)})).ToArray(),numericColumns:[6,7,8,9,10,12]));
+            Entry(zip,"xl/worksheets/sheet3.xml",Sheet(new[]{new[]{"ماه","ارز","فاکتور شده","وصول شده","باقی‌مانده"}}.Concat(report.Revenue.Select(x=>new[]{dates.Month(x.Month),x.CurrencyCode,x.Billed.ToString(CultureInfo.InvariantCulture),x.Collected.ToString(CultureInfo.InvariantCulture),x.Outstanding.ToString(CultureInfo.InvariantCulture)})).ToArray(),numericColumns:[2,3,4]));
+            Entry(zip,"xl/worksheets/sheet4.xml",Sheet(new[]{new[]{"شماره فاکتور","صرافی","سررسید","مبلغ","پرداخت","باقی‌مانده","ارز"}}.Concat(report.OverdueInvoices.Select(x=>new[]{x.InvoiceNumber,x.TenantName,dates.Date(x.DueAt),x.Total.ToString(CultureInfo.InvariantCulture),x.Paid.ToString(CultureInfo.InvariantCulture),x.Balance.ToString(CultureInfo.InvariantCulture),x.CurrencyCode})).ToArray(),numericColumns:[3,4,5]));
+            Entry(zip,"xl/worksheets/sheet5.xml",Sheet(new[]{new[]{"ماه","صرافی جدید","کاربر جدید","اشتراک جدید"}}.Concat(report.Growth.Select(x=>new[]{dates.Month(x.Month),x.NewTenants.ToString(),x.NewUsers.ToString(),x.NewSubscriptions.ToString()})).ToArray(),numericColumns:[1,2,3]));
             Entry(zip,"xl/worksheets/sheet6.xml",Sheet(new[]{new[]{"کنترل","مقدار واقعی","مقدار مورد انتظار","وضعیت"},new[]{"تعداد ردیف‌های صرافی",report.Tenants.Count.ToString(),report.TotalRows.ToString(),report.Tenants.Count==report.TotalRows?"OK":"FAIL"},new[]{"مبالغ منفی مطالبات",report.Tenants.Count(x=>x.Outstanding<0).ToString(),"0",report.Tenants.All(x=>x.Outstanding>=0)?"OK":"FAIL"}}));
         } return stream.ToArray();
     }

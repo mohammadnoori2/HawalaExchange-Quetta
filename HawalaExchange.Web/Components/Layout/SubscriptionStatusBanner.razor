@@ -9,12 +9,21 @@
 {
     <div class="alert @(state.AccessLevel == SubscriptionAccessLevel.Blocked ? "alert-danger" : "alert-warning") rounded-0 mb-0 py-2 px-4">
         <i class="bi @(state.AccessLevel == SubscriptionAccessLevel.ReadOnly ? "bi-lock" : "bi-exclamation-triangle") me-2"></i>
-        @state.Message
+        @AccessMessage(state)
     </div>
 }
 
 @code {
     private SubscriptionAccessDto? access;
+
+    private string AccessMessage(SubscriptionAccessDto state) => state.AccessLevel switch
+    {
+        SubscriptionAccessLevel.Full when state.Status == SubscriptionStatus.ExpiringSoon =>
+            $"اشتراک تا {DisplayDates.Date(state.EndAt)} اعتبار دارد و نزدیک انقضا است.",
+        SubscriptionAccessLevel.ReadOnly when state.GracePeriodEndAt.HasValue =>
+            $"اشتراک منقضی شده و سیستم تا {DisplayDates.Date(state.GracePeriodEndAt)} فقط خواندنی است.",
+        _ => state.Message
+    };
 
     protected override async Task OnInitializedAsync()
     {

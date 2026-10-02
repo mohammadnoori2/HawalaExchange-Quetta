@@ -241,7 +241,7 @@ public class FinancialReportService : IFinancialReportService
             entries.Where(x => x.CreatedAt >= yearStart),
             reporting,
             result.Header.Warnings);
-        var capital = CreditBalance(balances, "Equity") +
+        var capital = NetCreditBalance(balances, "Equity") +
                       CalculateHistoricalCapitalAdjustment(reporting, result.Header.Warnings);
         result.OpeningBalanceEquity = NetCreditBalance(balances, "OpeningBalanceEquity");
 
@@ -627,7 +627,8 @@ public class FinancialReportService : IFinancialReportService
             .ToListAsync();
         var capitalInvestments = await _context.CapitalInvestments
             .AsNoTracking()
-            .Where(x => !x.IsDeleted && x.InvestmentDate < endExclusive)
+            .Where(x => !x.IsDeleted && x.InvestmentDate < endExclusive &&
+                (!x.IsWithdrawal || !x.CancelledAt.HasValue || x.CancelledAt >= endExclusive))
             .OrderBy(x => x.InvestmentDate)
             .ThenBy(x => x.Id)
             .ToListAsync();
@@ -739,7 +740,7 @@ public class FinancialReportService : IFinancialReportService
                 continue;
             }
 
-            adjustment += historicalValue.Value - currentValue.Value;
+            adjustment += (investment.IsWithdrawal ? -1 : 1) * (historicalValue.Value - currentValue.Value);
         }
 
         return adjustment;

@@ -73,7 +73,8 @@ public sealed class CommissionMigrationUpgradeTests
             });
             var destination = await context.Correspondents.SingleAsync(x => x.Id == database.DestinationCorrespondent.Id);
             destination.CommissionMethod = "PeriodicPerLakh";
-            context.CompanySettings.Add(new CompanySetting { CompanyName = "Upgrade test", OwnPaymentLocationId = database.OwnLocation.Id });
+            // Seed the historical schema without properties added by later migrations.
+            await context.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO dbo.CompanySettings (TenantId, CompanyName, OwnPaymentLocationId, CreatedAt) VALUES (1, N'Upgrade test', {database.OwnLocation.Id}, {DateTime.UtcNow})");
             await context.SaveChangesAsync();
             context.ChangeTracker.Clear();
             var service = database.CreateCommissionService(context);

@@ -17,6 +17,8 @@ public static class AppDisplayText
         "HawalaReceive" => "حواله دریافتی",
         "HawalaOther" => "حواله متفرقه",
         "CapitalInvestment" => "ثبت سرمایه",
+        "OwnerWithdrawal" => "برداشت مالک",
+        "OwnerWithdrawalReversal" => "لغو برداشت مالک",
         "Deposit" => "رسید",
         "Withdraw" or "Payment" => "برد",
         "CorrespondentSettlementConversion" => "تبدیل مانده نمایندگی به ارز توافقی",

@@ -1140,7 +1140,7 @@
     private string GetRangeDescription()
     {
         if (rangeFilter.RangeType == "Date")
-            return $"{PersianDateHelper.ToPersianDate(rangeStartDate)} تا {PersianDateHelper.ToPersianDate(rangeEndDate)}";
+            return $"{DisplayDates.Date(rangeStartDate)} تا {DisplayDates.Date(rangeEndDate)}";
 
         return $"{rangeFilter.StartNumber?.ToString() ?? "-"} تا {rangeFilter.EndNumber?.ToString() ?? "-"}";
     }

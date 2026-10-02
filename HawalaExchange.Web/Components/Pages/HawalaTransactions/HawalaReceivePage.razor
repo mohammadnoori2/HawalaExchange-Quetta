@@ -1109,7 +1109,7 @@
                 return;
             }
 
-            var text = HawalaShareHelper.BuildText(hawala);
+            var text = HawalaShareHelper.BuildText(hawala, DisplayDates);
 
             var copied = await JS.InvokeAsync<bool>("hawalaTools.copyToClipboard", text);
 
@@ -1135,7 +1135,7 @@
                 return;
             }
 
-            var text = HawalaShareHelper.BuildText(hawala);
+            var text = HawalaShareHelper.BuildText(hawala, DisplayDates);
 
             var url = "https://wa.me/?text=" + Uri.EscapeDataString(text);
 
@@ -1159,7 +1159,7 @@
                 return;
             }
 
-            var text = HawalaShareHelper.BuildText(hawala);
+            var text = HawalaShareHelper.BuildText(hawala, DisplayDates);
 
             var receiptUrl = NavigationManager.BaseUri.TrimEnd('/');
 

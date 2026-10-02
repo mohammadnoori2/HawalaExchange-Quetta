@@ -188,7 +188,7 @@
                             <tbody>
                             @foreach (var item in preview.Items)
                             {
-                                <tr><td>@item.HawalaNumber</td><td>@item.HawalaDate.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                                <tr><td>@item.HawalaNumber</td><td>@DisplayDates.Date(item.HawalaDate)</td>
                                     @if (isOutgoing || isOrigin)
                                     {
                                         <td>@item.PaymentLocationName</td><td dir="ltr">@item.PerLakhRate.ToString("N2")</td>
@@ -200,7 +200,7 @@
                                     }
                                     else
                                     {
-                                        <td>@item.ValuationDate?.ToString("yyyy-MM-dd")</td><td dir="ltr">@item.SourceToAfnRate.ToString("N4")</td>
+                                        <td>@DisplayDates.Date(item.ValuationDate)</td><td dir="ltr">@item.SourceToAfnRate.ToString("N4")</td>
                                         <td dir="ltr">@item.AfnEquivalent.ToString("N2") USD</td><td dir="ltr">@item.CommissionAfn.ToString("N2") USD</td>
                                     }
                                 </tr>
@@ -234,7 +234,7 @@
                         <thead><tr><th>دوره</th><th>حواله</th><th>کمیشن</th><th>وضعیت</th><th>عملیات</th></tr></thead>
                         <tbody>@foreach (var batch in history)
                         {
-                            <tr><td>@batch.PeriodFrom.ToString("yyyy-MM-dd") تا @batch.PeriodTo.ToString("yyyy-MM-dd")</td><td>@batch.HawalaCount</td>
+                            <tr><td>@DisplayDates.Date(batch.PeriodFrom) تا @DisplayDates.Date(batch.PeriodTo)</td><td>@batch.HawalaCount</td>
                                 <td>@if (isOutgoing)
                                     {<span>@batch.TotalCommissionAfn.ToString("N2") AFN / @batch.TotalCommissionUsd.ToString("N2") USD</span>}
                                     else
@@ -276,7 +276,7 @@
             <div class="modal-header">
                 <div>
                     <h5 class="modal-title">جزئیات محاسبه کمیشن #@selectedDetails.Id</h5>
-                    <small class="text-muted">@selectedDetails.CorrespondentName — @selectedDetails.PeriodFrom.ToString("yyyy-MM-dd") تا @selectedDetails.PeriodTo.ToString("yyyy-MM-dd")</small>
+                    <small class="text-muted">@selectedDetails.CorrespondentName — @DisplayDates.Date(selectedDetails.PeriodFrom) تا @DisplayDates.Date(selectedDetails.PeriodTo)</small>
                 </div>
                 <button type="button" class="btn-close" @onclick="CloseDetails"></button>
             </div>
@@ -306,7 +306,7 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-3"><small class="text-muted d-block">سند اصلی</small><strong>@selectedDetails.PostingTransactionNo</strong></div>
                     <div class="col-md-3"><small class="text-muted d-block">ثبت‌کننده</small><strong>@selectedDetails.CreatedByName</strong></div>
-                    <div class="col-md-3"><small class="text-muted d-block">زمان ثبت</small><strong>@selectedDetails.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</strong></div>
+                    <div class="col-md-3"><small class="text-muted d-block">زمان ثبت</small><strong>@DisplayDates.DateTime(selectedDetails.CreatedAt, true)</strong></div>
                     @if (!string.IsNullOrWhiteSpace(selectedDetails.ReversalTransactionNo))
                     {
                         <div class="col-md-3"><small class="text-muted d-block">سند برگشت</small><strong>@selectedDetails.ReversalTransactionNo</strong></div>
@@ -359,7 +359,7 @@
                     <tbody>@foreach (var item in selectedDetails.Items)
                     {
                         <tr class="@(!item.IsActive ? "table-secondary" : null)">
-                            <td>@item.HawalaNumber</td><td>@item.HawalaDate.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                            <td>@item.HawalaNumber</td><td>@DisplayDates.Date(item.HawalaDate)</td>
                             @if (detailsOutgoing || detailsOrigin)
                             {
                                 <td><span class="badge @(item.SourceType == "OwnOffice" ? "bg-primary" : "bg-info text-dark")">@item.SourceName</span></td>
@@ -367,7 +367,7 @@
                             }
                             <td dir="ltr">@item.SourceAmount.ToString("N2") @item.CurrencyCode</td>
                             @if (!detailsOutgoing || legacyOutgoing)
-                            { <td>@item.ValuationDate?.ToString("yyyy-MM-dd")</td><td dir="ltr">@item.SourceToAfnRate.ToString("N4")</td> }
+                            { <td>@DisplayDates.Date(item.ValuationDate)</td><td dir="ltr">@item.SourceToAfnRate.ToString("N4")</td> }
                             @if (detailsOutgoing)
                             {
                                 <td dir="ltr">@item.CommissionAfn.ToString("N2") @item.CurrencyCode</td>

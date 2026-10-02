@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using ClosedXML.Excel;
 using HawalaExchange.Application.DTOs;
+using HawalaExchange.Application.Helpers;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
 using HawalaExchange.Domain.Entities;
@@ -15,7 +16,6 @@ namespace HawalaExchange.Infrastructure.Services;
 
 public class ExportService : IExportService
 {
-    private static readonly PersianCalendar PersianCalendar = new();
     private const int ReportColumnCount = 8;
 
     private readonly ApplicationDbContext _context;
@@ -119,7 +119,7 @@ public class ExportService : IExportService
         worksheet.Cell(2, 1).Style.Font.SetBold();
         worksheet.Cell(2, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Right);
         worksheet.Range(2, 5, 2, ReportColumnCount).Merge();
-        worksheet.Cell(2, 5).Value = $"تاریخ تهیه: {ToPersianDate(DateTime.Now)}";
+        worksheet.Cell(2, 5).Value = $"تاریخ تهیه: {FormatDate(DateTime.Now, company)}";
         worksheet.Cell(2, 5).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Left);
 
         const int headerRowNumber = 4;
@@ -140,7 +140,7 @@ public class ExportService : IExportService
         foreach (var row in rows)
         {
             worksheet.Cell(currentRow, 1).Value = sequence++;
-            worksheet.Cell(currentRow, 2).Value = ToPersianDate(row.Date);
+            worksheet.Cell(currentRow, 2).Value = FormatDate(row.Date, company);
             worksheet.Cell(currentRow, 3).Value = BuildPlainDescription(row);
             if (row.BadehKar != 0) worksheet.Cell(currentRow, 4).Value = row.BadehKar;
             if (row.TalabKar != 0) worksheet.Cell(currentRow, 5).Value = row.TalabKar;
@@ -261,7 +261,7 @@ public class ExportService : IExportService
             """);
         builder.Append($"<h1 class='company'>{Encode(CompanyName(company))}</h1><table class='meta'><tr>");
         builder.Append($"<td>صورت حساب {Encode(customer.FullName)} - کد {Encode(customer.CustomerCode)}</td>");
-        builder.Append($"<td class='date'>تاریخ تهیه: {Encode(ToPersianDate(DateTime.Now))}</td></tr></table>");
+        builder.Append($"<td class='date'>تاریخ تهیه: {Encode(FormatDate(DateTime.Now, company))}</td></tr></table>");
         builder.Append("""
             <table class="report"><thead><tr><th class="w-seq">ردیف</th><th class="w-date">تاریخ</th>
             <th class="w-desc">شرح</th><th class="w-money">بدهکار</th><th class="w-money">طلبکار</th>
@@ -271,7 +271,7 @@ public class ExportService : IExportService
         var sequence = 1;
         foreach (var row in rows)
         {
-            builder.Append($"<tr><td class='center'>{sequence++}</td><td class='number'>{Encode(ToPersianDate(row.Date))}</td>");
+            builder.Append($"<tr><td class='center'>{sequence++}</td><td class='number'>{Encode(FormatDate(row.Date, company))}</td>");
             builder.Append($"<td class='description'>{Encode(BuildPlainDescription(row))}</td><td class='number'>{FormatMoney(row.BadehKar)}</td>");
             builder.Append($"<td class='number'>{FormatMoney(row.TalabKar)}</td><td class='center'>{Encode(row.Currency)}</td>");
             builder.Append($"<td class='number'>{FormatMoney(Math.Abs(row.RunningBalance))}</td><td class='center'>{BalanceStatus(row.RunningBalance)}</td></tr>");
@@ -317,10 +317,11 @@ public class ExportService : IExportService
 
     private static string BalanceStatus(decimal balance) => balance > 0 ? "طلبکار" : balance < 0 ? "بدهکار" : "تسویه";
     private static string FormatMoney(decimal amount) => amount == 0 ? string.Empty : amount.ToString("#,##0.##", CultureInfo.InvariantCulture);
-    private static string ToPersianDate(DateTime date)
+    private static string FormatDate(DateTime date, CompanySetting? company)
     {
-        var localDate = date.Kind == DateTimeKind.Utc ? date.ToLocalTime() : date;
-        return $"{PersianCalendar.GetYear(localDate):0000}/{PersianCalendar.GetMonth(localDate):00}/{PersianCalendar.GetDayOfMonth(localDate):00}";
+        var formatter = new DisplayDateFormatter();
+        formatter.SetCalendar(company?.UsePersianCalendar ?? true);
+        return formatter.Date(date);
     }
     private static string Encode(string? value) => WebUtility.HtmlEncode(value ?? string.Empty);
     private static string SafeFileName(string value)
@@ -334,7 +335,7 @@ public class ExportService : IExportService
         if (e.HawalaId != null) return string.IsNullOrEmpty(e.Hawala?.HawalaType) ? "HawalaOther" : e.Hawala.HawalaType;
         if (e.TransferId != null) return "Transfer";
         if (e.MoneyExchangeOperationId != null) return "MoneyExchange";
-        if (e.CapitalInvestmentId != null) return "CapitalInvestment";
+        if (e.CapitalInvestmentId != null) return e.CapitalInvestment?.IsWithdrawal == true ? "OwnerWithdrawal" : "CapitalInvestment";
         if (e.ExpenseId != null) return "Expense";
         if (e.AccountMoneyOperationId != null) return e.AccountMoneyOperation?.OperationType ?? string.Empty;
         if (e.TransactionId != null) return e.Transaction?.TransactionType ?? string.Empty;
@@ -345,7 +346,7 @@ public class ExportService : IExportService
         if (e.HawalaId != null) return e.Hawala != null ? $"حواله شماره {e.Hawala.Number}" : $"حواله شماره {e.HawalaId}";
         if (e.TransferId != null) return e.Transfer?.ReferenceNumber ?? $"انتقال شماره {e.TransferId}";
         if (e.MoneyExchangeOperationId != null) return $"تبدیل ارز شماره {e.MoneyExchangeOperationId}";
-        if (e.CapitalInvestmentId != null) return $"سرمایه شماره {e.CapitalInvestmentId}";
+        if (e.CapitalInvestmentId != null) return $"{(e.CapitalInvestment?.IsWithdrawal == true ? "برداشت مالک" : "سرمایه")} شماره {e.CapitalInvestmentId}";
         if (e.ExpenseId != null) return $"مصرف شماره {e.ExpenseId}";
         if (e.AccountMoneyOperationId != null) return $"عملیات شماره {e.AccountMoneyOperationId}";
         if (e.TransactionId != null) return e.Transaction?.TransactionNo;

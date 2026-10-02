@@ -198,7 +198,7 @@
                                 }
                             </td>
                             <td><span class="hawala-status @GetStatusClass(hawala.Status)">@hawala.StatusName</span></td>
-                            <td><AppDateTime Value="@hawala.CreatedAt" UsePersianCalendar="@UsePersianCalendar" /></td>
+                            <td><AppDateTime Value="@hawala.CreatedAt" /></td>
                             <td class="text-center operation-cell">
                                 <HawalaOperationMenu Hawala="hawala"
                                                      ShowEdit="true"
@@ -271,7 +271,7 @@
                 <div class="modal-body">
                     <div class="hawala-detail-grid">
                         <div><span>وضعیت</span><strong>@selectedHawala.StatusName</strong></div>
-                        <div><span>تاریخ</span><strong><AppDateTime Value="@selectedHawala.CreatedAt" UsePersianCalendar="@UsePersianCalendar" /></strong></div>
+                        <div><span>تاریخ</span><strong><AppDateTime Value="@selectedHawala.CreatedAt" /></strong></div>
                         <div><span>فرستنده</span><strong>@(selectedHawala.SenderName ?? "—")</strong></div>
                         <div><span>نام پدر فرستنده</span><strong>@(selectedHawala.SenderFatherName ?? "—")</strong></div>
                         <div><span>تلفن فرستنده</span><strong dir="ltr">@(selectedHawala.SenderPhone ?? "—")</strong></div>
@@ -446,7 +446,6 @@
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string SingularTitle { get; set; } = string.Empty;
     [Parameter] public bool CanCreate { get; set; } = true;
-    [Parameter] public bool UsePersianCalendar { get; set; } = true;
 
     private List<HawalaDto> hawalas = new();
     private List<AccountDto> paymentAccounts = new();
@@ -747,7 +746,7 @@
                 errors.Add("حواله یافت نشد.");
                 return;
             }
-            var copied = await JS.InvokeAsync<bool>("hawalaTools.copyToClipboard", HawalaShareHelper.BuildText(hawala));
+            var copied = await JS.InvokeAsync<bool>("hawalaTools.copyToClipboard", HawalaShareHelper.BuildText(hawala, DisplayDates));
             successMessage = copied ? "معلومات حواله کاپی شد." : "کاپی خودکار انجام نشد.";
         }
         catch (Exception ex)
@@ -764,7 +763,7 @@
             errors.Add("حواله یافت نشد.");
             return;
         }
-        var url = "https://wa.me/?text=" + Uri.EscapeDataString(HawalaShareHelper.BuildText(hawala));
+        var url = "https://wa.me/?text=" + Uri.EscapeDataString(HawalaShareHelper.BuildText(hawala, DisplayDates));
         await JS.InvokeVoidAsync("hawalaTools.openShareUrl", url);
     }
 
@@ -776,7 +775,7 @@
             errors.Add("حواله یافت نشد.");
             return;
         }
-        var text = HawalaShareHelper.BuildText(hawala);
+        var text = HawalaShareHelper.BuildText(hawala, DisplayDates);
         var baseUrl = NavigationManager.BaseUri.TrimEnd('/');
         var url = "tg://msg_url?url=" + Uri.EscapeDataString(baseUrl) + "&text=" + Uri.EscapeDataString(text);
         await JS.InvokeVoidAsync("hawalaTools.openTelegramApp", url);

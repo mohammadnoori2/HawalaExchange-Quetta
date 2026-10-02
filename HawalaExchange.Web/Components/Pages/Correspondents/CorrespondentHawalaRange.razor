@@ -338,7 +338,7 @@
     }
 
     private string GetRangeDescription() => rangeFilter.RangeType == "Date"
-        ? $"{PersianDateHelper.ToPersianDate(rangeStartDate)} تا {PersianDateHelper.ToPersianDate(rangeEndDate)}"
+        ? $"{DisplayDates.Date(rangeStartDate)} تا {DisplayDates.Date(rangeEndDate)}"
         : $"{rangeFilter.StartNumber?.ToString() ?? "—"} تا {rangeFilter.EndNumber?.ToString() ?? "—"}";
 
     private static string GetPaymentLocation(HawalaDto hawala)

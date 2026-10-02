@@ -195,7 +195,7 @@
                 <div class="cash-day-note">
                     <div>
                         <strong>تاریخ:</strong>
-                        @PersianDateHelper.ToPersianDate(SelectedCashDate)
+                        @DisplayDates.Date(SelectedCashDate)
                     </div>
                     <div>
                         موجودی فعلی روز = موجودی آغاز + گردش بدهکار صندوق − گردش طلبکار صندوق
@@ -1054,8 +1054,8 @@
             await JournalService.CloseCashDayAsync(SelectedCashDate);
             await LoadCashBalances();
             successMessage =
-                $"روز بسته شد و موجودی پایان {PersianDateHelper.ToPersianDate(SelectedCashDate)} " +
-                $"به عنوان موجودی آغاز {PersianDateHelper.ToPersianDate(SelectedCashDate.AddDays(1))} تعیین گردید.";
+                $"روز بسته شد و موجودی پایان {DisplayDates.Date(SelectedCashDate)} " +
+                $"به عنوان موجودی آغاز {DisplayDates.Date(SelectedCashDate.AddDays(1))} تعیین گردید.";
         }
         catch (Exception ex)
         {
@@ -1227,8 +1227,8 @@
         var fromDate = journal.FromDate == default ? filterFromDate.Date : journal.FromDate.Date;
         var toDate = journal.ToDate == default ? filterToDate.Date : journal.ToDate.Date;
         return fromDate == toDate
-            ? $"تاریخ {PersianDateHelper.ToPersianDate(fromDate)}"
-            : $"از {PersianDateHelper.ToPersianDate(fromDate)} تا {PersianDateHelper.ToPersianDate(toDate)}";
+            ? $"تاریخ {DisplayDates.Date(fromDate)}"
+            : $"از {DisplayDates.Date(fromDate)} تا {DisplayDates.Date(toDate)}";
     }
 
     private static string GetSourceBadge(string sourceType) => sourceType switch

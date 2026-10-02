@@ -148,7 +148,7 @@
                             <div class="col-md-3">
                                 <div class="info-card">
                                     <span class="info-label">تاریخ</span>
-                                    <span class="info-value" dir="ltr">@PersianDateHelper.ToPersianDate(dailyReport.Date)</span>
+                                    <span class="info-value" dir="ltr">@DisplayDates.Date(dailyReport.Date)</span>
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -374,7 +374,7 @@
                                     @foreach (var r in commissionReports)
                                     {
                                         <tr>
-                                            <td dir="ltr">@PersianDateHelper.ToPersianDate(r.Date)</td>
+                                            <td dir="ltr">@DisplayDates.Date(r.Date)</td>
                                             <td>@r.BranchName</td>
                                             <td dir="ltr">@MoneyFormatHelper.Format(r.TotalCommission)</td>
                                             <td dir="ltr">@MoneyFormatHelper.Format(r.TotalAgentCommission)</td>

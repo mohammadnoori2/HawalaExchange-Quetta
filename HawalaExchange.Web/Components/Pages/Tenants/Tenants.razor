@@ -79,7 +79,7 @@
                                 </td>
                                 <td>@tenant.BranchCount</td>
                                 <td>@tenant.UserCount</td>
-                                <td>@tenant.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd")</td>
+                                <td>@DisplayDates.Date(tenant.CreatedAt)</td>
                                 <td>
                                     <span class="badge-modern @(tenant.IsArchived ? "badge-archived" : tenant.IsActive ? "badge-success" : "badge-secondary")">
                                         @(tenant.IsArchived ? "بایگانی" : tenant.IsActive ? "فعال" : "غیرفعال")

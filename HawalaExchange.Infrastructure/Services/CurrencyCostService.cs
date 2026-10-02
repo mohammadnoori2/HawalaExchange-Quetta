@@ -35,6 +35,7 @@ public sealed class CurrencyCostService : ICurrencyCostService
 
         var positions = new Dictionary<(long CurrencyId, long ProfitCurrencyId), Position>();
         var events = capitals.Select(x => new CostEvent(x.InvestmentDate, x.CreatedAt, x.Id, x, null, null))
+            .Concat(CancellationEvents(capitals))
             .Concat(transfers.Select(x => new CostEvent(
                 TransferEffectiveDate(x), TransferEffectiveDate(x), x.Id, null, x, null)))
             .Concat(exchanges.Select(x => new CostEvent(x.ExchangeDate, x.CreatedAt, x.Id, null, null, x)))
@@ -44,7 +45,7 @@ public sealed class CurrencyCostService : ICurrencyCostService
         {
             if (item.Capital is not null)
             {
-                ApplyCapital(item.Capital, positions);
+                ApplyCapital(item.Capital, positions, item.IsCancellation);
                 continue;
             }
 
@@ -83,13 +84,14 @@ public sealed class CurrencyCostService : ICurrencyCostService
 
         var positions = new Dictionary<(long CurrencyId, long ProfitCurrencyId), Position>();
         var events = capitals.Select(x => new CostEvent(x.InvestmentDate, x.CreatedAt, x.Id, x, null, null))
+            .Concat(CancellationEvents(capitals))
             .Concat(transfers.Select(x => new CostEvent(
                 TransferEffectiveDate(x), TransferEffectiveDate(x), x.Id, null, x, null)))
             .Concat(operations.Select(x => new CostEvent(x.ExchangeDate, x.CreatedAt, x.Id, null, null, x)))
             .OrderBy(x => x.EffectiveDate).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id);
         foreach (var item in events)
         {
-            if (item.Capital is not null) ApplyCapital(item.Capital, positions);
+            if (item.Capital is not null) ApplyCapital(item.Capital, positions, item.IsCancellation);
             else if (item.Transfer is not null) ApplyTransfer(item.Transfer, positions);
             else if (item.Exchange!.OperationType == "Customer")
                 ApplyCustomer(item.Exchange, positions, updateOperation: false);
@@ -134,9 +136,36 @@ public sealed class CurrencyCostService : ICurrencyCostService
 
     private static void ApplyCapital(
         CapitalInvestment capital,
-        IDictionary<(long, long), Position> positions)
+        IDictionary<(long, long), Position> positions,
+        bool isCancellation)
     {
         var profitCurrencyId = capital.ProfitCurrencyId!.Value;
+        if (capital.IsWithdrawal)
+        {
+            if (capital.CurrencyId == profitCurrencyId)
+            {
+                capital.ProfitCurrencyAmount = capital.Amount;
+                return;
+            }
+            var position = Get(positions, capital.CurrencyId, profitCurrencyId);
+            if (isCancellation)
+            {
+                if (position.Quantity < 0)
+                    throw new InvalidOperationException("لغو برداشت با موجودی ارزی منفی ممکن نیست؛ ابتدا موجودی ارزی را اصلاح کنید.");
+                position.Quantity += capital.Amount;
+                position.CarryingAmount += capital.ProfitCurrencyAmount!.Value;
+            }
+            else
+            {
+                if (position.Quantity < capital.Amount)
+                    throw new InvalidOperationException("موجودی ارزی دارای بهای تمام‌شده برای برداشت کافی نیست؛ ابتدا سرمایه و بهای آن را ثبت کنید.");
+                var removed = RemoveAtCost(position, capital.Amount);
+                capital.ProfitCurrencyAmount = Math.Round(removed.Cost, 4);
+                position.CarryingAmount += removed.Cost - capital.ProfitCurrencyAmount.Value;
+            }
+            Normalize(position);
+            return;
+        }
         if (capital.CurrencyId == profitCurrencyId) return;
         Buy(Get(positions, capital.CurrencyId, profitCurrencyId), capital.Amount,
             capital.ProfitCurrencyAmount!.Value);
@@ -440,7 +469,11 @@ public sealed class CurrencyCostService : ICurrencyCostService
 
     private sealed record CostEvent(
         DateTime EffectiveDate, DateTime CreatedAt, long Id,
-        CapitalInvestment? Capital, Transfer? Transfer, MoneyExchangeOperation? Exchange);
+        CapitalInvestment? Capital, Transfer? Transfer, MoneyExchangeOperation? Exchange, bool IsCancellation = false);
+
+    private static IEnumerable<CostEvent> CancellationEvents(IEnumerable<CapitalInvestment> capitals) =>
+        capitals.Where(x => x.IsWithdrawal && x.CancelledAt.HasValue)
+            .Select(x => new CostEvent(x.CancelledAt!.Value, x.CancelledAt.Value, x.Id, x, null, null, true));
     private sealed record BuyResult(
         decimal CoverCost, decimal CoverProceeds, decimal RemainingCost, decimal Profit);
     private sealed record SaleResult(

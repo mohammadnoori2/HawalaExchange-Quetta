@@ -301,7 +301,7 @@
                                         </span>
                                     </td>
                                     <td dir="ltr" class="hawala-date-cell">
-                                        <span class="hawala-date">@PersianDateHelper.ToPersianDate(hawala.CreatedAt)</span>
+                                        <span class="hawala-date">@DisplayDates.Date(hawala.CreatedAt)</span>
                                         <small class="hawala-time">@GetHawalaTime(hawala.CreatedAt)</small>
                                     </td>
                                     <td class="text-center operation-cell">
@@ -1003,7 +1003,7 @@
                 return;
             }
 
-            var text = HawalaShareHelper.BuildText(hawala);
+            var text = HawalaShareHelper.BuildText(hawala, DisplayDates);
 
             var copied = await JS.InvokeAsync<bool>("hawalaTools.copyToClipboard", text);
 
@@ -1031,7 +1031,7 @@
                 return;
             }
 
-            var text = HawalaShareHelper.BuildText(hawala);
+            var text = HawalaShareHelper.BuildText(hawala, DisplayDates);
 
             var url = "https://wa.me/?text=" + Uri.EscapeDataString(text);
 
@@ -1055,7 +1055,7 @@
                 return;
             }
 
-            var text = HawalaShareHelper.BuildText(hawala);
+            var text = HawalaShareHelper.BuildText(hawala, DisplayDates);
 
             var receiptUrl = NavigationManager.BaseUri.TrimEnd('/');
 
@@ -1660,9 +1660,9 @@
         _ => hawala.StatusName
     };
 
-    private static string GetHawalaTime(DateTime createdAt)
+    private string GetHawalaTime(DateTime createdAt)
     {
-        var dateTime = PersianDateHelper.ToPersianDateTime12(createdAt);
+        var dateTime = DisplayDates.DateTime(createdAt);
         var separatorIndex = dateTime.IndexOf(' ');
         return separatorIndex >= 0 ? dateTime[(separatorIndex + 1)..] : string.Empty;
     }

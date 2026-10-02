@@ -165,6 +165,7 @@ namespace HawalaSystem.Mappings
                     opt => opt.MapFrom(src => src.CapitalAccount != null ? src.CapitalAccount.AccountName : ""));
 
             CreateMap<CreateCapitalInvestmentDto, CapitalInvestment>()
+                .ForMember(dest => dest.CancelledAt, opt => opt.Ignore())
                 .ForMember(dest => dest.Id, opt => opt.Ignore())
                 .ForMember(dest => dest.IsDeleted, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
@@ -178,6 +179,8 @@ namespace HawalaSystem.Mappings
                 .ForMember(dest => dest.LedgerEntries, opt => opt.Ignore());
 
             CreateMap<UpdateCapitalInvestmentDto, CapitalInvestment>()
+                .ForMember(dest => dest.IsWithdrawal, opt => opt.Ignore())
+                .ForMember(dest => dest.CancelledAt, opt => opt.Ignore())
                 .ForMember(dest => dest.Id, opt => opt.Ignore())
                 .ForMember(dest => dest.IsDeleted, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())

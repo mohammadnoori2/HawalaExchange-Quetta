@@ -24,5 +24,7 @@ public class CompanySettingDto
 
     public long? OwnPaymentLocationId { get; set; }
 
+    public bool UsePersianCalendar { get; set; } = true;
+
     public string OwnPaymentLocationName { get; set; } = string.Empty;
 }

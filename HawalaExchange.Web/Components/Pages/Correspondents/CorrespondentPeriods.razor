@@ -266,7 +266,7 @@
     private void Open(long id) => Navigation.NavigateTo($"/correspondents/{CorrespondentId}/periods/{id}");
     private void BackToPeriods() => Navigation.NavigateTo($"/correspondents/{CorrespondentId}/periods");
     private void BackToCorrespondent() => Navigation.NavigateTo($"/correspondents/{CorrespondentId}");
-    private static string FormatDate(DateTime value) => value.ToLocalTime().ToString("yyyy/MM/dd HH:mm");
+    private string FormatDate(DateTime value) => DisplayDates.DateTime(value, true);
 
     private static RenderFragment BalanceTable(IReadOnlyCollection<CorrespondentPeriodBalanceDto> balances) => @<div class="table-responsive">
             <table class="table table-sm align-middle mb-0">

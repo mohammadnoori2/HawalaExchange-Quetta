@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -19,7 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <RazorComponent Include="..\HawalaExchange.Web\Components\Shared\CalendarPreferenceSelect.razor" Link="WebComponents\CalendarPreferenceSelect.razor" />
+    <Compile Include="..\HawalaExchange.Web\Components\DateAwareComponent.cs" Link="WebComponents\DateAwareComponent.cs" />
     <Compile Include="..\HawalaExchange.Web\Helpers\DualCalendarDateHelper.cs" Link="WebHelpers\DualCalendarDateHelper.cs" />
+    <Compile Include="..\HawalaExchange.Web\Services\AppDateDisplay.cs" Link="WebServices\AppDateDisplay.cs" />
     <ProjectReference Include="..\HawalaExchange.Application\HawalaExchange.Application.csproj" />
     <ProjectReference Include="..\HawalaExchange.Domain\HawalaExchange.Domain.csproj" />
     <ProjectReference Include="..\HawalaExchange.Infrastructure\HawalaExchange.Infrastructure.csproj" />

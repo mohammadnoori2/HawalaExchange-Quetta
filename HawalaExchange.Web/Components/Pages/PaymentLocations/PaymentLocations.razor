@@ -216,7 +216,7 @@
                                 <tbody>
                                     @foreach (var assignment in LocationAssignments(assignmentLocation.Id))
                                     {
-                                        <tr><td>@assignment.CorrespondentName</td><td>@assignment.EffectiveFrom.ToString("yyyy-MM-dd")</td><td>@(assignment.EffectiveTo?.ToString("yyyy-MM-dd") ?? "ادامه دارد")</td></tr>
+                                        <tr><td>@assignment.CorrespondentName</td><td>@DisplayDates.Date(assignment.EffectiveFrom)</td><td>@(DisplayDates.Date(assignment.EffectiveTo, "ادامه دارد"))</td></tr>
                                     }
                                 </tbody>
                             </table>

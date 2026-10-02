@@ -30,9 +30,8 @@
 
     protected override void OnParametersSet()
     {
-        textValue = IncludeTime
-            ? PersianDateHelper.ToPersianDateTime(Value)
-            : PersianDateHelper.ToPersianDate(Value);
+        textValue = Value == DateTime.MinValue ? string.Empty : IncludeTime
+            ? DisplayDates.DateTime(Value, true) : DisplayDates.Date(Value);
     }
 
     private async Task OnChanged(ChangeEventArgs e)
@@ -40,13 +39,17 @@
         errorMessage = string.Empty;
         textValue = e.Value?.ToString() ?? string.Empty;
 
-        var isValid = IncludeTime
+        var isValid = DisplayDates.UsePersianCalendar ? IncludeTime
             ? PersianDateHelper.TryParsePersianDateTime(textValue, out var parsedDateTime)
-            : PersianDateHelper.TryParsePersianDate(textValue, out parsedDateTime);
+            : PersianDateHelper.TryParsePersianDate(textValue, out parsedDateTime)
+            : DateTime.TryParseExact(textValue, IncludeTime ? "yyyy/MM/dd HH:mm" : "yyyy/MM/dd",
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out parsedDateTime);
 
         if (!isValid)
         {
-            errorMessage = IncludeTime
+            errorMessage = !DisplayDates.UsePersianCalendar
+                ? "تاریخ میلادی معتبر نیست. نمونه: 2026/10/02"
+                : IncludeTime
                 ? "تاریخ و زمان معتبر نیست. نمونه: 1405/04/20 14:30"
                 : "تاریخ معتبر نیست. نمونه: 1405/04/20";
 

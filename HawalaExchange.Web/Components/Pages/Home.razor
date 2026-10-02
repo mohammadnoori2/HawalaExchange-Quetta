@@ -411,7 +411,7 @@
         await JSRuntime.InvokeVoidAsync(
             "renderDailyChart",
             "dailyChart",
-            dashboard.DailyActivities.Select(x => x.Label).ToArray(),
+            dashboard.DailyActivities.Select(x => DisplayDates.Date(x.Date)).ToArray(),
             dashboard.DailyActivities.Select(x => x.Value).ToArray());
         await JSRuntime.InvokeVoidAsync(
             "renderPeriodicChart",

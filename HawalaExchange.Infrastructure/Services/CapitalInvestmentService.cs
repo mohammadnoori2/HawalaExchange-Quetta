@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using AutoMapper.QueryableExtensions;
+using System.Data;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces;
 using HawalaExchange.Application.Interfaces.Services;
@@ -57,10 +58,28 @@ public class CapitalInvestmentService : ICapitalInvestmentService
 
     public async Task<long> CreateAsync(CreateCapitalInvestmentDto dto)
     {
+        // Do not let an interactive form mutate a request while validation awaits database reads.
+        dto = new CreateCapitalInvestmentDto
+        {
+            IsWithdrawal = dto.IsWithdrawal, CurrencyId = dto.CurrencyId, Amount = dto.Amount,
+            ProfitCurrencyId = dto.ProfitCurrencyId, ProfitCurrencyAmount = dto.ProfitCurrencyAmount,
+            ReceivingAccountId = dto.ReceivingAccountId, CapitalAccountId = dto.CapitalAccountId,
+            InvestmentDate = dto.InvestmentDate, Description = dto.Description
+        };
+        if (dto.IsWithdrawal)
+        {
+            if (dto.Amount != Math.Round(dto.Amount, 4))
+                throw new InvalidOperationException("مبلغ برداشت حداکثر چهار رقم اعشار داشته باشد.");
+            dto.ProfitCurrencyId = await _context.CompanySettings.AsNoTracking()
+                .Select(x => x.DefaultProfitCurrencyId).FirstOrDefaultAsync() ?? dto.ProfitCurrencyId;
+            if (dto.ProfitCurrencyId <= 0) dto.ProfitCurrencyId = dto.CurrencyId;
+            // The cost service derives the actual carrying value; this is not user-entered income.
+            dto.ProfitCurrencyAmount = dto.Amount;
+        }
         Validate(dto.CurrencyId, dto.Amount, dto.ReceivingAccountId, dto.CapitalAccountId,
             dto.ProfitCurrencyId, dto.ProfitCurrencyAmount);
 
-        using var dbTransaction = await _context.Database.BeginTransactionAsync();
+        using var dbTransaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
         try
         {
@@ -69,11 +88,15 @@ public class CapitalInvestmentService : ICapitalInvestmentService
                 dto.CapitalAccountId,
                 dto.CurrencyId);
             await ValidateProfitCurrencyAsync(dto.ProfitCurrencyId);
+            if (dto.IsWithdrawal)
+                await ValidateWithdrawalBalanceAsync(dto.ReceivingAccountId, dto.CurrencyId, dto.Amount, dto.InvestmentDate);
 
             var capitalInvestment = _mapper.Map<CapitalInvestment>(dto);
+            if (dto.IsWithdrawal)
+                capitalInvestment.CapitalAccountId = await GetWithdrawalAccountAsync(dto.CapitalAccountId);
 
             capitalInvestment.Description = string.IsNullOrWhiteSpace(dto.Description)
-                ? "ثبت سرمایه مالک"
+                ? dto.IsWithdrawal ? "برداشت مالک" : "ثبت سرمایه مالک"
                 : dto.Description.Trim();
 
             capitalInvestment.CreatedAt = DateTime.UtcNow;
@@ -93,7 +116,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
                 "CapitalInvestments",
                 capitalInvestment.Id,
                 null,
-                $"ثبت سرمایه به مبلغ {AmountValueHelper.Format(capitalInvestment.Amount)}",
+                $"{(capitalInvestment.IsWithdrawal ? "برداشت مالک" : "ثبت سرمایه")} به مبلغ {AmountValueHelper.Format(capitalInvestment.Amount)}",
                 GetCurrentUserId());
 
             await dbTransaction.CommitAsync();
@@ -103,6 +126,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
         catch
         {
             await dbTransaction.RollbackAsync();
+            _context.ChangeTracker.Clear();
             throw;
         }
     }
@@ -112,7 +136,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
         Validate(dto.CurrencyId, dto.Amount, dto.ReceivingAccountId, dto.CapitalAccountId,
             dto.ProfitCurrencyId, dto.ProfitCurrencyAmount);
 
-        using var dbTransaction = await _context.Database.BeginTransactionAsync();
+        using var dbTransaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
         try
         {
@@ -121,6 +145,10 @@ public class CapitalInvestmentService : ICapitalInvestmentService
 
             if (capitalInvestment == null)
                 throw new InvalidOperationException("ثبت سرمایه یافت نشد.");
+            if (capitalInvestment.IsWithdrawal)
+                throw new InvalidOperationException("برداشت مالک قابل ویرایش نیست؛ آن را لغو و برداشت جدید ثبت کنید.");
+            var oldAccountId = capitalInvestment.ReceivingAccountId;
+            var oldCurrencyId = capitalInvestment.CurrencyId;
 
             await ValidateAccountsAsync(
                 dto.ReceivingAccountId,
@@ -142,6 +170,8 @@ public class CapitalInvestmentService : ICapitalInvestmentService
             await CreateLedgerEntriesAsync(capitalInvestment);
 
             await _context.SaveChangesAsync();
+            await ProtectExistingWithdrawalsAsync(oldAccountId, oldCurrencyId);
+            await ProtectExistingWithdrawalsAsync(capitalInvestment.ReceivingAccountId, capitalInvestment.CurrencyId);
             await _currencyCostService.RebuildAsync();
 
             await _auditLogService.LogAsync(
@@ -157,13 +187,14 @@ public class CapitalInvestmentService : ICapitalInvestmentService
         catch
         {
             await dbTransaction.RollbackAsync();
+            _context.ChangeTracker.Clear();
             throw;
         }
     }
 
     public async Task DeleteAsync(long id)
     {
-        using var dbTransaction = await _context.Database.BeginTransactionAsync();
+        using var dbTransaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
         try
         {
@@ -173,21 +204,59 @@ public class CapitalInvestmentService : ICapitalInvestmentService
             if (capitalInvestment == null)
                 throw new InvalidOperationException("ثبت سرمایه یافت نشد.");
 
-            await DeleteLedgerEntriesAsync(id);
-
-            capitalInvestment.IsDeleted = true;
+            if (capitalInvestment.IsWithdrawal)
+            {
+                if (capitalInvestment.CancelledAt.HasValue)
+                    throw new InvalidOperationException("این برداشت قبلاً لغو شده است.");
+                var now = DateTime.UtcNow;
+                if (capitalInvestment.InvestmentDate > now)
+                    throw new InvalidOperationException("برداشت آینده قابل لغو نیست.");
+                if (await _context.CashDailyBalances.AnyAsync(x => x.AccountId == capitalInvestment.ReceivingAccountId &&
+                    x.CurrencyId == capitalInvestment.CurrencyId && x.IsClosed && x.JournalDate >= DateTime.Today))
+                    throw new InvalidOperationException("روز صندوق بسته شده است؛ لغو برداشت در این روز مجاز نیست.");
+                var originals = await _context.LedgerEntries.AsNoTracking()
+                    .Where(x => x.CapitalInvestmentId == id).ToListAsync();
+                if (originals.Count != 2)
+                    throw new InvalidOperationException("ثبت حسابداری برداشت معتبر نیست.");
+                var branchId = await _context.Users.Where(x => x.Id == GetCurrentUserId())
+                    .Select(x => x.BranchId).SingleAsync() ??
+                    await _context.Branches.OrderBy(x => x.Id).Select(x => x.Id).FirstAsync();
+                var reversal = new Transaction
+                {
+                    TransactionNo = $"OW-REV-{id}", TransactionType = "OwnerWithdrawalReversal",
+                    BranchId = branchId, Status = "Paid", CreatedBy = GetCurrentUserId(), CreatedAt = now,
+                    Remarks = $"لغو برداشت مالک شماره {id}"
+                };
+                _context.Transactions.Add(reversal);
+                await _context.SaveChangesAsync();
+                foreach (var entry in originals)
+                    _context.LedgerEntries.Add(new LedgerEntry
+                    {
+                        TransactionId = reversal.Id, AccountId = entry.AccountId, CurrencyId = entry.CurrencyId,
+                        BadehKar = entry.TalabKar, TalabKar = entry.BadehKar,
+                        CreatedAt = now, Description = $"لغو برداشت مالک شماره {id}"
+                    });
+                capitalInvestment.CancelledAt = now;
+            }
+            else
+            {
+                await DeleteLedgerEntriesAsync(id);
+                capitalInvestment.IsDeleted = true;
+            }
             capitalInvestment.ModifiedAt = DateTime.UtcNow;
             capitalInvestment.ModifiedBy = GetCurrentUserId();
 
             await _context.SaveChangesAsync();
+            if (!capitalInvestment.IsWithdrawal)
+                await ProtectExistingWithdrawalsAsync(capitalInvestment.ReceivingAccountId, capitalInvestment.CurrencyId);
             await _currencyCostService.RebuildAsync();
 
             await _auditLogService.LogAsync(
-                "DELETE",
+                capitalInvestment.IsWithdrawal ? "REVERSE" : "DELETE",
                 "CapitalInvestments",
                 capitalInvestment.Id,
                 null,
-                $"حذف ثبت سرمایه به مبلغ {AmountValueHelper.Format(capitalInvestment.Amount)}",
+                $"{(capitalInvestment.IsWithdrawal ? "لغو برداشت مالک" : "حذف ثبت سرمایه")} به مبلغ {AmountValueHelper.Format(capitalInvestment.Amount)}",
                 GetCurrentUserId());
 
             await dbTransaction.CommitAsync();
@@ -195,6 +264,7 @@ public class CapitalInvestmentService : ICapitalInvestmentService
         catch
         {
             await dbTransaction.RollbackAsync();
+            _context.ChangeTracker.Clear();
             throw;
         }
     }
@@ -214,8 +284,8 @@ public class CapitalInvestmentService : ICapitalInvestmentService
             CurrencyId = capitalInvestment.CurrencyId,
 
             // Cash/Bank receives money, so it is badehkar / Debit
-            TalabKar = 0,
-            BadehKar = capitalInvestment.Amount,
+            TalabKar = capitalInvestment.IsWithdrawal ? capitalInvestment.Amount : 0,
+            BadehKar = capitalInvestment.IsWithdrawal ? 0 : capitalInvestment.Amount,
 
             Description = $"{description} با شماره {capitalInvestment.Id}",
             CreatedAt = capitalInvestment.InvestmentDate
@@ -229,8 +299,8 @@ public class CapitalInvestmentService : ICapitalInvestmentService
             CurrencyId = capitalInvestment.CurrencyId,
 
             // Owner Capital is source of capital, so it is Talabkar / Credit
-            TalabKar = capitalInvestment.Amount,
-            BadehKar = 0,
+            TalabKar = capitalInvestment.IsWithdrawal ? 0 : capitalInvestment.Amount,
+            BadehKar = capitalInvestment.IsWithdrawal ? capitalInvestment.Amount : 0,
 
             Description = $"{description} با شماره {capitalInvestment.Id}",
             CreatedAt = capitalInvestment.InvestmentDate
@@ -321,4 +391,70 @@ public class CapitalInvestmentService : ICapitalInvestmentService
     }
 
     private long GetCurrentUserId() => _context.RequireCurrentUserId();
+
+    private async Task<long> GetWithdrawalAccountAsync(long ownerAccountId)
+    {
+        var owner = await _context.Accounts.SingleAsync(x => x.Id == ownerAccountId);
+        if (owner.AccountCode.StartsWith("OWNER-DRAW-", StringComparison.Ordinal))
+            throw new InvalidOperationException("حساب سرمایه مالک را انتخاب کنید، نه حساب برداشت.");
+        var code = $"OWNER-DRAW-{ownerAccountId}";
+        var account = await _context.Accounts.FirstOrDefaultAsync(x => x.AccountCode == code);
+        if (account != null)
+        {
+            if (account.IsArchived || account.AccountType != "Equity")
+                throw new InvalidOperationException("حساب برداشت مالک معتبر یا فعال نیست.");
+            return account.Id;
+        }
+        account = new Account
+        {
+            AccountCode = code, AccountName = $"برداشت مالک — {owner.AccountName}"[..Math.Min(200, $"برداشت مالک — {owner.AccountName}".Length)],
+            AccountType = "Equity", CreatedAt = DateTime.UtcNow
+        };
+        _context.Accounts.Add(account);
+        await _context.SaveChangesAsync();
+        return account.Id;
+    }
+
+    private async Task ValidateWithdrawalBalanceAsync(long accountId, long currencyId, decimal amount, DateTime date)
+    {
+        if (date > DateTime.UtcNow)
+            throw new InvalidOperationException("تاریخ برداشت نمی‌تواند در آینده باشد.");
+        var localDate = date.Kind == DateTimeKind.Utc ? date.ToLocalTime().Date : date.Date;
+        if (await _context.CashDailyBalances.AnyAsync(x => x.AccountId == accountId && x.CurrencyId == currencyId &&
+            x.IsClosed && x.JournalDate >= localDate))
+            throw new InvalidOperationException("روز صندوق بسته شده است؛ برداشت در آن روز یا قبل از آن مجاز نیست.");
+        var movements = await _context.LedgerEntries.AsNoTracking()
+            .Where(x => x.AccountId == accountId && x.CurrencyId == currencyId)
+            .GroupBy(x => x.CreatedAt)
+            .Select(g => new { Date = g.Key, Amount = g.Sum(x => x.BadehKar - x.TalabKar) })
+            .OrderBy(x => x.Date).ToListAsync();
+        var balance = movements.Where(x => x.Date <= date).Sum(x => x.Amount);
+        if (balance < amount)
+            throw new InvalidOperationException("موجودی صندوق/بانک در تاریخ برداشت کافی نیست.");
+        foreach (var movement in movements.Where(x => x.Date > date))
+        {
+            balance += movement.Amount;
+            if (balance < amount)
+                throw new InvalidOperationException("این برداشتِ گذشته، موجودی صندوق/بانک را در عملیات بعدی منفی می‌کند.");
+        }
+    }
+
+    private async Task ProtectExistingWithdrawalsAsync(long accountId, long currencyId)
+    {
+        var firstWithdrawal = await _context.CapitalInvestments.Where(x => !x.IsDeleted && x.IsWithdrawal &&
+            x.ReceivingAccountId == accountId && x.CurrencyId == currencyId)
+            .Select(x => (DateTime?)x.InvestmentDate).MinAsync();
+        if (!firstWithdrawal.HasValue) return;
+        var movements = await _context.LedgerEntries.AsNoTracking()
+            .Where(x => x.AccountId == accountId && x.CurrencyId == currencyId)
+            .GroupBy(x => x.CreatedAt).Select(g => new { Date = g.Key, Amount = g.Sum(x => x.BadehKar - x.TalabKar) })
+            .OrderBy(x => x.Date).ToListAsync();
+        decimal balance = 0;
+        foreach (var movement in movements)
+        {
+            balance += movement.Amount;
+            if (movement.Date >= firstWithdrawal.Value && balance < 0)
+                throw new InvalidOperationException("این تغییر سرمایه، موجودی برداشت‌های ثبت‌شده را منفی می‌کند؛ ابتدا عملیات وابسته را اصلاح کنید.");
+        }
+    }
 }

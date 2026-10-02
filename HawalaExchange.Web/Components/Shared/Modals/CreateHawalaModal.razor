@@ -1136,7 +1136,7 @@
         var toCurrencyName = GetCurrencyName(hawala.ToCurrencyId);
         var commissionCurrencyName = GetCurrencyName(hawala.CommissionCurrencyId);
         var paymentLocationName = GetPaymentLocationName(hawala.PaymentLocationId);
-        var currentDate = PersianDateHelper.ToPersianDateTime12(DateTime.Now);
+        var currentDate = DisplayDates.DateTime(DateTime.Now);
 
         return $@"
         <html dir='rtl'>

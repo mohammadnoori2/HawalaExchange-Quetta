@@ -8,6 +8,8 @@ namespace HawalaExchange.Application.DTOs
     public class CapitalInvestmentDto
     {
         public long Id { get; set; }
+        public bool IsWithdrawal { get; set; }
+        public DateTime? CancelledAt { get; set; }
 
         public long CurrencyId { get; set; }
 
@@ -34,6 +36,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class CreateCapitalInvestmentDto
     {
+        public bool IsWithdrawal { get; set; }
         public long CurrencyId { get; set; }
 
         public decimal Amount { get; set; }

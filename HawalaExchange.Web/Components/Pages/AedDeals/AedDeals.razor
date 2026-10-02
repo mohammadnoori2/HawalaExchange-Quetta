@@ -108,7 +108,7 @@
                         @foreach (var deal in FilteredDeals)
                         {
                             <tr>
-                                <td><strong>@deal.DealNumber</strong><div class="small text-muted">@deal.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</div></td>
+                                <td><strong>@deal.DealNumber</strong><div class="small text-muted">@DisplayDates.DateTime(deal.CreatedAt, true)</div></td>
                                 <td>@deal.SourceCorrespondentName</td>
                                 <td>@deal.DubaiCorrespondentName</td>
                                 <td>@Money(deal.OriginalAmount) @deal.SourceCurrencyCode</td>
@@ -155,7 +155,7 @@
                                                             @foreach (var conversion in deal.Conversions)
                                                             {
                                                                 <tr>
-                                                                    <td>@conversion.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</td>
+                                                                    <td>@DisplayDates.DateTime(conversion.CreatedAt, true)</td>
                                                                     <td>@Money(conversion.SourceAmount) @deal.SourceCurrencyCode</td>
                                                                     <td>@Money(conversion.FinalUsdAmount) USD</td>
                                                                     <td><strong>@Money(conversion.DeclaredUsdAmount) USD</strong></td>

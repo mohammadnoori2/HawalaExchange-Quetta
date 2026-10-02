@@ -5,6 +5,8 @@
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Web.Components.Shared
 @using HawalaExchange.Web.Helpers
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 
 @inject ICapitalInvestmentService CapitalInvestmentService
 @inject ICurrencyService CurrencyService
@@ -17,12 +19,15 @@
         <div>
             <h5 class="page-title">
                 <i class="bi bi-cash-stack"></i>
-                ثبت سرمایه
-                <span class="page-subtitle">افزودن سرمایه مالک به دفتر کل</span>
+                سرمایه و برداشت مالک
+                <span class="page-subtitle">افزایش سرمایه و برداشت شخصی مالک، جدا از مصارف صرافی</span>
             </h5>
         </div>
 
         <div class="page-actions">
+            <button class="btn-modern btn-danger-modern btn-rounded" @onclick="OpenWithdrawalModal" disabled="@isLoading">
+                <i class="bi bi-box-arrow-up"></i> برداشت مالک
+            </button>
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
                 <i class="bi bi-plus-circle"></i>
                 ثبت سرمایه جدید
@@ -50,12 +55,27 @@
         </div>
     }
 
+    <div class="modern-card mt-3 p-3">
+        <h6>خلاصه به تفکیک ارز</h6>
+        <GlobalDataGrid class="table table-sm mb-0">
+            <thead><tr><th>ارز</th><th>سرمایه واردشده</th><th>برداشت مالک</th><th>خالص سرمایه ثبت‌شده</th></tr></thead>
+            <tbody>
+                @foreach (var group in investments.Where(x => !x.CancelledAt.HasValue).GroupBy(x => x.CurrencyCode))
+                {
+                    var added = group.Where(x => !x.IsWithdrawal).Sum(x => x.Amount);
+                    var withdrawn = group.Where(x => x.IsWithdrawal).Sum(x => x.Amount);
+                    <tr><td>@group.Key</td><td dir="ltr">@MoneyFormatHelper.Format(added)</td><td dir="ltr">@MoneyFormatHelper.Format(withdrawn)</td><td dir="ltr">@MoneyFormatHelper.Format(added - withdrawn)</td></tr>
+                }
+            </tbody>
+        </GlobalDataGrid>
+        <small class="text-muted">این خالص فقط شامل سرمایه و برداشت‌های ثبت‌شده است؛ مفاد و مانده افتتاحیه را شامل نمی‌شود.</small>
+    </div>
     <div class="table-card mt-4">
         <div class="table-card-header">
             <div class="table-card-header-left">
                 <h6 class="mb-0 text-primary">
                     <i class="bi bi-list-ul"></i>
-                    لیست سرمایه‌های ثبت‌شده
+                    تاریخچه سرمایه و برداشت مالک
                 </h6>
             </div>
 
@@ -74,11 +94,12 @@
                         <tr>
                             <th style="width:60px;">#</th>
                             <th>تاریخ</th>
+                            <th>نوع / وضعیت</th>
                             <th>ارز</th>
                             <th>مبلغ</th>
-                            <th>ارزش افتتاحیه</th>
-                            <th>حساب دریافت‌کننده</th>
-                            <th>حساب سرمایه</th>
+                            <th>ارزش سرمایه / بهای برداشت</th>
+                            <th>صندوق / بانک</th>
+                            <th>حساب سرمایه / برداشت مالک</th>
                             <th>توضیحات</th>
                             <th class="text-center" style="width:140px;">عملیات</th>
                         </tr>
@@ -88,7 +109,7 @@
                         @if (isLoading && !investments.Any())
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5">
+                                <td colspan="10" class="text-center py-5">
                                     <div class="spinner-border text-primary" role="status">
                                         <span class="visually-hidden">در حال بارگذاری...</span>
                                     </div>
@@ -99,9 +120,9 @@
                         else if (!investments.Any())
                         {
                             <tr>
-                                <td colspan="9" class="text-center py-5 text-muted">
+                                <td colspan="10" class="text-center py-5 text-muted">
                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                                    هیچ سرمایه‌ای ثبت نشده است.
+                                    هیچ سرمایه یا برداشتی ثبت نشده است.
                                 </td>
                             </tr>
                         }
@@ -116,6 +137,11 @@
 
                                     <td dir="ltr">
                                         <AppDateTime Value="@item.InvestmentDate" />
+                                    </td>
+                                    <td>
+                                        @(item.IsWithdrawal ? "برداشت مالک" : "افزایش سرمایه")
+                                        @if (item.CancelledAt.HasValue)
+                                        { <div class="small text-danger">لغوشده — <AppDateTime Value="item.CancelledAt" /></div> }
                                     </td>
 
                                     <td>
@@ -146,15 +172,21 @@
 
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات ثبت سرمایه {item.Id}")">
+                                            @if (!item.IsWithdrawal)
+                                            {
                                             <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => EditInvestment(item.Id)">
                                                 <i class="bi bi-pencil text-primary"></i>
                                                 ویرایش
                                             </button>
                                             <div class="operation-menu-divider"></div>
+                                            }
+                                            @if (!item.CancelledAt.HasValue)
+                                            {
                                             <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => AskDelete(item.Id)">
                                                 <i class="bi bi-trash"></i>
-                                                حذف
+                                                @(item.IsWithdrawal ? "لغو برداشت (ثبت معکوس)" : "حذف")
                                             </button>
+                                            }
                                         </AppActionMenu>
                                     </td>
                                 </tr>
@@ -180,7 +212,7 @@
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(isEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
-                        @(isEditMode ? "ویرایش سرمایه" : "ثبت سرمایه جدید")
+                        @(model.IsWithdrawal ? "ثبت برداشت مالک" : isEditMode ? "ویرایش سرمایه" : "ثبت سرمایه جدید")
                     </h5>
 
                     <button type="button"
@@ -205,7 +237,7 @@
                         <div class="card-header">
                             <h6 class="text-primary">
                                 <i class="bi bi-cash-stack"></i>
-                                معلومات سرمایه
+                                @(model.IsWithdrawal ? "معلومات برداشت مالک" : "معلومات سرمایه")
                             </h6>
                         </div>
 
@@ -230,7 +262,7 @@
 
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
-                                        مبلغ سرمایه <span class="text-danger">*</span>
+                                        @(model.IsWithdrawal ? "مبلغ برداشت" : "مبلغ سرمایه") <span class="text-danger">*</span>
                                     </label>
 
                                     <MoneyInput class="form-control"
@@ -238,6 +270,8 @@
                                                 placeholder="مثلاً 100,000" />
                                 </div>
 
+                                @if (!model.IsWithdrawal)
+                                {
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
                                         ارز محاسبه مفاد <span class="text-danger">*</span>
@@ -260,10 +294,15 @@
                                                 placeholder="ارزش توافقی، بدون نرخ مرجع" />
                                     <small class="text-muted">بهای توافقی سرمایه در ارز محاسبه مفاد</small>
                                 </div>
+                                }
+                                else
+                                {
+                                    <div class="col-12 alert alert-info">برداشت مصرف نیست و مفاد را کاهش نمی‌دهد. بهای آن در ارز اصلی با بهای تمام‌شدهٔ موجودی محاسبه می‌شود، نه نرخ دلخواه. لغو برداشت با ثبت معکوس انجام می‌شود.</div>
+                                }
 
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
-                                        حساب دریافت‌کننده <span class="text-danger">*</span>
+                                        @(model.IsWithdrawal ? "حساب پرداخت‌کننده" : "حساب دریافت‌کننده") <span class="text-danger">*</span>
                                     </label>
 
                                      <AccountSearchSelect Accounts="@receivingAccounts"
@@ -276,7 +315,7 @@
 
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">
-                                        حساب سرمایه <span class="text-danger">*</span>
+                                        حساب سرمایه مالک <span class="text-danger">*</span>
                                     </label>
 
                                      <AccountSearchSelect Accounts="@capitalAccounts"
@@ -315,7 +354,7 @@
                                 <strong>سند حسابداری:</strong>
 
                                 <div class="mt-2">
-                                    حساب دریافت‌کننده بدهکار می‌شود و حساب سرمایه طلبکار می‌شود.
+                                    @(model.IsWithdrawal ? "حساب برداشت مالک بدهکار و صندوق/بانک طلبکار می‌شود. حساب برداشت، جداگانه زیر حقوق مالکانه ایجاد می‌شود و مصرف نیست." : "حساب دریافت‌کننده بدهکار می‌شود و حساب سرمایه طلبکار می‌شود.")
                                 </div>
 
                             </div>
@@ -344,7 +383,7 @@
                             <i class="bi @(isEditMode ? "bi-pencil" : "bi-save")"></i>
                         }
 
-                        @(isEditMode ? "ویرایش سرمایه" : "ثبت سرمایه")
+                        @(model.IsWithdrawal ? "ثبت برداشت مالک" : isEditMode ? "ویرایش سرمایه" : "ثبت سرمایه")
                     </button>
                 </div>
             </div>
@@ -363,7 +402,7 @@
                 <div class="modal-header modal-header-danger">
                     <h5 class="modal-title text-white">
                         <i class="bi bi-exclamation-triangle me-2"></i>
-                        تأیید حذف
+                        @(DeletingWithdrawal ? "تأیید لغو برداشت" : "تأیید حذف")
                     </h5>
 
                     <button type="button"
@@ -375,11 +414,11 @@
                     <i class="bi bi-question-circle fs-1 text-warning d-block mb-3"></i>
 
                     <p class="fs-5">
-                        آیا مطمئن هستید که می‌خواهید این ثبت سرمایه را حذف کنید؟
+                        @(DeletingWithdrawal ? "آیا برداشت مالک با ثبت معکوس لغو شود؟" : "آیا مطمئن هستید که می‌خواهید این ثبت سرمایه را حذف کنید؟")
                     </p>
 
                     <p class="text-muted small">
-                        با حذف آن، لیجرهای مربوط به این سرمایه نیز حذف می‌شود.
+                        @(DeletingWithdrawal ? "ثبت اصلی محفوظ می‌ماند و مبلغ با ثبت معکوس به صندوق/بانک برمی‌گردد؛ این لغو باید با برگشت واقعی پول همراه باشد." : "با حذف آن، لیجرهای مربوط به این سرمایه نیز حذف می‌شود.")
                     </p>
                 </div>
 
@@ -404,7 +443,7 @@
                             <i class="bi bi-trash"></i>
                         }
 
-                        حذف
+                        @(DeletingWithdrawal ? "لغو برداشت" : "حذف")
                     </button>
                 </div>
             </div>
@@ -432,6 +471,7 @@
 
     private bool showDeleteConfirm = false;
     private long deleteId = 0;
+    private bool DeletingWithdrawal => investments.Any(x => x.Id == deleteId && x.IsWithdrawal);
 
     private DateTime investmentDateLocal = DateTime.Now;
 
@@ -458,7 +498,7 @@
                 .ToList();
 
             capitalAccounts = accounts
-                .Where(x => x.AccountType == "Equity")
+                .Where(x => x.AccountType == "Equity" && !x.AccountCode.StartsWith("OWNER-DRAW-", StringComparison.Ordinal))
                 .OrderBy(x => x.AccountCode)
                 .ToList();
         }
@@ -483,6 +523,14 @@
     private void OpenCreateModal()
     {
         ResetForm();
+        showModal = true;
+    }
+
+    private void OpenWithdrawalModal()
+    {
+        ResetForm();
+        model.IsWithdrawal = true;
+        model.Description = "برداشت مالک";
         showModal = true;
     }
 
@@ -565,6 +613,7 @@
 
     private async Task Save()
     {
+        if (isLoading) return;
         validationErrors.Clear();
         successMessage = string.Empty;
 
@@ -599,7 +648,7 @@
             else
             {
                 await CapitalInvestmentService.CreateAsync(model);
-                successMessage = "سرمایه با موفقیت در دفتر کل ثبت شد.";
+                successMessage = model.IsWithdrawal ? "برداشت مالک با ثبت حسابداری مستقل ثبت شد." : "سرمایه با موفقیت در دفتر کل ثبت شد.";
             }
 
             await LoadInvestments();
@@ -629,7 +678,7 @@
         if (model.ProfitCurrencyId <= 0)
             validationErrors.Add("انتخاب ارز محاسبه مفاد الزامی است.");
 
-        if (model.ProfitCurrencyAmount <= 0)
+        if (!model.IsWithdrawal && model.ProfitCurrencyAmount <= 0)
             validationErrors.Add("ارزش افتتاحیه سرمایه باید بزرگتر از صفر باشد.");
 
         if (model.ReceivingAccountId <= 0)
@@ -667,7 +716,7 @@
 
             await CapitalInvestmentService.DeleteAsync(deleteId);
 
-            successMessage = "ثبت سرمایه با موفقیت حذف شد.";
+            successMessage = DeletingWithdrawal ? "برداشت مالک با ثبت معکوس لغو شد؛ سابقه محفوظ است." : "ثبت سرمایه با موفقیت حذف شد.";
 
             if (isEditMode && editId == deleteId)
             {

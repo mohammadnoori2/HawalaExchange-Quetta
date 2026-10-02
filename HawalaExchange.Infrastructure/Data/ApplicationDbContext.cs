@@ -1196,6 +1196,7 @@ namespace HawalaExchange.Infrastructure.Data
                 .OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<CompanySetting>(entity =>
             {
+                entity.Property(x => x.UsePersianCalendar).HasDefaultValue(true);
                 entity.Property(x => x.CompanyName)
                     .HasMaxLength(200)
                     .IsRequired();
@@ -1754,6 +1755,7 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<CashBalanceAlert>().Property(x => x.CurrentBalance).HasPrecision(18, 4);
             modelBuilder.Entity<CashBalanceAlert>().Property(x => x.MinimumBalance).HasPrecision(18, 4);
             modelBuilder.Entity<CapitalInvestment>().Property(x => x.Amount).HasPrecision(18, 4);
+            modelBuilder.Entity<CapitalInvestment>().Property(x => x.IsWithdrawal).HasDefaultValue(false);
             modelBuilder.Entity<CapitalInvestment>().Property(x => x.ProfitCurrencyAmount).HasPrecision(18, 4);
             modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.FromAmount).HasPrecision(18, 4);
             modelBuilder.Entity<MoneyExchangeOperation>().Property(x => x.ToAmount).HasPrecision(18, 4);

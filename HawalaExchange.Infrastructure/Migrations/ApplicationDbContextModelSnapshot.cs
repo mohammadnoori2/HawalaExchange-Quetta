@@ -775,6 +775,8 @@ namespace HawalaExchange.Infrastructure.Migrations
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CapitalInvestment", b =>
                 {
+                    b.Property<bool>("IsWithdrawal").ValueGeneratedOnAdd().HasColumnType("bit").HasDefaultValue(false);
+                    b.Property<DateTime?>("CancelledAt").HasColumnType("datetime2");
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint");
@@ -1041,6 +1043,10 @@ namespace HawalaExchange.Infrastructure.Migrations
 
             modelBuilder.Entity("HawalaExchange.Domain.Entities.CompanySetting", b =>
                 {
+                    b.Property<bool>("UsePersianCalendar")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint");

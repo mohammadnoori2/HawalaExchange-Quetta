@@ -45,6 +45,8 @@ public class CompanySetting : ITenantEntity
     /// <summary>محل پرداخت دفتر خود صرافی در آپلود گروهی حواله‌ها.</summary>
     public long? OwnPaymentLocationId { get; set; }
 
+    public bool UsePersianCalendar { get; set; } = true;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }

@@ -156,7 +156,7 @@ public sealed class CorrespondentDetailsPerformanceTests(
         Assert.NotNull(legacyDetails);
         Assert.Equal(fixture.SourceCorrespondent.Id, result.Correspondent.Id);
         Assert.Equal(fixture.SourceAccount.Id, result.AccountId);
-        Assert.Equal(expectedBalance, result.Balances.Single(x => x.CurrencyId == 2).Balance);
+        Assert.Equal(expectedBalance, result.Balances.Single(x => x.CurrencyId == 2).TotalIncludingCommission);
         Assert.Equal(legacyBalances.Select(x => (x.CurrencyId, x.Balance)),
             result.Balances.Select(x => (x.CurrencyId, x.Balance)));
         Assert.Equal(legacyOperations.TotalCount, result.Operations.TotalCount);

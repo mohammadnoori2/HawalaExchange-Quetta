@@ -151,6 +151,10 @@ namespace HawalaExchange.Application.Services
             return BuildBalances(await ReadBalancesAsync(accountId: accountId, asOfDate: asOfDate));
         }
 
+        internal static async Task<IEnumerable<BalanceDto>> ReadAccountBalanceAsync(
+            ApplicationDbContext context, long accountId, CancellationToken cancellationToken = default)
+            => BuildBalances(await ReadBalancesCoreAsync(context, accountId: accountId, cancellationToken: cancellationToken));
+
         public async Task<bool> ValidateBadehkarLimitAsync(long accountId, long currencyId, decimal amount)
         {
             var limit = await _context.AccountBadehkarLimits.AsNoTracking()
@@ -205,21 +209,28 @@ namespace HawalaExchange.Application.Services
             string? ownerType = null,
             string? accountType = null,
             DateTime? asOfDate = null)
+            => await ReadBalancesCoreAsync(_context, accountId, customerId, correspondentId, ownerType, accountType, asOfDate);
+
+        private static async Task<List<AccountBalanceRow>> ReadBalancesCoreAsync(
+            ApplicationDbContext context,
+            long? accountId = null, long? customerId = null, long? correspondentId = null,
+            string? ownerType = null, string? accountType = null, DateTime? asOfDate = null,
+            CancellationToken cancellationToken = default)
         {
-            var connection = (SqlConnection)_context.Database.GetDbConnection();
+            var connection = (SqlConnection)context.Database.GetDbConnection();
             var shouldClose = connection.State != ConnectionState.Open;
             if (shouldClose)
-                await connection.OpenAsync();
+                await connection.OpenAsync(cancellationToken);
 
             try
             {
-                var transaction = _context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction;
+                var transaction = context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction;
                 await using var command = new SqlCommand("[dbo].[usp_GetAccountBalances_v1]", connection, transaction)
                 {
                     CommandType = CommandType.StoredProcedure,
                     CommandTimeout = 30
                 };
-                command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
+                command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = context.CurrentTenantId;
                 AddNullable(command, "@AccountId", SqlDbType.BigInt, accountId);
                 AddNullable(command, "@CustomerId", SqlDbType.BigInt, customerId);
                 AddNullable(command, "@CorrespondentId", SqlDbType.BigInt, correspondentId);
@@ -228,14 +239,16 @@ namespace HawalaExchange.Application.Services
                 AddNullable(command, "@AsOfDate", SqlDbType.DateTime2, asOfDate);
 
                 var rows = new List<AccountBalanceRow>();
-                await using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
                 {
                     rows.Add(new AccountBalanceRow(
                         reader.GetInt64(0), reader.GetString(1), reader.GetString(2),
                         reader.IsDBNull(3) ? null : reader.GetInt64(3),
                         reader.IsDBNull(4) ? null : reader.GetInt64(4),
-                        reader.GetInt64(5), reader.GetString(6), reader.GetDecimal(7)));
+                        reader.GetInt64(5), reader.GetString(6), reader.GetDecimal(7),
+                        reader.FieldCount > 8 ? reader.GetDecimal(8) : 0m,
+                        reader.FieldCount > 9 ? reader.GetDecimal(9) : 0m));
                 }
                 return rows;
             }
@@ -260,9 +273,11 @@ namespace HawalaExchange.Application.Services
             {
                 CurrencyId = x.Key.CurrencyId,
                 CurrencyCode = x.Key.CurrencyCode,
-                Balance = x.Sum(row => row.Balance)
+                Balance = x.Sum(row => row.Balance),
+                PendingCommissionDebit = x.Sum(row => row.PendingCommissionDebit),
+                PendingCommissionCredit = x.Sum(row => row.PendingCommissionCredit)
             })
-            .Where(x => x.Balance != 0)
+            .Where(x => x.Balance != 0 || x.PendingCommissionDebit != 0 || x.PendingCommissionCredit != 0)
             .OrderBy(x => x.CurrencyCode)
             .ToList();
 
@@ -271,7 +286,9 @@ namespace HawalaExchange.Application.Services
             {
                 CurrencyId = x.CurrencyId,
                 CurrencyCode = x.CurrencyCode,
-                Balance = x.Balance
+                Balance = x.Balance,
+                PendingCommissionDebit = x.PendingCommissionDebit,
+                PendingCommissionCredit = x.PendingCommissionCredit
             })
             .OrderBy(x => x.CurrencyCode)
             .ToList();
@@ -279,6 +296,7 @@ namespace HawalaExchange.Application.Services
         private sealed record AccountBalanceRow(
             long AccountId, string AccountName, string AccountType,
             long? CustomerId, long? CorrespondentId,
-            long CurrencyId, string CurrencyCode, decimal Balance);
+            long CurrencyId, string CurrencyCode, decimal Balance,
+            decimal PendingCommissionDebit, decimal PendingCommissionCredit);
     }
 }

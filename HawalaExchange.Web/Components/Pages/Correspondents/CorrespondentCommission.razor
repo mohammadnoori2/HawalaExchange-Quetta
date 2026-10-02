@@ -159,6 +159,11 @@
                 }
                 <div class="row g-3 mb-4">
                     <div class="col-md-3"><div class="modern-card p-3"><small>تعداد حواله</small><h4>@preview.HawalaCount</h4></div></div>
+                    @if (!isOutgoing && !isOrigin)
+                    {
+                        <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های دریافتی (USD)</small><h4 dir="ltr">@preview.TotalSourceUsd.ToString("N2") USD</h4></div></div>
+                        <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های دریافتی (AFN)</small><h4 dir="ltr">@preview.TotalSourceAfn.ToString("N2") AFN</h4></div></div>
+                    }
                     @if (!isOutgoing)
                     { <div class="col-md-3"><div class="modern-card p-3"><small>مجموع مبنا (USD)</small><h4>@preview.TotalBaseAfn.ToString("N2")</h4></div></div> }
                     @if (isOutgoing)
@@ -282,6 +287,11 @@
                     @if (selectedDetails.CommissionScope == "Standard")
                     { <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">کمیشن هر لک</small><div class="fw-bold">@selectedDetails.CommissionPerLakhAfn.ToString("N2")</div></div></div> }
                     <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">وضعیت</small><div><span class="badge @(selectedDetails.Status == "Posted" ? "bg-success" : "bg-secondary")">@(selectedDetails.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></div></div></div>
+                    @if (!detailsOutgoing && !detailsOrigin)
+                    {
+                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های دریافتی USD</small><div class="fw-bold" dir="ltr">@selectedDetails.TotalSourceUsd.ToString("N2") USD</div></div></div>
+                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های دریافتی AFN</small><div class="fw-bold" dir="ltr">@selectedDetails.TotalSourceAfn.ToString("N2") AFN</div></div></div>
+                    }
                     @if (detailsOutgoing)
                     {
                         <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های ارسالی USD</small><div class="fw-bold">@selectedDetails.TotalSourceUsd.ToString("N2") USD</div></div></div>

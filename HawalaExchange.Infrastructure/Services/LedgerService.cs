@@ -83,21 +83,7 @@ namespace HawalaExchange.Application.Services
 
         public async Task<IEnumerable<BalanceDto>> GetAccountBalancesAsync(long accountId)
         {
-            var entries = await _context.LedgerEntries
-                .Where(e => e.AccountId == accountId)
-                .Include(e => e.Currency)
-                .ToListAsync();
-
-            return entries
-                .GroupBy(e => e.CurrencyId)
-                .Select(g => new BalanceDto
-                {
-                    CurrencyId = g.Key,
-                    CurrencyCode = g.First().Currency?.Code ?? "N/A",
-                    Balance = g.Sum(e => e.TalabKar - e.BadehKar)
-                })
-                .Where(x => x.Balance != 0m)
-                .OrderBy(x => x.CurrencyCode);
+            return await BalanceService.ReadAccountBalanceAsync(_context, accountId);
         }
 
         public async Task<IEnumerable<LedgerEntryDto>> GetCustomerLedgerAsync(long customerId)

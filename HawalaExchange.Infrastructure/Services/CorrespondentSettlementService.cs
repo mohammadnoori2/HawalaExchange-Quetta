@@ -368,22 +368,21 @@ public sealed class CorrespondentSettlementService(
     private async Task<List<CorrespondentSettlementBalanceDto>> GetNetBalancesAsync(
         long accountId,
         long targetCurrencyId,
-        CancellationToken cancellationToken) => await context.LedgerEntries
-        .Where(x => x.AccountId == accountId && x.CurrencyId != targetCurrencyId)
-        .GroupBy(x => new { x.CurrencyId, x.Currency!.Code, x.Currency.QuotationPriority })
-        .Select(x => new CorrespondentSettlementBalanceDto
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var balances = (await BalanceService.ReadAccountBalanceAsync(context, accountId, cancellationToken))
+            .Where(x => x.CurrencyId != targetCurrencyId && x.Balance != 0).ToList();
+        var ids = balances.Select(x => x.CurrencyId).ToArray();
+        var currencies = await context.Currencies.AsNoTracking().Where(x => ids.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        return balances.Select(x => new CorrespondentSettlementBalanceDto
         {
-            SourceCurrencyId = x.Key.CurrencyId,
-            SourceCurrencyCode = x.Key.Code,
-            SourceQuotationPriority = x.Key.QuotationPriority,
-            TalabKar = x.Sum(y => y.TalabKar) > x.Sum(y => y.BadehKar)
-                ? x.Sum(y => y.TalabKar) - x.Sum(y => y.BadehKar) : 0,
-            BadehKar = x.Sum(y => y.BadehKar) > x.Sum(y => y.TalabKar)
-                ? x.Sum(y => y.BadehKar) - x.Sum(y => y.TalabKar) : 0
-        })
-        .Where(x => x.TalabKar > 0 || x.BadehKar > 0)
-        .OrderBy(x => x.SourceCurrencyCode)
-        .ToListAsync(cancellationToken);
+            SourceCurrencyId = x.CurrencyId, SourceCurrencyCode = x.CurrencyCode,
+            SourceQuotationPriority = currencies[x.CurrencyId].QuotationPriority,
+            TalabKar = Math.Max(0, x.Balance), BadehKar = Math.Max(0, -x.Balance)
+        }).OrderBy(x => x.SourceCurrencyCode).ToList();
+    }
 
     private async Task<Correspondent> GetConfiguredCorrespondentAsync(long correspondentId, CancellationToken cancellationToken)
     {

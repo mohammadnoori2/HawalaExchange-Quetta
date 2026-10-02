@@ -575,8 +575,12 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             throw new InvalidOperationException("دلیل برگشت الزامی است.");
         if (reason.Trim().Length > 500)
             throw new InvalidOperationException("دلیل برگشت نمی‌تواند بیشتر از 500 حرف باشد.");
+        var correspondentId = await context.CorrespondentCommissionBatches.AsNoTracking()
+            .Where(x => x.Id == batchId).Select(x => (long?)x.CorrespondentId).SingleOrDefaultAsync(cancellationToken)
+            ?? throw new KeyNotFoundException("محاسبه کمیشن یافت نشد.");
         await using var dbTransaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
+        await CorrespondentCommissionPeriodLock.AcquireAsync(context, correspondentId, cancellationToken);
         var batch = await context.CorrespondentCommissionBatches
             .Include(x => x.Correspondent).Include(x => x.Items)
             .SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken)

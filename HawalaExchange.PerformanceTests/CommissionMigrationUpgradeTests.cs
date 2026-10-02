@@ -8,6 +8,43 @@ namespace HawalaExchange.PerformanceTests;
 public sealed class CommissionMigrationUpgradeTests
 {
     [Fact]
+    public async Task Deferred_upgrade_recognizes_already_closed_commissions_without_changing_old_journals()
+    {
+        var database = new SqlServerPerformanceFixture();
+        try
+        {
+            await database.InitializeDatabaseAsync("20261002140000_DestinationCommissionLocationRates");
+            await using var context = database.CreateContext();
+            using var bypass = context.BypassSubscriptionEnforcement();
+            var now = DateTime.UtcNow;
+            var beforeClose = new Transaction { TransactionNo = "DEF-UPGRADE-OLD", TransactionType = "PeriodicCorrespondentCommission", Status = "Paid", BranchId = 1, CreatedBy = database.UserId, CreatedAt = now.AddMinutes(-10) };
+            var afterClose = new Transaction { TransactionNo = "DEF-UPGRADE-NEW", TransactionType = "PeriodicCorrespondentCommission", Status = "Paid", BranchId = 1, CreatedBy = database.UserId, CreatedAt = now.AddMinutes(-1) };
+            context.Transactions.AddRange(beforeClose, afterClose);
+            var period = new CorrespondentAccountPeriod { CorrespondentId = database.SourceCorrespondent.Id, PeriodNumber = 1,
+                PeriodFrom = now.AddHours(-1), PeriodTo = now.AddMinutes(-5), ClosedAt = now.AddMinutes(-5), ClosedBy = database.UserId };
+            context.CorrespondentAccountPeriods.Add(period);
+            await context.SaveChangesAsync();
+            context.LedgerEntries.AddRange(
+                new LedgerEntry { AccountId = database.SourceAccount.Id, CurrencyId = 2, TalabKar = 1_000m, CreatedAt = now.AddMinutes(-15) },
+                new LedgerEntry { AccountId = database.SourceAccount.Id, CurrencyId = 2, BadehKar = 100m, TransactionId = beforeClose.Id, CreatedAt = beforeClose.CreatedAt },
+                new LedgerEntry { AccountId = database.SourceAccount.Id, CurrencyId = 2, BadehKar = 40m, TransactionId = afterClose.Id, CreatedAt = afterClose.CreatedAt });
+            context.CorrespondentAccountPeriodBalances.Add(new() { PeriodId = period.Id, CurrencyId = 2, TalabKar = 900m });
+            await context.SaveChangesAsync();
+            var original = await context.LedgerEntries.AsNoTracking().OrderBy(x => x.Id)
+                .Select(x => new { x.Id, x.AccountId, x.CurrencyId, x.TalabKar, x.BadehKar }).ToListAsync();
+            await context.Database.MigrateAsync();
+            Assert.Equal(original, await context.LedgerEntries.AsNoTracking().OrderBy(x => x.Id)
+                .Select(x => new { x.Id, x.AccountId, x.CurrencyId, x.TalabKar, x.BadehKar }).ToListAsync());
+            var current = Assert.Single(await database.CreateBalanceService(context).GetAccountBalanceAsync(database.SourceAccount.Id));
+            Assert.Equal(900m, current.Balance);
+            Assert.Equal(40m, current.PendingCommissionDebit);
+            Assert.Equal(860m, current.TotalIncludingCommission);
+            Assert.Equal(900m, (await context.CorrespondentAccountPeriodBalances.SingleAsync()).TalabKar);
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
+    [Fact]
     public async Task Upgrade_preserves_old_journals_and_blocks_duplicate_historical_commissions()
     {
         // A separate disposable database, never the user's configured application database.

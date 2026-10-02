@@ -9,6 +9,9 @@ namespace HawalaExchange.Application.DTOs
         public long CurrencyId { get; set; }
         public string CurrencyCode { get; set; }
         public decimal Balance { get; set; }
+        public decimal PendingCommissionDebit { get; set; }
+        public decimal PendingCommissionCredit { get; set; }
+        public decimal TotalIncludingCommission => Balance + PendingCommissionCredit - PendingCommissionDebit;
     }
 
     public class CustomerBalanceDto

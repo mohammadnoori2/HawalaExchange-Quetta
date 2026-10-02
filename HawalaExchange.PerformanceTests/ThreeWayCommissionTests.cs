@@ -37,7 +37,10 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         var incoming = Request("Incoming", day);
         var forwarding = Request("Forwarding", day);
         var destination = Request("Destination", day);
-        Assert.Equal(97.14m, (await service.PreviewAsync(incoming)).TotalCommissionUsd);
+        var incomingPreview = await service.PreviewAsync(incoming);
+        Assert.Equal(97.14m, incomingPreview.TotalCommissionUsd);
+        Assert.Equal(1_000_000m, incomingPreview.TotalSourceAfn);
+        Assert.Equal(10_000m, incomingPreview.TotalSourceUsd);
         var forwarded = await service.PreviewAsync(forwarding);
         Assert.Equal(52.57m, forwarded.TotalCommissionUsd);
         Assert.Equal(500_000m, forwarded.TotalSourceAfn);
@@ -58,6 +61,11 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         foreach (var batch in new[] { first, second })
         {
             var details = await service.GetDetailsAsync(batch.Id);
+            if (details.CommissionScope == "Incoming")
+            {
+                Assert.Equal(1_000_000m, details.TotalSourceAfn);
+                Assert.Equal(10_000m, details.TotalSourceUsd);
+            }
             AssertBalanced(details.LedgerEntries);
             Assert.Contains(details.LedgerEntries, entry => entry.AccountId == fixture.SourceAccount.Id && entry.BadehKar == details.TotalCommissionUsd);
             Assert.Contains(details.LedgerEntries, entry => entry.AccountCode == (details.CommissionScope == "Incoming" ? "SYS-COMMISSION-INCOMING" : "SYS-COMMISSION-FORWARDING"));

@@ -175,15 +175,32 @@
                             }
                             else if (BalanceSummary.Any())
                             {
-                                <div class="account-balance-grid">
+                                <div class="account-balance-grid @(Account.AccountType == "Correspondent" ? "account-balance-grid--correspondent" : null)">
                                     @foreach (var item in BalanceSummary)
                                     {
                                         var status = item.Balance > 0 ? "طلبکار" : (item.Balance < 0 ? "بدهکار" : "تسویه");
                                         var valueClass = item.Balance > 0 ? "text-success" : (item.Balance < 0 ? "text-danger" : "text-muted");
-                                        <div class="account-balance-item">
+                                        <div class="account-balance-item @(Account.AccountType == "Correspondent" ? "account-balance-item--correspondent" : null)">
                                             <strong>@item.CurrencyCode</strong>
-                                            <span class="@valueClass">@MoneyFormatHelper.Format(Math.Abs(item.Balance))</span>
+                                            @if (Account.AccountType == "Correspondent")
+                                            {
+                                                <small>ماندهٔ جاری بدون کمیشن منتظر</small>
+                                                <strong class="account-balance-amount @valueClass" dir="ltr">@MoneyFormatHelper.Format(Math.Abs(item.Balance))</strong>
+                                            }
+                                            else
+                                            { <span class="@valueClass">@MoneyFormatHelper.Format(Math.Abs(item.Balance))</span> }
                                             <small>@status</small>
+                                            @if (Account.AccountType == "Correspondent")
+                                            {
+                                                <div class="border-top mt-2 pt-2 small">
+                                                    <div>کمیشن منتظر — بدهکاری: <span dir="ltr">@MoneyFormatHelper.Format(item.PendingCommissionDebit)</span></div>
+                                                    <div>کمیشن منتظر — طلبکاری: <span dir="ltr">@MoneyFormatHelper.Format(item.PendingCommissionCredit)</span></div>
+                                                    <div class="mt-2">مجموع با کمیشن:
+                                                        <span dir="ltr">@MoneyFormatHelper.Format(Math.Abs(item.TotalIncludingCommission))</span>
+                                                        @(item.TotalIncludingCommission > 0 ? "طلبکار" : item.TotalIncludingCommission < 0 ? "بدهکار" : "تسویه")
+                                                    </div>
+                                                </div>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -196,6 +213,8 @@
                                 </div>
                             }
                         </div>
+                        @if (Account.AccountType == "Correspondent")
+                        { <div class="px-3 pb-3 small text-muted">کمیشن‌های منتظر فقط با بستن دوره وارد مانده می‌شوند؛ تبدیل ارز یا رسید/برد آن‌ها را نهایی نمی‌کند. مجموع با کمیشن صرفاً جهت اطلاع است.</div> }
                     </div>
 
                     @AdditionalContent

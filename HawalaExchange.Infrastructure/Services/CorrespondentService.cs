@@ -3,6 +3,7 @@ using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
 using HawalaExchange.Infrastructure.Data;
+using HawalaExchange.Infrastructure.Services;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -134,7 +135,9 @@ namespace HawalaExchange.Application.Services
                     {
                         CurrencyId = reader.GetInt64(0),
                         CurrencyCode = reader.GetString(1),
-                        Balance = reader.GetDecimal(2)
+                        Balance = reader.GetDecimal(2),
+                        PendingCommissionDebit = reader.FieldCount > 3 ? reader.GetDecimal(3) : 0m,
+                        PendingCommissionCredit = reader.FieldCount > 4 ? reader.GetDecimal(4) : 0m
                     });
                 }
 
@@ -514,6 +517,7 @@ namespace HawalaExchange.Application.Services
         public async Task<CorrespondentPeriodDto> ClosePeriodAsync(long id, CloseCorrespondentPeriodDto dto)
         {
             await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await CorrespondentCommissionPeriodLock.AcquireAsync(_context, id);
             var correspondent = await _context.Correspondents.SingleOrDefaultAsync(x => x.Id == id)
                 ?? throw new KeyNotFoundException("نمایندگی یافت نشد.");
             var last = await _context.CorrespondentAccountPeriods
@@ -531,6 +535,21 @@ namespace HawalaExchange.Application.Services
             };
             _context.CorrespondentAccountPeriods.Add(period);
             await _context.SaveChangesAsync();
+            // Recognize the exact journal documents present at close, not merely their dates.
+            // Subsequent backdated calculations and reversals remain pending for the next close.
+            await _context.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO [dbo].[CorrespondentCommissionRecognitions] ([TenantId], [AccountId], [TransactionId], [PeriodId])
+                SELECT e.[TenantId], e.[AccountId], e.[TransactionId], {period.Id}
+                FROM [dbo].[LedgerEntries] e
+                JOIN [dbo].[Transactions] t ON t.[TenantId] = e.[TenantId] AND t.[Id] = e.[TransactionId]
+                WHERE e.[TenantId] = {_context.CurrentTenantId} AND e.[AccountId] = {accountId}
+                  AND e.[CreatedAt] <= {periodTo}
+                  AND t.[TransactionType] IN (N'PeriodicCorrespondentCommission', N'PeriodicOutgoingCommission',
+                      N'PeriodicForwardingCommission', N'PeriodicCorrespondentCommissionReversal')
+                  AND NOT EXISTS (SELECT 1 FROM [dbo].[CorrespondentCommissionRecognitions] r
+                      WHERE r.[TenantId] = e.[TenantId] AND r.[AccountId] = e.[AccountId] AND r.[TransactionId] = e.[TransactionId])
+                GROUP BY e.[TenantId], e.[AccountId], e.[TransactionId];
+                """);
             var balances = await _context.LedgerEntries.Where(x => x.AccountId == accountId && x.CreatedAt <= periodTo)
                 .GroupBy(x => x.CurrencyId).Select(x => new
                 { x.Key, Talab = x.Sum(e => e.TalabKar), Badeh = x.Sum(e => e.BadehKar) }).ToListAsync();

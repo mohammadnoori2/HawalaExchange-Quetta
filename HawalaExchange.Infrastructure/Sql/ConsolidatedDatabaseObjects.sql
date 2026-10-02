@@ -432,6 +432,16 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                         DECLARE @ItemScope nvarchar(20) = CASE
                             WHEN @CommissionScope = N'Standard' AND @HawalaType = N'HawalaSend'
                             THEN N'Destination' ELSE @CommissionScope END;
+                        IF @Mode = N'Post'
+                        BEGIN
+                            DECLARE @PeriodLockResult int;
+                            DECLARE @PeriodLockResource nvarchar(255) = N'CorrespondentCommissionPeriod:'
+                                + CONVERT(nvarchar(20), @TenantId) + N':' + CONVERT(nvarchar(20), @CorrespondentId);
+                            EXEC @PeriodLockResult = sp_getapplock @Resource = @PeriodLockResource,
+                                @LockMode = N'Exclusive', @LockOwner = N'Transaction', @LockTimeout = 5000;
+                            IF @PeriodLockResult < 0
+                                THROW 50028, N'نمایندگی در حال ثبت کمیشن یا بستن دوره است؛ دوباره تلاش کنید.', 1;
+                        END;
                         DECLARE @OwnPaymentLocationId bigint =
                             (SELECT TOP (1) [OwnPaymentLocationId] FROM [dbo].[CompanySettings]
                              WHERE [TenantId] = @TenantId ORDER BY [Id]);
@@ -1140,6 +1150,13 @@ CREATE PROCEDURE [dbo].[usp_ProcessCorrespondentSettlement_v1]
                         IF @LockResult < 0
                             THROW 50106, N'قفل تبدیل مانده دریافت نشد؛ دوباره تلاش کنید.', 1;
 
+                        DECLARE @CommissionPeriodLockResource nvarchar(255) = N'CorrespondentCommissionPeriod:'
+                            + CONVERT(nvarchar(20), @TenantId) + N':' + CONVERT(nvarchar(20), @CorrespondentId);
+                        EXEC @LockResult = sp_getapplock @Resource = @CommissionPeriodLockResource,
+                            @LockMode = N'Exclusive', @LockOwner = N'Transaction', @LockTimeout = 5000;
+                        IF @LockResult < 0
+                            THROW 50028, N'نمایندگی در حال ثبت کمیشن یا بستن دوره است؛ دوباره تلاش کنید.', 1;
+
                         DECLARE @CorrespondentName nvarchar(200);
                         DECLARE @TargetCurrencyId bigint;
                         SELECT @CorrespondentName = c.[Name], @TargetCurrencyId = c.[SettlementCurrencyId]
@@ -1237,6 +1254,16 @@ CREATE PROCEDURE [dbo].[usp_ProcessCorrespondentSettlement_v1]
                         END
                         ELSE
                         BEGIN
+                            IF OBJECT_ID(N'dbo.usp_GetDeferredSettlementBalances_v1', N'P') IS NOT NULL
+                            BEGIN
+                                INSERT INTO #Balances
+                                    ([SourceCurrencyId], [SourceCurrencyCode], [SourcePriority],
+                                     [SourceTalabKar], [SourceBadehKar], [ExchangeRate], [TargetTalabKar], [TargetBadehKar])
+                                EXEC [dbo].[usp_GetDeferredSettlementBalances_v1]
+                                    @TenantId, @CorrespondentAccountId, @TargetCurrencyId, @Rates;
+                            END
+                            ELSE
+                            BEGIN
                             INSERT INTO #Balances
                             (
                                 [SourceCurrencyId], [SourceCurrencyCode], [SourcePriority],
@@ -1259,6 +1286,7 @@ CREATE PROCEDURE [dbo].[usp_ProcessCorrespondentSettlement_v1]
                               AND le.[CurrencyId] <> @TargetCurrencyId
                             GROUP BY le.[CurrencyId], currency.[Code], currency.[QuotationPriority], rate.[Rate]
                             HAVING SUM(le.[TalabKar]) <> SUM(le.[BadehKar]);
+                            END;
 
                             IF (SELECT COUNT(*) FROM #Balances) <>
                                (SELECT COUNT(*) FROM @Rates WHERE [HawalaId] = 0 AND [Rate] > 0)
@@ -1498,6 +1526,13 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_GetAccountBalances_v1]
 
                     IF @OwnerType IS NOT NULL AND @OwnerType NOT IN (N'Customer', N'Correspondent')
                         THROW 51001, 'OwnerType must be Customer or Correspondent.', 1;
+
+                    IF OBJECT_ID(N'dbo.usp_GetDeferredAccountBalances_v1', N'P') IS NOT NULL
+                    BEGIN
+                        EXEC [dbo].[usp_GetDeferredAccountBalances_v1]
+                            @TenantId, @AccountId, @CustomerId, @CorrespondentId, @OwnerType, @AccountType, @AsOfDate;
+                        RETURN;
+                    END;
 
                     -- Current balances are maintained transactionally from LedgerEntries.
                     -- Historical/as-of queries continue to use the immutable ledger below.
@@ -2451,6 +2486,9 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_GetAccountOperationsPage_v1]
 
                 IF @IncludeBalances = 1
                 BEGIN
+                    IF OBJECT_ID(N'dbo.usp_GetCorrespondentBalanceSummary_v1', N'P') IS NOT NULL
+                        EXEC [dbo].[usp_GetCorrespondentBalanceSummary_v1] @TenantId, @AccountId;
+                    ELSE
                     SELECT currency.[Id] AS [CurrencyId], currency.[Code] AS [CurrencyCode],
                            CAST(balance.[Balance] AS decimal(18,2)) AS [Balance]
                     FROM [dbo].[AccountCurrencyBalances] balance

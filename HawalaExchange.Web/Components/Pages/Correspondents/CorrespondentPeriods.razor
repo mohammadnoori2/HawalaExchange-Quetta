@@ -60,7 +60,7 @@
 
         <div class="modern-card p-3 mb-3">
             <h6 class="mb-1">باقی‌مانده طلبکار و بدهکار در پایان دوره</h6>
-            <p class="text-muted small mb-3">این مبالغ بدون ایجاد سند جدید به دوره بعد انتقال یافته‌اند.</p>
+            <p class="text-muted small mb-3">کمیشن‌های منتظر تا زمان بستن این دوره وارد مانده شده‌اند؛ این مبالغ بدون ایجاد سند جدید به دوره بعد انتقال یافته‌اند.</p>
             @if (selected.Balances.Count == 0)
             {
                 <div class="alert alert-light border mb-0">در پایان این دوره مانده‌ای وجود ندارد.</div>
@@ -143,7 +143,7 @@
                     <div class="col-lg-6">
                         <div class="border border-primary-subtle rounded p-3 h-100 bg-primary-subtle bg-opacity-10">
                             <h6 class="mb-1">باقی‌مانده پایان دوره</h6>
-                            <p class="text-muted small mb-3">طلبکار و بدهکار قابل انتقال به دوره بعد</p>
+                            <p class="text-muted small mb-3">طلبکار و بدهکار با احتساب کمیشن‌های منتظر، قابل انتقال به دوره بعد</p>
                             @if (closePreview.ClosingBalances.Count == 0)
                             {
                                 <span class="text-muted">مانده‌ای برای انتقال وجود ندارد.</span>
@@ -155,7 +155,7 @@
 
                 <div class="alert alert-info py-2">
                     <i class="bi bi-info-circle ms-1"></i>
-                    با تأیید، پرداخت یا دریافت جدیدی ثبت نمی‌شود. باقی‌مانده طلبکار و بدهکار به دوره بعد انتقال می‌یابد و نمبر و رفرنس حواله‌ها در دوره جدید دوباره قابل استفاده می‌شوند.
+                    با تأیید، کمیشن‌های منتظر همین نمایندگی وارد مانده می‌شوند؛ هیچ سند کمیشن، پرداخت یا دریافت دوباره ثبت نمی‌شود. باقی‌مانده به دوره بعد انتقال می‌یابد و نمبر و رفرنس حواله‌ها دوباره قابل استفاده می‌شوند.
                 </div>
                 <div class="d-flex gap-2 justify-content-end">
                     <button class="btn btn-outline-secondary" disabled="@busy" @onclick="CancelClosePreview">انصراف</button>

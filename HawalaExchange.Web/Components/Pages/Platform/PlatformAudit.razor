@@ -23,8 +23,8 @@
             <select class="form-select compact-quick-filter" aria-label="عملیات" value="@filter.Action" @onchange="ActionChanged"><option value="">همه عملیات</option>@foreach(var action in actions){<option value="@action">@ActionLabel(action)</option>}</select>
         </QuickFilters>
         <AdvancedFilters>
-            <div class="compact-filter-field"><label class="form-label">از تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.FromDate" @bind-Value:after="FilterChangedAsync" /></div>
-            <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><InputDate class="form-control" TValue="DateTime?" @bind-Value="filter.ToDate" @bind-Value:after="FilterChangedAsync" /></div>
+            <div class="compact-filter-field"><label class="form-label">از تاریخ</label><DualDatePicker class="form-control" TValue="DateTime?" @bind-Value="filter.FromDate" @bind-Value:after="FilterChangedAsync" /></div>
+            <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><DualDatePicker class="form-control" TValue="DateTime?" @bind-Value="filter.ToDate" @bind-Value:after="FilterChangedAsync" /></div>
         </AdvancedFilters>
     </CompactFilterBar>
 

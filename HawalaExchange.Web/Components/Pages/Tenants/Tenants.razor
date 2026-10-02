@@ -184,8 +184,8 @@
                                     <option value="@BillingCycle.Annual">سالانه</option>
                                 </InputSelect>
                             </div>
-                            <div class="col-md-6"><label class="form-label">تاریخ شروع <span class="tenant-required">*</span></label><InputDate class="form-control" @bind-Value="createModel.SubscriptionStartAt" /></div>
-                            <div class="col-md-6"><label class="form-label">تاریخ پایان <span class="tenant-required">*</span></label><InputDate class="form-control" @bind-Value="createModel.SubscriptionEndAt" /></div>
+                            <div class="col-md-6"><label class="form-label">تاریخ شروع <span class="tenant-required">*</span></label><DualDatePicker class="form-control" @bind-Value="createModel.SubscriptionStartAt" /></div>
+                            <div class="col-md-6"><label class="form-label">تاریخ پایان <span class="tenant-required">*</span></label><DualDatePicker class="form-control" @bind-Value="createModel.SubscriptionEndAt" /></div>
                             <div class="col-md-6">
                                 <label class="form-label">مبلغ توافق‌شده و ارز <span class="tenant-required">*</span></label>
                                 <div class="tenant-money-field">
@@ -275,10 +275,10 @@
                         <div class="row g-3">
                             <div class="col-md-6"><label class="form-label">پلن</label><InputSelect class="form-select" @bind-Value="subscriptionModel.PlanId">@foreach (var plan in plans) { <option value="@plan.Id">@plan.Name</option> }</InputSelect></div>
                             <div class="col-md-6"><label class="form-label">وضعیت</label><InputSelect class="form-select" @bind-Value="subscriptionModel.Status"><option value="@SubscriptionStatus.Active">فعال</option><option value="@SubscriptionStatus.Trial">آزمایشی</option><option value="@SubscriptionStatus.Suspended">تعلیق‌شده</option><option value="@SubscriptionStatus.Cancelled">لغوشده</option><option value="@SubscriptionStatus.Expired">منقضی</option></InputSelect></div>
-                            <div class="col-md-6"><label class="form-label">شروع</label><InputDate class="form-control" @bind-Value="subscriptionModel.StartAt" /></div>
-                            <div class="col-md-6"><label class="form-label">پایان/تمدید تا</label><InputDate class="form-control" @bind-Value="subscriptionModel.EndAt" /></div>
-                            <div class="col-md-6"><label class="form-label">پایان دوره آزمایشی</label><InputDate class="form-control" @bind-Value="subscriptionModel.TrialEndAt" /></div>
-                            <div class="col-md-6"><label class="form-label">پایان دوره مهلت</label><InputDate class="form-control" @bind-Value="subscriptionModel.GracePeriodEndAt" /></div>
+                            <div class="col-md-6"><label class="form-label">شروع</label><DualDatePicker class="form-control" @bind-Value="subscriptionModel.StartAt" /></div>
+                            <div class="col-md-6"><label class="form-label">پایان/تمدید تا</label><DualDatePicker class="form-control" @bind-Value="subscriptionModel.EndAt" /></div>
+                            <div class="col-md-6"><label class="form-label">پایان دوره آزمایشی</label><DualDatePicker class="form-control" @bind-Value="subscriptionModel.TrialEndAt" /></div>
+                            <div class="col-md-6"><label class="form-label">پایان دوره مهلت</label><DualDatePicker class="form-control" @bind-Value="subscriptionModel.GracePeriodEndAt" /></div>
                             <div class="col-md-6"><label class="form-label">دوره پرداخت</label><InputSelect class="form-select" @bind-Value="subscriptionModel.BillingCycle"><option value="@BillingCycle.Monthly">ماهانه</option><option value="@BillingCycle.Quarterly">سه‌ماهه</option><option value="@BillingCycle.SemiAnnual">شش‌ماهه</option><option value="@BillingCycle.Annual">سالانه</option></InputSelect></div>
                             <div class="col-md-4"><label class="form-label">مبلغ</label><InputNumber class="form-control financial-value-input" @bind-Value="subscriptionModel.AgreedPrice" /></div>
                             <div class="col-md-4">

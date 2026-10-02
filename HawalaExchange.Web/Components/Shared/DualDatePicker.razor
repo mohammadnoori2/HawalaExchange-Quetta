@@ -1,0 +1,44 @@
+@using Microsoft.AspNetCore.Components.Forms
+@typeparam TValue
+@inherits InputBase<TValue>
+
+<PersianDatePicker Value="PickerValue" ValueChanged="UpdateValue" CssClass="@CssClass"
+                   IncludeTime="IncludeTime" AllowEmpty="@(Nullable.GetUnderlyingType(typeof(TValue)) != null)"
+                   Id="@Id" Disabled="Disabled" MinDate="MinDate" MaxDate="MaxDate" Placeholder="@Placeholder" />
+
+@code {
+    [Parameter] public bool IncludeTime { get; set; }
+    [Parameter] public string? Id { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public DateTime? MinDate { get; set; }
+    [Parameter] public DateTime? MaxDate { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "انتخاب تاریخ شمسی یا میلادی";
+
+    private DateTime PickerValue => CurrentValue switch
+    {
+        DateTime date => date,
+        DateOnly date => date.ToDateTime(TimeOnly.MinValue),
+        _ => DateTime.MinValue
+    };
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        var type = Nullable.GetUnderlyingType(typeof(TValue)) ?? typeof(TValue);
+        if (type != typeof(DateTime) && type != typeof(DateOnly))
+            throw new InvalidOperationException("DualDatePicker supports DateTime and DateOnly values.");
+    }
+
+    private void UpdateValue(DateTime date)
+    {
+        if (date == DateTime.MinValue && Nullable.GetUnderlyingType(typeof(TValue)) != null)
+            CurrentValue = default;
+        else if ((Nullable.GetUnderlyingType(typeof(TValue)) ?? typeof(TValue)) == typeof(DateOnly))
+            CurrentValue = (TValue)(object)DateOnly.FromDateTime(date);
+        else
+            CurrentValue = (TValue)(object)date;
+    }
+
+    protected override bool TryParseValueFromString(string? value, out TValue result, out string? validationErrorMessage)
+        => throw new NotSupportedException("Dates are selected through the calendar, not parsed from text.");
+}

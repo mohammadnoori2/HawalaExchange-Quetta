@@ -3,6 +3,48 @@
         width: 100%;
     }
 
+    .calendar-date-equivalents {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .25rem .75rem;
+        margin-top: .3rem;
+        font-size: .72rem;
+        color: #64748b;
+    }
+
+    .calendar-date-equivalents b {
+        display: inline-block;
+        font-weight: 600;
+    }
+
+    .calendar-modes {
+        display: flex;
+        justify-content: center;
+        gap: .5rem;
+        margin-bottom: .75rem;
+    }
+
+    .calendar-month-equivalent, .calendar-day-legend {
+        text-align: center;
+        color: #64748b;
+        font-size: .72rem;
+        margin-bottom: .5rem;
+    }
+
+    .calendar-day > span, .calendar-day > small {
+        display: block;
+    }
+
+    .calendar-day > small {
+        opacity: .7;
+        font-size: .65rem;
+    }
+
+    .calendar-day:disabled {
+        opacity: .35;
+        cursor: not-allowed;
+    }
+
     .persian-calendar-backdrop {
         position: fixed;
         inset: 0;

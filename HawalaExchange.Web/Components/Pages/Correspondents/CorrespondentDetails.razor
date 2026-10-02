@@ -97,9 +97,8 @@
             <div class="card mb-3"><div class="card-body row g-2 align-items-end">
                 <div class="col-md-4">
                     <label class="form-label fw-bold" for="sourceRateDate">تاریخ نرخ کمیشن حواله‌های ارسالی</label>
-                    <input id="sourceRateDate" type="date" class="form-control"
-                           max="@DateTime.Today.ToString("yyyy-MM-dd")"
-                           @bind="sourceRateDate" @bind:format="yyyy-MM-dd" @bind:after="LoadSourceRateAsync" />
+                    <PersianDatePicker Id="sourceRateDate" MaxDate="DateTime.Today"
+                                       @bind-Value="sourceRateDate" @bind-Value:after="LoadSourceRateAsync" />
                 </div>
                 <div class="col-md-4">
                     <label class="form-label fw-bold" for="sourceUsdRate">نرخ USD به AFN نمایندگی مبدأ</label>

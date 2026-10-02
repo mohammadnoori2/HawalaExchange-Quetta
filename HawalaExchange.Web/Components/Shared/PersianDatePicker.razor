@@ -4,14 +4,19 @@
 <div class="persian-date-picker-wrapper" dir="rtl">
     <div class="input-group">
         <input type="text"
+               id="@Id"
                class="@CssClass"
                value="@displayText"
                placeholder="@Placeholder"
                readonly
+               disabled="@Disabled"
+               aria-label="@Placeholder"
                @onclick="OpenCalendar" />
 
         <button type="button"
                 class="btn btn-outline-secondary"
+                disabled="@Disabled"
+                aria-label="باز کردن تقویم شمسی و میلادی"
                 @onclick="OpenCalendar">
             <i class="bi bi-calendar3"></i>
         </button>
@@ -21,17 +26,30 @@
             <button type="button"
                     class="btn btn-outline-secondary"
                     title="پاک کردن تاریخ"
+                    disabled="@Disabled"
                     @onclick="ClearDate">
                 <i class="bi bi-x-lg"></i>
             </button>
         }
     </div>
 
+    @if (Value != DateTime.MinValue)
+    {
+        <div class="calendar-date-equivalents" aria-live="polite">
+            <span>شمسی: <b dir="ltr">@DualCalendarDateHelper.PersianText(Value, IncludeTime)</b></span>
+            <span>میلادی: <b dir="ltr">@DualCalendarDateHelper.GregorianText(Value, IncludeTime)</b></span>
+        </div>
+    }
+
     @if (showCalendar)
     {
         <div class="persian-calendar-backdrop" @onclick="CloseCalendar"></div>
 
-        <div class="persian-calendar-modal shadow-lg" dir="rtl">
+        <div class="persian-calendar-modal shadow-lg" dir="rtl" role="dialog" aria-label="انتخاب تاریخ شمسی یا میلادی">
+            <div class="calendar-modes" role="group" aria-label="نوع تقویم">
+                <button type="button" class="btn btn-sm @(!gregorianMode ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(!gregorianMode)" @onclick="() => ChangeCalendar(false)">شمسی</button>
+                <button type="button" class="btn btn-sm @(gregorianMode ? "btn-primary" : "btn-outline-primary")" aria-pressed="@gregorianMode" @onclick="() => ChangeCalendar(true)">میلادی</button>
+            </div>
             <div class="calendar-header">
                 <button type="button"
                         class="btn btn-sm btn-light"
@@ -40,7 +58,7 @@
                 </button>
 
                 <strong>
-                    @MonthNames[viewMonth - 1] @viewYear
+                    @(gregorianMode ? ViewFirstDay.ToString("MMMM yyyy", CultureInfo.InvariantCulture) : $"{MonthNames[viewMonth - 1]} {viewYear.ToString(CultureInfo.InvariantCulture)}")
                 </strong>
 
                 <button type="button"
@@ -49,6 +67,9 @@
                     <i class="bi bi-chevron-left"></i>
                 </button>
             </div>
+
+            <div class="calendar-month-equivalent" dir="ltr">@MonthEquivalent</div>
+            <div class="calendar-day-legend">عدد بزرگ: @(gregorianMode ? "میلادی" : "شمسی") · عدد کوچک: @(gregorianMode ? "شمسی" : "میلادی")</div>
 
             <div class="calendar-weekdays">
                 <span>ش</span>
@@ -70,9 +91,12 @@
                     else
                     {
                         <button type="button"
-                                class="calendar-day @GetDayCss(dayInfo.Day)"
-                                @onclick="() => SelectDay(dayInfo.Day)">
-                            @dayInfo.Day
+                                class="calendar-day @GetDayCss(dayInfo.Date!.Value)"
+                                disabled="@(!IsSelectable(dayInfo.Date!.Value))"
+                                title="@($"شمسی {DualCalendarDateHelper.PersianText(dayInfo.Date!.Value)} | میلادی {DualCalendarDateHelper.GregorianText(dayInfo.Date!.Value)}")"
+                                @onclick="() => SelectDay(dayInfo.Date!.Value)">
+                            <span>@dayInfo.Day.ToString(CultureInfo.InvariantCulture)</span>
+                            <small>@dayInfo.AlternateDay.ToString(CultureInfo.InvariantCulture)</small>
                         </button>
                     }
                 }
@@ -92,7 +116,7 @@
                                 @onchange="OnHourChanged">
                             @for (var h = 1; h <= 12; h++)
                             {
-                                <option value="@h">@h.ToString("00")</option>
+                                <option value="@h">@h.ToString("00", CultureInfo.InvariantCulture)</option>
                             }
                         </select>
 
@@ -104,7 +128,7 @@
                                 @onchange="OnMinuteChanged">
                             @for (var m = 0; m <= 59; m++)
                             {
-                                <option value="@m">@m.ToString("00")</option>
+                                <option value="@m">@m.ToString("00", CultureInfo.InvariantCulture)</option>
                             }
                         </select>
 
@@ -122,6 +146,7 @@
             <div class="calendar-footer">
                 <button type="button"
                         class="btn btn-sm btn-outline-primary"
+                        disabled="@(!IsSelectable(DateTime.Today))"
                         @onclick="SelectToday">
                     امروز
                 </button>
@@ -145,13 +170,18 @@
 
     [Parameter] public string CssClass { get; set; } = "form-control";
 
-    [Parameter] public string Placeholder { get; set; } = "انتخاب تاریخ";
+    [Parameter] public string Placeholder { get; set; } = "انتخاب تاریخ شمسی یا میلادی";
 
     [Parameter] public bool AllowEmpty { get; set; } = false;
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Id { get; set; }
+    [Parameter] public DateTime? MinDate { get; set; }
+    [Parameter] public DateTime? MaxDate { get; set; }
 
     private readonly PersianCalendar persianCalendar = new();
 
     private bool showCalendar = false;
+    private bool gregorianMode;
 
     private int viewYear;
     private int viewMonth;
@@ -182,11 +212,24 @@
         "حوت"
     };
 
-    private List<PickerDay> CalendarDays => BuildCalendarDays();
+    private IReadOnlyList<DualCalendarDay> CalendarDays => DualCalendarDateHelper.MonthDays(viewYear, viewMonth, gregorianMode);
+    private DateTime ViewFirstDay => DualCalendarDateHelper.FirstDay(viewYear, viewMonth, gregorianMode);
+    private string MonthEquivalent
+    {
+        get
+        {
+            var days = CalendarDays.Where(x => x.Date.HasValue).ToArray();
+            var first = days[0].Date!.Value;
+            var last = days[^1].Date!.Value;
+            return gregorianMode
+                ? $"{DualCalendarDateHelper.PersianText(first)} — {DualCalendarDateHelper.PersianText(last)}"
+                : $"{DualCalendarDateHelper.GregorianText(first)} — {DualCalendarDateHelper.GregorianText(last)}";
+        }
+    }
 
     protected override void OnParametersSet()
     {
-        var date = Value == DateTime.MinValue ? DateTime.Now : Value;
+        var date = Value == DateTime.MinValue ? DateTime.Now : DualCalendarDateHelper.LocalDate(Value);
 
         selectedPersianYear = persianCalendar.GetYear(date);
         selectedPersianMonth = persianCalendar.GetMonth(date);
@@ -199,13 +242,15 @@
         }
 
         SetTimeFromValue(date);
-        displayText = AllowEmpty && Value == DateTime.MinValue
+        displayText = Value == DateTime.MinValue
             ? string.Empty
             : FormatDisplayText(date);
     }
 
     private void OpenCalendar()
     {
+        if (Disabled) return;
+        SetView(Value == DateTime.MinValue ? DateTime.Now : DualCalendarDateHelper.LocalDate(Value));
         showCalendar = true;
     }
 
@@ -216,6 +261,7 @@
 
     private async Task ClearDate()
     {
+        if (Disabled) return;
         showCalendar = false;
         displayText = string.Empty;
         await ValueChanged.InvokeAsync(DateTime.MinValue);
@@ -225,8 +271,7 @@
     {
         var today = DateTime.Now;
 
-        viewYear = persianCalendar.GetYear(today);
-        viewMonth = persianCalendar.GetMonth(today);
+        SetView(today);
 
         SetTimeFromValue(today);
 
@@ -236,9 +281,10 @@
             persianCalendar.GetDayOfMonth(today));
     }
 
-    private async Task SelectDay(int day)
+    private async Task SelectDay(DateTime date)
     {
-        await SelectPersianDate(viewYear, viewMonth, day);
+        if (!IsSelectable(date)) return;
+        await SelectPersianDate(persianCalendar.GetYear(date), persianCalendar.GetMonth(date), persianCalendar.GetDayOfMonth(date));
 
         if (!IncludeTime)
         {
@@ -249,6 +295,7 @@
     private async Task SelectPersianDate(int year, int month, int day)
     {
         var selectedDate = BuildSelectedDate(year, month, day);
+        if (!IsSelectable(selectedDate)) return;
 
         selectedPersianYear = year;
         selectedPersianMonth = month;
@@ -261,81 +308,48 @@
 
     private void PreviousMonth()
     {
-        viewMonth--;
-
-        if (viewMonth < 1)
-        {
-            viewMonth = 12;
-            viewYear--;
-        }
+        ShiftMonth(-1);
     }
 
     private void NextMonth()
     {
-        viewMonth++;
-
-        if (viewMonth > 12)
-        {
-            viewMonth = 1;
-            viewYear++;
-        }
+        ShiftMonth(1);
     }
 
-    private List<PickerDay> BuildCalendarDays()
+    private void ChangeCalendar(bool gregorian)
     {
-        var days = new List<PickerDay>();
-
-        var firstDayOfMonth = persianCalendar.ToDateTime(
-            viewYear,
-            viewMonth,
-            1,
-            0,
-            0,
-            0,
-            0);
-
-        var emptyDays = ((int)firstDayOfMonth.DayOfWeek + 1) % 7;
-
-        for (var i = 0; i < emptyDays; i++)
+        if (gregorian == gregorianMode) return;
+        var anchor = ViewFirstDay;
+        if (Value != DateTime.MinValue)
         {
-            days.Add(new PickerDay(0));
+            var selected = DualCalendarDateHelper.LocalDate(Value);
+            if (gregorianMode ? selected.Year == viewYear && selected.Month == viewMonth
+                : persianCalendar.GetYear(selected) == viewYear && persianCalendar.GetMonth(selected) == viewMonth)
+                anchor = selected;
         }
-
-        var daysInMonth = persianCalendar.GetDaysInMonth(viewYear, viewMonth);
-
-        for (var day = 1; day <= daysInMonth; day++)
-        {
-            days.Add(new PickerDay(day));
-        }
-
-        return days;
+        gregorianMode = gregorian;
+        SetView(anchor);
+        displayText = Value == DateTime.MinValue ? string.Empty : FormatDisplayText(Value);
     }
 
-    private string GetDayCss(int day)
+    private void SetView(DateTime date)
     {
-        var css = string.Empty;
-
-        if (day == selectedPersianDay &&
-            viewMonth == selectedPersianMonth &&
-            viewYear == selectedPersianYear)
-        {
-            css += " selected";
-        }
-
-        var today = DateTime.Now;
-        var todayYear = persianCalendar.GetYear(today);
-        var todayMonth = persianCalendar.GetMonth(today);
-        var todayDay = persianCalendar.GetDayOfMonth(today);
-
-        if (day == todayDay &&
-            viewMonth == todayMonth &&
-            viewYear == todayYear)
-        {
-            css += " today";
-        }
-
-        return css;
+        viewYear = gregorianMode ? date.Year : persianCalendar.GetYear(date);
+        viewMonth = gregorianMode ? date.Month : persianCalendar.GetMonth(date);
     }
+
+    private void ShiftMonth(int direction)
+    {
+        try { SetView(gregorianMode ? ViewFirstDay.AddMonths(direction) : persianCalendar.AddMonths(ViewFirstDay, direction)); }
+        catch (ArgumentOutOfRangeException) { }
+    }
+
+    private bool IsSelectable(DateTime date) => !Disabled &&
+        (!MinDate.HasValue || date.Date >= MinDate.Value.Date) && (!MaxDate.HasValue || date.Date <= MaxDate.Value.Date);
+
+    private string GetDayCss(DateTime date) =>
+        (Value != DateTime.MinValue && date.Date == DualCalendarDateHelper.LocalDate(Value).Date ? " selected" : "") +
+        (date.Date == DateTime.Today ? " today" : "");
 
     private void SetTimeFromValue(DateTime date)
     {
@@ -378,6 +392,7 @@
             selectedPersianYear,
             selectedPersianMonth,
             selectedPersianDay);
+        if (!IsSelectable(selectedDate)) return;
 
         UpdateDisplayText(selectedDate);
 
@@ -420,9 +435,8 @@
 
     private string FormatDisplayText(DateTime date)
     {
-        return IncludeTime
-            ? PersianDateHelper.ToPersianDateTime12(date)
-            : PersianDateHelper.ToPersianDate(date);
+        return gregorianMode ? DualCalendarDateHelper.GregorianText(date, IncludeTime)
+            : DualCalendarDateHelper.PersianText(date, IncludeTime);
     }
 
     private static int ConvertTo24Hour(int hour, string period)
@@ -435,5 +449,4 @@
         return hour == 12 ? 12 : hour + 12;
     }
 
-    private record PickerDay(int Day);
 }

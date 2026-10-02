@@ -196,7 +196,7 @@ public sealed class CorrespondentSettlementService(
         if (correspondentId <= 0)
             throw new InvalidOperationException("نمایندگی معتبر انتخاب نشده است.");
         if (note?.Trim().Length > 500)
-            throw new InvalidOperationException("یادداشت نمی‌تواند بیشتر از ۵۰۰ حرف باشد.");
+            throw new InvalidOperationException("یادداشت نمی‌تواند بیشتر از 500 حرف باشد.");
     }
 
     public async Task<HawalaSettlementRateResultDto> UpdateHawalaRateAsync(

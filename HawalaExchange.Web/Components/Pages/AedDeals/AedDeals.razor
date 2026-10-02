@@ -34,7 +34,7 @@
     </div>
 
     <div class="alert alert-info py-2">
-        نرخ هر دالر <strong>۳٫۶۷ درهم</strong> ثابت است. مشخصه‌ها در همان ارز اصل معامله وارد می‌شوند و نتیجه با روش گردکردن معمولی ثبت می‌شود.
+        نرخ هر دالر <strong>3.67 درهم</strong> ثابت است. مشخصه‌ها در همان ارز اصل معامله وارد می‌شوند و نتیجه با روش گردکردن معمولی ثبت می‌شود.
     </div>
 
     @if (!string.IsNullOrWhiteSpace(successMessage))
@@ -239,7 +239,7 @@
                     <div class="aed-form-section-title"><i class="bi bi-cash-stack ms-1"></i>مبلغ و تنظیمات</div>
                     <div class="row g-3">
                         <div class="col-md-6"><label class="form-label fw-semibold">مبلغ <span class="text-danger">*</span></label><MoneyInput class="form-control text-start" DecimalPlaces="4" @bind-Value="createModel.Amount" /></div>
-                        <div class="col-md-6"><label class="form-label fw-semibold">تعداد خانه اعشار نتیجه</label><select class="form-select" @bind="createModel.RoundingDecimalPlaces"><option value="0">بدون اعشار (پیش‌فرض)</option><option value="1">۱ خانه</option><option value="2">۲ خانه</option><option value="3">۳ خانه</option><option value="4">۴ خانه</option></select></div>
+                        <div class="col-md-6"><label class="form-label fw-semibold">تعداد خانه اعشار نتیجه</label><select class="form-select" @bind="createModel.RoundingDecimalPlaces"><option value="0">بدون اعشار (پیش‌فرض)</option><option value="1">1 خانه</option><option value="2">2 خانه</option><option value="3">3 خانه</option><option value="4">4 خانه</option></select></div>
                         <div class="col-12"><label class="form-label fw-semibold">یادداشت</label><textarea class="form-control" rows="2" maxlength="500" @bind="createModel.Note" placeholder="اختیاری"></textarea></div>
                     </div>
                 </div>
@@ -280,7 +280,7 @@
                     <div class="col-md-4"><label class="form-label fw-semibold">مشخصه اعلامی به کویته</label><div class="input-group" dir="ltr"><MoneyInput class="form-control" DecimalPlaces="4" Value="@conversionModel.DeclaredMarker" ValueChanged="OnDeclaredMarkerChanged" /><span class="input-group-text">@selectedDeal.SourceCurrencyCode</span></div></div>
                     <div class="col-12"><label class="form-label">یادداشت</label><textarea class="form-control" rows="2" maxlength="500" @bind="conversionModel.Note"></textarea></div>
                 </div>
-                <div class="form-text mt-2">مشخصه مثبت: <span dir="ltr" class="fw-semibold">200</span> · مشخصه منفی: <span dir="ltr" class="fw-semibold">-150</span>. مشخصه بر اساس هر ۱۰۰٬۰۰۰ واحد ارز معامله محاسبه می‌شود.</div>
+                <div class="form-text mt-2">مشخصه مثبت: <span dir="ltr" class="fw-semibold">200</span> · مشخصه منفی: <span dir="ltr" class="fw-semibold">-150</span>. مشخصه بر اساس هر 100,000 واحد ارز معامله محاسبه می‌شود.</div>
                 @if (previewWasInvalidated)
                 {
                     <div class="alert alert-warning py-2 mt-3 mb-0"><i class="bi bi-exclamation-triangle ms-1"></i>مقادیر تغییر کرده است؛ برای مشاهده نتیجه جدید دوباره «محاسبه» را بزنید.</div>

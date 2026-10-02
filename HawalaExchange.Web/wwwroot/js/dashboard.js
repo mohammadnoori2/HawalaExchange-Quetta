@@ -1,6 +1,10 @@
 ﻿// ==========================================
 // متغیرهای سراسری برای نگهداری نمونه‌های نمودار
 // ==========================================
+if (window.Chart) {
+    window.Chart.defaults.locale = "en-US";
+}
+
 let dailyChartInstance = null;
 let periodicChartInstance = null;
 let liquidityChartInstance = null;

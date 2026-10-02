@@ -13,13 +13,28 @@ using HawalaSystem.Mappings;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 public partial class Program
 {
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+
+        var numericCulture = CultureInfo.GetCultureInfo("en-US");
+        var uiCulture = CultureInfo.CurrentUICulture;
+        CultureInfo.DefaultThreadCurrentCulture = numericCulture;
+        builder.Services.Configure<RequestLocalizationOptions>(options =>
+        {
+            options.DefaultRequestCulture = new RequestCulture(numericCulture, uiCulture);
+            options.SupportedCultures = [numericCulture];
+            options.SupportedUICultures = [uiCulture];
+            // Amounts and counts use English digits and separators for every request
+            // and Blazor circuit, independently of the browser's preferred language.
+            options.RequestCultureProviders.Clear();
+        });
 
         // ============================================================
         // 1. Add services to the container
@@ -178,6 +193,7 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
         }
 
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+        app.UseRequestLocalization();
         app.UseHttpsRedirection();
         app.UseStaticFiles();
 

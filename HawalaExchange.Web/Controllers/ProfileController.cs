@@ -38,7 +38,7 @@ public sealed class ProfileController(
             return RedirectWithStatus("خطا: لطفاً یک تصویر انتخاب کنید.");
 
         if (image.Length > MaximumImageSize)
-            return RedirectWithStatus("خطا: اندازه تصویر نباید بیشتر از ۳ مگابایت باشد.");
+            return RedirectWithStatus("خطا: اندازه تصویر نباید بیشتر از 3 مگابایت باشد.");
 
         var extension = Path.GetExtension(image.FileName).ToLowerInvariant();
         if (!AllowedExtensions.Contains(extension) ||

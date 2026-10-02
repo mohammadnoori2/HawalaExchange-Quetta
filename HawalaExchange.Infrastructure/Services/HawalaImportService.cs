@@ -65,7 +65,7 @@ public sealed class HawalaImportService : IHawalaImportService
         if (memory.Length == 0)
             throw new InvalidOperationException("فایل انتخاب‌شده خالی است.");
         if (memory.Length > MaximumFileSize)
-            throw new InvalidOperationException("حجم فایل نباید بیشتر از ۱۰ مگابایت باشد.");
+            throw new InvalidOperationException("حجم فایل نباید بیشتر از 10 مگابایت باشد.");
 
         await CleanupExpiredStagingAsync(cancellationToken);
         var fileHash = Convert.ToHexString(SHA256.HashData(memory.ToArray()));

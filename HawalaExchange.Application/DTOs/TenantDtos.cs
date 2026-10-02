@@ -42,7 +42,7 @@ public sealed class CreateTenantDto
     public string AdminFullName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "رمز عبور مدیر الزامی است.")]
-    [StringLength(100, MinimumLength = 6, ErrorMessage = "رمز عبور باید حداقل ۶ نویسه باشد.")]
+    [StringLength(100, MinimumLength = 6, ErrorMessage = "رمز عبور باید حداقل 6 نویسه باشد.")]
     [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$",
         ErrorMessage = "رمز عبور باید شامل حرف بزرگ، حرف کوچک و عدد باشد.")]
     public string AdminPassword { get; set; } = string.Empty;
@@ -80,7 +80,7 @@ public sealed class UpdateTenantDto
 
     [StringLength(100)]
     [RegularExpression(@"^$|^(?=.{6,})(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$",
-        ErrorMessage = "رمز عبور باید حداقل ۶ نویسه و شامل حرف بزرگ، حرف کوچک و عدد باشد.")]
+        ErrorMessage = "رمز عبور باید حداقل 6 نویسه و شامل حرف بزرگ، حرف کوچک و عدد باشد.")]
     public string? NewAdminPassword { get; set; }
 
     public bool IsActive { get; set; }

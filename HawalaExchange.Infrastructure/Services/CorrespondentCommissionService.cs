@@ -512,7 +512,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         if (string.IsNullOrWhiteSpace(reason))
             throw new InvalidOperationException("دلیل برگشت الزامی است.");
         if (reason.Trim().Length > 500)
-            throw new InvalidOperationException("دلیل برگشت نمی‌تواند بیشتر از ۵۰۰ حرف باشد.");
+            throw new InvalidOperationException("دلیل برگشت نمی‌تواند بیشتر از 500 حرف باشد.");
         await using var dbTransaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
         var batch = await context.CorrespondentCommissionBatches

@@ -225,6 +225,6 @@ public sealed class AedDealService(ApplicationDbContext context) : IAedDealServi
     private static void ValidateReason(string reason)
     {
         if (string.IsNullOrWhiteSpace(reason)) throw new InvalidOperationException("دلیل برگشت الزامی است.");
-        if (reason.Trim().Length > 500) throw new InvalidOperationException("دلیل برگشت نمی‌تواند بیشتر از ۵۰۰ حرف باشد.");
+        if (reason.Trim().Length > 500) throw new InvalidOperationException("دلیل برگشت نمی‌تواند بیشتر از 500 حرف باشد.");
     }
 }

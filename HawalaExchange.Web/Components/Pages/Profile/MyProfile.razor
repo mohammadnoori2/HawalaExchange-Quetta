@@ -64,7 +64,7 @@
                        onchange="this.form.requestSubmit()" />
             </form>
 
-            <small class="profile-help">تصویر JPG، JFIF، PNG، WebP، GIF، BMP، AVIF، HEIC یا HEIF تا حداکثر ۳ مگابایت</small>
+            <small class="profile-help">تصویر JPG، JFIF، PNG، WebP، GIF، BMP، AVIF، HEIC یا HEIF تا حداکثر 3 مگابایت</small>
 
             @if (!string.IsNullOrWhiteSpace(profileImageUrl))
             {
@@ -192,7 +192,7 @@
                     </div>
 
                     <small class="profile-help profile-password-help">
-                        رمز باید حداقل ۶ نویسه و شامل حرف بزرگ انگلیسی، حرف کوچک انگلیسی و عدد باشد.
+                        رمز باید حداقل 6 نویسه و شامل حرف بزرگ انگلیسی، حرف کوچک انگلیسی و عدد باشد.
                     </small>
 
                     <div class="profile-form-actions">
@@ -350,15 +350,15 @@
     private sealed class ProfileInputModel
     {
         [Required(ErrorMessage = "نام کامل الزامی است.")]
-        [StringLength(200, ErrorMessage = "نام کامل نمی‌تواند بیشتر از ۲۰۰ نویسه باشد.")]
+        [StringLength(200, ErrorMessage = "نام کامل نمی‌تواند بیشتر از 200 نویسه باشد.")]
         public string FullName { get; set; } = string.Empty;
 
-        [StringLength(50, ErrorMessage = "شماره تلفن نمی‌تواند بیشتر از ۵۰ نویسه باشد.")]
+        [StringLength(50, ErrorMessage = "شماره تلفن نمی‌تواند بیشتر از 50 نویسه باشد.")]
         public string? PhoneNumber { get; set; }
 
         [Required(ErrorMessage = "ایمیل الزامی است.")]
         [EmailAddress(ErrorMessage = "ایمیل واردشده معتبر نیست.")]
-        [StringLength(256, ErrorMessage = "ایمیل نمی‌تواند بیشتر از ۲۵۶ نویسه باشد.")]
+        [StringLength(256, ErrorMessage = "ایمیل نمی‌تواند بیشتر از 256 نویسه باشد.")]
         public string Email { get; set; } = string.Empty;
     }
 
@@ -368,7 +368,7 @@
         public string CurrentPassword { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "رمز عبور جدید الزامی است.")]
-        [StringLength(100, MinimumLength = 6, ErrorMessage = "رمز عبور جدید باید حداقل ۶ نویسه باشد.")]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "رمز عبور جدید باید حداقل 6 نویسه باشد.")]
         public string NewPassword { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "تکرار رمز عبور جدید الزامی است.")]

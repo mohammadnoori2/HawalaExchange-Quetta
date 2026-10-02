@@ -154,12 +154,12 @@
                                     </label>
                                     @if (IsEditMode)
                                     {
-                                        <input type="number" class="form-control bg-light" value="@CurrentHawala.Number" disabled />
+                                        <input type="number" lang="en" class="form-control bg-light" value="@CurrentHawala.Number" disabled />
                                         <small class="text-muted">شماره قابل ویرایش نیست</small>
                                     }
                                     else
                                     {
-                                        <input type="number" class="form-control" @bind="CurrentHawala.Number" />
+                                        <input type="number" lang="en" class="form-control" @bind="CurrentHawala.Number" />
                                     }
                                 </div>
                             </div>
@@ -210,7 +210,7 @@
                                             </button>
                                         }
                                     </div>
-                                    <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر ۱۰ مگابایت)</small>
+                                    <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر 10 مگابایت)</small>
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">آدرس فرستنده</label>
@@ -264,7 +264,7 @@
                                             </button>
                                         }
                                     </div>
-                                    <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر ۱۰ مگابایت)</small>
+                                    <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر 10 مگابایت)</small>
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">آدرس گیرنده</label>
@@ -354,7 +354,7 @@
                                                         placeholder="نرخ تبدیل" />
                                     @if (AreCurrenciesSame())
                                     {
-                                        <small class="text-muted text-success">ارزها یکسان هستند، نرخ برابر ۱ است</small>
+                                        <small class="text-muted text-success">ارزها یکسان هستند، نرخ برابر 1 است</small>
                                     }
                                     else
                                     {
@@ -504,7 +504,7 @@
                                                 <i class="bi bi-hash text-muted me-1"></i>
                                                 نمبر حواله ارسالی نمایندگی <span class="text-danger">*</span>
                                             </label>
-                                            <input type="number"
+                                            <input type="number" lang="en"
                                                    min="1"
                                                    class="form-control"
                                                    @bind="CurrentHawala.GeneratedSendHawalaNumber"
@@ -1303,7 +1303,7 @@
                         <div class='receipt-company-info'>
                             <h4>{(withHeader ? "شرکت حواله" : "")}</h4>
                             {(withHeader ? "<div class='receipt-muted'>آدرس شرکت</div>" : "")}
-                            {(withHeader ? "<div class='receipt-muted'>تلفن: ۰۲۱-۱۲۳۴۵۶۷۸</div>" : "")}
+                            {(withHeader ? "<div class='receipt-muted'>تلفن: 021-12345678</div>" : "")}
                         </div>
                     </div>
                     <div class='receipt-title-box'>
@@ -1971,7 +1971,7 @@
         {
             CurrentHawala.ExchangeRate = 1;
             CurrentHawala.ToAmount = CurrentHawala.FromAmount;
-            ConversionRateMeaning = "ارزها یکسان هستند، نرخ برابر ۱ است.";
+            ConversionRateMeaning = "ارزها یکسان هستند، نرخ برابر 1 است.";
             return;
         }
 
@@ -2016,7 +2016,7 @@
         {
             CurrentHawala.ExchangeRate = 1;
             CurrentHawala.ToAmount = CurrentHawala.FromAmount;
-            ConversionRateMeaning = "ارزها یکسان هستند، نرخ برابر ۱ است.";
+            ConversionRateMeaning = "ارزها یکسان هستند، نرخ برابر 1 است.";
             return;
         }
 

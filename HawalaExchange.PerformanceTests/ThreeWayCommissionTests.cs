@@ -1,0 +1,425 @@
+using System.Diagnostics;
+using System.Text.Json;
+using HawalaExchange.Application.DTOs;
+using HawalaExchange.Domain.Entities;
+using HawalaExchange.Infrastructure.Services;
+using HawalaExchange.PerformanceTests.Infrastructure;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
+using Xunit.Abstractions;
+
+namespace HawalaExchange.PerformanceTests;
+
+[Collection(SqlServerPerformanceCollection.Name)]
+public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture, ITestOutputHelper output)
+{
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Three_commissions_are_independent_and_only_sent_amounts_debit_sender(bool forwardingFirst)
+    {
+        var day = new DateTime(2038, 1, forwardingFirst ? 12 : 10);
+        var offset = forwardingFirst ? 20 : 0;
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var afn = Receive(199_000_001 + offset, 1, 1_000_000m, day);
+        var usd = Receive(199_000_002 + offset, 2, 10_000m, day);
+        context.Hawalas.AddRange(afn, usd);
+        context.CorrespondentDailyCommissionRates.Add(Rate(day, 70m));
+        await context.SaveChangesAsync();
+        var afnSent = Send(199_000_003 + offset, afn, 500_000m, day);
+        var usdSent = Send(199_000_004 + offset, usd, 6_000m, day);
+        context.Hawalas.AddRange(afnSent, usdSent);
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var service = fixture.CreateCommissionService(context);
+        var incoming = Request("Incoming", day);
+        var forwarding = Request("Forwarding", day);
+        var destination = Request("Destination", day);
+        Assert.Equal(97.14m, (await service.PreviewAsync(incoming)).TotalCommissionUsd);
+        var forwarded = await service.PreviewAsync(forwarding);
+        Assert.Equal(52.57m, forwarded.TotalCommissionUsd);
+        Assert.Equal(500_000m, forwarded.TotalSourceAfn);
+        Assert.Equal(6_000m, forwarded.TotalSourceUsd);
+        Assert.All(forwarded.Items, item => Assert.Equal(day, item.ValuationDate));
+        Assert.Equal(1_000m, (await service.PreviewAsync(destination)).TotalCommissionAfn);
+
+        var first = await service.PostAsync(forwardingFirst ? forwarding : incoming);
+        var second = await service.PostAsync(forwardingFirst ? incoming : forwarding);
+        var payable = await service.PostAsync(destination);
+        var destinationEntries = (await service.GetDetailsAsync(payable.Id)).LedgerEntries;
+        Assert.DoesNotContain(destinationEntries, entry => entry.AccountId == fixture.SourceAccount.Id);
+        Assert.Contains(destinationEntries, entry => entry.AccountId == fixture.DestinationAccount.Id && entry.CurrencyCode == "AFN" && entry.TalabKar == 1_000m);
+        Assert.Contains(destinationEntries, entry => entry.AccountCode == "5002" && entry.CurrencyCode == "AFN" && entry.BadehKar == 1_000m);
+        Assert.Contains(destinationEntries, entry => entry.AccountCode == "5002" && entry.CurrencyCode == "USD" && entry.BadehKar == 6m);
+        Assert.DoesNotContain(destinationEntries, entry => entry.AccountCode == "SYS-SETTLEMENT-CLEARING");
+        AssertBalanced(destinationEntries);
+        foreach (var batch in new[] { first, second })
+        {
+            var details = await service.GetDetailsAsync(batch.Id);
+            AssertBalanced(details.LedgerEntries);
+            Assert.Contains(details.LedgerEntries, entry => entry.AccountId == fixture.SourceAccount.Id && entry.BadehKar == details.TotalCommissionUsd);
+            Assert.Contains(details.LedgerEntries, entry => entry.AccountCode == (details.CommissionScope == "Incoming" ? "SYS-COMMISSION-INCOMING" : "SYS-COMMISSION-FORWARDING"));
+        }
+        Assert.Equal(149.71m, first.TotalCommissionUsd + second.TotalCommissionUsd);
+        Assert.Equal(0, (await service.PreviewAsync(incoming)).HawalaCount);
+        Assert.Equal(0, (await service.PreviewAsync(forwarding)).HawalaCount);
+        Assert.Equal(0, (await service.PreviewAsync(destination)).HawalaCount);
+        await Assert.ThrowsAsync<SqlException>(() => service.PostAsync(forwarding));
+        await service.ReverseAsync(first.Id, "Verify independent reversal");
+        var restored = await service.PreviewAsync(forwardingFirst ? forwarding : incoming);
+        Assert.Equal(2, restored.HawalaCount);
+        Assert.Equal(0, (await service.PreviewAsync(forwardingFirst ? incoming : forwarding)).HawalaCount);
+        Assert.Equal(0, (await service.PreviewAsync(destination)).HawalaCount);
+        var reversalDetails = await service.GetDetailsAsync(first.Id);
+        Assert.Equal("Reversed", reversalDetails.Status);
+        AssertBalanced(reversalDetails.LedgerEntries);
+    }
+
+    [Fact]
+    public async Task Own_location_is_excluded_even_if_assigned_to_destination_and_incoming_still_includes_it()
+    {
+        var day = new DateTime(2038, 2, 10);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var own = Receive(199_001_001, 2, 100_000m, day);
+        var remote = Receive(199_001_002, 2, 100_000m, day);
+        context.Hawalas.AddRange(own, remote);
+        await context.SaveChangesAsync();
+        context.Hawalas.AddRange(Send(199_001_003, own, 100_000m, day, fixture.OwnLocation.Id), Send(199_001_004, remote, 50_000m, day));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var service = fixture.CreateCommissionService(context);
+        Assert.Equal(800m, (await service.PreviewAsync(Request("Incoming", day))).TotalCommissionUsd);
+        var request = Request("Forwarding", day);
+        var preview = await service.PreviewAsync(request);
+        Assert.Single(preview.Items);
+        Assert.Equal(200m, preview.TotalCommissionUsd);
+        Assert.Equal(50_000m, preview.TotalSourceUsd);
+        Assert.DoesNotContain(preview.PaymentLocationRates, x => x.PaymentLocationId == fixture.OwnLocation.Id);
+        var batch = await service.PostAsync(request);
+        var details = await service.GetDetailsAsync(batch.Id);
+        Assert.Single(details.Items);
+        Assert.All(details.Items, item => Assert.Equal(fixture.RemoteLocation.Id, item.PaymentLocationId));
+    }
+
+    [Fact]
+    public async Task Only_own_location_produces_no_forwarding_batch()
+    {
+        var day = new DateTime(2038, 2, 12);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var source = Receive(199_002_001, 2, 100_000m, day);
+        context.Hawalas.Add(source);
+        await context.SaveChangesAsync();
+        context.Hawalas.Add(Send(199_002_002, source, 100_000m, day, fixture.OwnLocation.Id));
+        await context.SaveChangesAsync();
+        var service = fixture.CreateCommissionService(context);
+        var request = Request("Forwarding", day);
+        Assert.Empty((await service.PreviewAsync(request)).Items);
+        var count = await context.CorrespondentCommissionBatches.CountAsync();
+        await Assert.ThrowsAsync<SqlException>(() => service.PostAsync(request));
+        Assert.Equal(count, await context.CorrespondentCommissionBatches.CountAsync());
+    }
+
+    [Fact]
+    public async Task Forwarding_uses_original_day_rates_and_location_rates_not_agent_commission()
+    {
+        var day = new DateTime(2038, 3, 10);
+        var sendDay = day.AddDays(5);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var otherLocation = new PaymentLocation { Name = "Other commission location", NormalizedName = "other-commission-location", Address = "Other", CreatedBy = fixture.UserId };
+        context.PaymentLocations.Add(otherLocation);
+        var first = Receive(199_003_001, 1, 700_000m, day);
+        var second = Receive(199_003_002, 1, 800_000m, day.AddDays(1));
+        first.CommissionAmount = 1m; // Another commission type must not exclude forwarding.
+        first.CommissionCurrencyId = 1;
+        context.Hawalas.AddRange(first, second);
+        context.CorrespondentDailyCommissionRates.AddRange(Rate(day, 70m), Rate(day.AddDays(1), 80m), Rate(sendDay, 100m));
+        await context.SaveChangesAsync();
+        var sent1 = Send(199_003_003, first, 350_000m, sendDay);
+        sent1.AgentCommissionAmount = 20m; // Destination commission already set, forwarding is still eligible.
+        sent1.AgentCommissionCurrencyId = 1;
+        context.Hawalas.AddRange(sent1, Send(199_003_004, second, 400_000m, sendDay, otherLocation.Id));
+        await context.SaveChangesAsync();
+        var request = Request("Forwarding", sendDay);
+        request.PaymentLocationRates.Add(new() { PaymentLocationId = otherLocation.Id, PerLakhRate = 600m });
+        var service = fixture.CreateCommissionService(context);
+        var preview = await service.PreviewAsync(request);
+        Assert.Equal(10_000m, preview.TotalBaseAfn);
+        Assert.Equal(50m, preview.TotalCommissionUsd);
+        Assert.Equal(20m, preview.PaymentLocationRates.Single(x => x.PaymentLocationId == fixture.RemoteLocation.Id).TotalCommissionUsd);
+        Assert.Equal(30m, preview.PaymentLocationRates.Single(x => x.PaymentLocationId == otherLocation.Id).TotalCommissionUsd);
+        var batch = await service.PostAsync(request);
+        var details = await service.GetDetailsAsync(batch.Id);
+        Assert.Contains(details.Items, item => item.SourceToAfnRate == 70m && item.ValuationDate == day);
+        Assert.Contains(details.Items, item => item.SourceToAfnRate == 80m && item.ValuationDate == day.AddDays(1));
+        Assert.Equal(50m, details.TotalCommissionUsd);
+        Assert.Equal(2, (await service.GetHistoryAsync(fixture.SourceCorrespondent.Id)).Single(x => x.Id == batch.Id).LocationSummaries.Count);
+    }
+
+    [Fact]
+    public async Task Missing_source_rate_blocks_income_but_not_destination_expense()
+    {
+        var day = new DateTime(2038, 4, 10);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var source = Receive(199_004_001, 1, 100_000m, day);
+        context.Hawalas.Add(source);
+        context.DailyCommissionRates.Add(new DailyCommissionRate { RateDate = day, UsdToAfnRate = 70m, CreatedBy = fixture.UserId });
+        await context.SaveChangesAsync();
+        context.Hawalas.Add(Send(199_004_002, source, 50_000m, day));
+        await context.SaveChangesAsync();
+        var service = fixture.CreateCommissionService(context);
+        await Assert.ThrowsAsync<SqlException>(() => service.PreviewAsync(Request("Incoming", day)));
+        await Assert.ThrowsAsync<SqlException>(() => service.PreviewAsync(Request("Forwarding", day)));
+        var destination = await service.PostAsync(Request("Destination", day));
+        Assert.Equal(100m, destination.TotalCommissionAfn);
+        Assert.DoesNotContain((await service.GetDetailsAsync(destination.Id)).LedgerEntries, x => x.AccountId == fixture.SourceAccount.Id);
+        context.CorrespondentDailyCommissionRates.Add(Rate(day, 70m));
+        await context.SaveChangesAsync();
+        Assert.Equal(2.86m, (await service.PostAsync(Request("Forwarding", day))).TotalCommissionUsd);
+    }
+
+    [Fact]
+    public async Task Cancelled_forwarding_deduction_retains_original_rate_and_destination_stays_balanced()
+    {
+        var day = new DateTime(2038, 5, 10);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var cancelled = Receive(199_005_001, 2, 100_000m, day);
+        context.Hawalas.Add(cancelled);
+        await context.SaveChangesAsync();
+        var cancelledSend = Send(199_005_002, cancelled, 100_000m, day);
+        context.Hawalas.Add(cancelledSend);
+        await context.SaveChangesAsync();
+        var service = fixture.CreateCommissionService(context);
+        await service.PostAsync(Request("Forwarding", day));
+        await service.PostAsync(Request("Destination", day));
+        var items = await context.CorrespondentCommissionBatchItems.Where(x => x.HawalaId == cancelledSend.Id).ToListAsync();
+        foreach (var item in items) item.IsActive = false;
+        cancelledSend.Status = "Cancel";
+        await context.SaveChangesAsync();
+        var next = Receive(199_005_003, 2, 200_000m, day.AddDays(1));
+        context.Hawalas.Add(next);
+        await context.SaveChangesAsync();
+        context.Hawalas.Add(Send(199_005_004, next, 200_000m, day.AddDays(1)));
+        await context.SaveChangesAsync();
+        var forwarding = Request("Forwarding", day.AddDays(1));
+        forwarding.PaymentLocationRates[0].PerLakhRate = 600m;
+        var preview = await service.PreviewAsync(forwarding);
+        Assert.Equal(800m, preview.TotalCommissionUsd); // 1,200 at new rate minus original 400.
+        Assert.Equal(800m, preview.PaymentLocationRates.Single().TotalCommissionUsd);
+        var batch = await service.PostAsync(forwarding);
+        Assert.Equal(preview.TotalCommissionUsd, batch.TotalCommissionUsd);
+        AssertBalanced((await service.GetDetailsAsync(batch.Id)).LedgerEntries);
+        var destination = await service.PostAsync(Request("Destination", day.AddDays(1)));
+        Assert.Equal(100m, destination.TotalCommissionUsd);
+        var details = await service.GetDetailsAsync(destination.Id);
+        AssertBalanced(details.LedgerEntries);
+        Assert.DoesNotContain(details.LedgerEntries, x => x.AccountId == fixture.SourceAccount.Id);
+    }
+
+    [Fact]
+    public async Task Posted_original_day_rate_is_frozen_until_forwarding_reversed_but_destination_does_not_freeze_it()
+    {
+        var day = new DateTime(2021, 10, 2);
+        var sendDay = day.AddDays(1);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var source = Receive(199_006_001, 1, 100_000m, day);
+        context.Hawalas.Add(source);
+        await context.SaveChangesAsync();
+        context.Hawalas.Add(Send(199_006_002, source, 50_000m, sendDay));
+        await context.SaveChangesAsync();
+        var rates = new CorrespondentDailyRateService(context);
+        await rates.SaveAsync(fixture.SourceCorrespondent.Id, day, 70m);
+        var service = fixture.CreateCommissionService(context);
+        await service.PostAsync(Request("Destination", sendDay));
+        await rates.SaveAsync(fixture.SourceCorrespondent.Id, day, 80m);
+        var forwarding = await service.PostAsync(Request("Forwarding", sendDay));
+        Assert.Equal(2.50m, forwarding.TotalCommissionUsd);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => rates.SaveAsync(fixture.SourceCorrespondent.Id, day, 90m));
+        var unchanged = await service.GetDetailsAsync(forwarding.Id);
+        Assert.Equal(80m, unchanged.Items.Single().SourceToAfnRate);
+        await service.ReverseAsync(forwarding.Id, "Rate correction");
+        await rates.SaveAsync(fixture.SourceCorrespondent.Id, day, 90m);
+        Assert.Equal(80m, (await service.GetDetailsAsync(forwarding.Id)).Items.Single().SourceToAfnRate);
+    }
+
+    [Fact]
+    public async Task Editing_after_reversal_preserves_generated_identity_and_historical_snapshots()
+    {
+        var day = new DateTime(2038, 6, 16);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var source = Receive(199_183_001, 2, 100_000m, day);
+        source.PaymentLocationId = fixture.RemoteLocation.Id;
+        source.PaidFromAccountId = fixture.DestinationAccount.Id;
+        context.Hawalas.Add(source);
+        await context.SaveChangesAsync();
+        var send = Send(199_183_002, source, 100_000m, day);
+        context.Hawalas.Add(send);
+        await context.SaveChangesAsync();
+        var service = fixture.CreateCommissionService(context);
+        var batch = await service.PostAsync(Request("Forwarding", day));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.CreateService(context).UpdateHawalaAsync(source.Id, new() { FromAmount = 200_000m, ToAmount = 200_000m }));
+        context.ChangeTracker.Clear();
+        await service.ReverseAsync(batch.Id, "Correct transfer amount");
+        await fixture.CreateService(context).UpdateHawalaAsync(source.Id, new() { FromAmount = 200_000m, ToAmount = 200_000m, PaymentLocationId = fixture.RemoteLocation.Id });
+        Assert.Equal(send.Id, await context.Hawalas.Where(x => x.SourceHawalaId == source.Id).Select(x => x.Id).SingleAsync());
+        Assert.Equal(100_000m, (await service.GetDetailsAsync(batch.Id)).Items.Single().SourceAmount);
+        Assert.Equal(800m, (await service.PreviewAsync(Request("Forwarding", day))).TotalCommissionUsd);
+    }
+
+    [Fact]
+    public async Task Concurrent_forwarding_posts_create_only_one_batch()
+    {
+        var day = new DateTime(2038, 6, 14);
+        await using (var seed = fixture.CreateContext())
+        {
+            using var bypass = seed.BypassSubscriptionEnforcement();
+            await ConfigureOwnLocationAsync(seed);
+            var source = Receive(199_182_001, 2, 100_000m, day);
+            seed.Hawalas.Add(source);
+            await seed.SaveChangesAsync();
+            seed.Hawalas.Add(Send(199_182_002, source, 50_000m, day));
+            await seed.SaveChangesAsync();
+        }
+        await using var first = fixture.CreateContext();
+        await using var second = fixture.CreateContext();
+        using var firstBypass = first.BypassSubscriptionEnforcement();
+        using var secondBypass = second.BypassSubscriptionEnforcement();
+        async Task<object> TryPost(HawalaExchange.Infrastructure.Data.ApplicationDbContext context)
+        {
+            try { return await fixture.CreateCommissionService(context).PostAsync(Request("Forwarding", day)); }
+            catch (SqlException error) { return error; }
+        }
+        var results = await Task.WhenAll(TryPost(first), TryPost(second));
+        Assert.Single(results.OfType<CorrespondentCommissionBatchDto>());
+        Assert.Single(results.OfType<SqlException>());
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(1, await verify.CorrespondentCommissionBatches.CountAsync(x => x.CommissionScope == "Forwarding" && x.PeriodFrom == day && x.Status == "Posted"));
+    }
+
+    [Fact]
+    public async Task Small_hawala_commissions_are_rounded_by_group_and_item_shares_sum_exactly()
+    {
+        var day = new DateTime(2038, 6, 12);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var sources = Enumerable.Range(0, 100).Select(i => Receive(199_180_000 + i, 2, 1m, day)).ToList();
+        context.Hawalas.AddRange(sources);
+        await context.SaveChangesAsync();
+        context.Hawalas.AddRange(sources.Select((source, i) => Send(199_181_000 + i, source, 1m, day)));
+        await context.SaveChangesAsync();
+        var service = fixture.CreateCommissionService(context);
+        foreach (var scope in new[] { "Incoming", "Forwarding", "Destination" })
+        {
+            var preview = await service.PreviewAsync(Request(scope, day));
+            Assert.Equal(scope == "Destination" ? 0.1m : 0.4m, preview.TotalCommissionUsd);
+            Assert.Equal(preview.TotalCommissionUsd, preview.Items.Sum(x => x.CommissionAfn));
+            Assert.All(preview.Items, item => Assert.Equal(decimal.Round(item.CommissionAfn, 2), item.CommissionAfn));
+            var batch = await service.PostAsync(Request(scope, day));
+            Assert.Equal(preview.TotalCommissionUsd, batch.TotalCommissionUsd);
+            AssertBalanced((await service.GetDetailsAsync(batch.Id)).LedgerEntries);
+        }
+    }
+
+    [Fact]
+    public async Task Forwarding_preview_and_post_for_10000_hawalas_finish_within_30_seconds_without_valuation_writes()
+    {
+        const int count = 10_000;
+        var day = new DateTime(2038, 6, 10);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        context.CorrespondentDailyCommissionRates.Add(Rate(day, 70m));
+        var sources = Enumerable.Range(0, count).Select(i => Receive(199_100_000 + i, i % 2 == 0 ? 1 : 2, i % 2 == 0 ? 70_000m : 1_000m, day)).ToList();
+        context.Hawalas.AddRange(sources);
+        await context.SaveChangesAsync();
+        context.Hawalas.AddRange(sources.Select((source, index) => Send(199_120_000 + index, source, source.FromAmount / 2, day)));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var service = fixture.CreateCommissionService(context);
+        var request = Request("Forwarding", day);
+        var previewWatch = Stopwatch.StartNew();
+        var preview = await service.PreviewAsync(request);
+        previewWatch.Stop();
+        var repeatWatch = Stopwatch.StartNew();
+        var repeated = await service.PreviewAsync(request);
+        repeatWatch.Stop();
+        var postWatch = Stopwatch.StartNew();
+        var posted = await service.PostAsync(request);
+        postWatch.Stop();
+        Assert.Equal(count, preview.HawalaCount);
+        Assert.Equal(20_000m, preview.TotalCommissionUsd);
+        Assert.Equal(preview.TotalCommissionUsd, repeated.TotalCommissionUsd);
+        Assert.Equal(preview.TotalCommissionUsd, posted.TotalCommissionUsd);
+        Assert.False(await context.Hawalas.AnyAsync(x => x.CreatedAt == day.AddHours(10).ToUniversalTime() && x.CommissionValuedAt != null));
+        Assert.True(previewWatch.Elapsed < TimeSpan.FromSeconds(30));
+        Assert.True(repeatWatch.Elapsed < TimeSpan.FromSeconds(30));
+        Assert.True(postWatch.Elapsed < TimeSpan.FromSeconds(30));
+        output.WriteLine(JsonSerializer.Serialize(new { count, previewMs = previewWatch.Elapsed.TotalMilliseconds, repeatMs = repeatWatch.Elapsed.TotalMilliseconds, postMs = postWatch.Elapsed.TotalMilliseconds }));
+    }
+
+    private static void AssertBalanced(IEnumerable<LedgerEntryDto> entries)
+    {
+        foreach (var currency in entries.GroupBy(x => x.CurrencyCode))
+            Assert.Equal(currency.Sum(x => x.BadehKar), currency.Sum(x => x.TalabKar));
+    }
+
+    private async Task ConfigureOwnLocationAsync(HawalaExchange.Infrastructure.Data.ApplicationDbContext context)
+    {
+        var setting = await context.CompanySettings.FirstOrDefaultAsync();
+        if (setting == null)
+        {
+            setting = new CompanySetting { CompanyName = "Commission test company" };
+            context.CompanySettings.Add(setting);
+        }
+        setting.OwnPaymentLocationId = fixture.OwnLocation.Id;
+        await context.SaveChangesAsync();
+    }
+
+    private CorrespondentCommissionPreviewRequestDto Request(string scope, DateTime day) => new()
+    {
+        CommissionScope = scope, HawalaType = scope == "Incoming" ? "HawalaReceive" : "HawalaSend",
+        CorrespondentId = scope == "Destination" ? fixture.DestinationCorrespondent.Id : fixture.SourceCorrespondent.Id,
+        PeriodFrom = day, PeriodTo = day, CommissionPerLakhAfn = 400m,
+        PaymentLocationRates = scope == "Forwarding" ? [new() { PaymentLocationId = fixture.RemoteLocation.Id, PerLakhRate = 400m }] : [],
+        CurrencyRates = scope == "Destination" ? [new() { CurrencyId = 1, PerLakhRate = 200m }, new() { CurrencyId = 2, PerLakhRate = 100m }] : []
+    };
+
+    private Hawala Receive(long number, long currency, decimal amount, DateTime day) => new()
+    {
+        Number = number, HawalaType = "HawalaReceive", CorrespondentId = fixture.SourceCorrespondent.Id,
+        PaymentLocationId = fixture.OwnLocation.Id, FromCurrencyId = currency, ToCurrencyId = currency,
+        FromAmount = amount, ToAmount = amount, Status = "Paid", CreatedBy = fixture.UserId,
+        CreatedAt = day.AddHours(10).ToUniversalTime(), SenderName = "Commission test sender", ReceiverName = "Receiver"
+    };
+
+    private Hawala Send(long number, Hawala source, decimal amount, DateTime day, long? locationId = null) => new()
+    {
+        Number = number, HawalaType = "HawalaSend", CorrespondentId = fixture.DestinationCorrespondent.Id,
+        SourceHawalaId = source.Id, IsSystemGenerated = true, PaymentLocationId = locationId ?? fixture.RemoteLocation.Id,
+        FromCurrencyId = source.FromCurrencyId, ToCurrencyId = source.FromCurrencyId, FromAmount = amount, ToAmount = amount,
+        Status = "Paid", CreatedBy = fixture.UserId, CreatedAt = day.AddHours(10).ToUniversalTime(),
+        SenderName = "Commission test sender", ReceiverName = "Receiver"
+    };
+
+    private CorrespondentDailyCommissionRate Rate(DateTime day, decimal rate) => new()
+    {
+        CorrespondentId = fixture.SourceCorrespondent.Id, RateDate = day, UsdToAfnRate = rate,
+        CreatedBy = fixture.UserId, CreatedAt = DateTime.UtcNow
+    };
+}

@@ -3303,6 +3303,12 @@ namespace HawalaExchange.Infrastructure.Migrations
             // columns required by its current periodic-commission procedure
             // available when a database is created from the full history.
             migrationBuilder.Sql("""
+                IF COL_LENGTH(N'dbo.CorrespondentCommissionBatches', N'AccountingVersion') IS NULL
+                    ALTER TABLE [dbo].[CorrespondentCommissionBatches] ADD [AccountingVersion] int NOT NULL DEFAULT 1;
+                IF COL_LENGTH(N'dbo.CorrespondentCommissionBatchItems', N'CommissionScope') IS NULL
+                    ALTER TABLE [dbo].[CorrespondentCommissionBatchItems] ADD [CommissionScope] nvarchar(20) NOT NULL DEFAULT N'Standard';
+                IF COL_LENGTH(N'dbo.CorrespondentCommissionBatchItems', N'ValuationDate') IS NULL
+                    ALTER TABLE [dbo].[CorrespondentCommissionBatchItems] ADD [ValuationDate] datetime2 NULL;
                 IF COL_LENGTH(N'dbo.Hawalas', N'CommissionBaseUsdAmount') IS NULL
                     ALTER TABLE [dbo].[Hawalas] ADD [CommissionBaseUsdAmount] decimal(18,8) NULL;
                 IF COL_LENGTH(N'dbo.Hawalas', N'CommissionUsdToAfnRate') IS NULL

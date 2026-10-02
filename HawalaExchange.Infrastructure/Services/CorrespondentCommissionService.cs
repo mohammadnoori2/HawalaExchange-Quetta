@@ -18,6 +18,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         CancellationToken cancellationToken = default)
     {
         ValidateRequest(request);
+        using var budget = CreateCalculationBudget(request, cancellationToken);
+        cancellationToken = budget.Token;
         await EnsureCommissionUsdValuationsAsync(request, cancellationToken);
         var preview = await ExecutePreviewAsync(request, cancellationToken);
         var deductions = await GetPendingCancellationDeductionsAsync(
@@ -26,8 +28,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             preview,
             deductions,
             request.CommissionPerLakhAfn,
-            request.HawalaType == "HawalaSend",
-            request.CommissionScope == "Origin");
+            request.HawalaType == "HawalaSend" && request.CommissionScope != "Forwarding",
+            request.CommissionScope is "Origin" or "Forwarding" or "Incoming");
         return preview;
     }
 
@@ -36,9 +38,11 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         CancellationToken cancellationToken = default)
     {
         ValidateRequest(request);
+        using var budget = CreateCalculationBudget(request, cancellationToken);
+        cancellationToken = budget.Token;
         if (request.CommissionScope == "Destination" && request.CurrencyRates.Count == 0)
             throw new InvalidOperationException("نرخ کمیشن هر ارز را وارد و پیش‌نمایش را باز‌محاسبه کنید.");
-        if (request.CommissionScope == "Origin" && request.PaymentLocationRates.Count == 0)
+        if (request.CommissionScope is "Origin" or "Forwarding" && request.PaymentLocationRates.Count == 0)
             throw new InvalidOperationException("نرخ کمیشن هر محل پرداخت را وارد و پیش‌نمایش را باز‌محاسبه کنید.");
         var rates = CreateRatesTable(request.Rates);
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -67,6 +71,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 return new CorrespondentCommissionBatchDto
                 {
                     CommissionScope = request.CommissionScope,
+                    AccountingVersion = request.CommissionScope is "Incoming" or "Destination" or "Forwarding" ? 2 : 1,
+                    HawalaType = request.HawalaType,
                     Id = reader.GetInt64(0),
                     CorrespondentId = reader.GetInt64(1),
                     CorrespondentName = reader.GetString(2),
@@ -87,8 +93,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             request.CorrespondentId, request.HawalaType, request.CommissionScope, cancellationToken);
         if (deductions.Count > 0)
             await AddDeductionsToPostedBatchAsync(
-                result, deductions, request.HawalaType == "HawalaSend",
-                request.CommissionScope == "Origin", cancellationToken);
+                result, deductions, request.HawalaType == "HawalaSend" && request.CommissionScope != "Forwarding",
+                request.CommissionScope is "Origin" or "Forwarding" or "Incoming", cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
     }
@@ -99,6 +105,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         string commissionScope,
         CancellationToken cancellationToken)
     {
+        var modernAccounting = commissionScope is "Incoming" or "Destination" or "Forwarding";
         var candidates = await context.CorrespondentCommissionBatchItems
             .AsNoTracking()
             .Include(x => x.Hawala)
@@ -107,10 +114,11 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             .Where(x => !x.IsActive && x.Batch.Status == "Posted" &&
                         x.Batch.CorrespondentId == correspondentId &&
                         x.Batch.CommissionScope == commissionScope &&
+                        (x.Batch.AccountingVersion >= 2) == modernAccounting &&
                         x.Hawala.HawalaType == hawalaType &&
                         x.Hawala.Status == "Cancel" &&
                         !context.CorrespondentCommissionBatchItems.Any(active =>
-                            active.HawalaId == x.HawalaId && active.IsActive))
+                            active.HawalaId == x.HawalaId && active.CommissionScope == x.CommissionScope && active.IsActive))
             .OrderByDescending(x => x.Batch.CreatedAt)
             .ToListAsync(cancellationToken);
         return candidates.GroupBy(x => x.HawalaId).Select(x => x.First()).ToList();
@@ -134,6 +142,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 HawalaId = deduction.HawalaId,
                 HawalaNumber = deduction.Hawala.Number,
                 HawalaDate = deduction.Hawala.CreatedAt,
+                ValuationDate = deduction.ValuationDate,
                 CurrencyId = deduction.SourceCurrencyId,
                 CurrencyCode = deduction.SourceCurrency.Code,
                 SourceAmount = -Math.Abs(deduction.SourceAmount),
@@ -162,7 +171,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         {
             preview.TotalCommissionAfn = 0;
             preview.TotalCommissionUsd = decimal.Round(
-                preview.Items.Sum(x => x.CommissionAfn), 4, MidpointRounding.AwayFromZero);
+                preview.Items.Sum(x => x.CommissionAfn), 2, MidpointRounding.AwayFromZero);
         }
         else
         {
@@ -170,6 +179,31 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             preview.TotalCommissionUsd = decimal.Round(
                 preview.TotalBaseAfn / 100000m * commissionPerLakhAfn,
                 0, MidpointRounding.AwayFromZero);
+        }
+        if (isOutgoing || isOrigin)
+        {
+            var locationRates = preview.PaymentLocationRates.ToDictionary(x => x.PaymentLocationId, x => x.PerLakhRate);
+            preview.PaymentLocationRates = preview.Items.Where(x => x.PaymentLocationId.HasValue)
+                .GroupBy(x => new { x.PaymentLocationId, x.PaymentLocationName })
+                .Select(group => new PaymentLocationCommissionRateDto
+                {
+                    PaymentLocationId = group.Key.PaymentLocationId!.Value,
+                    PaymentLocationName = group.Key.PaymentLocationName,
+                    PerLakhRate = locationRates.GetValueOrDefault(group.Key.PaymentLocationId.Value, group.First().PerLakhRate),
+                    HawalaCount = group.Count(), TotalAmount = group.Sum(x => x.SourceAmount),
+                    TotalDebitUsd = group.Sum(x => x.AfnEquivalent),
+                    TotalCommissionAfn = isOutgoing ? group.Where(x => x.CurrencyCode == "AFN").Sum(x => x.CommissionAfn) : 0,
+                    TotalCommissionUsd = group.Where(x => !isOutgoing || x.CurrencyCode == "USD").Sum(x => x.CommissionAfn)
+                }).ToList();
+            var currencyRates = preview.CurrencyRates.ToDictionary(x => x.CurrencyId, x => x.PerLakhRate);
+            preview.CurrencyRates = preview.Items.GroupBy(x => new { x.CurrencyId, x.CurrencyCode })
+                .Select(group => new CurrencyCommissionRateDto
+                {
+                    CurrencyId = group.Key.CurrencyId, CurrencyCode = group.Key.CurrencyCode,
+                    PerLakhRate = currencyRates.GetValueOrDefault(group.Key.CurrencyId, group.First().PerLakhRate),
+                    HawalaCount = group.Count(), TotalAmount = group.Sum(x => x.SourceAmount),
+                    CommissionAmount = group.Sum(x => x.CommissionAfn)
+                }).ToList();
         }
     }
 
@@ -189,6 +223,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             batch.Items.Add(new CorrespondentCommissionBatchItem
             {
                 HawalaId = deduction.HawalaId,
+                CommissionScope = deduction.CommissionScope,
+                ValuationDate = deduction.ValuationDate,
                 SourceCurrencyId = deduction.SourceCurrencyId,
                 SourceAmount = -Math.Abs(deduction.SourceAmount),
                 SourceToAfnRate = deduction.SourceToAfnRate,
@@ -219,7 +255,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         else if (isOrigin)
         {
             batch.TotalCommissionAfn = 0;
-            batch.TotalCommissionUsd = decimal.Round(batch.Items.Sum(x => x.CommissionAfn), 4,
+            batch.TotalCommissionUsd = decimal.Round(batch.Items.Sum(x => x.CommissionAfn), 2,
                 MidpointRounding.AwayFromZero);
         }
         else
@@ -229,7 +265,9 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 batch.TotalBaseAfn / 100000m * batch.CommissionPerLakhAfn,
                 0, MidpointRounding.AwayFromZero);
         }
-        var postingAmount = isOutgoing ? batch.TotalBaseAfn : batch.TotalCommissionUsd;
+        var postingAmount = isOutgoing
+            ? batch.AccountingVersion >= 2 ? Math.Max(batch.TotalCommissionAfn, batch.TotalCommissionUsd) : batch.TotalBaseAfn
+            : batch.TotalCommissionUsd;
         if (postingAmount <= 0)
             throw new InvalidOperationException(
                 "پس از کسر حواله‌های لغوشده، کمیشن قابل پرداختی باقی نمی‌ماند.");
@@ -257,7 +295,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         result.TotalCommissionUsd = batch.TotalCommissionUsd;
     }
 
-    private async Task RebuildOutgoingLedgerAsync(
+    internal async Task RebuildOutgoingLedgerAsync(
         CorrespondentCommissionBatch batch,
         CancellationToken cancellationToken)
     {
@@ -272,6 +310,26 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             .Where(x => x.CorrespondentId == batch.CorrespondentId && !x.IsArchived)
             .OrderBy(x => x.Id).Select(x => (long?)x.Id).FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("حساب فعال نمایندگی مقصد یافت نشد.");
+        if (batch.AccountingVersion >= 2 && batch.CommissionScope == "Destination")
+        {
+            var expense = await context.Accounts.SingleOrDefaultAsync(x => x.AccountCode == "5002", cancellationToken)
+                ?? throw new InvalidOperationException("حساب هزینه کمیشن پرداختی به نمایندگی‌ها یافت نشد.");
+            if (expense.IsArchived || expense.AccountType != "Expense")
+                throw new InvalidOperationException("حساب 5002 باید یک حساب هزینه فعال باشد.");
+            var previous = await context.LedgerEntries
+                .Where(x => x.TransactionId == batch.PostingTransactionId).ToListAsync(cancellationToken);
+            context.LedgerEntries.RemoveRange(previous);
+            foreach (var (currencyId, amount) in new[] { (afnId, batch.TotalCommissionAfn), (usdId, batch.TotalCommissionUsd) })
+            {
+                if (amount == 0) continue;
+                var destinationDescription = "کمیشن پرداختی به نمایندگی‌ها";
+                context.LedgerEntries.Add(NewEntry(batch.PostingTransactionId, destinationAccountId,
+                    currencyId, Math.Max(amount, 0), Math.Max(-amount, 0), destinationDescription));
+                context.LedgerEntries.Add(NewEntry(batch.PostingTransactionId, expense.Id,
+                    currencyId, Math.Max(-amount, 0), Math.Max(amount, 0), destinationDescription));
+            }
+            return;
+        }
         var clearing = await context.Accounts
             .SingleOrDefaultAsync(x => x.AccountCode == "SYS-SETTLEMENT-CLEARING", cancellationToken);
         if (clearing == null)
@@ -379,6 +437,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             {
                 Id = x.Id, CorrespondentId = x.CorrespondentId, CorrespondentName = x.Correspondent.Name,
                 CommissionScope = x.CommissionScope,
+                AccountingVersion = x.AccountingVersion,
                 HawalaType = x.Items.Select(i => i.Hawala.HawalaType).FirstOrDefault() ?? "HawalaReceive",
                 PeriodFrom = x.PeriodFrom, PeriodTo = x.PeriodTo, HawalaCount = x.Items.Count,
                 CommissionPerLakhAfn = x.CommissionPerLakhAfn, UsdToAfnRate = x.UsdToAfnRate,
@@ -386,7 +445,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 TotalCommissionUsd = x.TotalCommissionUsd, Status = x.Status, CreatedAt = x.CreatedAt
             }).ToListAsync(cancellationToken);
 
-        var originIds = history.Where(x => x.CommissionScope == "Origin").Select(x => x.Id).ToArray();
+        var originIds = history.Where(x => x.CommissionScope is "Origin" or "Forwarding").Select(x => x.Id).ToArray();
         if (originIds.Length > 0)
         {
             var locations = await context.CorrespondentCommissionBatchItems.AsNoTracking()
@@ -464,6 +523,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         {
             Id = batch.Id,
             CommissionScope = batch.CommissionScope,
+            AccountingVersion = batch.AccountingVersion,
             CorrespondentId = batch.CorrespondentId,
             CorrespondentName = batch.Correspondent.Name,
             HawalaType = batch.Items.Select(x => x.Hawala.HawalaType).FirstOrDefault() ?? "HawalaReceive",
@@ -488,6 +548,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                     HawalaId = x.HawalaId,
                     HawalaNumber = x.Hawala.Number,
                     HawalaDate = x.Hawala.CreatedAt,
+                    ValuationDate = x.ValuationDate,
                     CurrencyId = x.SourceCurrencyId,
                     CurrencyCode = x.SourceCurrency.Code,
                     SourceAmount = x.SourceAmount,
@@ -499,7 +560,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                     PerLakhRate = x.PerLakhRate ?? batch.CommissionPerLakhAfn,
                     IsActive = x.IsActive,
                     SourceType = x.Hawala.SourceHawalaId.HasValue ? "Correspondent" : "OwnOffice",
-                    SourceName = batch.CommissionScope == "Origin"
+                    SourceName = batch.CommissionScope is "Origin" or "Forwarding"
                         ? batch.Correspondent.Name
                         : x.Hawala.SourceHawala?.Correspondent?.Name ?? "صرافی خود ما"
                 }).ToList(),
@@ -616,7 +677,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                         CommissionAfn = reader.GetDecimal(8),
                         PaymentLocationId = reader.IsDBNull(9) ? null : reader.GetInt64(9),
                         PaymentLocationName = reader.IsDBNull(10) ? "محل پرداخت نامشخص" : reader.GetString(10),
-                        PerLakhRate = reader.GetDecimal(11)
+                        PerLakhRate = reader.GetDecimal(11),
+                        ValuationDate = reader.IsDBNull(12) ? null : reader.GetDateTime(12)
                     });
                 await reader.NextResultAsync(cancellationToken);
                 while (await reader.ReadAsync(cancellationToken))
@@ -662,7 +724,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             await using var command = connection.CreateCommand();
             command.CommandText = "dbo.usp_ProcessPeriodicCommission_v1";
             command.CommandType = CommandType.StoredProcedure;
-            command.CommandTimeout = 180;
+            command.CommandTimeout = request.CommissionScope is "Incoming" or "Destination" or "Forwarding" ? 25 : 180;
             command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction;
             ConfigureCommand(command, mode, request, rates);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -687,6 +749,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         command.Parameters.Add(new SqlParameter("@CorrespondentId", SqlDbType.BigInt) { Value = request.CorrespondentId });
         command.Parameters.Add(new SqlParameter("@HawalaType", SqlDbType.NVarChar, 20) { Value = request.HawalaType });
         command.Parameters.Add(new SqlParameter("@CommissionScope", SqlDbType.NVarChar, 20) { Value = request.CommissionScope });
+        command.Parameters.Add(new SqlParameter("@UtcOffsetMinutes", SqlDbType.Int)
+            { Value = (int)TimeZoneInfo.Local.GetUtcOffset(request.PeriodFrom).TotalMinutes });
         command.Parameters.Add(new SqlParameter("@PeriodFrom", SqlDbType.Date) { Value = request.PeriodFrom.Date });
         command.Parameters.Add(new SqlParameter("@PeriodTo", SqlDbType.Date) { Value = request.PeriodTo.Date });
         command.Parameters.Add(new SqlParameter("@FromUtc", SqlDbType.DateTime2) { Value = request.PeriodFrom.Date.ToUniversalTime() });
@@ -722,6 +786,15 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         return table;
     }
 
+    private static CancellationTokenSource CreateCalculationBudget(
+        CorrespondentCommissionPreviewRequestDto request, CancellationToken cancellationToken)
+    {
+        var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (request.CommissionScope is "Incoming" or "Destination" or "Forwarding")
+            budget.CancelAfter(TimeSpan.FromSeconds(28));
+        return budget;
+    }
+
     private static void ValidateRequest(CorrespondentCommissionPreviewRequestDto request)
     {
         if (request.CorrespondentId <= 0)
@@ -732,9 +805,10 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             throw new InvalidOperationException("کمیشن هر لک باید بزرگ‌تر از صفر باشد.");
         if (request.HawalaType is not ("HawalaReceive" or "HawalaSend"))
             throw new InvalidOperationException("نوع حواله برای محاسبه کمیشن معتبر نیست.");
-        if (request.CommissionScope is not ("Standard" or "Destination" or "Origin") ||
+        if (request.CommissionScope is not ("Standard" or "Destination" or "Origin" or "Incoming" or "Forwarding") ||
             (request.CommissionScope == "Origin" && request.HawalaType != "HawalaReceive") ||
-            (request.CommissionScope == "Destination" && request.HawalaType != "HawalaSend"))
+            (request.CommissionScope is "Destination" or "Forwarding" && request.HawalaType != "HawalaSend") ||
+            (request.CommissionScope == "Incoming" && request.HawalaType != "HawalaReceive"))
             throw new InvalidOperationException("نوع محاسبه کمیشن معتبر نیست.");
         if (request.Rates.Any(x => x.SourceToAfnRate < 0))
             throw new InvalidOperationException("نرخ تبدیل ارز نمی‌تواند منفی باشد.");
@@ -751,6 +825,10 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         CorrespondentCommissionPreviewRequestDto request,
         CancellationToken cancellationToken)
     {
+        // New calculations read daily correspondent rates in one set-based SQL query.
+        // Preview does not mutate shared Hawala valuations or previously posted snapshots.
+        if (request.CommissionScope is "Incoming" or "Destination" or "Forwarding")
+            return;
         if (request.CommissionScope == "Origin")
         {
             await EnsureOriginUsdValuationsAsync(request, cancellationToken);

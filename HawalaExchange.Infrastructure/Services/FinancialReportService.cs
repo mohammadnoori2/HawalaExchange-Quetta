@@ -340,7 +340,9 @@ public class FinancialReportService : IFinancialReportService
             terms);
 
         var commissionIncome = SumByCode(
-            periodEntries, reporting, "3001", creditNormal: true, warnings);
+            periodEntries, reporting, "3001", creditNormal: true, warnings)
+            + SumByCode(periodEntries, reporting, "SYS-COMMISSION-INCOMING", creditNormal: true, warnings)
+            + SumByCode(periodEntries, reporting, "SYS-COMMISSION-FORWARDING", creditNormal: true, warnings);
         var exchangeIncome = SumByCode(
             periodEntries, reporting, "3002", creditNormal: true, warnings);
         var allIncome = Income();

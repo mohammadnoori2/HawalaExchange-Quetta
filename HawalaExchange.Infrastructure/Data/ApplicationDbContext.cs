@@ -1631,7 +1631,11 @@ namespace HawalaExchange.Infrastructure.Data
             modelBuilder.Entity<CorrespondentCommissionBatch>()
                 .Property(x => x.CommissionScope).HasDefaultValue("Standard");
             modelBuilder.Entity<CorrespondentCommissionBatchItem>()
-                .HasIndex(x => new { x.TenantId, x.HawalaId, x.IsActive })
+                .Property(x => x.CommissionScope).HasDefaultValue("Standard");
+            modelBuilder.Entity<CorrespondentCommissionBatch>()
+                .Property(x => x.AccountingVersion).HasDefaultValue(1);
+            modelBuilder.Entity<CorrespondentCommissionBatchItem>()
+                .HasIndex(x => new { x.TenantId, x.HawalaId, x.CommissionScope })
                 .IsUnique()
                 .HasFilter("[IsActive] = 1");
             modelBuilder.Entity<AedDeal>()

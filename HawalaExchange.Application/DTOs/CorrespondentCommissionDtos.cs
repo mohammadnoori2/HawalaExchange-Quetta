@@ -69,6 +69,7 @@ public sealed class CorrespondentCommissionItemDto
     public long HawalaId { get; set; }
     public long HawalaNumber { get; set; }
     public DateTime HawalaDate { get; set; }
+    public DateTime? ValuationDate { get; set; }
     public long CurrencyId { get; set; }
     public string CurrencyCode { get; set; } = string.Empty;
     public decimal SourceAmount { get; set; }
@@ -85,6 +86,7 @@ public sealed class CorrespondentCommissionItemDto
 
 public sealed class CorrespondentCommissionBatchDto
 {
+    public int AccountingVersion { get; set; }
     public string HawalaType { get; set; } = "HawalaReceive";
     public string CommissionScope { get; set; } = "Standard";
     public long Id { get; set; }

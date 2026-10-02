@@ -65,15 +65,11 @@
                 @if (!correspondent.IsArchived)
                 {
                     <button class="btn btn-warning" @onclick="OpenOutgoingCommissionPage">
-                        <i class="bi bi-calculator-fill me-1"></i> کمیشن ارسالی
+                        <i class="bi bi-calculator-fill me-1"></i> کمیشن پرداختی به نمایندگی‌ها
                     </button>
-                    @if (correspondent.Name.Contains("Quetta", StringComparison.OrdinalIgnoreCase) ||
-                         correspondent.Name.Contains("کویته", StringComparison.OrdinalIgnoreCase))
-                    {
                         <button class="btn btn-primary" @onclick="OpenOriginCommissionPage">
-                            <i class="bi bi-cash-coin me-1"></i> کمیشن کویته
+                            <i class="bi bi-cash-coin me-1"></i> کمیشن ارسالی به نمایندگی‌ها
                         </button>
-                    }
                 }
                 <CorrespondentActionsMenu IsArchived="@correspondent.IsArchived"
                                            CanUseFinancialActions="@(correspondentAccountId.HasValue && !correspondent.IsArchived)"
@@ -116,7 +112,7 @@
                         @(isSavingSourceRate ? "در حال ذخیره..." : "ذخیره نرخ نمایندگی")
                     </button>
                 </div>
-                <div class="col-12 form-text">این نرخ فقط برای تبدیل کمیشن حواله‌های ارسالیِ افغانیِ دریافت‌شده از همین نمایندگی در همین روز استفاده می‌شود؛ نرخ عمومی روزنامچه تغییر نمی‌کند.</div>
+                <div class="col-12 form-text">این نرخ برای تبدیل مبلغ حواله‌های افغانی این نمایندگی به مبنای دالری در کمیشن دریافتی و ارسالی استفاده می‌شود؛ نرخ عمومی روزنامچه تغییر نمی‌کند.</div>
             </div></div>
         }
 
@@ -524,7 +520,7 @@
         NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/outgoing-commission");
 
     private void OpenOriginCommissionPage() =>
-        NavigationManager.NavigateTo($"/commissions/{CorrespondentId}");
+        NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/forwarding-commission");
 
     private async Task SaveEditAsync()
     {

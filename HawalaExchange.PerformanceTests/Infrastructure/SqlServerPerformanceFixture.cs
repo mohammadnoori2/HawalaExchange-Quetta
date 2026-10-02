@@ -7,6 +7,8 @@ using HawalaExchange.Infrastructure.Services;
 using HawalaSystem.Mappings;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -36,11 +38,13 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
     public CommandCounterInterceptor Commands { get; } = new();
     public long UserId => currentTenant.UserId;
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync() => InitializeDatabaseAsync(null);
+
+    internal async Task InitializeDatabaseAsync(string? targetMigration)
     {
         EnsureSafeDatabaseName();
         await using var context = CreateContext();
-        await context.Database.MigrateAsync();
+        await context.GetService<IMigrator>().MigrateAsync(targetMigration);
 
         using var bypass = context.BypassSubscriptionEnforcement();
         var user = new ApplicationUser

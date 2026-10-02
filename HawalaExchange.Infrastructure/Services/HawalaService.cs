@@ -252,7 +252,8 @@
                     .AnyAsync(x => x.HawalaId == hawala.Id);
                 result.PeriodicCommissionAfn = await _context.CorrespondentCommissionBatchItems
                     .AsNoTracking()
-                    .Where(x => x.HawalaId == hawala.Id && x.IsActive && x.Batch.Status == "Posted")
+                    .Where(x => x.HawalaId == hawala.Id && x.IsActive && x.Batch.Status == "Posted" &&
+                        x.CommissionScope != "Forwarding")
                     .Select(x => (decimal?)x.CommissionAfn)
                     .FirstOrDefaultAsync();
 
@@ -443,7 +444,8 @@
                 HasPeriodicCommissionHistory = _context.CorrespondentCommissionBatchItems
                     .Any(x => x.HawalaId == h.Id),
                 PeriodicCommissionAfn = _context.CorrespondentCommissionBatchItems
-                    .Where(x => x.HawalaId == h.Id && x.IsActive && x.Batch.Status == "Posted")
+                    .Where(x => x.HawalaId == h.Id && x.IsActive && x.Batch.Status == "Posted" &&
+                        x.CommissionScope != "Forwarding")
                     .Select(x => (decimal?)x.CommissionAfn)
                     .FirstOrDefault(),
                 CancelledAt = h.CancelledAt,
@@ -532,6 +534,14 @@
                     if (dto.Status is not null and not ("Pending" or "Paid"))
                         throw new InvalidOperationException("وضعیت حواله برای ویرایش معتبر نیست.");
 
+                    // Three-way commissions are immutable snapshots. The existing in-place
+                    // recalculator handles only the legacy journal and must not rewrite them.
+                    if (await _context.CorrespondentCommissionBatchItems.AnyAsync(x =>
+                        x.IsActive && x.Batch.Status == "Posted" && x.Batch.AccountingVersion >= 2 &&
+                        (x.HawalaId == hawala.Id || x.Hawala.SourceHawalaId == hawala.Id)))
+                        throw new InvalidOperationException(
+                            "برای ویرایش این حواله، ابتدا محاسبات کمیشن دریافتی، پرداختی و ارسالی مرتبط را برگشت دهید؛ ثبت‌های جدید درجا تغییر نمی‌کنند.");
+
                     var activePeriodicCommissionItem = await _context.CorrespondentCommissionBatchItems
                         .Include(x => x.Batch)
                         .ThenInclude(x => x.Items)
@@ -570,6 +580,11 @@
 
                     var generatedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
+                    var preserveGeneratedIdentity = generatedHawala != null &&
+                        await _context.CorrespondentCommissionBatchItems.AnyAsync(x => x.HawalaId == generatedHawala.Id);
+                    if (preserveGeneratedIdentity && await _context.CorrespondentCommissionBatchItems.AnyAsync(x =>
+                        x.HawalaId == generatedHawala!.Id && x.IsActive && x.Batch.Status == "Posted"))
+                        throw new InvalidOperationException("ابتدا کمیشن‌های مرتبط با حواله ارسالی را برگشت دهید؛ ارتباط تاریخچه با حواله باید حفظ شود.");
                     var generatedSettlementReconversion = generatedHawala == null
                         ? null
                         : await DetachSettlementConversionAsync(generatedHawala.Id);
@@ -585,14 +600,15 @@
 
                     if (generatedHawala != null)
                     {
-                        if (linkedImportRows.Count > 0)
+                        if (!preserveGeneratedIdentity && linkedImportRows.Count > 0)
                         {
                             foreach (var importRow in linkedImportRows)
                                 importRow.GeneratedSendHawalaId = null;
                             await _context.SaveChangesAsync();
                         }
                         await DeleteHawalaLedgerEntriesAsync(generatedHawala.Id);
-                        _context.Hawalas.Remove(generatedHawala);
+                        if (!preserveGeneratedIdentity)
+                            _context.Hawalas.Remove(generatedHawala);
                     }
 
                     await DeleteHawalaLedgerEntriesAsync(hawala.Id);
@@ -601,6 +617,41 @@
                     ApplyUpdate(hawala, dto);
                     await NormalizeHawalaConversionAsync(hawala);
                     await ValidateUpdatedHawalaAsync(hawala);
+
+                    if (preserveGeneratedIdentity)
+                    {
+                        var payingAccount = fromAccountId.HasValue ? await _context.Accounts.FindAsync(fromAccountId.Value) : null;
+                        if (hawala.Status != "Paid" || payingAccount?.AccountType != "Correspondent" || !payingAccount.CorrespondentId.HasValue)
+                            throw new InvalidOperationException("حواله ارسالی دارای تاریخچه کمیشن است؛ تغییر آن به پرداخت از دفتر مجاز نیست. حواله را لغو و حواله اصلاح‌شده ثبت کنید.");
+                        var sent = generatedHawala!;
+                        var nextNumber = generatedHawalaNumber ?? sent.Number;
+                        var destinationPeriodStart = await GetCurrentPeriodStartAsync(payingAccount.CorrespondentId.Value);
+                        if (await _context.Hawalas.AnyAsync(x => x.Id != sent.Id && x.HawalaType == "HawalaSend" &&
+                            x.CorrespondentId == payingAccount.CorrespondentId && x.Number == nextNumber && x.CreatedAt >= destinationPeriodStart))
+                            throw new InvalidOperationException("نمبر حواله ارسالی در نمایندگی مقصد قبلاً ثبت شده است.");
+                        sent.Number = nextNumber;
+                        sent.CorrespondentId = payingAccount.CorrespondentId;
+                        sent.PaidFromAccountId = payingAccount.Id;
+                        sent.FromCurrencyId = hawala.FromCurrencyId;
+                        sent.ToCurrencyId = hawala.ToCurrencyId;
+                        sent.FromAmount = hawala.FromAmount;
+                        sent.ToAmount = hawala.ToAmount;
+                        sent.ExchangeRate = hawala.ExchangeRate;
+                        sent.PaymentLocationId = hawala.PaymentLocationId;
+                        sent.SenderName = hawala.SenderName;
+                        sent.SenderFatherName = hawala.SenderFatherName;
+                        sent.SenderPhone = hawala.SenderPhone;
+                        sent.SenderTazkiraNumber = hawala.SenderTazkiraNumber;
+                        sent.SenderTazkiraImagePath = hawala.SenderTazkiraImagePath;
+                        sent.SenderAddress = hawala.SenderAddress;
+                        sent.ReceiverName = hawala.ReceiverName;
+                        sent.ReceiverFatherName = hawala.ReceiverFatherName;
+                        sent.ReceiverPhone = hawala.ReceiverPhone;
+                        sent.ReceiverTazkiraNumber = hawala.ReceiverTazkiraNumber;
+                        sent.ReceiverTazkiraImagePath = hawala.ReceiverTazkiraImagePath;
+                        sent.ReceiverAddress = hawala.ReceiverAddress;
+                        sent.Notes = hawala.Notes;
+                    }
 
                     if (commissionAffectingChange && dto.PeriodicCommissionHandling == "Recalculate")
                         await RecalculatePeriodicCommissionInPlaceAsync(hawala, activePeriodicCommissionItem!);

@@ -10,6 +10,7 @@ public sealed class CorrespondentCommissionBatch : ITenantEntity
     public long TenantId { get; set; }
     public long CorrespondentId { get; set; }
     [Required, MaxLength(20)] public string CommissionScope { get; set; } = "Standard";
+    public int AccountingVersion { get; set; } = 1;
     public DateTime PeriodFrom { get; set; }
     public DateTime PeriodTo { get; set; }
     [Column(TypeName = "decimal(18,4)")] public decimal CommissionPerLakhAfn { get; set; }
@@ -42,6 +43,8 @@ public sealed class CorrespondentCommissionBatchItem : ITenantEntity
     public long TenantId { get; set; }
     public long BatchId { get; set; }
     public long HawalaId { get; set; }
+    [Required, MaxLength(20)] public string CommissionScope { get; set; } = "Standard";
+    public DateTime? ValuationDate { get; set; }
     public long SourceCurrencyId { get; set; }
     [Column(TypeName = "decimal(18,4)")] public decimal SourceAmount { get; set; }
     [Column(TypeName = "decimal(18,8)")] public decimal SourceToAfnRate { get; set; }

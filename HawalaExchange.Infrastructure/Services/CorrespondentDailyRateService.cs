@@ -50,10 +50,13 @@ public sealed class CorrespondentDailyRateService(ApplicationDbContext context)
             var utcEnd = day.AddDays(1).ToUniversalTime();
             var posted = await context.CorrespondentCommissionBatchItems.AsNoTracking().AnyAsync(
                 item => item.IsActive && item.Batch.Status == "Posted" &&
-                    item.Hawala.HawalaType == "HawalaSend" &&
-                    item.Hawala.SourceHawala != null &&
-                    item.Hawala.SourceHawala.CorrespondentId == correspondentId &&
-                    item.Hawala.CreatedAt >= utcStart && item.Hawala.CreatedAt < utcEnd,
+                    ((item.Batch.CorrespondentId == correspondentId &&
+                      (item.Batch.CommissionScope == "Incoming" || item.Batch.CommissionScope == "Forwarding" || item.Batch.CommissionScope == "Origin") &&
+                      (item.ValuationDate == day || (item.ValuationDate == null &&
+                       item.Hawala.CreatedAt >= utcStart && item.Hawala.CreatedAt < utcEnd))) ||
+                     (item.Batch.AccountingVersion < 2 && item.Hawala.HawalaType == "HawalaSend" &&
+                      item.Hawala.SourceHawala != null && item.Hawala.SourceHawala.CorrespondentId == correspondentId &&
+                      item.Hawala.CreatedAt >= utcStart && item.Hawala.CreatedAt < utcEnd)),
                 cancellationToken);
             if (posted)
                 throw new InvalidOperationException(

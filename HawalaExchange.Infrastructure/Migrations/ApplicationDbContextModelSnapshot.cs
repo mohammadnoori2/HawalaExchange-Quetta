@@ -1290,6 +1290,11 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.Property<decimal>("CommissionPerLakhAfn")
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<int>("AccountingVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
                     b.Property<string>("CommissionScope")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -1390,6 +1395,16 @@ namespace HawalaExchange.Infrastructure.Migrations
                     b.Property<decimal>("CommissionAfn")
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<string>("CommissionScope")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Standard");
+
+                    b.Property<DateTime?>("ValuationDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<long>("HawalaId")
                         .HasColumnType("bigint");
 
@@ -1428,7 +1443,7 @@ namespace HawalaExchange.Infrastructure.Migrations
 
                     b.HasIndex("TenantId", "SourceCurrencyId");
 
-                    b.HasIndex("TenantId", "HawalaId", "IsActive")
+                    b.HasIndex("TenantId", "HawalaId", "CommissionScope")
                         .IsUnique()
                         .HasFilter("[IsActive] = 1");
 

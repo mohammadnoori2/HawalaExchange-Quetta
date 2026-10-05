@@ -682,31 +682,33 @@ CREATE PROCEDURE [dbo].[usp_ProcessPeriodicCommission_v1]
                             THROW 50007, @MissingRateMessage, 1;
                         END;
 
-                        -- Round the group total, not every tiny transfer. Allocate whole cents
-                        -- deterministically so saved item shares sum to the exact journal amount
-                        -- and cancellation can deduct the original share without using a new rate.
+                        -- Round totals, NEVER each transfer independently. Forwarding is rounded
+                        -- once per sending day (across locations); destination once per currency;
+                        -- incoming once for the entire period. Allocate whole-unit shares so
+                        -- detail sums, cancellation deductions and the journal agree exactly.
                         IF @CommissionScope IN (N'Incoming', N'Destination', N'Forwarding')
                         BEGIN
                             ;WITH shares AS
                             (
                                 SELECT [HawalaId], [CommissionAfn],
-                                    CASE WHEN @CommissionScope IN (N'Forwarding', N'Destination')
-                                         THEN [PaymentLocationId] ELSE 0 END AS [GroupId],
+                                    CASE WHEN @CommissionScope = N'Forwarding'
+                                         THEN CONVERT(date, DATEADD(minute, @UtcOffsetMinutes, [HawalaDate]))
+                                         ELSE CONVERT(date, '19000101') END AS [GroupDate],
                                     CASE WHEN @CommissionScope = N'Destination' THEN [CurrencyId] ELSE 0 END AS [GroupCurrencyId],
-                                    FLOOR([CommissionAfn] * 100) / 100 AS [WholeCents]
+                                    FLOOR([CommissionAfn]) AS [WholeUnits]
                                 FROM #Eligible
                             ), allocations AS
                             (
-                                SELECT [HawalaId], [WholeCents],
-                                    ROUND(SUM([CommissionAfn]) OVER (PARTITION BY [GroupId], [GroupCurrencyId]), 2) AS [GroupTotal],
-                                    SUM([WholeCents]) OVER (PARTITION BY [GroupId], [GroupCurrencyId]) AS [FloorTotal],
-                                    ROW_NUMBER() OVER (PARTITION BY [GroupId], [GroupCurrencyId]
-                                        ORDER BY [CommissionAfn] - [WholeCents] DESC, [HawalaId]) AS [CentOrder]
+                                SELECT [HawalaId], [WholeUnits],
+                                    ROUND(SUM([CommissionAfn]) OVER (PARTITION BY [GroupDate], [GroupCurrencyId]), 0) AS [GroupTotal],
+                                    SUM([WholeUnits]) OVER (PARTITION BY [GroupDate], [GroupCurrencyId]) AS [FloorTotal],
+                                    ROW_NUMBER() OVER (PARTITION BY [GroupDate], [GroupCurrencyId]
+                                        ORDER BY [CommissionAfn] - [WholeUnits] DESC, [HawalaId]) AS [UnitOrder]
                                 FROM shares
                             )
-                            UPDATE e SET [CommissionAfn] = a.[WholeCents] +
-                                CASE WHEN a.[CentOrder] <= ROUND((a.[GroupTotal] - a.[FloorTotal]) * 100, 0)
-                                     THEN 0.01 ELSE 0 END
+                            UPDATE e SET [CommissionAfn] = a.[WholeUnits] +
+                                CASE WHEN a.[UnitOrder] <= a.[GroupTotal] - a.[FloorTotal]
+                                     THEN 1 ELSE 0 END
                             FROM #Eligible e JOIN allocations a ON a.[HawalaId] = e.[HawalaId];
                         END;
 

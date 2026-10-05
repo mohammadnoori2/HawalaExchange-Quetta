@@ -1357,7 +1357,7 @@
                     <div class='receipt-grid'>
                         {(hawala.ToAmount.HasValue ? $"<div><span class='receipt-label'>مبلغ پرداختی:</span> <span class='receipt-amount'>{MoneyFormatHelper.Format(hawala.ToAmount.Value)}</span> <span class='receipt-currency'>{toCurrencyName}</span></div>" : "")}
                         {(hawala.ToAmount.HasValue ? $"<div class='receipt-full'><span class='receipt-label'>مبلغ به حروف:</span> <span class='receipt-value'>{DariNumberToWords.ToWords(hawala.ToAmount.Value)} {toCurrencyName}</span></div>" : "")}
-                        {(hawala.ExchangeRate is > 0 ? $"<div><span class='receipt-label'>نرخ تبدیل:</span> <span class='receipt-value'>{MoneyFormatHelper.Format(hawala.ExchangeRate.Value)}</span></div>" : "")}
+                        {(hawala.ExchangeRate is > 0 ? $"<div><span class='receipt-label'>نرخ تبدیل:</span> <span class='receipt-value'>{MoneyFormatHelper.Format(hawala.ExchangeRate.Value, 8)}</span></div>" : "")}
                         {(hawala.CommissionAmount is > 0 ? $"<div><span class='receipt-label'>کارمزد پرداخت‌شده توسط فرستنده:</span> <span class='receipt-value'>{MoneyFormatHelper.Format(hawala.CommissionAmount.Value)}</span> <span class='receipt-currency'>{commissionCurrencyName}</span></div>" : "")}
                         {(hawala.PaymentLocationId.HasValue ? $"<div class='receipt-full'><span class='receipt-label'>محل پرداخت:</span> <span class='receipt-value'>{paymentLocationName}</span></div>" : "")}
                     </div>
@@ -1993,7 +1993,7 @@
                 CurrentHawala.ToAmount = AmountValueHelper.RoundConvertedAmount(
                     conversion.ToAmount);
                 ConversionRateMeaning =
-                    $"1 {conversion.BaseCurrencyCode} = {MoneyFormatHelper.Format(CurrentHawala.ExchangeRate.Value)} {conversion.QuoteCurrencyCode}";
+                    $"1 {conversion.BaseCurrencyCode} = {MoneyFormatHelper.Format(CurrentHawala.ExchangeRate.Value, 8)} {conversion.QuoteCurrencyCode}";
             }
         }
         else if (CalculationMode == "AmountToRate")
@@ -2005,7 +2005,7 @@
                     to.Id, to.Code, to.QuotationPriority, CurrentHawala.ToAmount.Value);
                 CurrentHawala.ExchangeRate = Math.Round(quotation.Rate, 8);
                 ConversionRateMeaning =
-                    $"1 {quotation.BaseCurrencyCode} = {MoneyFormatHelper.Format(CurrentHawala.ExchangeRate.Value)} {quotation.QuoteCurrencyCode}";
+                    $"1 {quotation.BaseCurrencyCode} = {MoneyFormatHelper.Format(CurrentHawala.ExchangeRate.Value, 8)} {quotation.QuoteCurrencyCode}";
             }
         }
     }

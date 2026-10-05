@@ -334,7 +334,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
                 exchange.ToAmount);
         }
 
-        var formattedRate = AmountValueHelper.Format(quotation.Rate);
+        var formattedRate = AmountValueHelper.Format(quotation.Rate, 8);
 
         return $"{description} - نرخ تبدیل: 1 {quotation.BaseCurrencyCode} = {formattedRate} {quotation.QuoteCurrencyCode}";
     }

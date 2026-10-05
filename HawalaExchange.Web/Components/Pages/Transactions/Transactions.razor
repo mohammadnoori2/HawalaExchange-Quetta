@@ -576,7 +576,7 @@
                                             <td>@(d.FromAmount.HasValue ? MoneyFormatHelper.Format(d.FromAmount.Value) : "-")</td>
                                             <td>@d.ToCurrencyCode</td>
                                             <td>@(d.ToAmount.HasValue ? MoneyFormatHelper.Format(d.ToAmount.Value) : "-")</td>
-                                            <td>@(d.ExchangeRate.HasValue ? MoneyFormatHelper.Format(d.ExchangeRate.Value) : "-")</td>
+                                            <td>@(d.ExchangeRate.HasValue ? MoneyFormatHelper.Format(d.ExchangeRate.Value, 8) : "-")</td>
                                             <td>@MoneyFormatHelper.Format(d.CommissionAmount)</td>
                                             <td>@d.SenderName</td>
                                             <td>@d.ReceiverName</td>

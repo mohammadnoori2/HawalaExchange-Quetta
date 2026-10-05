@@ -7,7 +7,7 @@
 @code {
     [Parameter] public decimal? Value { get; set; }
     [Parameter] public EventCallback<decimal?> ValueChanged { get; set; }
-    [Parameter] public int DecimalPlaces { get; set; } = 2;
+    [Parameter] public int DecimalPlaces { get; set; } = 0;
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
 
@@ -27,11 +27,11 @@
 
     private async Task HandleInput(ChangeEventArgs args)
     {
-        displayValue = MoneyFormatHelper.FormatWhileTyping(args.Value?.ToString(), DecimalPlaces);
+        displayValue = MoneyFormatHelper.FormatWhileTyping(args.Value?.ToString(), DecimalPlaces == 0 ? 8 : DecimalPlaces);
         if (string.IsNullOrWhiteSpace(displayValue))
             await ValueChanged.InvokeAsync(null);
         else if (MoneyFormatHelper.TryParse(displayValue, out var value))
-            await ValueChanged.InvokeAsync(value);
+            await ValueChanged.InvokeAsync(DecimalPlaces == 0 ? HawalaExchange.Application.Services.AmountValueHelper.RoundConvertedAmount(value) : value);
     }
 
     private async Task HandleBlur()
@@ -44,6 +44,7 @@
         }
         else if (MoneyFormatHelper.TryParse(displayValue, out var value))
         {
+            value = DecimalPlaces == 0 ? HawalaExchange.Application.Services.AmountValueHelper.RoundConvertedAmount(value) : value;
             await ValueChanged.InvokeAsync(value);
             displayValue = MoneyFormatHelper.Format(value, DecimalPlaces);
         }

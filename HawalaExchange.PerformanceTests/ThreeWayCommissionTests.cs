@@ -38,11 +38,11 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         var forwarding = Request("Forwarding", day);
         var destination = Request("Destination", day);
         var incomingPreview = await service.PreviewAsync(incoming);
-        Assert.Equal(97.14m, incomingPreview.TotalCommissionUsd);
+        Assert.Equal(97m, incomingPreview.TotalCommissionUsd);
         Assert.Equal(1_000_000m, incomingPreview.TotalSourceAfn);
         Assert.Equal(10_000m, incomingPreview.TotalSourceUsd);
         var forwarded = await service.PreviewAsync(forwarding);
-        Assert.Equal(52.57m, forwarded.TotalCommissionUsd);
+        Assert.Equal(53m, forwarded.TotalCommissionUsd);
         Assert.Equal(500_000m, forwarded.TotalSourceAfn);
         Assert.Equal(6_000m, forwarded.TotalSourceUsd);
         Assert.All(forwarded.Items, item => Assert.Equal(day, item.ValuationDate));
@@ -70,7 +70,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
             Assert.Contains(details.LedgerEntries, entry => entry.AccountId == fixture.SourceAccount.Id && entry.BadehKar == details.TotalCommissionUsd);
             Assert.Contains(details.LedgerEntries, entry => entry.AccountCode == (details.CommissionScope == "Incoming" ? "SYS-COMMISSION-INCOMING" : "SYS-COMMISSION-FORWARDING"));
         }
-        Assert.Equal(149.71m, first.TotalCommissionUsd + second.TotalCommissionUsd);
+        Assert.Equal(150m, first.TotalCommissionUsd + second.TotalCommissionUsd);
         Assert.Equal(0, (await service.PreviewAsync(incoming)).HawalaCount);
         Assert.Equal(0, (await service.PreviewAsync(forwarding)).HawalaCount);
         Assert.Equal(0, (await service.PreviewAsync(destination)).HawalaCount);
@@ -192,7 +192,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         Assert.DoesNotContain((await service.GetDetailsAsync(destination.Id)).LedgerEntries, x => x.AccountId == fixture.SourceAccount.Id);
         context.CorrespondentDailyCommissionRates.Add(Rate(day, 70m));
         await context.SaveChangesAsync();
-        Assert.Equal(2.86m, (await service.PostAsync(Request("Forwarding", day))).TotalCommissionUsd);
+        Assert.Equal(3m, (await service.PostAsync(Request("Forwarding", day))).TotalCommissionUsd);
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         await service.PostAsync(Request("Destination", sendDay));
         await rates.SaveAsync(fixture.SourceCorrespondent.Id, day, 80m);
         var forwarding = await service.PostAsync(Request("Forwarding", sendDay));
-        Assert.Equal(2.50m, forwarding.TotalCommissionUsd);
+        Assert.Equal(3m, forwarding.TotalCommissionUsd);
         await Assert.ThrowsAsync<InvalidOperationException>(() => rates.SaveAsync(fixture.SourceCorrespondent.Id, day, 90m));
         var unchanged = await service.GetDetailsAsync(forwarding.Id);
         Assert.Equal(80m, unchanged.Items.Single().SourceToAfnRate);
@@ -333,7 +333,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         await using var context = fixture.CreateContext();
         using var bypass = context.BypassSubscriptionEnforcement();
         await ConfigureOwnLocationAsync(context);
-        var sources = Enumerable.Range(0, 100).Select(i => Receive(199_180_000 + i, 2, 1m, day)).ToList();
+        var sources = Enumerable.Range(0, 600).Select(i => Receive(199_180_000 + i, 2, 1m, day)).ToList();
         context.Hawalas.AddRange(sources);
         await context.SaveChangesAsync();
         context.Hawalas.AddRange(sources.Select((source, i) => Send(199_181_000 + i, source, 1m, day)));
@@ -342,9 +342,9 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         foreach (var scope in new[] { "Incoming", "Forwarding", "Destination" })
         {
             var preview = await service.PreviewAsync(Request(scope, day));
-            Assert.Equal(scope == "Destination" ? 0.1m : 0.4m, preview.TotalCommissionUsd);
+            Assert.Equal(scope == "Destination" ? 1m : 2m, preview.TotalCommissionUsd);
             Assert.Equal(preview.TotalCommissionUsd, preview.Items.Sum(x => x.CommissionAfn));
-            Assert.All(preview.Items, item => Assert.Equal(decimal.Round(item.CommissionAfn, 2), item.CommissionAfn));
+            Assert.All(preview.Items, item => Assert.Equal(decimal.Truncate(item.CommissionAfn), item.CommissionAfn));
             var batch = await service.PostAsync(Request(scope, day));
             Assert.Equal(preview.TotalCommissionUsd, batch.TotalCommissionUsd);
             AssertBalanced((await service.GetDetailsAsync(batch.Id)).LedgerEntries);
@@ -438,7 +438,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
     }
 
     [Fact]
-    public async Task Destination_rounds_each_location_currency_total_instead_of_pooling_locations()
+    public async Task Destination_rounds_final_currency_total_across_locations()
     {
         var day = new DateTime(2038, 7, 14);
         await using var context = fixture.CreateContext();
@@ -451,13 +451,14 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         var request = Request("Destination", day);
         request.LocationCurrencyRates =
         [
-            new() { PaymentLocationId = fixture.RemoteLocation.Id, CurrencyId = 2, PerLakhRate = 600m },
-            new() { PaymentLocationId = fixture.OwnLocation.Id, CurrencyId = 2, PerLakhRate = 600m }
+            new() { PaymentLocationId = fixture.RemoteLocation.Id, CurrencyId = 2, PerLakhRate = 60000m },
+            new() { PaymentLocationId = fixture.OwnLocation.Id, CurrencyId = 2, PerLakhRate = 60000m }
         ];
         var service = fixture.CreateCommissionService(context);
         var preview = await service.PreviewAsync(request);
-        Assert.Equal(0.02m, preview.TotalCommissionUsd);
-        Assert.All(preview.Items, x => Assert.Equal(0.01m, x.CommissionAfn));
+        Assert.Equal(1m, preview.TotalCommissionUsd); // 0.6 + 0.6 => 1, not 1 + 1.
+        Assert.Equal(1m, preview.Items.Sum(x => x.CommissionAfn));
+        Assert.All(preview.Items, x => Assert.Equal(decimal.Truncate(x.CommissionAfn), x.CommissionAfn));
         var batch = await service.PostAsync(request);
         Assert.Equal(preview.TotalCommissionUsd, batch.TotalCommissionUsd);
         AssertBalanced((await service.GetDetailsAsync(batch.Id)).LedgerEntries);
@@ -517,6 +518,46 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
     {
         foreach (var currency in entries.GroupBy(x => x.CurrencyCode))
             Assert.Equal(currency.Sum(x => x.BadehKar), currency.Sum(x => x.TalabKar));
+    }
+
+    [Fact]
+    public async Task Forwarding_rounds_each_day_across_locations_not_each_hawala_or_period()
+    {
+        var day = new DateTime(2038, 8, 20);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var other = new PaymentLocation { Name = "Daily rounding location", NormalizedName = "daily-rounding-location", CreatedBy = fixture.UserId };
+        context.PaymentLocations.Add(other);
+        var sources = new[]
+        {
+            Receive(199_300_001, 2, 50m, day), Receive(199_300_002, 2, 75m, day),
+            Receive(199_300_003, 2, 50m, day.AddDays(1)), Receive(199_300_004, 2, 75m, day.AddDays(1))
+        };
+        context.Hawalas.AddRange(sources);
+        await context.SaveChangesAsync();
+        context.Hawalas.AddRange(sources.Select((source, index) =>
+            Send(199_300_011 + index, source, source.FromAmount, day.AddDays(index / 2), index % 2 == 0 ? fixture.RemoteLocation.Id : other.Id)));
+        await context.SaveChangesAsync();
+        var request = Request("Forwarding", day);
+        request.PeriodTo = day.AddDays(1);
+        request.PaymentLocationRates.Add(new() { PaymentLocationId = other.Id, PerLakhRate = 400m });
+        var service = fixture.CreateCommissionService(context);
+        var preview = await service.PreviewAsync(request);
+        Assert.Equal(2m, preview.TotalCommissionUsd); // Each day 0.2 + 0.3 => 1. Period-only rounding would yield 1.
+        Assert.All(preview.Items.GroupBy(x => x.HawalaDate.Date), group => Assert.Equal(1m, group.Sum(x => x.CommissionAfn)));
+        Assert.All(preview.Items, item => Assert.Equal(decimal.Truncate(item.CommissionAfn), item.CommissionAfn));
+        var posted = await service.PostAsync(request);
+        Assert.Equal(preview.TotalCommissionUsd, posted.TotalCommissionUsd);
+        var details = await service.GetDetailsAsync(posted.Id);
+        AssertBalanced(details.LedgerEntries);
+        Assert.All(details.LedgerEntries, entry =>
+        {
+            Assert.Equal(decimal.Truncate(entry.TalabKar), entry.TalabKar);
+            Assert.Equal(decimal.Truncate(entry.BadehKar), entry.BadehKar);
+        });
+        await service.ReverseAsync(posted.Id, "Test whole-unit reversal");
+        Assert.Equal(2m, (await service.PreviewAsync(request)).TotalCommissionUsd);
     }
 
     private async Task ConfigureOwnLocationAsync(HawalaExchange.Infrastructure.Data.ApplicationDbContext context)

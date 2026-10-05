@@ -6,10 +6,10 @@ namespace HawalaExchange.Web.Helpers;
 
 public static class MoneyFormatHelper
 {
-    public static string Format(decimal value, int decimalPlaces = 8) =>
+    public static string Format(decimal value, int decimalPlaces = 0) =>
         AmountValueHelper.Format(value, decimalPlaces);
 
-    public static string Format(decimal? value, int decimalPlaces = 8) =>
+    public static string Format(decimal? value, int decimalPlaces = 0) =>
         value.HasValue ? Format(value.Value, decimalPlaces) : string.Empty;
 
     public static string FormatWhileTyping(string? value, int decimalPlaces = 2)

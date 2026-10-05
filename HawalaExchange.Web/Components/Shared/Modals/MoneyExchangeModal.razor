@@ -718,7 +718,7 @@
             CurrentExchange.FromAmount = AmountValueHelper.RoundConvertedAmount(result.ToAmount);
         }
 
-        RateMeaning = $"1 {GetCurrencyName(result.BaseCurrencyId)} برابر است با {MoneyFormatHelper.Format(CurrentExchange.ExchangeRate)} {GetCurrencyName(result.QuoteCurrencyId)}";
+        RateMeaning = $"1 {GetCurrencyName(result.BaseCurrencyId)} برابر است با {MoneyFormatHelper.Format(CurrentExchange.ExchangeRate, 8)} {GetCurrencyName(result.QuoteCurrencyId)}";
     }
 
     private void ClearCalculatedAmount()

@@ -280,7 +280,7 @@
                                             @foreach (var rateInfo in hawala.SettlementRates)
                                             {
                                                 <div class="d-flex align-items-center gap-1" dir="ltr">
-                                                    <span>@AmountValueHelper.Format(rateInfo.ExchangeRate) @rateInfo.SourceCurrencyCode</span>
+                                                    <span>@AmountValueHelper.Format(rateInfo.ExchangeRate, 8) @rateInfo.SourceCurrencyCode</span>
                                                     @if (hawala.CanEditSettlementRate)
                                                     {
                                                         <button type="button" class="btn btn-link btn-sm p-0" title="تغییر نرخ" @onclick="() => OpenSettlementRateEdit(hawala, rateInfo)">
@@ -630,7 +630,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">نرخ تبدیل</span>
-                                <span class="info-value">@(selectedHawala.ExchangeRate.HasValue ? MoneyFormatHelper.Format(selectedHawala.ExchangeRate.Value) : "-")</span>
+                                <span class="info-value">@(selectedHawala.ExchangeRate.HasValue ? MoneyFormatHelper.Format(selectedHawala.ExchangeRate.Value, 8) : "-")</span>
                             </div>
                         </div>
                     </div>
@@ -924,7 +924,7 @@
 
     private async Task HandleSettlementRateUpdatedAsync(HawalaSettlementRateResultDto result)
     {
-        successMessage = $"نرخ حواله شماره {result.HawalaNumber} از {AmountValueHelper.Format(result.PreviousRate)} به {AmountValueHelper.Format(result.ExchangeRate)} تغییر کرد.";
+        successMessage = $"نرخ حواله شماره {result.HawalaNumber} از {AmountValueHelper.Format(result.PreviousRate, 8)} به {AmountValueHelper.Format(result.ExchangeRate, 8)} تغییر کرد.";
         await LoadHawalas();
     }
 

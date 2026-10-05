@@ -23,7 +23,7 @@
             <PageHeaderStat Label="منقضی" Value="@dashboard.ExpiredTenants" Icon="bi-x-circle" Tone="danger" />
             <PageHeaderStat Label="تعلیق" Value="@dashboard.SuspendedTenants" Icon="bi-pause-circle" Tone="neutral" />
             <PageHeaderStat Label="کاربران" Value="@dashboard.TotalUsers" Icon="bi-people" />
-            <PageHeaderStat Label="درآمد ماه" Value="@dashboard.CollectedRevenueThisMonth.ToString("N2")" Icon="bi-cash-stack" Tone="success" />
+            <PageHeaderStat Label="درآمد ماه" Value="@dashboard.CollectedRevenueThisMonth.ToWholeMoney()" Icon="bi-cash-stack" Tone="success" />
         </PageHeaderStats>
         <div class="page-actions">
             <a class="btn-modern btn-light-modern" href="/platform/plans"><i class="bi bi-box-seam"></i> پلن‌ها</a>

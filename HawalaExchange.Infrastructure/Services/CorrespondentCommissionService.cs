@@ -29,7 +29,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             deductions,
             request.CommissionPerLakhAfn,
             request.HawalaType == "HawalaSend" && request.CommissionScope != "Forwarding",
-            request.CommissionScope is "Origin" or "Forwarding" or "Incoming");
+            request.CommissionScope is "Origin" or "Forwarding" or "Incoming",
+            request.CommissionScope == "Forwarding");
         return preview;
     }
 
@@ -129,7 +130,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         IReadOnlyCollection<CorrespondentCommissionBatchItem> deductions,
         decimal commissionPerLakhAfn,
         bool isOutgoing,
-        bool isOrigin)
+        bool isOrigin,
+        bool roundByDay)
     {
         if (deductions.Count == 0)
             return;
@@ -162,16 +164,18 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         {
             preview.TotalCommissionAfn = decimal.Round(
                 preview.Items.Where(x => x.CurrencyCode == "AFN").Sum(x => x.CommissionAfn),
-                2, MidpointRounding.AwayFromZero);
+                0, MidpointRounding.AwayFromZero);
             preview.TotalCommissionUsd = decimal.Round(
                 preview.Items.Where(x => x.CurrencyCode == "USD").Sum(x => x.CommissionAfn),
-                2, MidpointRounding.AwayFromZero);
+                0, MidpointRounding.AwayFromZero);
         }
         else if (isOrigin)
         {
             preview.TotalCommissionAfn = 0;
-            preview.TotalCommissionUsd = decimal.Round(
-                preview.Items.Sum(x => x.CommissionAfn), 2, MidpointRounding.AwayFromZero);
+            preview.TotalCommissionUsd = roundByDay
+                ? preview.Items.GroupBy(x => x.HawalaDate.ToLocalTime().Date)
+                    .Sum(day => decimal.Round(day.Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero))
+                : decimal.Round(preview.Items.Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero);
         }
         else
         {
@@ -248,16 +252,25 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         {
             batch.TotalCommissionAfn = decimal.Round(batch.Items
                 .Where(x => currencyCodes.GetValueOrDefault(x.SourceCurrencyId) == "AFN")
-                .Sum(x => x.CommissionAfn), 2, MidpointRounding.AwayFromZero);
+                .Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero);
             batch.TotalCommissionUsd = decimal.Round(batch.Items
                 .Where(x => currencyCodes.GetValueOrDefault(x.SourceCurrencyId) == "USD")
-                .Sum(x => x.CommissionAfn), 2, MidpointRounding.AwayFromZero);
+                .Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero);
         }
         else if (isOrigin)
         {
             batch.TotalCommissionAfn = 0;
-            batch.TotalCommissionUsd = decimal.Round(batch.Items.Sum(x => x.CommissionAfn), 2,
-                MidpointRounding.AwayFromZero);
+            if (batch.CommissionScope == "Forwarding")
+            {
+                var hawalaIds = batch.Items.Select(x => x.HawalaId).Distinct().ToArray();
+                var dates = await context.Hawalas.AsNoTracking().Where(x => hawalaIds.Contains(x.Id))
+                    .Select(x => new { x.Id, x.CreatedAt }).ToDictionaryAsync(x => x.Id, x => x.CreatedAt, cancellationToken);
+                batch.TotalCommissionUsd = batch.Items.GroupBy(x => dates[x.HawalaId].ToLocalTime().Date)
+                    .Sum(day => decimal.Round(day.Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero));
+            }
+            else
+                batch.TotalCommissionUsd = decimal.Round(batch.Items.Sum(x => x.CommissionAfn), 0,
+                    MidpointRounding.AwayFromZero);
         }
         else
         {

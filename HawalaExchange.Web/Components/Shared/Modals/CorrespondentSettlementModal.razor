@@ -2,6 +2,7 @@
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Application.Services
 @inject ICorrespondentSettlementService SettlementService
+@inject ICorrespondentDailyRateService DailyRateService
 
 @if (IsVisible)
 {
@@ -27,8 +28,14 @@
                     {
                         <div class="alert alert-danger mb-0">@error</div>
                     }
-                    else if (preview != null)
+                    @if (!loading && preview != null)
                     {
+                        @if (AccountMode)
+                        {
+                            <label class="form-label">تاریخ نرخ تبدیل مانده حساب</label>
+                            <PersianDatePicker MaxDate="DateTime.Today" @bind-Value="balanceRateDate"
+                                               @bind-Value:after="ReloadBalanceRatesAsync" />
+                        }
                         <div class="alert alert-info py-2">
                             @if (AccountMode)
                             {
@@ -36,9 +43,10 @@
                             }
                             else
                             {
-                                <span>نرخ هر ارز را یک‌بار وارد کنید؛ این نرخ برای تمام حواله‌های همان ارز اعمال می‌شود، اما برای هر حواله جداگانه ذخیره خواهد شد.</span>
+                                <span>نرخ هر ارز به تفکیک روز حواله پُر می‌شود و قابل ویرایش است؛ برای هر حواله جداگانه ذخیره خواهد شد.</span>
                             }
                         </div>
+                        <div class="form-text mb-2">نرخ روزانه AFN/USD خودکار پُر می‌شود. اگر موجود نباشد، نرخ واردشده هنگام ثبت موفق تبدیل به عنوان نرخ نمایندگی ذخیره می‌شود. ویرایش نرخ تبدیل، نرخ روزانه موجود را تغییر نمی‌دهد.</div>
                         @if (AccountMode && rateGroups.Count > 0)
                         {
                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -51,7 +59,7 @@
                         }
                         <div class="table-responsive">
                             <GlobalDataGrid class="table table-sm align-middle">
-                                <thead><tr>@if (AccountMode) { <th class="text-center">انتخاب</th> }<th>ارز فعلی</th><th>تعداد حواله</th><th>مجموع مبلغ فعلی</th><th>نرخ تبدیل</th><th>مجموع به @preview.TargetCurrencyCode</th></tr></thead>
+                                <thead><tr>@if (AccountMode) { <th class="text-center">انتخاب</th> }<th>تاریخ نرخ</th><th>ارز فعلی</th><th>تعداد حواله</th><th>مجموع مبلغ فعلی</th><th>نرخ تبدیل</th><th>مجموع به @preview.TargetCurrencyCode</th></tr></thead>
                                 <tbody>
                                     @foreach (var group in rateGroups)
                                     {
@@ -62,6 +70,7 @@
                                                     <input type="checkbox" class="form-check-input" @bind="group.IsSelected" />
                                                 </td>
                                             }
+                                            <td>@DisplayDates.Date(group.RateDate)</td>
                                             <td class="fw-bold">@group.CurrencyCode</td>
                                             <td>@(AccountMode ? "مانده حساب" : $"{group.Items.Select(x => x.HawalaId).Distinct().Count()} حواله")</td>
                                             <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(GetSourceTotal(group)) @group.CurrencyCode</td>
@@ -98,12 +107,13 @@
                         {
                             <div class="table-responsive mb-2">
                                 <GlobalDataGrid class="table table-sm align-middle">
-                                    <thead><tr><th>حواله</th><th>ارز</th><th>مبلغ</th><th>نرخ مستقل</th><th>مبلغ تبدیل‌شده</th></tr></thead>
+                                    <thead><tr><th>حواله</th><th>تاریخ نرخ</th><th>ارز</th><th>مبلغ</th><th>نرخ مستقل</th><th>مبلغ تبدیل‌شده</th></tr></thead>
                                     <tbody>
                                         @foreach (var item in rateInputs)
                                         {
                                             <tr>
                                                 <td>شماره @item.HawalaNumber</td>
+                                                <td>@DisplayDates.Date(item.RateDate)</td>
                                                 <td class="fw-bold">@item.CurrencyCode</td>
                                                 <td dir="ltr">@MoneyFormatHelper.Format(item.SourceAmount) @item.CurrencyCode</td>
                                                 <td><input type="number" lang="en" min="0.00000001" step="any" class="form-control form-control-sm financial-value-input" @bind="item.Rate" @bind:event="oninput" /></td>
@@ -146,6 +156,7 @@
     private string? note;
     private bool wasVisible;
     private bool showIndividualRates;
+    private DateTime balanceRateDate = DateTime.Today;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -159,6 +170,8 @@
         loading = true;
         error = string.Empty;
         note = null;
+        preview = null;
+        balanceRateDate = DateTime.Today;
         rateInputs.Clear();
         rateGroups.Clear();
         showIndividualRates = false;
@@ -170,6 +183,7 @@
                 rateInputs.AddRange(preview.Balances.Select(x => new RateInput
                 {
                     CurrencyId = x.SourceCurrencyId,
+                    RateDate = balanceRateDate,
                     CurrencyCode = x.SourceCurrencyCode,
                     SourceQuotationPriority = x.SourceQuotationPriority,
                     SourceAmount = Math.Abs(x.NetAmount),
@@ -187,6 +201,7 @@
                     {
                         HawalaId = x.HawalaId,
                         HawalaNumber = x.HawalaNumber,
+                        RateDate = x.RateDate,
                         CurrencyId = x.SourceCurrencyId,
                         CurrencyCode = x.SourceCurrencyCode,
                         SourceQuotationPriority = x.SourceQuotationPriority,
@@ -198,14 +213,17 @@
             }
 
             rateGroups.AddRange(rateInputs
-                .GroupBy(x => new { x.CurrencyId, x.CurrencyCode })
+                .GroupBy(x => new { x.CurrencyId, x.CurrencyCode, x.RateDate })
                 .Select(x => new RateGroup
                 {
                     CurrencyId = x.Key.CurrencyId,
                     CurrencyCode = x.Key.CurrencyCode,
+                    RateDate = x.Key.RateDate,
                     Items = x.ToList(),
                     IsSelected = !AccountMode
                 }));
+
+            await LoadDailyRatesAsync();
 
             if (rateInputs.Count == 0)
                 error = AccountMode ? "مانده‌ای برای تبدیل وجود ندارد." : "حوالهٔ تبدیل‌نشده‌ای انتخاب نشده است.";
@@ -243,6 +261,7 @@
                 ? await SettlementService.ConvertBalanceAsync(new ConvertCorrespondentBalanceDto
                 {
                     CorrespondentId = CorrespondentId,
+                    RateDate = balanceRateDate,
                     Rates = SelectedInputs.Select(x => new SettlementRateDto
                     {
                         SourceCurrencyId = x.CurrencyId,
@@ -276,6 +295,45 @@
     }
 
     private static decimal GetSourceTotal(RateGroup group) => group.Items.Sum(x => x.SourceAmount);
+
+    private async Task ReloadBalanceRatesAsync()
+    {
+        loading = true;
+        error = string.Empty;
+        try
+        {
+            foreach (var group in rateGroups)
+            {
+                group.RateDate = balanceRateDate.Date;
+                foreach (var item in group.Items)
+                    item.RateDate = balanceRateDate.Date;
+            }
+            await LoadDailyRatesAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadDailyRatesAsync()
+    {
+        if (preview == null)
+            return;
+        foreach (var day in rateGroups.GroupBy(x => x.RateDate))
+        {
+            var supported = day.Where(x => CorrespondentRateCalculator.Supports(x.CurrencyCode, preview.TargetCurrencyCode)).ToList();
+            if (supported.Count == 0)
+                continue;
+            var daily = await DailyRateService.GetAsync(CorrespondentId, day.Key);
+            foreach (var group in supported)
+            {
+                group.Rate = daily.UsdToAfnRate.HasValue
+                    ? CorrespondentRateCalculator.ToSettlementRate(group.CurrencyCode, group.Items[0].SourceQuotationPriority,
+                        preview.TargetCurrencyCode, preview.TargetQuotationPriority, daily.UsdToAfnRate.Value)
+                    : null;
+                ApplyGroupRate(group);
+            }
+        }
+    }
 
     private decimal GetTargetTotal(RateGroup group) => group.Items.Sum(ConvertInput);
 
@@ -330,6 +388,7 @@
 
     private sealed class RateInput
     {
+        public DateTime RateDate { get; set; }
         public long? HawalaId { get; init; }
         public long? HawalaNumber { get; init; }
         public long CurrencyId { get; init; }
@@ -342,6 +401,7 @@
 
     private sealed class RateGroup
     {
+        public DateTime RateDate { get; set; }
         public long CurrencyId { get; init; }
         public string CurrencyCode { get; init; } = string.Empty;
         public List<RateInput> Items { get; init; } = [];

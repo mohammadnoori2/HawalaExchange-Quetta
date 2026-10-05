@@ -44,9 +44,9 @@
                                     {
                                         <tr class="@(!item.IsActive || item.SourceAmount < 0 ? "table-secondary" : null)">
                                             <td dir="ltr">@item.HawalaNumber.ToString(CultureInfo.InvariantCulture)</td>
-                                            <td>@DisplayDates.Date(item.HawalaDate)</td><td>@item.SourceName</td>
+                                            <td>@DisplayDates.Date(LocalDay(item.HawalaDate))</td><td>@item.SourceName</td>
                                             <td dir="ltr">@Number(item.SourceAmount) @item.CurrencyCode</td>
-                                            <td>@DisplayDates.Date(item.ValuationDate)</td><td dir="ltr">@Number(item.SourceToAfnRate, "N4")</td>
+                                            <td>@DisplayDates.Date(item.ValuationDate)</td><td dir="ltr">@item.SourceToAfnRate.ToString("N4", CultureInfo.InvariantCulture)</td>
                                             <td dir="ltr">@Number(item.AfnEquivalent, "N4") USD</td>
                                             <td dir="ltr">@Number(item.PerLakhRate, "N4") USD</td>
                                             <td dir="ltr">@Number(item.CommissionAfn, "N4") USD</td>
@@ -85,10 +85,11 @@
     }
 
     internal void ToggleDay(DateTime date) { selectedDay = selectedDay == date ? null : date; StateHasChanged(); }
-    private static DateTime LocalDay(DateTime value) => (value.Kind == DateTimeKind.Utc ? value.ToLocalTime() : value).Date;
+    // SQL datetime2 loses Kind; Hawala.CreatedAt is stored as UTC.
+    private static DateTime LocalDay(DateTime value) => value.ToLocalTime().Date;
     private static decimal Total(IEnumerable<CorrespondentCommissionItemDto> items, string currency) =>
         items.Where(x => string.Equals(x.CurrencyCode, currency, StringComparison.OrdinalIgnoreCase)).Sum(x => x.SourceAmount);
-    private static string Number(decimal value, string format = "N2") => value.ToString(format, CultureInfo.InvariantCulture);
+    private static string Number(decimal value, string format = "N2") => HawalaExchange.Application.Services.AmountValueHelper.Format(value);
     private sealed record DayGroup(DateTime Date, List<CorrespondentCommissionItemDto> Items, List<LocationGroup> Locations);
     private sealed record LocationGroup(long? Id, string Name, List<CorrespondentCommissionItemDto> Items);
 }

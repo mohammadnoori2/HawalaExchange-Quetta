@@ -1046,7 +1046,7 @@ public class JournalService : IJournalService
             Add(operation, "ارز فروش / مبلغ پرداختی", Money(source.FromAmount, source.FromCurrency.Code));
             Add(operation, "حساب ارز خرید", source.ToAccount.AccountName);
             Add(operation, "ارز خرید / مبلغ دریافتی", Money(source.ToAmount, source.ToCurrency.Code));
-            Add(operation, "نرخ تبادله", AmountValueHelper.Format(source.ExchangeRate));
+            Add(operation, "نرخ تبادله", AmountValueHelper.Format(source.ExchangeRate, 8));
             Add(operation, "کمیسیون", Money(source.CommissionAmount, source.ProfitCurrency?.Code));
             Add(operation, "هزینه خارجی", Money(source.ExternalFeeAmount, source.ProfitCurrency?.Code));
             Add(operation, "بهای تمام‌شده", Money(source.CostAmount, source.ProfitCurrency?.Code));
@@ -1258,7 +1258,7 @@ public class JournalService : IJournalService
                         var sourceAmount = item.SourceTalabKar > 0 ? item.SourceTalabKar : item.SourceBadehKar;
                         var targetAmount = item.TargetTalabKar > 0 ? item.TargetTalabKar : item.TargetBadehKar;
                         return $"حواله شماره {item.Hawala.Number}: {AmountValueHelper.Format(sourceAmount)} {item.SourceCurrency.Code} " +
-                               $"با نرخ {AmountValueHelper.Format(item.ExchangeRate)} به " +
+                               $"با نرخ {AmountValueHelper.Format(item.ExchangeRate, 8)} به " +
                                $"{AmountValueHelper.Format(targetAmount)} {settlement.TargetCurrency.Code}";
                     }))
                     : string.Join("؛ ", settlement.Items.Select(item =>
@@ -1271,7 +1271,7 @@ public class JournalService : IJournalService
                         : item.TargetBadehKar;
                     var direction = item.SourceTalabKar > 0 ? "طلبکار" : "بدهکار";
                     return $"ماندهٔ {direction} {AmountValueHelper.Format(sourceAmount)} {item.SourceCurrency.Code} " +
-                           $"با نرخ {AmountValueHelper.Format(item.ExchangeRate)} به " +
+                           $"با نرخ {AmountValueHelper.Format(item.ExchangeRate, 8)} به " +
                            $"{AmountValueHelper.Format(targetAmount)} {settlement.TargetCurrency.Code}";
                 }));
 

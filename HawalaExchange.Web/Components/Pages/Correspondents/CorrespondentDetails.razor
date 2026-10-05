@@ -53,6 +53,12 @@
                 <span>@correspondent.Name · @correspondent.Code</span>
             </div>
             <div class="correspondent-header-actions">
+                @if (!correspondent.IsArchived)
+                {
+                    <button class="btn btn-outline-primary" @onclick="OpenDailyRateAsync">
+                        <i class="bi bi-currency-exchange me-1"></i> افزودن نرخ نمایندگی
+                    </button>
+                }
                 <button class="btn btn-outline-primary" @onclick="OpenPeriods">
                     <i class="bi bi-calendar-check me-1"></i> بستن دوره
                 </button>
@@ -92,16 +98,16 @@
             <div class="alert alert-warning py-2 mb-2">این نمایندگی بایگانی است؛ حواله‌های قبلی قابل مشاهده‌اند، اما برای ثبت حواله جدید ابتدا آن را از بایگانی خارج کنید.</div>
         }
 
-        @if (!correspondent.IsArchived)
+        @if (!correspondent.IsArchived && showDailyRate)
         {
             <div class="card mb-3"><div class="card-body row g-2 align-items-end">
                 <div class="col-md-4">
-                    <label class="form-label fw-bold" for="sourceRateDate">تاریخ نرخ کمیشن حواله‌های ارسالی</label>
+                    <label class="form-label fw-bold" for="sourceRateDate">تاریخ نرخ نمایندگی</label>
                     <PersianDatePicker Id="sourceRateDate" MaxDate="DateTime.Today"
                                        @bind-Value="sourceRateDate" @bind-Value:after="LoadSourceRateAsync" />
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-bold" for="sourceUsdRate">نرخ USD به AFN نمایندگی مبدأ</label>
+                    <label class="form-label fw-bold" for="sourceUsdRate">نرخ نمایندگی (1 USD به AFN)</label>
                     <InputNumber id="sourceUsdRate" class="form-control" min="0.00000001" step="0.00000001"
                                  @bind-Value="sourceUsdRateInput" />
                 </div>
@@ -111,7 +117,7 @@
                         @(isSavingSourceRate ? "در حال ذخیره..." : "ذخیره نرخ نمایندگی")
                     </button>
                 </div>
-                <div class="col-12 form-text">این نرخ برای تبدیل مبلغ حواله‌های افغانی این نمایندگی به مبنای دالری در کمیشن دریافتی و ارسالی استفاده می‌شود؛ نرخ عمومی روزنامچه تغییر نمی‌کند.</div>
+                <div class="col-12 form-text">نرخ مشترک کمیشن و تبدیل AFN/USD به ارز توافقی؛ برای مثال 1 USD = 66.50 AFN. نرخ عمومی روزنامچه تغییر نمی‌کند.</div>
             </div></div>
         }
 
@@ -131,7 +137,7 @@
 
             @if (activeHawalaType == "HawalaSend")
             {
-                <CorrespondentHawalaPanel @key="@($"send-{CorrespondentId}")"
+                <CorrespondentHawalaPanel @key="@($"send-{CorrespondentId}-{hawalaPanelVersion}")"
                                           CorrespondentId="@CorrespondentId"
                                           HawalaType="HawalaSend"
                                           Title="حواله‌های ارسالی"
@@ -140,7 +146,7 @@
             }
             else
             {
-                <CorrespondentHawalaPanel @key="@($"receive-{CorrespondentId}")"
+                <CorrespondentHawalaPanel @key="@($"receive-{CorrespondentId}-{hawalaPanelVersion}")"
                                           CorrespondentId="@CorrespondentId"
                                           HawalaType="HawalaReceive"
                                           Title="حواله‌های دریافتی"
@@ -156,6 +162,44 @@
                                CorrespondentId="@CorrespondentId"
                                AccountMode="true"
                                OnConverted="HandleBalanceConvertedAsync" />
+
+@if (rateImpact != null)
+{
+    <div class="modal show d-block" tabindex="-1" dir="rtl" style="background:rgba(15,23,42,.55)">
+        <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">هشدار تغییر نرخ نمایندگی</h5></div>
+            <div class="modal-body">
+                <div class="alert alert-warning">@rateImpact.Hawalas.Count حواله در تاریخ @DisplayDates.Date(rateImpact.RateDate) با نرخ متفاوت تبدیل شده‌اند. آیا نرخ جدید به این حواله‌ها هم اعمال شود؟</div>
+                @if (!string.IsNullOrWhiteSpace(pageError))
+                {
+                    <div class="alert alert-danger">@pageError</div>
+                }
+                <div class="table-responsive" style="max-height:45vh;overflow:auto">
+                    <table class="table table-sm"><thead><tr><th>حواله</th><th>نرخ قبلی</th><th>نرخ جدید</th><th>مبلغ قبلی</th><th>مبلغ جدید</th></tr></thead><tbody>
+                    @foreach (var item in rateImpact.Hawalas)
+                    {
+                        <tr><td>@item.HawalaNumber @(item.IsClosed ? "(دوره بسته)" : "")</td>
+                            <td dir="ltr">@AmountValueHelper.Format(item.PreviousRate, 8)</td>
+                            <td dir="ltr">@AmountValueHelper.Format(item.NewRate, 8)</td>
+                            <td dir="ltr">@MoneyFormatHelper.Format(item.PreviousTargetAmount) @item.TargetCurrencyCode</td>
+                            <td dir="ltr">@MoneyFormatHelper.Format(item.NewTargetAmount) @item.TargetCurrencyCode</td></tr>
+                    }
+                    </tbody></table>
+                </div>
+                @if (rateImpact.Hawalas.Any(x => x.IsClosed))
+                {
+                    <div class="form-text text-danger">حواله‌های دوره بسته قابل تغییر گروهی نیستند.</div>
+                }
+                <div class="form-text">اعمال به حواله‌ها مبلغ تبدیل‌شده و ثبت حسابداری آن‌ها را اصلاح می‌کند و در سابقه تغییرات ثبت می‌شود. کمیشن‌های ثبت‌شده و تبدیل کل مانده حساب در این عملیات تغییر نمی‌کنند.</div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-light" disabled="@isSavingSourceRate" @onclick="() => rateImpact = null">انصراف</button>
+                <button class="btn btn-outline-primary" disabled="@isSavingSourceRate" @onclick="() => ConfirmSourceRateAsync(false)">فقط ذخیره نرخ نمایندگی</button>
+                <button class="btn btn-warning" disabled="@(isSavingSourceRate || rateImpact.Hawalas.Any(x => x.IsClosed))" @onclick="() => ConfirmSourceRateAsync(true)">ذخیره و اعمال به این حواله‌ها</button>
+            </div>
+        </div></div>
+    </div>
+}
 
 <MoneyExchangeModal IsVisible="@showExchangeModal"
                     IsVisibleChanged="@((bool value) => showExchangeModal = value)"
@@ -299,6 +343,9 @@
     private DateTime sourceRateDate = DateTime.Today;
     private decimal sourceUsdRateInput;
     private bool isSavingSourceRate;
+    private bool showDailyRate;
+    private CorrespondentDailyRateImpactDto? rateImpact;
+    private int hawalaPanelVersion;
     private CancellationTokenSource? pageLoadCts;
     private int pageLoadVersion;
 
@@ -319,6 +366,7 @@
         try
         {
             isLoading = true;
+            rateImpact = null;
             activeHawalaType = "HawalaSend";
             pageError = string.Empty;
             var page = await CorrespondentService.GetDetailsPageAsync(CorrespondentId, cancellationToken);
@@ -365,13 +413,26 @@
         }
     }
 
+    private async Task OpenDailyRateAsync()
+    {
+        showDailyRate = !showDailyRate;
+        if (showDailyRate)
+            await LoadSourceRateAsync();
+    }
+
     private async Task SaveSourceRateAsync()
     {
         try
         {
             isSavingSourceRate = true;
             pageError = string.Empty;
-            await CorrespondentDailyRateService.SaveAsync(CorrespondentId, sourceRateDate, sourceUsdRateInput);
+            var impact = await CorrespondentDailyRateService.GetImpactAsync(CorrespondentId, sourceRateDate, sourceUsdRateInput);
+            if (impact.Hawalas.Count > 0)
+            {
+                rateImpact = impact;
+                return;
+            }
+            await CorrespondentDailyRateService.SaveConfirmedAsync(impact, false);
             successMessage = $"نرخ {DisplayDates.Date(sourceRateDate)} برای نمایندگی «{correspondent?.Name}» ثبت شد.";
         }
         catch (Exception ex)
@@ -382,6 +443,27 @@
         {
             isSavingSourceRate = false;
         }
+    }
+
+    private async Task ConfirmSourceRateAsync(bool applyToHawalas)
+    {
+        if (rateImpact == null || isSavingSourceRate)
+            return;
+        try
+        {
+            isSavingSourceRate = true;
+            pageError = string.Empty;
+            await CorrespondentDailyRateService.SaveConfirmedAsync(rateImpact, applyToHawalas);
+            if (applyToHawalas)
+                hawalaPanelVersion++;
+            successMessage = applyToHawalas
+                ? $"نرخ نمایندگی ذخیره و به {rateImpact.Hawalas.Count} حواله اعمال شد؛ حسابداری آن‌ها نیز اصلاح شد."
+                : "نرخ نمایندگی ذخیره شد؛ نرخ حواله‌های قبلی تغییر نکرد.";
+            rateImpact = null;
+            await LoadSourceRateAsync();
+        }
+        catch (Exception ex) { pageError = ex.Message; }
+        finally { isSavingSourceRate = false; }
     }
 
     private void BackToList() => NavigationManager.NavigateTo("/correspondents");
@@ -450,7 +532,7 @@
 
         return string.Join("؛ ", result.Items.Select(item =>
             $"ماندهٔ {item.BalanceDirection} به مقدار {MoneyFormatHelper.Format(item.SourceAmount)} {item.SourceCurrencyCode} " +
-            $"با نرخ {AmountValueHelper.Format(item.ExchangeRate)} به {MoneyFormatHelper.Format(item.TargetAmount)} {item.TargetCurrencyCode} تبدیل شد"));
+            $"با نرخ {AmountValueHelper.Format(item.ExchangeRate, 8)} به {MoneyFormatHelper.Format(item.TargetAmount)} {item.TargetCurrencyCode} تبدیل شد"));
     }
 
     private async Task OpenEdit()

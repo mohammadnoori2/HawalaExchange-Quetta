@@ -34,6 +34,7 @@ public sealed class CorrespondentSettlementHawalaBalanceDto : CorrespondentSettl
 {
     public long HawalaId { get; set; }
     public long HawalaNumber { get; set; }
+    public DateTime RateDate { get; set; }
 }
 
 public sealed class HawalaSettlementRateResultDto
@@ -51,6 +52,7 @@ public sealed class HawalaSettlementRateResultDto
 public sealed class ConvertCorrespondentBalanceDto
 {
     public long CorrespondentId { get; set; }
+    public DateTime RateDate { get; set; } = DateTime.Today;
     [MinLength(1)] public List<SettlementRateDto> Rates { get; set; } = [];
     [StringLength(500)] public string? Note { get; set; }
 }

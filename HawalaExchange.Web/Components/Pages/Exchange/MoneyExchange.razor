@@ -240,8 +240,8 @@
                                         </span>
                                     </td>
 
-                                    <td dir="ltr" title="@($"1 {item.RateBaseCurrencyCode} = {MoneyFormatHelper.Format(item.ExchangeRate)} {item.RateQuoteCurrencyCode}")">
-                                        <strong>@MoneyFormatHelper.Format(item.ExchangeRate)</strong>
+                                    <td dir="ltr" title="@($"1 {item.RateBaseCurrencyCode} = {MoneyFormatHelper.Format(item.ExchangeRate, 8)} {item.RateQuoteCurrencyCode}")">
+                                        <strong>@MoneyFormatHelper.Format(item.ExchangeRate, 8)</strong>
                                         <small class="exchange-rate-pair">
                                             @item.RateBaseCurrencyCode → @item.RateQuoteCurrencyCode
                                         </small>
@@ -411,7 +411,7 @@
                                 <span class="info-label">نرخ</span>
                                 <span class="info-value" dir="ltr">
                                     1 @selectedExchange.RateBaseCurrencyCode =
-                                    @MoneyFormatHelper.Format(selectedExchange.ExchangeRate)
+                                    @MoneyFormatHelper.Format(selectedExchange.ExchangeRate, 8)
                                     @selectedExchange.RateQuoteCurrencyCode
                                 </span>
                             </div>

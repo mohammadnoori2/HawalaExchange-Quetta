@@ -48,10 +48,11 @@ public sealed class CorrespondentSettlementService(
         if (ids.Length == 0)
             throw new InvalidOperationException("حداقل یک حواله را برای تبدیل انتخاب کنید.");
         ValidateConversionRequest(dto.CorrespondentId, dto.Note);
-        return await ExecuteConversionAsync(
+        return await ExecuteWithDailyRateAsync(
             "Hawalas", dto.CorrespondentId, dto.Note,
             CreateIdTable(ids),
             CreateHawalaRateTable(dto.HawalaRates),
+            null,
             cancellationToken);
     }
 
@@ -73,7 +74,10 @@ public sealed class CorrespondentSettlementService(
             throw new InvalidOperationException("یک یا چند حواله معتبر نیست یا قبلاً تبدیل شده است.");
 
         var accountId = await GetCorrespondentAccountIdAsync(correspondentId, cancellationToken);
-        return await GetHawalaBalancesAsync(accountId, ids, targetCurrencyId, cancellationToken);
+        var balances = await GetHawalaBalancesAsync(accountId, ids, targetCurrencyId, cancellationToken);
+        foreach (var balance in balances)
+            balance.RateDate = balance.RateDate.ToLocalTime().Date;
+        return balances;
     }
 
     public async Task<CorrespondentSettlementResultDto> ConvertBalanceAsync(
@@ -84,11 +88,90 @@ public sealed class CorrespondentSettlementService(
         ValidateConversionRequest(dto.CorrespondentId, dto.Note);
         if (!dto.Rates.Any(x => x.SourceCurrencyId > 0 && x.Rate > 0))
             throw new InvalidOperationException("حداقل یک ارز را برای تبدیل انتخاب کنید.");
-        return await ExecuteConversionAsync(
+        return await ExecuteWithDailyRateAsync(
             "Account", dto.CorrespondentId, dto.Note,
             CreateIdTable([]),
             CreateAccountRateTable(dto.Rates),
+            dto.RateDate.Date,
             cancellationToken);
+    }
+
+    private async Task<CorrespondentSettlementResultDto> ExecuteWithDailyRateAsync(
+        string sourceMode, long correspondentId, string? note, DataTable hawalaIds,
+        DataTable rates, DateTime? balanceRateDate, CancellationToken cancellationToken)
+    {
+        // The procedure participates in this outer transaction. A failed conversion must
+        // never leave a newly entered daily rate behind (or vice versa).
+        await using var transaction = context.Database.CurrentTransaction == null
+            ? await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            : null;
+        var correspondent = await GetConfiguredCorrespondentAsync(correspondentId, cancellationToken);
+        var sourceIds = rates.Rows.Cast<DataRow>().Select(x => (long)x["SourceCurrencyId"]).Distinct().ToArray();
+        var currencies = await context.Currencies.AsNoTracking().Where(x => sourceIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        var ids = hawalaIds.Rows.Cast<DataRow>().Select(x => (long)x["Id"]).ToArray();
+        var dates = sourceMode == "Hawalas"
+            ? await context.Hawalas.AsNoTracking().Where(x => ids.Contains(x.Id) && x.CorrespondentId == correspondentId)
+                .Select(x => new { x.Id, x.CreatedAt }).ToDictionaryAsync(x => x.Id, x => x.CreatedAt, cancellationToken)
+            : new Dictionary<long, DateTime>();
+        var candidates = new List<(DateTime Day, decimal Rate)>();
+        foreach (DataRow row in rates.Rows)
+        {
+            if (!currencies.TryGetValue((long)row["SourceCurrencyId"], out var source) ||
+                !CorrespondentRateCalculator.Supports(source.Code, correspondent.SettlementCurrency!.Code))
+                continue;
+            DateTime day;
+            if (sourceMode == "Account")
+                day = balanceRateDate!.Value;
+            else if (dates.TryGetValue((long)row["HawalaId"], out var createdAt))
+                day = createdAt.ToLocalTime().Date;
+            else
+                continue; // The procedure validates ownership and all requested IDs.
+            if (day > DateTime.Today)
+                throw new InvalidOperationException("برای روز آینده نمی‌توان نرخ نمایندگی ثبت کرد.");
+            candidates.Add((day, CorrespondentRateCalculator.ToDailyRate(source.Code, source.QuotationPriority,
+                correspondent.SettlementCurrency.Code, correspondent.SettlementCurrency.QuotationPriority, (decimal)row["Rate"])));
+        }
+
+        var days = candidates.Select(x => x.Day).Distinct().OrderBy(x => x).ToArray();
+        var existingDays = await context.CorrespondentDailyCommissionRates.AsNoTracking()
+            .Where(x => x.CorrespondentId == correspondentId && days.Contains(x.RateDate))
+            .Select(x => x.RateDate).ToListAsync(cancellationToken);
+        var newRates = new List<CorrespondentDailyCommissionRate>();
+        foreach (var group in candidates.GroupBy(x => x.Day).OrderBy(x => x.Key))
+        {
+            if (existingDays.Contains(group.Key))
+                continue; // An edited conversion rate is an override, not a daily-rate edit.
+            var values = group.Select(x => x.Rate).Distinct().ToArray();
+            if (values.Length != 1)
+                throw new InvalidOperationException("نرخ روزانه این نمایندگی موجود نیست؛ برای حواله‌های AFN/USD همان روز یک نرخ یکسان وارد کنید و سپس نرخ مستقل حواله را ویرایش کنید.");
+            if (values[0] <= 0)
+                throw new InvalidOperationException("نرخ روزانه نمایندگی معتبر نیست.");
+            newRates.Add(new CorrespondentDailyCommissionRate
+            {
+                CorrespondentId = correspondentId,
+                RateDate = group.Key,
+                UsdToAfnRate = values[0],
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = context.RequireCurrentUserId()
+            });
+        }
+
+        var result = await ExecuteConversionAsync(sourceMode, correspondentId, note, hawalaIds, rates, cancellationToken);
+        if (newRates.Count > 0)
+        {
+            context.CorrespondentDailyCommissionRates.AddRange(newRates);
+            try { await context.SaveChangesAsync(cancellationToken); }
+            catch
+            {
+                foreach (var rate in newRates)
+                    context.Entry(rate).State = EntityState.Detached;
+                throw;
+            }
+        }
+        if (transaction != null)
+            await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
     private async Task<CorrespondentSettlementResultDto> ExecuteConversionAsync(
@@ -271,6 +354,53 @@ public sealed class CorrespondentSettlementService(
         };
     }
 
+    internal async Task ApplyDailyRateToHawalasAsync(long correspondentId, long[] itemIds,
+        decimal usdToAfnRate, CancellationToken cancellationToken)
+    {
+        if (context.Database.CurrentTransaction == null)
+            throw new InvalidOperationException("تغییر گروهی نرخ باید داخل تراکنش انجام شود.");
+        if (itemIds.Length == 0)
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            return;
+        }
+        var items = await context.CorrespondentSettlementConversionHawalaItems
+            .Include(x => x.Hawala).Include(x => x.SourceCurrency).Include(x => x.LedgerEntries)
+            .Include(x => x.Conversion).ThenInclude(x => x.TargetCurrency)
+            .Include(x => x.Conversion).ThenInclude(x => x.Correspondent)
+            .Where(x => itemIds.Contains(x.Id) && x.Conversion.CorrespondentId == correspondentId &&
+                x.Conversion.SourceMode == "Hawalas").ToListAsync(cancellationToken);
+        if (items.Count != itemIds.Length)
+            throw new InvalidOperationException("حواله‌های تأییدشده تغییر کرده‌اند؛ دوباره پیش‌نمایش بگیرید.");
+        var accountId = await GetCorrespondentAccountIdAsync(correspondentId, cancellationToken);
+        var clearingId = await GetOrCreateClearingAccountIdAsync(cancellationToken);
+        foreach (var item in items)
+        {
+            var previousRate = item.ExchangeRate;
+            var previousTargetAmount = Math.Abs(item.TargetTalabKar - item.TargetBadehKar);
+            var newRate = CorrespondentRateCalculator.ToSettlementRate(item.SourceCurrency.Code, item.SourceCurrency.QuotationPriority,
+                item.Conversion.TargetCurrency.Code, item.Conversion.TargetCurrency.QuotationPriority, usdToAfnRate);
+            var sourceAmount = Math.Abs(item.SourceTalabKar - item.SourceBadehKar);
+            var targetAmount = ConvertAmount(item.SourceCurrency, item.Conversion.TargetCurrency, sourceAmount, newRate);
+            context.LedgerEntries.RemoveRange(item.LedgerEntries);
+            item.ExchangeRate = newRate;
+            item.TargetTalabKar = item.SourceTalabKar > item.SourceBadehKar ? targetAmount : 0;
+            item.TargetBadehKar = item.SourceBadehKar > item.SourceTalabKar ? targetAmount : 0;
+            AddBalancedLedgerEntries(item.Conversion.TransactionId, accountId, clearingId,
+                item.SourceCurrencyId, item.Conversion.TargetCurrencyId, sourceAmount, targetAmount,
+                item.SourceTalabKar > item.SourceBadehKar, item.Conversion.Correspondent.Name, item.Id);
+            context.AuditLogs.Add(new AuditLog
+            {
+                UserId = context.RequireCurrentUserId(), Action = "APPLY_DAILY_RATE_TO_HAWALA",
+                TableName = "CorrespondentSettlementConversionHawalaItems", RecordId = item.Id,
+                OldValue = $"نرخ {previousRate}؛ مبلغ {previousTargetAmount} {item.Conversion.TargetCurrency.Code}",
+                NewValue = $"نرخ حواله شماره {item.Hawala.Number} با تأیید کاربر به {newRate} و مبلغ {targetAmount} {item.Conversion.TargetCurrency.Code} تغییر کرد.",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     private void AddBalancedLedgerEntries(
         long transactionId,
         long correspondentAccountId,
@@ -347,11 +477,12 @@ public sealed class CorrespondentSettlementService(
         CancellationToken cancellationToken) => await context.LedgerEntries
         .Where(x => x.AccountId == accountId && x.HawalaId.HasValue &&
                     hawalaIds.Contains(x.HawalaId.Value) && x.CurrencyId != targetCurrencyId)
-        .GroupBy(x => new { HawalaId = x.HawalaId!.Value, x.Hawala!.Number, x.CurrencyId, x.Currency!.Code, x.Currency.QuotationPriority })
+        .GroupBy(x => new { HawalaId = x.HawalaId!.Value, x.Hawala!.Number, x.Hawala.CreatedAt, x.CurrencyId, x.Currency!.Code, x.Currency.QuotationPriority })
         .Select(x => new CorrespondentSettlementHawalaBalanceDto
         {
             HawalaId = x.Key.HawalaId,
             HawalaNumber = x.Key.Number,
+            RateDate = x.Key.CreatedAt,
             SourceCurrencyId = x.Key.CurrencyId,
             SourceCurrencyCode = x.Key.Code,
             SourceQuotationPriority = x.Key.QuotationPriority,

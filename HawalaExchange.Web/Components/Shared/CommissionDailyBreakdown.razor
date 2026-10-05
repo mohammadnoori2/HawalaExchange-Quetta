@@ -1,0 +1,94 @@
+@namespace HawalaExchange.Web.Components.Shared
+@using System.Globalization
+@using HawalaExchange.Application.DTOs
+@using Microsoft.AspNetCore.Components
+@inherits HawalaExchange.Web.Components.DateAwareComponent
+
+<h6 class="fw-bold mb-3">کمیشن به تفکیک روز</h6>
+<small class="text-muted d-block mb-2">روی تاریخ کلیک کنید تا محل‌های پرداخت و حواله‌های همان روز نمایش داده شوند. مبنا، روز ثبت حواله است؛ کسرها با علامت منفی نمایش داده می‌شوند.</small>
+<div class="table-responsive mb-4">
+    <table class="table table-sm table-bordered align-middle">
+        <thead><tr><th>تاریخ</th><th>تعداد حواله</th><th>مجموع AFN</th><th>مجموع USD</th><th>مبنای USD</th><th>کمیشن USD</th></tr></thead>
+        <tbody>
+        @foreach (var day in days)
+        {
+            <tr @key="day.Date" class="@(selectedDay == day.Date ? "table-primary" : null)">
+                <td><button type="button" class="btn btn-link p-0" aria-expanded="@(selectedDay == day.Date ? "true" : "false")" @onclick="() => ToggleDay(day.Date)">@DisplayDates.Date(day.Date)</button></td>
+                <td dir="ltr">@day.Items.Count.ToString(CultureInfo.InvariantCulture)</td>
+                <td dir="ltr">@Number(Total(day.Items, "AFN")) AFN</td>
+                <td dir="ltr">@Number(Total(day.Items, "USD")) USD</td>
+                <td dir="ltr">@Number(day.Items.Sum(x => x.AfnEquivalent)) USD</td>
+                <td dir="ltr">@Number(day.Items.Sum(x => x.CommissionAfn), "N4") USD</td>
+            </tr>
+            @if (selectedDay == day.Date)
+            {
+                <tr><td colspan="6" class="p-3">
+                    <h6>محل‌های پرداخت — @DisplayDates.Date(day.Date)</h6>
+                    @foreach (var location in day.Locations)
+                    {
+                        <details class="border rounded p-3 mb-2" @key="location.Id">
+                            <summary>
+                                <strong>@location.Name</strong> — <span dir="ltr">@location.Items.Count.ToString(CultureInfo.InvariantCulture)</span> حواله
+                                <span class="d-block mt-2">
+                                    مجموع افغانی: <span dir="ltr">@Number(Total(location.Items, "AFN")) AFN</span> |
+                                    مجموع دالر: <span dir="ltr">@Number(Total(location.Items, "USD")) USD</span> |
+                                    مبنا: <span dir="ltr">@Number(location.Items.Sum(x => x.AfnEquivalent)) USD</span> |
+                                    کمیشن: <span dir="ltr">@Number(location.Items.Sum(x => x.CommissionAfn), "N4") USD</span>
+                                </span>
+                            </summary>
+                            <div class="table-responsive mt-3">
+                                <table class="table table-sm table-hover align-middle">
+                                    <thead><tr><th>نمبر حواله</th><th>تاریخ</th><th>فرستنده</th><th>مبلغ</th><th>روز نرخ</th><th>نرخ USD/AFN</th><th>مبنای USD</th><th>کمیشن هر لک USD</th><th>سهم کمیشن USD</th><th>وضعیت</th></tr></thead>
+                                    <tbody>
+                                    @foreach (var item in location.Items)
+                                    {
+                                        <tr class="@(!item.IsActive || item.SourceAmount < 0 ? "table-secondary" : null)">
+                                            <td dir="ltr">@item.HawalaNumber.ToString(CultureInfo.InvariantCulture)</td>
+                                            <td>@DisplayDates.Date(item.HawalaDate)</td><td>@item.SourceName</td>
+                                            <td dir="ltr">@Number(item.SourceAmount) @item.CurrencyCode</td>
+                                            <td>@DisplayDates.Date(item.ValuationDate)</td><td dir="ltr">@Number(item.SourceToAfnRate, "N4")</td>
+                                            <td dir="ltr">@Number(item.AfnEquivalent, "N4") USD</td>
+                                            <td dir="ltr">@Number(item.PerLakhRate, "N4") USD</td>
+                                            <td dir="ltr">@Number(item.CommissionAfn, "N4") USD</td>
+                                            <td>@(item.SourceAmount < 0 ? "کسر کمیشن" : item.IsActive ? "فعال" : "برگشت‌شده/کسرشده")</td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                    }
+                </td></tr>
+            }
+        }
+        </tbody>
+        <tfoot><tr><th>مجموع</th><th dir="ltr">@Items.Count.ToString(CultureInfo.InvariantCulture)</th><th dir="ltr">@Number(Total(Items, "AFN")) AFN</th><th dir="ltr">@Number(Total(Items, "USD")) USD</th><th dir="ltr">@Number(Items.Sum(x => x.AfnEquivalent)) USD</th><th dir="ltr">@Number(Items.Sum(x => x.CommissionAfn), "N4") USD</th></tr></tfoot>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CorrespondentCommissionItemDto> Items { get; set; } = [];
+    private IReadOnlyList<CorrespondentCommissionItemDto>? previousItems;
+    private List<DayGroup> days = [];
+    private DateTime? selectedDay;
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(previousItems, Items)) return;
+        previousItems = Items;
+        selectedDay = null;
+        days = Items.GroupBy(x => LocalDay(x.HawalaDate)).OrderBy(x => x.Key)
+            .Select(day => new DayGroup(day.Key, day.ToList(), day
+                .GroupBy(x => x.PaymentLocationId).Select(location => new LocationGroup(location.Key,
+                    location.First().PaymentLocationName, location.OrderBy(x => x.HawalaDate).ThenBy(x => x.HawalaNumber).ToList()))
+                .OrderBy(x => x.Name).ToList())).ToList();
+    }
+
+    internal void ToggleDay(DateTime date) { selectedDay = selectedDay == date ? null : date; StateHasChanged(); }
+    private static DateTime LocalDay(DateTime value) => (value.Kind == DateTimeKind.Utc ? value.ToLocalTime() : value).Date;
+    private static decimal Total(IEnumerable<CorrespondentCommissionItemDto> items, string currency) =>
+        items.Where(x => string.Equals(x.CurrencyCode, currency, StringComparison.OrdinalIgnoreCase)).Sum(x => x.SourceAmount);
+    private static string Number(decimal value, string format = "N2") => value.ToString(format, CultureInfo.InvariantCulture);
+    private sealed record DayGroup(DateTime Date, List<CorrespondentCommissionItemDto> Items, List<LocationGroup> Locations);
+    private sealed record LocationGroup(long? Id, string Name, List<CorrespondentCommissionItemDto> Items);
+}

@@ -150,11 +150,12 @@
         </div>
 
         <div class="table-card-body">
+            <SelectedRecordsToolbar ScopeId="hawala-record-selection" VisibleIds="@filteredHawalas.Select(x => x.Id)" />
             <div class="table-scroll-wrapper">
-                <GlobalDataGrid class="table-modern table-striped-modern">
+                <GlobalDataGrid id="hawala-record-selection" class="table-modern table-striped-modern">
                     <thead>
                         <tr>
-                            <th style="width:50px;">#</th>
+                            <RecordSelectionHeader /><th style="width:50px;">#</th>
                             <th style="width:80px;" class="sortable-header" @onclick="@(() => SortBy("Number"))">
                                 نمبر
                                 @if (sortColumn == "Number")
@@ -218,7 +219,7 @@
                         @if (isLoading && filteredHawalas == null)
                         {
                             <tr>
-                                <td colspan="16" class="text-center py-5">
+                                <td colspan="17" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status"><span class="visually-hidden">در حال بارگذاری...</span></div>
                                         <p class="text-muted mt-2">در حال بارگذاری اطلاعات...</p>
@@ -229,7 +230,7 @@
                         else if (!filteredHawalas.Any())
                         {
                             <tr>
-                                <td colspan="16" class="text-center py-5">
+                                <td colspan="17" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ حواله‌ای یافت نشد</span>
@@ -244,6 +245,7 @@
                             @foreach (var hawala in filteredHawalas)
                             {
                                 <tr class="@(hawala.SettlementState == "Pending" ? "table-danger" : hawala.SettlementState == "Converted" ? "table-success" : null)">
+                                    <RecordSelectionCell RecordId="@hawala.Id" />
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
                                     <td><span class="fw-bold">@hawala.Number</span></td>
                                     <td><span dir="ltr">@(hawala.ReferenceNumber ?? "-")</span></td>

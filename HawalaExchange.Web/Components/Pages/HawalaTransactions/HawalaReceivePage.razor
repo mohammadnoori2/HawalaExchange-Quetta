@@ -83,11 +83,12 @@
         </div>
 
         <div class="table-card-body">
+            <SelectedRecordsToolbar ScopeId="received-record-selection" VisibleIds="@pagedHawalas.Select(x => x.Id)" />
             <div class="table-scroll-wrapper">
-                <GlobalDataGrid class="table-modern table-striped-modern">
+                <GlobalDataGrid id="received-record-selection" class="table-modern table-striped-modern">
                     <thead>
                         <tr>
-                            <th style="width:50px;">#</th>
+                            <RecordSelectionHeader /><th style="width:50px;">#</th>
                             <th>نمبر</th>
                             <th>نمبر رفرنس</th>
                             <th>فرستنده</th>
@@ -109,7 +110,7 @@
                         @if (isLoading)
                         {
                             <tr>
-                                <td colspan="15" class="text-center py-5">
+                                <td colspan="16" class="text-center py-5">
                                     <div class="spinner-border text-primary"></div>
                                     <p class="text-muted mt-2">در حال بارگذاری...</p>
                                 </td>
@@ -118,7 +119,7 @@
                         else if (!pagedHawalas.Any())
                         {
                             <tr>
-                                <td colspan="15" class="text-center py-5">
+                                <td colspan="16" class="text-center py-5">
                                     هیچ حواله دریافتی یافت نشد.
                                 </td>
                             </tr>
@@ -130,6 +131,7 @@
                             @foreach (var hawala in pagedHawalas)
                             {
                                 <tr>
+                                    <RecordSelectionCell RecordId="@hawala.Id" />
                                     <td>@rowIndex</td>
 
                                     <td>

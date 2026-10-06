@@ -193,6 +193,7 @@ public sealed class HawalaImportService : IHawalaImportService
             .Include(x => x.Rows).ThenInclude(x => x.PaymentLocation)
             .Include(x => x.Rows).ThenInclude(x => x.DestinationCorrespondent)
             .Include(x => x.Rows).ThenInclude(x => x.Hawala)
+            .Include(x => x.Rows).ThenInclude(x => x.GeneratedSendHawala)
             .SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken);
         if (batch is null) return null;
 
@@ -221,6 +222,7 @@ public sealed class HawalaImportService : IHawalaImportService
                 ExcelRowNumber = row.ExcelRowNumber,
                 HawalaId = row.HawalaId,
                 GeneratedSendHawalaId = row.GeneratedSendHawalaId,
+                GeneratedSendHawalaNumber = row.GeneratedSendHawala?.Number,
                 HawalaNumber = row.HawalaNumber,
                 ReferenceNumber = row.ReferenceNumber,
                 SenderName = row.SenderName,

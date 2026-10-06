@@ -147,6 +147,7 @@ namespace HawalaExchange.Application.DTOs
         public int ExcelRowNumber { get; set; }
         public long? HawalaId { get; set; }
         public long? GeneratedSendHawalaId { get; set; }
+        public long? GeneratedSendHawalaNumber { get; set; }
         public long? HawalaNumber { get; set; }
         public string? ReferenceNumber { get; set; }
         public string? SenderName { get; set; }

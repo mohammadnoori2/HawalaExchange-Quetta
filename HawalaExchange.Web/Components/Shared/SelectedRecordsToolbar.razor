@@ -1,0 +1,215 @@
+@namespace HawalaExchange.Web.Components.Shared
+@inherits HawalaExchange.Web.Components.DateAwareComponent
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+@using HawalaExchange.Application.Services
+@using System.Globalization
+@using System.Text
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject ISelectedRecordsService RecordsService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (ShowActions)
+{
+<div class="border rounded p-2 my-2 bg-light" dir="rtl">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <strong>@selected.Count.ToString(CultureInfo.InvariantCulture) ردیف انتخاب‌شده</strong>
+        <button class="btn btn-sm btn-outline-secondary" disabled="@(busy || selected.Count == 0)" @onclick="Clear">لغو همه انتخاب‌ها</button>
+        <button class="btn btn-sm btn-primary" disabled="@(busy || selected.Count == 0)" @onclick="PreviewAsync">کاپی / واتساپ / تلگرام</button>
+        <button class="btn btn-sm btn-success" disabled="@(busy || selected.Count == 0)" @onclick="ExportAsync">خروج اکسل انتخاب‌شده‌ها</button>
+    </div>
+    <small class="text-muted">انتخاب‌ها بین صفحات حفظ می‌شوند. برای انتخاب بازه، کلیک چپ را روی ستون انتخاب نگه دارید و موس را بکشید یا اسکرول کنید؛ Shift + Click برای بازه و Ctrl + Click برای انتخاب تکی.</small>
+    @if (!string.IsNullOrWhiteSpace(message)) { <div class="text-success small mt-1" role="status">@message</div> }
+    @if (!string.IsNullOrWhiteSpace(error)) { <div class="text-danger small mt-1" role="alert">@error</div> }
+</div>
+}
+
+@if (showPreview)
+{
+    <div class="modal show d-block" tabindex="-1" dir="rtl" style="background:rgba(15,23,42,.6);z-index:1090">
+        <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">پیش‌نمایش جزئیات انتخاب‌شده‌ها</h5><button class="btn-close" @onclick="() => showPreview = false"></button></div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap gap-3 mb-2">
+                    <label><input type="checkbox" @bind="includePhones" /> شماره تماس</label>
+                    <label><input type="checkbox" @bind="includeIdentity" /> شماره تذکره</label>
+                    <label><input type="checkbox" @bind="includeType" /> نوع حواله / معامله</label>
+                    <label><input type="checkbox" @bind="includeCorrespondent" /> نمایندگی / شعبه</label>
+                    <label><input type="checkbox" @bind="includeStatus" /> وضعیت</label>
+                    <label><input type="checkbox" @bind="includeCommission" /> کمیشن</label>
+                </div>
+                <textarea class="form-control" rows="13" readonly dir="rtl" value="@BuildText()"></textarea>
+                <div class="form-text">یادداشت موجود در متن نمایش داده می‌شود؛ موارد اضافی فقط با انتخاب چک‌باکس اضافه می‌شوند. ارسال نهایی و انتخاب گیرنده در واتساپ یا تلگرام انجام می‌شود.</div>
+                @if (BuildText().Length > 3500) { <div class="form-text text-warning">متن طولانی است؛ آن را کاپی کنید یا فایل متنی بگیرید و در برنامه ارسال کنید.</div> }
+                @if (!Transactions) { <div class="form-text">اکسل: 9 ستون بدون عنوان، مطابق قالب آپلود. هر نمایندگی و نوع حواله در فایل جدا؛ چند فایل داخل ZIP. فیلدهای ناقص باید قبل از آپلود تکمیل شوند.</div> }
+                @if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger mt-2">@error</div> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-primary" @onclick="CopyAsync">کاپی جزئیات</button>
+                @if (BuildText().Length <= 3500)
+                {
+                    <a class="btn btn-success" href='@ShareUrl("whatsapp")' target="_blank" rel="noopener noreferrer">واتساپ</a>
+                    <a class="btn btn-info" href='@ShareUrl("telegram")' target="_blank" rel="noopener noreferrer">تلگرام</a>
+                }
+                <button class="btn btn-outline-secondary" @onclick="DownloadTextAsync">فایل متنی</button>
+            </div>
+        </div></div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string ScopeId { get; set; } = "";
+    [Parameter] public IEnumerable<long> VisibleIds { get; set; } = [];
+    [Parameter] public string ResetKey { get; set; } = "";
+    [Parameter] public bool Transactions { get; set; }
+    [Parameter] public bool SelectAllOnOpen { get; set; }
+    [Parameter] public bool ShowActions { get; set; } = true;
+    [Parameter] public EventCallback<IReadOnlyList<long>> SelectionChanged { get; set; }
+    private readonly HashSet<long> selected = [];
+    private readonly HashSet<long> seen = [];
+    private List<long> visible = [];
+    private IReadOnlyList<SelectedRecordDto> records = [];
+    private string? lastResetKey;
+    private string error = "", message = "";
+    private bool busy, showPreview, disposed;
+    private bool includePhones, includeIdentity, includeCommission, includeType, includeCorrespondent, includeStatus;
+    private IJSObjectReference? module;
+    private DotNetObjectReference<SelectedRecordsToolbar>? reference;
+
+    protected override void OnParametersSet()
+    {
+        visible = VisibleIds.Where(x => x > 0).Distinct().ToList();
+        if (lastResetKey != ResetKey)
+        {
+            selected.Clear(); showPreview = false; lastResetKey = ResetKey;
+            seen.Clear();
+            if (SelectAllOnOpen) AddSelection(visible);
+        }
+        seen.UnionWith(visible);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/record-selection.js");
+            reference ??= DotNetObjectReference.Create(this);
+            await module.InvokeVoidAsync("mount", ScopeId, reference, selected.ToArray(), visible, ResetKey);
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    [JSInvokable]
+    public Task UpdateVisibleSelection(long[] added, long[] removed, string resetKey) => InvokeAsync(async () =>
+    {
+        if (disposed || resetKey != ResetKey) return;
+        selected.ExceptWith(removed.Where(seen.Contains));
+        AddSelection(added.Where(seen.Contains));
+        await SelectionChanged.InvokeAsync(selected.ToArray());
+        StateHasChanged();
+    });
+
+    private void AddSelection(IEnumerable<long> ids)
+    {
+        var additions = ids.Where(x => !selected.Contains(x)).Distinct().ToArray();
+        if (selected.Count + additions.Length > 10000) { error = "حداکثر 10000 ردیف قابل انتخاب است."; return; }
+        selected.UnionWith(additions);
+    }
+    public async Task SetSelectionAsync(IEnumerable<long> ids)
+    {
+        selected.Clear(); AddSelection(ids); seen.UnionWith(selected);
+        await SelectionChanged.InvokeAsync(selected.ToArray());
+        StateHasChanged();
+    }
+    private async Task Clear() { selected.Clear(); records = []; error = message = ""; await SelectionChanged.InvokeAsync(selected.ToArray()); }
+    private async Task PreviewAsync()
+    {
+        busy = true; error = message = "";
+        try
+        {
+            records = await RecordsService.ReadAsync(selected.OrderBy(x => x).ToArray(), Transactions);
+            includePhones = includeIdentity = includeCommission = includeType = includeCorrespondent = includeStatus = false;
+            showPreview = true;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private string BuildText()
+    {
+        var text = new StringBuilder();
+        foreach (var row in records)
+        {
+            text.AppendLine($"{(Transactions ? "نمبر معامله" : "نمبر حواله")}: {row.Number}");
+            if (!Transactions) text.AppendLine($"نمبر متفرقه: {row.ReferenceNumber}");
+            text.AppendLine($"{(Transactions ? "مشتری" : "فرستنده")}: {row.SenderName}");
+            if (!Transactions)
+            {
+                text.AppendLine($"گیرنده: {row.ReceiverName}");
+                text.AppendLine($"محل پرداخت: {row.PaymentLocationName}");
+                text.AppendLine($"مبلغ: {AmountValueHelper.Format(row.Amount)} {row.CurrencyCode}");
+            }
+            else foreach (var detail in row.TransactionDetails)
+            {
+                if (detail.FromAmount.HasValue) text.AppendLine($"مبلغ مبدأ: {AmountValueHelper.Format(detail.FromAmount.Value)} {detail.FromCurrency}");
+                if (detail.ToAmount.HasValue) text.AppendLine($"مبلغ مقصد: {AmountValueHelper.Format(detail.ToAmount.Value)} {detail.ToCurrency}");
+                if (detail.ExchangeRate.HasValue) text.AppendLine($"نرخ: {detail.ExchangeRate.Value.ToString("0.########", CultureInfo.InvariantCulture)}");
+                if (detail.TransferAmount.HasValue) text.AppendLine($"مبلغ انتقال: {AmountValueHelper.Format(detail.TransferAmount.Value)}");
+                if (includeCommission) text.AppendLine($"کمیشن: {AmountValueHelper.Format(detail.Commission)} {detail.CommissionCurrency}");
+            }
+            text.AppendLine($"تاریخ: {DisplayDates.Date(row.CreatedAt.ToLocalTime())}");
+            if (!string.IsNullOrWhiteSpace(row.Notes)) text.AppendLine($"یاداشت: {row.Notes.Trim()}");
+            if (includeType) text.AppendLine($"نوع: {(Transactions ? row.Kind : AppDisplayText.HawalaType(row.Kind))}");
+            if (includeCorrespondent) text.AppendLine($"نمایندگی / شعبه: {row.CorrespondentName}");
+            if (includeStatus) text.AppendLine($"وضعیت: {AppDisplayText.Status(row.Status, row.Kind)}");
+            if (includePhones) text.AppendLine($"تماس فرستنده: {row.SenderPhone} · گیرنده: {row.ReceiverPhone}");
+            if (includeIdentity) text.AppendLine($"تذکره فرستنده: {row.SenderIdentity} · گیرنده: {row.ReceiverIdentity}");
+            if (includeCommission && row.AgentCommission.HasValue) text.AppendLine($"کمیشن: {AmountValueHelper.Format(row.AgentCommission.Value)} {row.CommissionCurrencyCode}");
+            text.AppendLine("────────────");
+        }
+        text.AppendLine($"تعداد: {records.Count.ToString(CultureInfo.InvariantCulture)}");
+        // Different record kinds have separate totals: a received parent and its sent
+        // child must never inflate a single combined total.
+        var multipleKinds = records.Select(x => x.Kind).Distinct().Skip(1).Any();
+        foreach (var group in records.Where(x => !Transactions).GroupBy(x => new { x.Kind, x.CurrencyCode }))
+            text.AppendLine($"مجموع حواله{(multipleKinds ? $" ({AppDisplayText.HawalaType(group.Key.Kind)})" : "")} : {AmountValueHelper.Format(group.Sum(x => x.Amount))} {group.Key.CurrencyCode}");
+        return text.ToString();
+    }
+
+    private async Task CopyAsync()
+    {
+        try { await module!.InvokeVoidAsync("copy", BuildText()); message = "جزئیات کاپی شد."; error = ""; }
+        catch { error = "کاپی در این مرورگر مجاز نیست؛ متن پیش‌نمایش را دستی کاپی کنید یا فایل متنی بگیرید."; }
+    }
+    private string ShareUrl(string target) => (target == "whatsapp" ? "https://wa.me/?text=" : "https://t.me/share/url?url=&text=") + Uri.EscapeDataString(BuildText());
+    private async Task DownloadTextAsync()
+    {
+        try { await module!.InvokeVoidAsync("download", "SelectedDetails.txt", "text/plain;charset=utf-8", Convert.ToBase64String(Encoding.UTF8.GetBytes(BuildText()))); }
+        catch { error = "دریافت فایل متنی انجام نشد؛ دوباره تلاش کنید."; }
+    }
+    private async Task ExportAsync()
+    {
+        busy = true; error = message = "";
+        try
+        {
+            var file = await RecordsService.ExportAsync(selected.OrderBy(x => x).ToArray(), Transactions);
+            await module!.InvokeVoidAsync("download", file.FileName, file.ContentType, Convert.ToBase64String(file.Content));
+            message = "خروجی انتخاب‌شده‌ها آماده شد.";
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        if (module != null)
+        {
+            try { await module.InvokeVoidAsync("unmount", ScopeId); await module.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+        reference?.Dispose();
+    }
+}

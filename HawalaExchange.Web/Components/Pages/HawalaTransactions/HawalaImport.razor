@@ -290,7 +290,8 @@
                         <tr class="@(selectedHistoryGroup == group ? "table-info" : string.Empty)">
                             <td><strong>@group.CorrespondentName</strong>@if(group.IsOwnOffice){<span class="badge text-bg-secondary me-2">دفتر</span>}</td>
                             <td>@group.HawalaCount.ToString("N0")</td><td>@foreach(var total in group.Totals){<span class="badge @(group.IsOwnOffice ? "text-bg-secondary" : "text-bg-primary") ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</td>
-                            <td><button class="btn btn-sm btn-outline-info" @onclick="() => selectedHistoryGroup = group">جزئیات حواله‌ها</button></td>
+                            <td><button class="btn btn-sm btn-outline-info" @onclick="() => OpenShareGroup(group, false)">جزئیات حواله‌ها</button>
+                                <button class="btn btn-sm btn-outline-success" @onclick="() => OpenShareGroup(group, true)">انتخاب همه و خروجی</button></td>
                         </tr>
                     }</tbody>
                 </table></div>
@@ -324,12 +325,22 @@
                             { <span>برای این ردیف‌ها حواله دریافتی ثبت شده و حواله ارسالی خودکار به نمایندگی <strong>@selectedHistoryGroup.CorrespondentName</strong> ساخته شده است.</span> }
                         </div>
                     </div>
-                    <div class="table-responsive" style="max-height: 58vh;"><table class="table table-hover align-middle mb-0">
-                        <thead class="table-light sticky-top"><tr><th>ردیف</th><th>شماره و رفرنس</th><th>فرستنده و گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>نوع ثبت</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                    @if (!selectedHistoryGroup.IsOwnOffice)
+                    {
+                        <label class="form-check m-2"><input class="form-check-input" type="checkbox" @bind="shareOriginalImportHawalas" /> انتخاب حواله دریافتی مبدأ به جای حواله ارسالی مقصد</label>
+                    }
+                    <SelectedRecordsToolbar ScopeId="import-record-selection" VisibleIds="@ImportSelectionIds"
+                        ResetKey="@($"{selectedHistory?.BatchId}:{selectedHistoryGroup.CorrespondentId}:{selectedHistoryGroup.IsOwnOffice}:{shareOriginalImportHawalas}")" SelectAllOnOpen="@selectAllImportGroup" />
+                    <div class="table-responsive" style="max-height: 58vh;"><table id="import-record-selection" class="table table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top"><tr><RecordSelectionHeader /><th>ردیف</th><th>شماره و رفرنس</th><th>فرستنده و گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>نوع ثبت</th><th>وضعیت</th><th>عملیات</th></tr></thead>
                         <tbody>@foreach (var hawala in selectedHistoryGroup.Hawalas)
                         {
-                            <tr><td><span class="badge text-bg-light border">@hawala.ExcelRowNumber</span></td>
-                                <td><strong>@hawala.HawalaNumber</strong><br/><small class="text-muted">@hawala.ReferenceNumber</small></td>
+                            <tr>
+                                @if (ImportSelectionId(hawala) is long selectedId) { <RecordSelectionCell RecordId="@selectedId" /> } else { <td>—</td> }
+                                <td><span class="badge text-bg-light border">@hawala.ExcelRowNumber</span></td>
+                                <td><strong>دریافتی: @hawala.HawalaNumber</strong>
+                                    @if (hawala.GeneratedSendHawalaNumber.HasValue) { <br/><strong>ارسالی: @hawala.GeneratedSendHawalaNumber</strong> }
+                                    <br/><small class="text-muted">@hawala.ReferenceNumber</small></td>
                                 <td><div><i class="bi bi-person-up ms-1 text-muted"></i>@hawala.SenderName</div><small><i class="bi bi-person-down ms-1 text-muted"></i>@hawala.ReceiverName</small></td>
                                 <td>@hawala.PaymentLocationName</td><td><strong dir="ltr">@hawala.Amount.ToString("N0") @hawala.CurrencyCode</strong></td>
                                 <td>@if(hawala.GeneratedSendHawalaId.HasValue){<span class="badge text-bg-primary">دریافتی + ارسالی</span>}else{<span class="badge text-bg-secondary">فقط دریافتی</span>}</td>
@@ -396,6 +407,18 @@
     private List<HawalaImportHistoryDto> importHistory = [];
     private HawalaImportDetailsDto? selectedHistory;
     private HawalaImportGroupDetailsDto? selectedHistoryGroup;
+    private bool shareOriginalImportHawalas;
+    private bool selectAllImportGroup;
+    private long? ImportSelectionId(HawalaImportHawalaDetailsDto row) =>
+        selectedHistoryGroup?.IsOwnOffice == true || shareOriginalImportHawalas ? row.HawalaId : row.GeneratedSendHawalaId;
+    private IEnumerable<long> ImportSelectionIds => selectedHistoryGroup?.Hawalas.Select(ImportSelectionId)
+        .Where(x => x.HasValue).Select(x => x!.Value) ?? [];
+    private void OpenShareGroup(HawalaImportGroupDetailsDto group, bool selectAll)
+    {
+        shareOriginalImportHawalas = false;
+        selectAllImportGroup = selectAll;
+        selectedHistoryGroup = group;
+    }
     private bool isHistoryBusy;
     private HawalaImportHawalaDetailsDto? deleteImportRow;
     private HawalaImportHistoryDto? deleteBatch;

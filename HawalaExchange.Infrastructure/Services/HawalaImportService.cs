@@ -603,7 +603,7 @@ public sealed class HawalaImportService : IHawalaImportService
                     GeneratedSendAgentCommissionAmount = requiresOutgoing ? row.AgentCommissionAmount : null,
                     GeneratedSendAgentCommissionCurrencyId = requiresOutgoing ? row.AgentCommissionCurrencyId : null,
                     GeneratedSendReferenceNumber = requiresOutgoing ? row.ReferenceNumber : null,
-                    Notes = $"آپلود گروهی از فایل {batch.FileName}"
+                    Notes = null // File provenance belongs to HawalaImportBatches/Rows, not the customer's note.
                 };
             }).ToList();
 

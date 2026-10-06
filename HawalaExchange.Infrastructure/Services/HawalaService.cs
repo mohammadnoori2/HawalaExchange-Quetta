@@ -50,6 +50,8 @@
 
                 try
                 {
+                    await LockRequestedOutgoingNumberAsync(dto.HawalaType == "HawalaSend" ? dto.CorrespondentId : null,
+                        dto.HawalaType == "HawalaReceive" && dto.Status == "Paid" ? dto.FromAccountId : null);
                     ValidateCreateHawala(dto);
                     await EnforceCorrespondentCommissionMethodAsync(
                         dto.HawalaType, dto.CorrespondentId, dto.CommissionAmount);
@@ -80,7 +82,7 @@
                         // تولید خودکار شماره برای حواله رفت و متفرقه
                         var lastNumber = await _context.Hawalas
                             .Where(h => h.CorrespondentId == hawala.CorrespondentId && h.HawalaType == hawala.HawalaType &&
-                                        h.CreatedAt >= currentPeriodStart)
+                                        (hawala.HawalaType == "HawalaSend" || h.CreatedAt >= currentPeriodStart))
                             .OrderByDescending(h => h.Number)
                             .Select(h => (long?)h.Number)
                             .FirstOrDefaultAsync();
@@ -214,12 +216,41 @@
                 var lastNumber = await _context.Hawalas
                     .Where(h => h.CorrespondentId == correspondentId &&
                                 h.HawalaType == hawalaType &&
-                                h.CreatedAt >= currentPeriodStart)
+                                (hawalaType == "HawalaSend" || h.CreatedAt >= currentPeriodStart))
                     .OrderByDescending(h => h.Number)
                     .Select(h => (long?)h.Number)
                     .FirstOrDefaultAsync();
 
                 return (lastNumber ?? 0) + 1;
+            }
+
+            private async Task LockRequestedOutgoingNumberAsync(long? correspondentId, long? accountId)
+            {
+                if (!correspondentId.HasValue && accountId.HasValue)
+                    correspondentId = await _context.Accounts.AsNoTracking()
+                        .Where(x => x.Id == accountId && x.AccountType == "Correspondent")
+                        .Select(x => x.CorrespondentId).FirstOrDefaultAsync();
+                if (correspondentId.HasValue)
+                    await LockOutgoingNumbersAsync([correspondentId.Value]);
+            }
+
+            private async Task LockOutgoingNumbersAsync(IEnumerable<long> correspondentIds)
+            {
+                if (_context.Database.CurrentTransaction == null)
+                    throw new InvalidOperationException("شماره‌گذاری حواله ارسالی باید داخل تراکنش انجام شود.");
+                var connection = (SqlConnection)_context.Database.GetDbConnection();
+                foreach (var id in correspondentIds.Distinct().OrderBy(x => x))
+                {
+                    await using var command = connection.CreateCommand();
+                    command.Transaction = (SqlTransaction)_context.Database.CurrentTransaction.GetDbTransaction();
+                    command.CommandTimeout = 35;
+                    command.CommandText = "DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 30000; SELECT @result;";
+                    command.Parameters.Add(new SqlParameter("@resource", SqlDbType.NVarChar, 255)
+                    { Value = $"HawalaSendNumber:{_context.CurrentTenantId}:{id}" });
+                    var result = Convert.ToInt32(await command.ExecuteScalarAsync());
+                    if (result < 0)
+                        throw new InvalidOperationException("شماره‌گذاری نمایندگی در حال انجام است؛ لطفاً دوباره تلاش کنید.");
+                }
             }
 
             public async Task<HawalaDto?> GetHawalaByIdAsync(long id)
@@ -513,6 +544,7 @@
 
                 try
                 {
+                    await LockRequestedOutgoingNumberAsync(null, dto.FromAccountId);
                     var hawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.Id == id);
 
@@ -1531,6 +1563,9 @@
                     .GroupBy(x => x.CorrespondentId!.Value)
                     .ToDictionary(x => x.Key, x => x.First());
                 var accountsById = accounts.ToDictionary(x => x.Id);
+                await LockOutgoingNumbersAsync(items.Where(x => x.Status == "Paid" && x.FromAccountId.HasValue)
+                    .Select(x => accountsById.GetValueOrDefault(x.FromAccountId!.Value)?.CorrespondentId)
+                    .Where(x => x.HasValue).Select(x => x!.Value));
                 foreach (var correspondentId in correspondentIds)
                     if (!sourceAccounts.ContainsKey(correspondentId))
                         throw new InvalidOperationException("حساب یکی از نمایندگی‌های فرستنده پیدا نشد.");
@@ -1561,11 +1596,34 @@
                 var outgoingCorrespondentIds = outgoingItems
                     .Select(x => accountsById[x.FromAccountId!.Value].CorrespondentId!.Value)
                     .Distinct().ToList();
-                var outgoingNumbers = outgoingItems.Select(x => x.GeneratedSendHawalaNumber ?? x.Number).ToHashSet();
+                var lastOutgoingNumbers = await _context.Hawalas.AsNoTracking()
+                    .Where(x => x.CorrespondentId.HasValue && outgoingCorrespondentIds.Contains(x.CorrespondentId.Value) && x.HawalaType == "HawalaSend")
+                    .GroupBy(x => x.CorrespondentId!.Value)
+                    .Select(x => new { CorrespondentId = x.Key, Number = x.Max(h => h.Number) })
+                    .ToDictionaryAsync(x => x.CorrespondentId, x => x.Number);
+                var allocatedNumbers = new Dictionary<CreateHawalaDto, long>();
+                var reservedNumbers = outgoingItems.Where(x => x.GeneratedSendHawalaNumber.HasValue)
+                    .GroupBy(x => accountsById[x.FromAccountId!.Value].CorrespondentId!.Value)
+                    .ToDictionary(x => x.Key, x => x.Select(h => h.GeneratedSendHawalaNumber!.Value).ToHashSet());
+                foreach (var item in outgoingItems)
+                {
+                    var destinationId = accountsById[item.FromAccountId!.Value].CorrespondentId!.Value;
+                    if (item.GeneratedSendHawalaNumber.HasValue)
+                        allocatedNumbers[item] = item.GeneratedSendHawalaNumber.Value;
+                    else
+                    {
+                        var next = checked(lastOutgoingNumbers.GetValueOrDefault(destinationId) + 1);
+                        while (reservedNumbers.GetValueOrDefault(destinationId)?.Contains(next) == true)
+                            next = checked(next + 1);
+                        allocatedNumbers[item] = next;
+                        lastOutgoingNumbers[destinationId] = next;
+                    }
+                }
+                var outgoingNumbers = allocatedNumbers.Values.ToHashSet();
                 if (outgoingItems.GroupBy(x => new
                     {
                         CorrespondentId = accountsById[x.FromAccountId!.Value].CorrespondentId!.Value,
-                        Number = x.GeneratedSendHawalaNumber ?? x.Number
+                        Number = allocatedNumbers[x]
                     }).Any(x => x.Count() > 1))
                     throw new InvalidOperationException("شماره حواله ارسالی خودکار در فایل گروهی برای یک نمایندگی تکراری است.");
                 var outgoingPeriodStarts = await _context.CorrespondentAccountPeriods.AsNoTracking()
@@ -1583,7 +1641,7 @@
                 if (outgoingItems.Any(item => existingOutgoingNumbers.Any(existing =>
                         existing.CorrespondentId == accountsById[item.FromAccountId!.Value].CorrespondentId &&
                         existing.CreatedAt >= outgoingPeriodStarts.GetValueOrDefault(existing.CorrespondentId, DateTime.MinValue) &&
-                        existing.Number == (item.GeneratedSendHawalaNumber ?? item.Number))))
+                        existing.Number == allocatedNumbers[item])))
                     throw new InvalidOperationException("شماره یکی از حواله‌های ارسالی قبلاً برای نمایندگی مقصد ثبت شده است.");
 
                 var pendingAccount = await GetOrCreatePendingHawalaAccountAsync();
@@ -1623,7 +1681,7 @@
                     var hasCommission = dto.GeneratedSendAgentCommissionAmount is > 0;
                     var generated = new Hawala
                     {
-                        Number = dto.GeneratedSendHawalaNumber ?? dto.Number,
+                        Number = allocatedNumbers[dto],
                         HawalaType = "HawalaSend",
                         Status = hasCommission ? "Paid" : "Pending",
                         CorrespondentId = destinationAccount.CorrespondentId,
@@ -1920,6 +1978,7 @@
 
                 try
                 {
+                    await LockRequestedOutgoingNumberAsync(null, payment.PaidFromAccountId);
                     var hawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.Id == id);
 
@@ -2348,6 +2407,7 @@
                     return existing;
 
                 var destinationCorrespondentId = paidFromAccount.CorrespondentId.Value;
+                await LockOutgoingNumbersAsync([destinationCorrespondentId]);
                 var currentPeriodStart = await GetCurrentPeriodStartAsync(destinationCorrespondentId);
                 if (requestedNumber.HasValue && requestedNumber.Value <= 0)
                     throw new InvalidOperationException("نمبر حواله ارسالی نمایندگی باید بزرگتر از صفر باشد.");
@@ -2361,12 +2421,12 @@
                 {
                     var lastNumber = await _context.Hawalas
                         .Where(x => x.CorrespondentId == destinationCorrespondentId &&
-                                    x.HawalaType == "HawalaSend" && x.CreatedAt >= currentPeriodStart)
+                                    x.HawalaType == "HawalaSend")
                         .OrderByDescending(x => x.Number)
                         .Select(x => (long?)x.Number)
                         .FirstOrDefaultAsync();
 
-                    generatedNumber = (lastNumber ?? 0) + 1;
+                    generatedNumber = checked((lastNumber ?? 0) + 1);
                 }
 
                 var numberExists = await _context.Hawalas.AnyAsync(x =>

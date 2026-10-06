@@ -508,9 +508,10 @@
                                                    min="1"
                                                    class="form-control"
                                                    @bind="CurrentHawala.GeneratedSendHawalaNumber"
+                                                   readonly="@(!IsEditMode)"
                                                    placeholder="نمبر حواله ارسالی" />
                                             <small class="text-muted">
-                                                حواله پرداخت‌شده با این نمبر، به عنوان حواله ارسالی همین نمایندگی ثبت می‌شود.
+                                                نمبر پیشنهادی ادامه حواله‌های ارسالی نمایندگی مقصد است؛ در ثبت جدید، نمبر نهایی هنگام ذخیره تعیین می‌شود.
                                             </small>
                                         </div>
                                     }
@@ -1690,7 +1691,14 @@
             }
             else
             {
-                var createdHawala = await HawalaService.CreateHawalaAsync(CurrentHawala);
+                var suggestedSendNumber = CurrentHawala.GeneratedSendHawalaNumber;
+                HawalaDto createdHawala;
+                try
+                {
+                    CurrentHawala.GeneratedSendHawalaNumber = null;
+                    createdHawala = await HawalaService.CreateHawalaAsync(CurrentHawala);
+                }
+                finally { CurrentHawala.GeneratedSendHawalaNumber = suggestedSendNumber; }
                 MarkTazkiraImagesPersisted();
                 try
                 {

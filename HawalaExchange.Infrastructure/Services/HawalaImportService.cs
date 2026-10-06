@@ -597,7 +597,7 @@ public sealed class HawalaImportService : IHawalaImportService
                     AgentCommissionCurrencyId = null,
                     ReferenceNumber = row.ReferenceNumber,
                     Status = requiresOutgoing ? "Paid" : "Pending",
-                    GeneratedSendHawalaNumber = requiresOutgoing ? row.HawalaNumber : null,
+                    GeneratedSendHawalaNumber = null, // Allocated from the destination's outgoing sequence at posting.
                     GeneratedSendAgentCommissionAmount = requiresOutgoing ? row.AgentCommissionAmount : null,
                     GeneratedSendAgentCommissionCurrencyId = requiresOutgoing ? row.AgentCommissionCurrencyId : null,
                     GeneratedSendReferenceNumber = requiresOutgoing ? row.ReferenceNumber : null,
@@ -937,32 +937,8 @@ public sealed class HawalaImportService : IHawalaImportService
         if (missingDestination != null)
             throw new InvalidOperationException($"نمایندگی مقصد ردیف {missingDestination.ExcelRowNumber} مشخص نیست.");
 
-        var destinationIds = outgoingRows.Select(x => x.DestinationCorrespondentId!.Value).Distinct().ToList();
-        var outgoingNumbers = outgoingRows.Select(x => x.HawalaNumber!.Value).Distinct().ToList();
-        var outgoingPeriodStarts = destinationIds.Count == 0
-            ? new Dictionary<long, DateTime>()
-            : await _context.CorrespondentAccountPeriods.AsNoTracking()
-                .Where(x => destinationIds.Contains(x.CorrespondentId))
-                .GroupBy(x => x.CorrespondentId)
-                .Select(x => new { CorrespondentId = x.Key, Start = x.Max(p => p.PeriodTo) })
-                .ToDictionaryAsync(x => x.CorrespondentId, x => x.Start, cancellationToken);
-        var existingOutgoingKeys = destinationIds.Count == 0
-            ? new HashSet<(long CorrespondentId, long Number)>()
-            : (await _context.Hawalas.AsNoTracking()
-                .Where(x => x.CorrespondentId.HasValue &&
-                            destinationIds.Contains(x.CorrespondentId.Value) &&
-                            x.HawalaType == "HawalaSend" &&
-                            outgoingNumbers.Contains(x.Number))
-                .Select(x => new { CorrespondentId = x.CorrespondentId!.Value, x.Number, x.CreatedAt })
-                .ToListAsync(cancellationToken))
-                .Where(x => x.CreatedAt >= outgoingPeriodStarts.GetValueOrDefault(
-                    x.CorrespondentId, DateTime.MinValue))
-                .Select(x => (x.CorrespondentId, x.Number))
-                .ToHashSet();
-        var duplicateOutgoing = outgoingRows.FirstOrDefault(x =>
-            existingOutgoingKeys.Contains((x.DestinationCorrespondentId!.Value, x.HawalaNumber!.Value)));
-        if (duplicateOutgoing != null)
-            throw new InvalidOperationException($"نمبر حواله ارسالی ردیف {duplicateOutgoing.ExcelRowNumber} قبلاً برای نمایندگی مقصد ثبت شده است.");
+        // Incoming file numbers are not outgoing numbers. Destination sequences
+        // are allocated atomically by HawalaService when the batch is posted.
 
         var currencyIds = batch.Rows.Select(x => x.CurrencyId!.Value).Distinct().ToList();
         var activeCurrencyCount = await _context.Currencies.AsNoTracking()

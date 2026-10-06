@@ -165,7 +165,8 @@ public sealed class HawalaImportStagingPerformanceTests(
             context.ChangeTracker.Clear();
 
             var importedHawalas = await context.Hawalas.AsNoTracking()
-                .Where(x => x.Number == number || x.Number == number + 1)
+                .Where(x => (x.HawalaType == "HawalaReceive" && (x.Number == number || x.Number == number + 1)) ||
+                    (x.SourceHawala != null && (x.SourceHawala.Number == number || x.SourceHawala.Number == number + 1)))
                 .ToListAsync();
             var received = importedHawalas.Where(x => x.HawalaType == "HawalaReceive").ToList();
             var outgoing = Assert.Single(importedHawalas, x => x.HawalaType == "HawalaSend");
@@ -315,7 +316,8 @@ public sealed class HawalaImportStagingPerformanceTests(
             Assert.Equal(2, assignments.Count);
             Assert.All(assignments, x => Assert.Equal(fixture.DestinationCorrespondent.Id, x.CorrespondentId));
             var outgoing = await context.Hawalas.AsNoTracking()
-                .Where(x => x.HawalaType == "HawalaSend" && (x.Number == number + 1 || x.Number == number + 2))
+                .Where(x => x.HawalaType == "HawalaSend" && x.SourceHawala != null &&
+                    (x.SourceHawala.Number == number + 1 || x.SourceHawala.Number == number + 2))
                 .ToListAsync();
             Assert.Equal(2, outgoing.Count);
             Assert.All(outgoing, x => Assert.Equal(fixture.DestinationCorrespondent.Id, x.CorrespondentId));
@@ -620,7 +622,7 @@ public sealed class HawalaImportStagingPerformanceTests(
     }
 
     [Fact]
-    public async Task Confirm_allows_reusing_outgoing_number_after_destination_period_is_closed()
+    public async Task Confirm_continues_outgoing_numbers_across_closed_destination_periods()
     {
         await using var context = fixture.CreateContext();
         using var bypass = context.BypassSubscriptionEnforcement();
@@ -639,14 +641,18 @@ public sealed class HawalaImportStagingPerformanceTests(
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
+        var lastNumber = await context.Hawalas.Where(x => x.CorrespondentId == fixture.DestinationCorrespondent.Id && x.HawalaType == "HawalaSend")
+            .MaxAsync(x => x.Number);
         var result = await service.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId });
 
         Assert.Equal(1, result.ImportedCount);
         Assert.Equal(1, result.GeneratedSendCount);
+        Assert.Equal(lastNumber + 1, await context.Hawalas.Where(x => x.SourceHawala != null && x.SourceHawala.Number == hawalaNumber)
+            .Select(x => x.Number).SingleAsync());
     }
 
     [Fact]
-    public async Task Confirm_rejects_duplicate_outgoing_number_in_destination_current_period()
+    public async Task Confirm_uses_next_destination_number_when_incoming_number_matches_existing_send()
     {
         await using var context = fixture.CreateContext();
         using var bypass = context.BypassSubscriptionEnforcement();
@@ -665,11 +671,12 @@ public sealed class HawalaImportStagingPerformanceTests(
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
 
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            service.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId }));
-
-        Assert.Contains("نمبر حواله ارسالی", error.Message);
-        Assert.Contains("قبلاً", error.Message);
+        var lastNumber = await context.Hawalas.Where(x => x.CorrespondentId == fixture.DestinationCorrespondent.Id && x.HawalaType == "HawalaSend")
+            .MaxAsync(x => x.Number);
+        var result = await service.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId });
+        Assert.Equal(1, result.GeneratedSendCount);
+        Assert.Equal(lastNumber + 1, await context.Hawalas.Where(x => x.SourceHawala != null && x.SourceHawala.Number == hawalaNumber)
+            .Select(x => x.Number).SingleAsync());
     }
 
     [Fact]

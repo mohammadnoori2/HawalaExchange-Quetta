@@ -15,6 +15,73 @@ public sealed class HawalaBulkImportBaselineTests(
     ITestOutputHelper output)
 {
     [Fact]
+    public async Task Automatic_outgoing_numbers_start_at_one_and_continue_independently_per_destination()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var first = await NewNumberingDestinationAsync(context);
+        var second = await NewNumberingDestinationAsync(context);
+        var items = BuildItems(4, 96_300_001, forceRemote: true).ToList();
+        for (var index = 0; index < items.Count; index++)
+        {
+            items[index].GeneratedSendHawalaNumber = null;
+            items[index].FromAccountId = index % 2 == 0 ? first.Id : second.Id;
+        }
+        await fixture.CreateService(context).CreateHawalasAsync(items);
+        context.ChangeTracker.Clear();
+        var sends = await context.Hawalas.AsNoTracking().Where(x => x.HawalaType == "HawalaSend" &&
+            (x.CorrespondentId == first.CorrespondentId || x.CorrespondentId == second.CorrespondentId)).ToListAsync();
+        Assert.Equal(new long[] { 1, 2 }, sends.Where(x => x.CorrespondentId == first.CorrespondentId).Select(x => x.Number).OrderBy(x => x));
+        Assert.Equal(new long[] { 1, 2 }, sends.Where(x => x.CorrespondentId == second.CorrespondentId).Select(x => x.Number).OrderBy(x => x));
+        Assert.All(sends, x => Assert.NotNull(x.SourceHawalaId));
+        var next = BuildItems(1, 96_300_010, forceRemote: true).Single();
+        next.GeneratedSendHawalaNumber = null;
+        next.FromAccountId = first.Id;
+        await fixture.CreateService(context).CreateHawalaAsync(next);
+        Assert.Equal(4, await fixture.CreateService(context).GetNextNumberAsync(first.CorrespondentId!.Value, "HawalaSend"));
+        Assert.Equal(3, await fixture.CreateService(context).GetNextNumberAsync(second.CorrespondentId!.Value, "HawalaSend"));
+    }
+
+    [Fact]
+    public async Task Concurrent_forwarding_allocates_distinct_consecutive_destination_numbers()
+    {
+        long accountId;
+        long destinationId;
+        await using (var seed = fixture.CreateContext())
+        {
+            using var bypass = seed.BypassSubscriptionEnforcement();
+            var account = await NewNumberingDestinationAsync(seed);
+            accountId = account.Id;
+            destinationId = account.CorrespondentId!.Value;
+        }
+        async Task Create(long number)
+        {
+            await using var context = fixture.CreateContext();
+            using var bypass = context.BypassSubscriptionEnforcement();
+            var item = BuildItems(1, number, forceRemote: true).Single();
+            item.FromAccountId = accountId;
+            item.GeneratedSendHawalaNumber = null;
+            await fixture.CreateService(context).CreateHawalaAsync(item);
+        }
+        await Task.WhenAll(Create(96_400_001), Create(96_400_002));
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(new long[] { 1, 2 }, await verify.Hawalas.Where(x => x.CorrespondentId == destinationId && x.HawalaType == "HawalaSend")
+            .OrderBy(x => x.Number).Select(x => x.Number).ToListAsync());
+    }
+
+    private static async Task<Account> NewNumberingDestinationAsync(HawalaExchange.Infrastructure.Data.ApplicationDbContext context)
+    {
+        var code = Guid.NewGuid().ToString("N");
+        var destination = new Correspondent { Code = code, Name = "Numbering destination", CommissionMethod = "PerTransaction", SettlementCurrencyId = 2 };
+        context.Correspondents.Add(destination);
+        await context.SaveChangesAsync();
+        var account = new Account { AccountCode = code, AccountName = "Numbering account", AccountType = "Correspondent", CorrespondentId = destination.Id };
+        context.Accounts.Add(account);
+        await context.SaveChangesAsync();
+        return account;
+    }
+
+    [Fact]
     public async Task Bulk_import_preserves_hawala_links_and_accounting_balances()
     {
         const int rowCount = 100;

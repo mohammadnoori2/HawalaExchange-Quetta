@@ -82,6 +82,7 @@
                                            SettlementCurrencyCode="@correspondent.SettlementCurrencyCode"
                                            OnViewStatus="ViewStatus"
                                            OnViewRange="ViewRange"
+                                           OnRecordActions="ToggleRecordActions"
                                            OnConvertBalance="OpenBalanceSettlement"
                                            OnExchange="OpenExchange"
                                            OnAedDeal="OpenAedDeals"
@@ -140,6 +141,7 @@
                 <CorrespondentHawalaPanel @key="@($"send-{CorrespondentId}-{hawalaPanelVersion}")"
                                           CorrespondentId="@CorrespondentId"
                                           HawalaType="HawalaSend"
+                                          ShowRecordActions="@showRecordActions"
                                           Title="حواله‌های ارسالی"
                                           SingularTitle="حواله ارسالی"
                                           CanCreate="@(!correspondent.IsArchived)" />
@@ -149,6 +151,7 @@
                 <CorrespondentHawalaPanel @key="@($"receive-{CorrespondentId}-{hawalaPanelVersion}")"
                                           CorrespondentId="@CorrespondentId"
                                           HawalaType="HawalaReceive"
+                                          ShowRecordActions="@showRecordActions"
                                           Title="حواله‌های دریافتی"
                                           SingularTitle="حواله دریافتی"
                                           CanCreate="@(!correspondent.IsArchived)" />
@@ -339,6 +342,8 @@
     private string successMessage = string.Empty;
     private long? loadedCorrespondentId;
     private string activeHawalaType = "HawalaSend";
+    private bool showRecordActions;
+    private void ToggleRecordActions() => showRecordActions = !showRecordActions;
     private bool currenciesLoaded;
     private DateTime sourceRateDate = DateTime.Today;
     private decimal sourceUsdRateInput;

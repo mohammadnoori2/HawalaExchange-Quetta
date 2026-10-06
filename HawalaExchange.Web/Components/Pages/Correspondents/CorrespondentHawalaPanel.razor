@@ -41,12 +41,12 @@
                     {
                         <i class="bi @(allMatchingSettlementSelected ? "bi-square" : "bi-check2-square")"></i>
                     }
-                    @(allMatchingSettlementSelected ? "لغو انتخاب همه" : "انتخاب همه")
+                    @(allMatchingSettlementSelected ? "لغو انتخاب همه نتایج قابل تبدیل" : "انتخاب همه نتایج قابل تبدیل")
                 </button>
             }
             @if (selectedSettlementIds.Count > 0)
             {
-                <button type="button" class="btn btn-sm btn-success" @onclick="OpenSettlement">
+                <button type="button" class="btn btn-sm btn-success" disabled="@settlementSelectionLoading" @onclick="OpenSettlement">
                     تبدیل @selectedSettlementIds.Count حواله به ارز توافقی
                 </button>
             }
@@ -102,11 +102,13 @@
         <span>حوالهٔ ثبت‌شده با ارز توافقی بدون رنگ است.</span>
     </div>
 
+    <SelectedRecordsToolbar @ref="recordToolbar" ScopeId="@recordSelectionScope" VisibleIds="@hawalas.Select(x => x.Id)" ResetKey="@($"{CorrespondentId}:{HawalaType}")"
+                            ShowActions="@ShowRecordActions" SelectionChanged="HandleRecordSelection" />
     <div class="table-responsive panel-table-wrap">
-        <GlobalDataGrid class="table table-sm align-middle mb-0">
+        <GlobalDataGrid id="@recordSelectionScope" class="table table-sm align-middle mb-0">
             <thead>
                 <tr>
-                    <th class="text-center" style="width:2.5rem">انتخاب</th>
+                    <RecordSelectionHeader />
                     <th>نمبر</th>
                     <th>فرستنده</th>
                     <th>گیرنده</th>
@@ -134,15 +136,7 @@
                     @foreach (var hawala in hawalas)
                     {
                         <tr class="@GetSettlementRowClass(hawala)">
-                            <td class="text-center">
-                                @if (hawala.SettlementState == "Pending")
-                                {
-                                    <input type="checkbox" class="form-check-input"
-                                           checked="@selectedSettlementIds.Contains(hawala.Id)"
-                                           @onchange="args => ToggleSettlementSelection(hawala, args.Value as bool? == true)"
-                                           title="انتخاب برای تبدیل به @hawala.SettlementCurrencyCode" />
-                                }
-                            </td>
+                            <RecordSelectionCell RecordId="@hawala.Id" />
                             <td class="fw-bold">@hawala.Number</td>
                             <td>@(hawala.SenderName ?? "—")</td>
                             <td>@(hawala.ReceiverName ?? "—")</td>
@@ -238,6 +232,7 @@
                                IsVisibleChanged="HandleSettlementVisibility"
                                CorrespondentId="@CorrespondentId"
                                SelectedHawalas="@SelectedSettlementHawalas"
+                               SelectionNotice="@settlementSelectionNotice"
                                OnConverted="HandleSettlementConvertedAsync" />
 
 <EditHawalaSettlementRateModal IsVisible="@showRateEditModal"
@@ -468,6 +463,10 @@
     private bool settlementSelectionLoading;
     private bool allMatchingSettlementSelected;
     private readonly HashSet<long> selectedSettlementIds = [];
+    private readonly string recordSelectionScope = $"correspondent-selection-{Guid.NewGuid():N}";
+    [Parameter] public bool ShowRecordActions { get; set; }
+    private SelectedRecordsToolbar? recordToolbar;
+    private string settlementSelectionNotice = "";
     private readonly Dictionary<long, HawalaDto> selectedSettlementHawalas = [];
     private bool showRateEditModal;
     private HawalaDto? rateEditHawala;
@@ -512,6 +511,7 @@
             return;
 
         loadedKey = key;
+        selectedSettlementIds.Clear(); selectedSettlementHawalas.Clear(); allMatchingSettlementSelected = false;
         currentPage = 1;
         await LoadHawalasAsync();
     }
@@ -529,11 +529,9 @@
                 return;
 
             hawalas = result.Items.ToList();
-            foreach (var invalid in hawalas.Where(x => x.SettlementState != "Pending" && selectedSettlementIds.Contains(x.Id)))
+            foreach (var selected in hawalas.Where(x => selectedSettlementIds.Contains(x.Id)))
             {
-                selectedSettlementIds.Remove(invalid.Id);
-                selectedSettlementHawalas.Remove(invalid.Id);
-                allMatchingSettlementSelected = false;
+                selectedSettlementHawalas[selected.Id] = selected;
             }
             totalCount = result.TotalCount;
             totalPages = Math.Max(1, result.TotalPages);
@@ -949,19 +947,12 @@
 
     private IReadOnlyList<HawalaDto> SelectedSettlementHawalas => selectedSettlementHawalas.Values.ToList();
 
-    private void ToggleSettlementSelection(HawalaDto hawala, bool selected)
+    private void HandleRecordSelection(IReadOnlyList<long> ids)
     {
         allMatchingSettlementSelected = false;
-        if (selected)
-        {
-            selectedSettlementIds.Add(hawala.Id);
-            selectedSettlementHawalas[hawala.Id] = hawala;
-        }
-        else
-        {
-            selectedSettlementIds.Remove(hawala.Id);
-            selectedSettlementHawalas.Remove(hawala.Id);
-        }
+        selectedSettlementIds.Clear(); selectedSettlementIds.UnionWith(ids);
+        foreach (var id in selectedSettlementHawalas.Keys.Where(id => !selectedSettlementIds.Contains(id)).ToArray()) selectedSettlementHawalas.Remove(id);
+        foreach (var row in hawalas.Where(x => selectedSettlementIds.Contains(x.Id))) selectedSettlementHawalas[row.Id] = row;
     }
 
     private async Task ToggleAllSettlementSelectionAsync()
@@ -971,8 +962,7 @@
 
         if (allMatchingSettlementSelected)
         {
-            selectedSettlementIds.Clear();
-            selectedSettlementHawalas.Clear();
+            if (recordToolbar != null) await recordToolbar.SetSelectionAsync([]);
             allMatchingSettlementSelected = false;
             return;
         }
@@ -992,12 +982,15 @@
                 return;
             }
 
+            if (selectedSettlementIds.Union(eligible.Select(x => x.Id)).Count() > 10000)
+            { errors.Add("حداکثر 10000 حواله قابل انتخاب است؛ محدوده فیلتر را کوچک‌تر کنید."); return; }
+
             foreach (var hawala in eligible)
             {
                 selectedSettlementIds.Add(hawala.Id);
                 selectedSettlementHawalas[hawala.Id] = hawala;
             }
-
+            if (recordToolbar != null) await recordToolbar.SetSelectionAsync(selectedSettlementIds.ToArray());
             allMatchingSettlementSelected = true;
         }
         catch (Exception ex)
@@ -1036,7 +1029,26 @@
         };
     }
 
-    private void OpenSettlement() => showSettlementModal = true;
+    private async Task OpenSettlement()
+    {
+        if (settlementSelectionLoading || selectedSettlementIds.Count == 0) return;
+        settlementSelectionLoading = true;
+        try
+        {
+            // Re-read selection across pages, independently of the current search/filter.
+            var result = await HawalaService.GetHawalasAsync(new HawalaFilterDto
+            { CorrespondentId = CorrespondentId, HawalaType = HawalaType, PageNumber = 1, PageSize = int.MaxValue });
+            var eligible = result.Items.Where(x => selectedSettlementIds.Contains(x.Id) && x.SettlementState == "Pending" && x.Status != "Cancel").ToList();
+            var skipped = selectedSettlementIds.Count - eligible.Count;
+            if (eligible.Count == 0) { errors.Add("هیچ‌کدام از حواله‌های انتخاب‌شده قابل تبدیل نیستند."); return; }
+            selectedSettlementHawalas.Clear();
+            foreach (var row in eligible) selectedSettlementHawalas[row.Id] = row;
+            settlementSelectionNotice = $"{eligible.Count} حواله قابل تبدیل؛ {skipped} حواله حذف‌شده، لغوشده یا غیرقابل تبدیل کنار گذاشته شد. انتخاب‌های کاپی و خروجی تغییر نکرده‌اند.";
+            showSettlementModal = true;
+        }
+        catch (Exception ex) { errors.Add($"بررسی حواله‌های انتخاب‌شده انجام نشد: {ex.Message}"); }
+        finally { settlementSelectionLoading = false; }
+    }
 
     private void OpenRateEdit(HawalaDto hawala, HawalaSettlementRateInfoDto rateInfo)
     {
@@ -1073,6 +1085,7 @@
         selectedSettlementIds.Clear();
         selectedSettlementHawalas.Clear();
         allMatchingSettlementSelected = false;
+        if (recordToolbar != null) await recordToolbar.SetSelectionAsync([]);
         var details = result.Items.Count == 0
             ? "تبدیل به ارز توافقی ثبت شد."
             : string.Join("؛ ", result.Items.Select(item =>

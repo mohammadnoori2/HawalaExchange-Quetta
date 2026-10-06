@@ -10,6 +10,10 @@
                 محدوده حواله‌ها
             </button>
 
+            <button type="button" class="operation-menu-item" role="menuitem" @onclick="OnRecordActions">
+                <i class="bi bi-copy text-primary"></i> کاپی و خروجی حواله‌ها
+            </button>
+
             @if (CanUseFinancialActions)
             {
                 <div class="operation-menu-divider"></div>
@@ -69,6 +73,7 @@
     [Parameter] public bool CanUseFinancialActions { get; set; }
     [Parameter] public string? SettlementCurrencyCode { get; set; }
     [Parameter] public EventCallback OnViewStatus { get; set; }
+    [Parameter] public EventCallback OnRecordActions { get; set; }
     [Parameter] public EventCallback OnViewRange { get; set; }
     [Parameter] public EventCallback OnConvertBalance { get; set; }
     [Parameter] public EventCallback OnExchange { get; set; }

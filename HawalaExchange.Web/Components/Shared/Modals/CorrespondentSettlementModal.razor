@@ -20,6 +20,8 @@
                     <button type="button" class="btn-close" @onclick="CloseAsync"></button>
                 </div>
                 <div class="modal-body">
+                    @if (!AccountMode && !string.IsNullOrWhiteSpace(SelectionNotice))
+                    { <div class="alert alert-warning py-2">@SelectionNotice</div> }
                     @if (loading)
                     {
                         <div class="text-center py-4"><span class="spinner-border text-primary"></span></div>
@@ -145,6 +147,7 @@
     [Parameter, EditorRequired] public long CorrespondentId { get; set; }
     [Parameter] public bool AccountMode { get; set; }
     [Parameter] public IReadOnlyList<HawalaDto> SelectedHawalas { get; set; } = [];
+    [Parameter] public string? SelectionNotice { get; set; }
     [Parameter] public EventCallback<CorrespondentSettlementResultDto> OnConverted { get; set; }
 
     private CorrespondentSettlementPreviewDto? preview;

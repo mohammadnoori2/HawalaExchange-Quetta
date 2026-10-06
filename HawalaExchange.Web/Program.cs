@@ -10,8 +10,10 @@ using HawalaExchange.Web.Components;
 using HawalaExchange.Web.Components.Account;
 using HawalaExchange.Web.Services;
 using HawalaSystem.Mappings;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +37,17 @@ public partial class Program
             // and Blazor circuit, independently of the browser's preferred language.
             options.RequestCultureProviders.Clear();
         });
+
+        var configuredKeyRingPath = builder.Configuration["DataProtection:KeyRingPath"];
+        var keyRingPath = string.IsNullOrWhiteSpace(configuredKeyRingPath)
+            ? Path.Combine(builder.Environment.ContentRootPath, "App_Data", "DataProtectionKeys")
+            : Path.IsPathRooted(configuredKeyRingPath)
+                ? configuredKeyRingPath
+                : Path.Combine(builder.Environment.ContentRootPath, configuredKeyRingPath);
+        Directory.CreateDirectory(keyRingPath);
+        builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(keyRingPath))
+            .SetApplicationName("HawalaExchange.Quetta");
 
         // ============================================================
         // 1. Add services to the container
@@ -75,6 +88,19 @@ public partial class Program
         })
         .AddEntityFrameworkStores<ApplicationDbContext>()
         .AddDefaultTokenProviders();
+
+        builder.Services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.Name = ".HawalaExchange.Quetta.Auth";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.IsEssential = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            options.ExpireTimeSpan = TimeSpan.FromDays(30);
+            options.SlidingExpiration = true;
+            options.LoginPath = "/Account/Login";
+            options.AccessDeniedPath = "/Account/AccessDenied";
+        });
 
         // ============================================================
         // 4. Authentication & Authorization

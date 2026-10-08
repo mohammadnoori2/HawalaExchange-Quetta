@@ -132,6 +132,8 @@ public partial class Program
         builder.Services.AddScoped<IDbContextFactory<ApplicationDbContext>, TenantDbContextFactory>();
         builder.Services.AddScoped<CircuitHandler, TenantCircuitHandler>();
         builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, TenantUserClaimsPrincipalFactory>();
+        builder.Services.AddScoped<TenantSessionValidator>();
+        builder.Services.AddScoped<ISecurityStampValidator, TenantCookieSecurityStampValidator>();
 
         // ============================================================
         // 5. Identity Services for Blazor

@@ -20,6 +20,14 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Logging" />
+    <Compile Include="..\HawalaExchange.Web\Services\CurrentTenant.cs" Link="WebServices\CurrentTenant.cs" />
+    <Compile Include="..\HawalaExchange.Web\Services\TenantUserClaimsPrincipalFactory.cs" Link="WebServices\TenantUserClaimsPrincipalFactory.cs" />
+    <Compile Include="..\HawalaExchange.Web\Services\TenantSessionValidator.cs" Link="WebServices\TenantSessionValidator.cs" />
+    <Compile Include="..\HawalaExchange.Web\Services\TenantCookieSecurityStampValidator.cs" Link="WebServices\TenantCookieSecurityStampValidator.cs" />
+    <Compile Include="..\HawalaExchange.Web\Components\Account\IdentityRevalidatingAuthenticationStateProvider.cs" Link="WebComponents\IdentityRevalidatingAuthenticationStateProvider.cs" />
     <RazorComponent Include="..\HawalaExchange.Web\Components\Shared\CalendarPreferenceSelect.razor" Link="WebComponents\CalendarPreferenceSelect.razor" />
     <RazorComponent Include="..\HawalaExchange.Web\Components\Shared\CompactFilterBar.razor" Link="WebComponents\CompactFilterBar.razor" />
     <RazorComponent Include="..\HawalaExchange.Web\Components\Shared\PageRefreshButton.razor" Link="WebComponents\PageRefreshButton.razor" />

@@ -10,6 +10,7 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 @attribute [Authorize]
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -34,7 +35,8 @@
     </div>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر تراکنش‌ها"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterStatus) || !string.IsNullOrWhiteSpace(filterType))"
+                      ActiveFilterCount="@advancedFilters.Count"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterStatus) || !string.IsNullOrWhiteSpace(filterType)))"
                       Reset="ClearSearch">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با شماره، مشتری یا نوع تراکنش..."
@@ -54,8 +56,13 @@
                 <option value="Expense">هزینه</option>
                 <option value="Adjustment">تعدیل</option>
             </select>
+            <RecordFilterFields TItem="TransactionDto" Items="@transactions" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="Status,TransactionType" Quick="true" QuickLimit="0" />
         </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="TransactionDto" Items="@transactions" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="Status,TransactionType" QuickLimit="0" />
+        </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <!-- کارت جدول -->
     <div class="table-card">
@@ -604,8 +611,14 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadLookupData(); await LoadTransactions();
+    }
     private List<TransactionDto> transactions = new();
-    private List<TransactionDto> filteredTransactions = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<TransactionDto> basefilteredTransactions = new();
+    private List<TransactionDto> filteredTransactions { get => advancedFilters.Apply(basefilteredTransactions).ToList(); set => basefilteredTransactions = value; }
     private List<BranchDto> branches = new();
     private List<CustomerDto> customers = new();
     private List<CurrencyDto> currencies = new();
@@ -800,6 +813,7 @@
 
     private void ClearSearch()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         _filterStatus = "";
         _filterType = "";

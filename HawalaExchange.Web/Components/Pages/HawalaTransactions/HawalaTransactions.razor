@@ -21,6 +21,7 @@
 @attribute [Authorize]
 @implements IDisposable
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(isLoading || destructiveActionLoading)" />
 <div class="page-wrapper">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -47,8 +48,8 @@
     </div>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر حواله‌ها"
-                      HasActiveFilters="@HasActiveFilters"
-                      ActiveFilterCount="@AdvancedFilterCount"
+                      HasActiveFilters="@(extraFilters.Count > 0 || (HasActiveFilters))"
+                      ActiveFilterCount="@(extraFilters.Count + (AdvancedFilterCount))"
                       Reset="ResetFilters">
         <SearchContent>
                 <input type="text"
@@ -130,6 +131,7 @@
                     <label class="form-label">تا تاریخ ثبت</label>
                     <PersianDatePicker @bind-Value="filterToDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
                 </div>
+            <HawalaExtraFilters Filter="@extraFilters" ShowBasic="false" ShowCorrespondents="false" Changed="OnFilterChangedAsync" />
         </AdvancedFilters>
     </CompactFilterBar>
 
@@ -800,11 +802,16 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadLookupData(); await LoadAccounts(); await LoadCustomers(); await LoadPaymentLocations(); await LoadHawalas();
+    }
     [SupplyParameterFromQuery(Name = "editId")]
     public long? RequestedEditId { get; set; }
 
     private long? handledRequestedEditId;
     // ===== لیست‌ها =====
+    private HawalaExtraFilter extraFilters = new();
     private List<HawalaDto> filteredHawalas = new();
     private List<CorrespondentDto> correspondents = new();
     private List<CurrencyDto> currencies = new();
@@ -1159,6 +1166,7 @@
 
             var filter = new HawalaFilterDto
             {
+                Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrEmpty(searchTerm) ? null : searchTerm,
                 SearchAmount = searchAmount,
                 Number = searchNumber,
@@ -1266,6 +1274,7 @@
 
     private async Task ResetFilters()
     {
+        extraFilters = new();
         CancelPendingFilterChange();
         searchTerm = "";
         filterHawalaType = "";

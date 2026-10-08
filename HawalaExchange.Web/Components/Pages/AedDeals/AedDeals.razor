@@ -12,6 +12,7 @@
 @inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject NavigationManager NavigationManager
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>معاملات درهم</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
@@ -46,11 +47,27 @@
         <div class="alert alert-danger py-2">@errorMessage</div>
     }
 
+    <CompactFilterBar AriaLabel="جستجو و فیلتر معاملات درهم" HasActiveFilters="@(advancedFilters.Count > 0 || !string.IsNullOrWhiteSpace(dealSearch) || !string.IsNullOrWhiteSpace(dealStatusFilter))" ActiveFilterCount="@advancedFilters.Count" Reset="@(() => { advancedFilters.Clear(); dealSearch = ""; dealStatusFilter = ""; })">
+        <SearchContent>
+            <input class="form-control" value="@dealSearch" @oninput="OnDealSearchChanged" placeholder="نمبر معامله، نمایندگی فرستنده یا طرف دبی..." />
+        </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" aria-label="وضعیت معامله" @bind="dealStatusFilter">
+                <option value="">همه وضعیت‌ها</option><option value="Held">نگهداری‌شده</option>
+                <option value="PartiallyConverted">قسمتی تبدیل‌شده</option><option value="Converted">تبدیل کامل</option><option value="Cancelled">لغوشده</option>
+            </select>
+            <RecordFilterFields TItem="AedDealDto" Items="@baseDeals" State="@advancedFilters" Changed="StateHasChanged" Quick="true" Exclude="Status" QuickLimit="1" />
+        </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="AedDealDto" Items="@baseDeals" State="@advancedFilters" Changed="StateHasChanged" Exclude="Status" QuickLimit="1" />
+        </AdvancedFilters>
+    </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
     @if (isLoading)
     {
         <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
     }
-    else if (deals.Count == 0)
+    else if (baseDeals.Count == 0)
     {
         <div class="card border-0 shadow-sm">
             <div class="card-body text-center py-5">
@@ -65,29 +82,6 @@
     }
     else
     {
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-body py-3">
-                <div class="row g-2 align-items-end">
-                    <div class="col-lg-8">
-                        <label class="form-label small text-muted">جستجوی معامله</label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-                            <input class="form-control" value="@dealSearch" @oninput="OnDealSearchChanged" placeholder="نمبر معامله، طرف کویته یا طرف دبی..." />
-                        </div>
-                    </div>
-                    <div class="col-lg-4">
-                        <label class="form-label small text-muted">وضعیت</label>
-                        <select class="form-select" @bind="dealStatusFilter">
-                            <option value="">همه وضعیت‌ها</option>
-                            <option value="Held">نگهداری‌شده</option>
-                            <option value="PartiallyConverted">قسمتی تبدیل‌شده</option>
-                            <option value="Converted">تبدیل کامل</option>
-                            <option value="Cancelled">لغوشده</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         @if (!FilteredDeals.Any())
         {
@@ -311,8 +305,14 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadAsync(true);
+    }
     [Parameter] public long? CorrespondentId { get; set; }
-    private List<AedDealDto> deals = [];
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<AedDealDto> baseDeals = [];
+    private List<AedDealDto> deals { get => advancedFilters.Apply(baseDeals).ToList(); set => baseDeals = value; }
     private List<CorrespondentDto> correspondents = [];
     private List<AccountDto> correspondentAccounts = [];
     private List<CurrencyDto> currencies = [];

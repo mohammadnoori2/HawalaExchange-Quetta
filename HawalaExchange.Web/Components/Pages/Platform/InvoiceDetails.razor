@@ -7,6 +7,7 @@
 @inject IJSRuntime JS
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>فاکتور اشتراک</PageTitle>
 <div class="page-wrapper">
     <div class="page-header no-print"><div><h5 class="page-title"><i class="bi bi-receipt"></i> جزئیات فاکتور</h5><span class="page-subtitle">نسخه رسمی قابل چاپ و ذخیره به PDF</span></div><div class="page-actions"><a href="/platform/billing" class="btn-modern btn-light-modern">بازگشت</a><button class="btn-modern btn-primary-modern" @onclick="PrintAsync"><i class="bi bi-file-earmark-pdf"></i> چاپ / PDF</button></div></div>
@@ -24,6 +25,10 @@
     }
 </div>
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        invoice = await BillingService.GetInvoiceAsync(Id);
+    }
     [Parameter] public long Id { get; set; } private SubscriptionInvoiceDto? invoice; private bool isLoading = true;
     protected override async Task OnParametersSetAsync() { isLoading = true; invoice = await BillingService.GetInvoiceAsync(Id); isLoading = false; }
     private async Task PrintAsync() { if (invoice is not null) await JS.InvokeAsync<bool>("hawalaTools.printPdfElement", "saas-invoice-print", invoice.InvoiceNumber); }

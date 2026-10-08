@@ -108,6 +108,11 @@
 
                     @ProfileSummary
 
+                    @if (Account.Id > 0 && (Account.AccountType == "Customer" || Account.AccountType == "Correspondent"))
+                    {
+                        <AccountStatementPanel @key="Account.Id" AccountId="Account.Id" />
+                    }
+
                     <!-- اطلاعات خلاصه حساب -->
                     @if (ShowAccountFacts)
                     {
@@ -294,6 +299,9 @@
                                                            AllowEmpty="true"
                                                            Placeholder="انتخاب تاریخ" />
                                     </div>
+                                    <div class="compact-filter-field"><label class="form-label">حداقل مبلغ عملیات</label><NullableMoneyInput class="form-control" @bind-Value="OperationMinAmount" @bind-Value:after="OnOperationFilterChangedAsync" /></div>
+                                    <div class="compact-filter-field"><label class="form-label">حداکثر مبلغ عملیات</label><NullableMoneyInput class="form-control" @bind-Value="OperationMaxAmount" @bind-Value:after="OnOperationFilterChangedAsync" /></div>
+                                    <div class="compact-filter-field"><label class="form-label">بدهکاری / طلبکاری</label><select class="form-select" @bind="OperationDirection" @bind:after="OnOperationFilterChangedAsync"><option value="">همه</option><option value="Credit">طلبکاری</option><option value="Debit">بدهکاری</option></select></div>
                                 </AdvancedFilters>
                             </CompactFilterBar>
 
@@ -501,6 +509,8 @@
     private string OperationCurrencyFilter { get; set; } = string.Empty;
     private DateTime OperationFromDate { get; set; } = DateTime.MinValue;
     private DateTime OperationToDate { get; set; } = DateTime.MinValue;
+    private decimal? OperationMinAmount, OperationMaxAmount;
+    private string OperationDirection = "";
 
     private bool showExchangeModal;
     private bool isExchangeEditMode;
@@ -526,7 +536,8 @@
     private int AdvancedOperationFilterCount =>
         (!string.IsNullOrWhiteSpace(OperationCurrencyFilter) ? 1 : 0) +
         (OperationFromDate != DateTime.MinValue ? 1 : 0) +
-        (OperationToDate != DateTime.MinValue ? 1 : 0);
+        (OperationToDate != DateTime.MinValue ? 1 : 0) +
+        (OperationMinAmount.HasValue ? 1 : 0) + (OperationMaxAmount.HasValue ? 1 : 0) + (OperationDirection != "" ? 1 : 0);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -599,6 +610,13 @@
         await StartOperationLoadAsync();
     }
 
+    public async Task RefreshDataAsync()
+    {
+        if (!IsVisible || Account == null) return;
+        loadedOperationDetails.Clear();
+        await LoadAccountData(Account.Id);
+    }
+
     private async Task LoadOperationsAsync(long accountId, CancellationToken cancellationToken = default)
     {
         var loadVersion = ++operationLoadVersion;
@@ -608,6 +626,7 @@
             var result = await JournalService.GetAccountOperationsPageAsync(new AccountOperationsFilterDto
             {
                 AccountId = accountId,
+                MinAmount = OperationMinAmount, MaxAmount = OperationMaxAmount, Direction = OperationDirection,
                 SearchTerm = string.IsNullOrWhiteSpace(OperationSearchTerm) ? null : OperationSearchTerm.Trim(),
                 SourceType = OperationFilter == "All" ? null : OperationFilter,
                 CurrencyCode = string.IsNullOrWhiteSpace(OperationCurrencyFilter) ? null : OperationCurrencyFilter,
@@ -681,6 +700,7 @@
 
     private void ResetOperationFiltersState()
     {
+        OperationMinAmount = OperationMaxAmount = null; OperationDirection = "";
         OperationSearchTerm = string.Empty;
         OperationFilter = "All";
         OperationCurrencyFilter = string.Empty;

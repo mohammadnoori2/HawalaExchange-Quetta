@@ -156,6 +156,10 @@ public partial class Program
         builder.Services.AddScoped<ICorrespondentCommissionService, CorrespondentCommissionService>();
         builder.Services.AddScoped<ICorrespondentSettlementService, CorrespondentSettlementService>();
         builder.Services.AddScoped<ISelectedRecordsService, SelectedRecordsService>();
+        builder.Services.AddScoped<IHawalaCommissionReportService, HawalaCommissionReportService>();
+        builder.Services.AddScoped<IAccountStatementService>(services => new AccountStatementService(
+            new ApplicationDbContext(services.GetRequiredService<DbContextOptions<ApplicationDbContext>>(),
+                services.GetRequiredService<HawalaExchange.Application.Interfaces.ICurrentTenant>()), ownsContext: true));
         builder.Services.AddScoped<IAedDealService, AedDealService>();
         builder.Services.AddScoped<ICurrencyService, CurrencyService>();
         builder.Services.AddScoped<IAccountService, AccountService>();
@@ -199,6 +203,7 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
 
         // Export services (customer activities Excel/PDF)
         builder.Services.AddScoped<IExportService, ExportService>();
+        builder.Services.AddScoped<IHawalaPaymentHistoryExportService, HawalaPaymentHistoryExportService>();
         builder.Services.AddSingleton(typeof(WkHtmlToPdfDotNet.Contracts.IConverter),
             new WkHtmlToPdfDotNet.SynchronizedConverter(new WkHtmlToPdfDotNet.PdfTools()));
 

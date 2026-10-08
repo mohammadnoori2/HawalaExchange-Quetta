@@ -14,6 +14,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper" dir="rtl">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -40,7 +41,8 @@
     </div>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر عملیات حساب"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterOperationType) || filterCurrencyId != 0)"
+                      ActiveFilterCount="@advancedFilters.Count"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterOperationType) || filterCurrencyId != 0))"
                       Reset="ClearSearch">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با حساب، ارز یا توضیحات..."
@@ -59,8 +61,13 @@
                     <option value="@currency.Id">@currency.Code - @currency.Name</option>
                 }
             </select>
+            <RecordFilterFields TItem="AccountMoneyOperationDto" Items="@operations" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="OperationType,CurrencyCode" Quick="true" QuickLimit="0" />
         </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="AccountMoneyOperationDto" Items="@operations" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="OperationType,CurrencyCode" QuickLimit="0" />
+        </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     @if (validationErrors.Any() && !showModal)
     {
@@ -472,8 +479,14 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadLookupData(); await LoadOperations();
+    }
     private List<AccountMoneyOperationDto> operations = new();
-    private List<AccountMoneyOperationDto> filteredOperations = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<AccountMoneyOperationDto> basefilteredOperations = new();
+    private List<AccountMoneyOperationDto> filteredOperations { get => advancedFilters.Apply(basefilteredOperations).ToList(); set => basefilteredOperations = value; }
 
     private List<CurrencyDto> currencies = new();
     private List<AccountDto> accounts = new();
@@ -687,6 +700,7 @@
 
     private void ClearSearch()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         _filterOperationType = string.Empty;
         _filterCurrencyId = 0;

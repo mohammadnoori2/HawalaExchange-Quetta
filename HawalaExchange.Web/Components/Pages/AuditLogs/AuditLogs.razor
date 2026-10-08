@@ -13,6 +13,7 @@
 @inject ILogger<AuditLogs> Logger
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>لاگ‌های سیستم</PageTitle>
 
 <div class="page-wrapper">
@@ -212,6 +213,10 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadUsers(); await LoadTables(); await LoadLogs();
+    }
     private List<AuditLogDto> filteredLogs = [];
     private List<UserDto> users = [];
     private List<string> tables = [];

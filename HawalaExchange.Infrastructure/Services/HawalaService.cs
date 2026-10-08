@@ -11,7 +11,7 @@
 
     namespace HawalaExchange.Application.Services
     {
-        public class HawalaService : IHawalaService
+        public partial class HawalaService : IHawalaService
         {
             private const int BulkCopyBatchSize = 10_000;
             private readonly ApplicationDbContext _context;
@@ -307,6 +307,33 @@
                 var query = _context.Hawalas
                     .AsNoTracking()
                     .AsQueryable();
+
+                var extra = filter.Extra;
+                if (extra.MinNumber > extra.MaxNumber || extra.MinAmount > extra.MaxAmount ||
+                    (extra.From != DateTime.MinValue && extra.To != DateTime.MinValue && extra.From.Date > extra.To.Date))
+                    throw new InvalidOperationException("بازه فیلتر معتبر نیست.");
+                if (!string.IsNullOrWhiteSpace(extra.Sender)) query = query.Where(h => h.SenderName != null && h.SenderName.Contains(extra.Sender.Trim()));
+                if (!string.IsNullOrWhiteSpace(extra.Receiver)) query = query.Where(h => h.ReceiverName != null && h.ReceiverName.Contains(extra.Receiver.Trim()));
+                if (!string.IsNullOrWhiteSpace(extra.Reference)) query = query.Where(h => h.ReferenceNumber != null && h.ReferenceNumber.Contains(extra.Reference.Trim()));
+                if (extra.MinNumber.HasValue) query = query.Where(h => h.Number >= extra.MinNumber);
+                if (extra.MaxNumber.HasValue) query = query.Where(h => h.Number <= extra.MaxNumber);
+                if (extra.CorrespondentId.HasValue) query = query.Where(h => h.CorrespondentId == extra.CorrespondentId);
+                if (extra.PaymentLocationId.HasValue) query = query.Where(h => h.PaymentLocationId == extra.PaymentLocationId);
+                if (extra.CurrencyId.HasValue) query = query.Where(h => (h.HawalaType == "HawalaSend" ? h.ToCurrencyId : h.FromCurrencyId) == extra.CurrencyId);
+                if (extra.MinAmount.HasValue) query = query.Where(h => (h.HawalaType == "HawalaSend" ? h.ToAmount ?? h.FromAmount : h.FromAmount) >= extra.MinAmount);
+                if (extra.MaxAmount.HasValue) query = query.Where(h => (h.HawalaType == "HawalaSend" ? h.ToAmount ?? h.FromAmount : h.FromAmount) <= extra.MaxAmount);
+                if (extra.From != DateTime.MinValue) { var from = extra.From.Date.ToUniversalTime(); query = query.Where(h => h.CreatedAt >= from); }
+                if (extra.To != DateTime.MinValue) { var to = extra.To.Date.AddDays(1).ToUniversalTime(); query = query.Where(h => h.CreatedAt < to); }
+                if (extra.Registration != "")
+                {
+                    var bulk = extra.Registration == "Bulk";
+                    query = query.Where(h => _context.HawalaImportRows.Any(r => r.HawalaId == h.Id || r.GeneratedSendHawalaId == h.Id || (h.SourceHawalaId.HasValue && r.HawalaId == h.SourceHawalaId)) == bulk);
+                }
+                if (extra.Commission != "")
+                {
+                    var has = extra.Commission == "With";
+                    query = query.Where(h => (h.CommissionAmount > 0 || h.AgentCommissionAmount > 0 || _context.CorrespondentCommissionBatchItems.Any(i => i.HawalaId == h.Id && i.IsActive && i.Batch.Status == "Posted")) == has);
+                }
 
                 if (filter.Number > 0 && string.IsNullOrWhiteSpace(filter.SearchTerm))
                     query = query.Where(h => h.Number == filter.Number);
@@ -1974,12 +2001,16 @@
 
             public async Task<HawalaDto> MarkAsPaidAsync(long id, PayHawalaDto payment)
             {
-                using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+                await using var transaction = _context.Database.CurrentTransaction == null
+                    ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable)
+                    : null;
 
                 try
                 {
                     await LockRequestedOutgoingNumberAsync(null, payment.PaidFromAccountId);
+                    await LockPaymentAccountAsync(payment.PaidFromAccountId);
                     var hawala = await _context.Hawalas
+                        .FromSqlRaw("SELECT * FROM dbo.Hawalas WITH (UPDLOCK, HOLDLOCK)")
                         .FirstOrDefaultAsync(x => x.Id == id);
 
                     if (hawala == null)
@@ -2046,13 +2077,13 @@
                         "Paid",
                         GetCurrentUserId());
 
-                    await transaction.CommitAsync();
+                    if (transaction != null) await transaction.CommitAsync();
 
                     return _mapper.Map<HawalaDto>(hawala);
                 }
                 catch
                 {
-                    await transaction.RollbackAsync();
+                    if (transaction != null) await transaction.RollbackAsync();
                     throw;
                 }
             }

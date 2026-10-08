@@ -2426,7 +2426,10 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_GetAccountOperationsPage_v1]
                 @ToDateExclusive datetime2(7) = NULL,
                 @CorrespondentId bigint = NULL,
                 @IncludeStatusHeader bit = 0,
-                @IncludeBalances bit = 0
+                @IncludeBalances bit = 0,
+                @MinAmount decimal(18,4) = NULL,
+                @MaxAmount decimal(18,4) = NULL,
+                @Direction nvarchar(10) = NULL
             AS
             BEGIN
                 SET NOCOUNT ON;
@@ -2589,7 +2592,17 @@ CREATE OR ALTER PROCEDURE [dbo].[usp_GetAccountOperationsPage_v1]
                            AND currency.[Id] = accountEntry.[CurrencyId]
                         WHERE accountEntry.[SourceKind] = operation.[SourceKind]
                           AND accountEntry.[OperationId] = operation.[OperationId]
-                          AND currency.[Code] = @CurrencyCode));
+                          AND currency.[Code] = @CurrencyCode))
+                  AND ((@MinAmount IS NULL AND @MaxAmount IS NULL AND NULLIF(@Direction, N'') IS NULL) OR EXISTS (
+                        SELECT 1 FROM #AccountEntries amountEntry
+                        JOIN dbo.Currencies amountCurrency ON amountCurrency.Id = amountEntry.CurrencyId AND amountCurrency.TenantId = @TenantId
+                        WHERE amountEntry.SourceKind = operation.SourceKind AND amountEntry.OperationId = operation.OperationId
+                          AND (@CurrencyCode IS NULL OR amountCurrency.Code = @CurrencyCode)
+                        GROUP BY amountEntry.CurrencyId
+                        HAVING (@Direction IS NULL OR @Direction = N'' OR (@Direction = N'Credit' AND SUM(amountEntry.TalabKar) > 0) OR (@Direction = N'Debit' AND SUM(amountEntry.BadehKar) > 0))
+                           AND (@MinAmount IS NULL OR CASE WHEN SUM(amountEntry.TalabKar) >= SUM(amountEntry.BadehKar) THEN SUM(amountEntry.TalabKar) ELSE SUM(amountEntry.BadehKar) END >= @MinAmount)
+                           AND (@MaxAmount IS NULL OR CASE WHEN SUM(amountEntry.TalabKar) >= SUM(amountEntry.BadehKar) THEN SUM(amountEntry.TalabKar) ELSE SUM(amountEntry.BadehKar) END <= @MaxAmount)
+                  ));
 
                 SELECT COUNT_BIG(1) AS [TotalCount] FROM #FilteredOperations;
 

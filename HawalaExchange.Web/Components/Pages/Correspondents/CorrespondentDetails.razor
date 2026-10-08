@@ -12,6 +12,7 @@
 @inject NavigationManager NavigationManager
 @implements IDisposable
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(correspondent == null ? "مشاهده نمایندگی" : correspondent.Name)</PageTitle>
 
 <div class="page-wrapper correspondent-details-page">
@@ -123,6 +124,10 @@
         }
 
         <div class="correspondent-hawala-sections">
+            @if (correspondentAccountId.HasValue)
+            {
+                <AccountStatementPanel @key="correspondentAccountId.Value" AccountId="correspondentAccountId.Value" />
+            }
             <div class="correspondent-hawala-tabs" role="tablist" aria-label="نوع حواله‌های نمایندگی">
                 <button type="button"
                         class="@(activeHawalaType == "HawalaSend" ? "active" : null)"
@@ -138,7 +143,7 @@
 
             @if (activeHawalaType == "HawalaSend")
             {
-                <CorrespondentHawalaPanel @key="@($"send-{CorrespondentId}-{hawalaPanelVersion}")"
+                <CorrespondentHawalaPanel @ref="refreshHawalaPanel" @key="@($"send-{CorrespondentId}-{hawalaPanelVersion}")"
                                           CorrespondentId="@CorrespondentId"
                                           HawalaType="HawalaSend"
                                           ShowRecordActions="@showRecordActions"
@@ -148,7 +153,7 @@
             }
             else
             {
-                <CorrespondentHawalaPanel @key="@($"receive-{CorrespondentId}-{hawalaPanelVersion}")"
+                <CorrespondentHawalaPanel @ref="refreshHawalaPanel" @key="@($"receive-{CorrespondentId}-{hawalaPanelVersion}")"
                                           CorrespondentId="@CorrespondentId"
                                           HawalaType="HawalaReceive"
                                           ShowRecordActions="@showRecordActions"
@@ -323,6 +328,11 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        var fresh = await CorrespondentService.GetDetailsPageAsync(CorrespondentId); correspondent = fresh?.Correspondent; correspondentAccountId = fresh?.AccountId; await LoadSourceRateAsync(); if (refreshHawalaPanel != null) await refreshHawalaPanel.RefreshDataAsync();
+    }
+    private CorrespondentHawalaPanel? refreshHawalaPanel;
     [Parameter] public long CorrespondentId { get; set; }
 
     private CorrespondentDto? correspondent;

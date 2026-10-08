@@ -13,6 +13,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper" dir="rtl">
     <div class="page-header">
         <div>
@@ -273,6 +274,10 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadSetting();
+    }
     private CompanySettingDto setting = new();
     private List<CurrencyDto> activeCurrencies = new();
     private List<PaymentLocationDto> paymentLocations = new();

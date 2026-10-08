@@ -1,0 +1,95 @@
+@typeparam TItem
+@using System.Globalization
+@using Microsoft.AspNetCore.Components
+@using HawalaExchange.Application.Services
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+
+@foreach (var field in VisibleFields)
+{
+    var rule = State.For(field.Name, IsChoice(field));
+    @if (field.IsNumber)
+    {
+        <div class="compact-filter-field" @key="@(field.Name + "Min")">
+            <label class="form-label">حداقل @field.Label</label>
+            <NullableMoneyInput class="form-control" aria-label="@($"حداقل {field.Label}")" DecimalPlaces="@(field.Name.Contains("Rate") ? 8 : 0)" @bind-Value="rule.Min" @bind-Value:after="Notify" />
+        </div>
+        <div class="compact-filter-field" @key="@(field.Name + "Max")">
+            <label class="form-label">حداکثر @field.Label</label>
+            <NullableMoneyInput class="form-control" aria-label="@($"حداکثر {field.Label}")" DecimalPlaces="@(field.Name.Contains("Rate") ? 8 : 0)" @bind-Value="rule.Max" @bind-Value:after="Notify" />
+        </div>
+    }
+    else if (field.IsDate)
+    {
+        <div class="compact-filter-field" @key="@(field.Name + "From")">
+            <label class="form-label">از @field.Label</label>
+            <PersianDatePicker @bind-Value="rule.FromValue" @bind-Value:after="Notify" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
+        </div>
+        <div class="compact-filter-field" @key="@(field.Name + "To")">
+            <label class="form-label">تا @field.Label</label>
+            <PersianDatePicker @bind-Value="rule.ToValue" @bind-Value:after="Notify" AllowEmpty="true" Placeholder="انتخاب تاریخ" />
+        </div>
+    }
+    else if (IsChoice(field))
+    {
+        @if (Quick)
+        {
+            <select class="form-select compact-quick-filter" aria-label="@field.Label" @bind="rule.Text" @bind:after="Notify">
+                <option value="">همه — @field.Label</option>
+                @foreach (var option in Options(field)) { <option value="@option">@OptionLabel(field, option)</option> }
+            </select>
+        }
+        else
+        {
+            <div class="compact-filter-field" @key="field.Name">
+                <label class="form-label">@field.Label</label>
+                <select class="form-select" aria-label="@field.Label" @bind="rule.Text" @bind:after="Notify">
+                    <option value="">همه</option>
+                    @foreach (var option in Options(field)) { <option value="@option">@OptionLabel(field, option)</option> }
+                </select>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="compact-filter-field" @key="field.Name">
+            <label class="form-label">@field.Label</label>
+            <input class="form-control" aria-label="@field.Label" placeholder="@field.Label" @bind="rule.Text" @bind:event="oninput" @bind:after="Notify" />
+        </div>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public RecordFilterSet State { get; set; } = default!;
+    [Parameter, EditorRequired] public IEnumerable<TItem> Items { get; set; } = [];
+    [Parameter] public EventCallback Changed { get; set; }
+    [Parameter] public bool Quick { get; set; }
+    [Parameter] public int QuickLimit { get; set; } = 2;
+    // Fields already present in the page's search/quick/advanced controls are not duplicated.
+    [Parameter] public string Exclude { get; set; } = "";
+    private static readonly HashSet<string> ChoiceFields = new(StringComparer.Ordinal)
+    {
+        "Status", "AccountType", "ReferenceType", "CustomerType", "TransactionType", "OperationType", "SourceType",
+        "HawalaType", "TransferMethod", "CommissionScope", "CommissionMethod", "InvestmentType", "EntityType", "DocumentType",
+        "Country", "City", "BalanceType", "ProfitStatus", "SettlementState"
+    };
+    private static bool IsChoice(RecordFilterField field) => field.IsBoolean || ChoiceFields.Contains(field.Name) ||
+        field.Name.EndsWith("CurrencyCode", StringComparison.Ordinal) || field.Name.EndsWith("AccountName", StringComparison.Ordinal) ||
+        field.Name is "CurrencyCode" or "FromCurrency" or "ToCurrency" or "CommissionCurrency" or "BranchName" or
+        "CorrespondentName" or "SourceCorrespondentName" or "DubaiCorrespondentName" or "PaymentLocationName" or "CreatedByName" or "UploadedBy";
+    private IEnumerable<RecordFilterField> VisibleFields
+    {
+        get
+        {
+            var excluded = Exclude.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.Ordinal);
+            var fields = RecordFilterSet.Fields<TItem>().Where(x => !excluded.Contains(x.Name)).ToArray();
+            var quickFields = fields.Where(IsChoice).Where(x => !x.IsBoolean).Take(Math.Clamp(QuickLimit, 0, 2)).Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
+            return fields.Where(x => Quick == quickFields.Contains(x.Name));
+        }
+    }
+    private Task Notify() => Changed.InvokeAsync();
+    private IEnumerable<string> Options(RecordFilterField field) => field.IsBoolean ? ["True", "False"] :
+        Items.Select(x => Convert.ToString(field.Property.GetValue(x), CultureInfo.InvariantCulture) ?? "")
+             .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Order();
+    private static string OptionLabel(RecordFilterField field, string option) => field.IsBoolean ? (option == "True" ? "بله" : "خیر") : RecordFilterSet.DisplayOption(field.Name, option);
+}

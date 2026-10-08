@@ -11,6 +11,7 @@
 @inject IFileService FileService
 @inject NavigationManager NavigationManager
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(customer == null ? "مشاهده مشتری" : customer.FullName)</PageTitle>
 
 <div class="page-wrapper entity-details-page">
@@ -39,7 +40,7 @@
             </div>
         }
 
-        <AccountDetailsModal IsVisible="true"
+        <AccountDetailsModal @ref="refreshAccountDetails" IsVisible="true"
                              PageMode="true"
                              Account="@accountForView"
                              ViewTitle="مشاهده مشتری"
@@ -172,6 +173,11 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadCustomer(); if (refreshAccountDetails != null) await refreshAccountDetails.RefreshDataAsync();
+    }
+    private AccountDetailsModal? refreshAccountDetails;
     [Parameter] public long CustomerId { get; set; }
 
     private CustomerDto? customer;

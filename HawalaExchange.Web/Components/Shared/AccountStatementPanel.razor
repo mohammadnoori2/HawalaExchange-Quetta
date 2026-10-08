@@ -1,0 +1,104 @@
+@using System.Text
+@using System.Globalization
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject IAccountStatementService StatementService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (AccountId > 0)
+{
+    <section class="card mb-3" dir="rtl" aria-label="ارسال صورت‌حساب">
+        <div class="card-header"><button class="btn btn-outline-primary" @onclick="() => visible = !visible"><i class="bi bi-send"></i> ارسال صورت‌حساب</button></div>
+        @if (visible)
+        {
+            <div class="card-body">
+                <CompactFilterBar AriaLabel="جستجو و فیلتر صورت‌حساب" HasActiveFilters="@(!string.IsNullOrWhiteSpace(filter.Search) || !string.IsNullOrWhiteSpace(filter.Currency) || !string.IsNullOrWhiteSpace(filter.Direction) || ((filter.From != DateTime.Today.AddMonths(-1) ? 1 : 0) + (filter.To != DateTime.Today ? 1 : 0) + (filter.MinAmount.HasValue ? 1 : 0) + (filter.MaxAmount.HasValue ? 1 : 0)) > 0)" ActiveFilterCount="@((filter.From != DateTime.Today.AddMonths(-1) ? 1 : 0) + (filter.To != DateTime.Today ? 1 : 0) + (filter.MinAmount.HasValue ? 1 : 0) + (filter.MaxAmount.HasValue ? 1 : 0))" Reset="Reset">
+                    <SearchContent><input class="form-control" placeholder="جستجوی شماره سند یا شرح..." @bind="filter.Search" @bind:event="oninput" /></SearchContent>
+                    <QuickFilters>
+                        <input class="form-control compact-quick-filter" aria-label="ارز" placeholder="همه ارزها؛ مانند USD" @bind="filter.Currency" />
+                        <select class="form-select compact-quick-filter" aria-label="بدهکاری / طلبکاری" @bind="filter.Direction"><option value="">بدهکاری و طلبکاری</option><option value="Credit">طلبکاری</option><option value="Debit">بدهکاری</option></select>
+                    </QuickFilters>
+                    <AdvancedFilters>
+                        <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="filter.From"  /></div>
+                        <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="filter.To"  /></div>
+                        <div class="compact-filter-field"><label class="form-label">حداقل مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="filter.MinAmount" /></div>
+                        <div class="compact-filter-field"><label class="form-label">حداکثر مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="filter.MaxAmount" /></div>
+                    </AdvancedFilters>
+                </CompactFilterBar>
+                <button class="btn btn-primary" disabled="@busy" @onclick="Preview">@(busy ? "در حال تهیه..." : "تهیه پیش‌نمایش")</button>
+                @if (error != "") { <div class="alert alert-danger mt-2" role="alert">@error</div> }
+                @if (result != null && applied != null)
+                {
+                    <div class="alert alert-info mt-3">صورت‌حساب @DisplayDates.Date(applied.From) تا @DisplayDates.Date(applied.To). مانده‌ها مربوط به تمام عملیات بازه‌اند؛ جستجو، جهت و مبلغ فقط جزئیات را محدود می‌کنند. کمیشن منتظر در مانده شامل نیست. پس از تغییر فیلترها پیش‌نمایش را دوباره تهیه کنید.</div>
+                    <div class="d-flex flex-wrap gap-2 mb-2">
+                        <button class="btn btn-outline-primary" @onclick="Copy">کاپی صورت‌حساب</button>
+                        <a class="btn btn-success" href="@ShareUrl("whatsapp")" target="_blank" rel="noopener noreferrer">واتساپ</a>
+                        <a class="btn btn-info" href="@ShareUrl("telegram")" target="_blank" rel="noopener noreferrer">تلگرام</a>
+                        <a class="btn btn-outline-primary" href="@ShareUrl("viber")">وایبر</a>
+                        <button class="btn btn-outline-secondary" @onclick="Download">فایل متنی کامل</button>
+                    </div>
+                    <small class="text-muted">برای صورت‌حساب طولانی از فایل متنی یا کاپی استفاده کنید؛ پیام‌رسان ممکن است متن طولانی را کوتاه کند (وایبر حدود 200 حرف).</small>
+                    <div class="table-responsive mt-2"><table class="table table-bordered table-sm"><thead><tr><th>ارز</th><th>مانده اول</th><th>طلبکاری دوره</th><th>بدهکاری دوره</th><th>مانده آخر</th><th>کمیشن منتظر طلبکار</th><th>کمیشن منتظر بدهکار</th></tr></thead><tbody>
+                    @foreach (var row in result.Summaries) { <tr><td>@row.Currency</td><td dir="ltr">@Money(row.Opening)</td><td dir="ltr">@Money(row.Credit)</td><td dir="ltr">@Money(row.Debit)</td><td dir="ltr"><strong>@Money(row.Closing)</strong></td><td dir="ltr">@Money(row.PendingCredit)</td><td dir="ltr">@Money(row.PendingDebit)</td></tr> }
+                    </tbody></table></div>
+                    <div class="small text-muted">مانده مثبت: طلبکار؛ مانده منفی: بدهکار. جزئیات @result.Entries.Count.ToString(CultureInfo.InvariantCulture) ثبت در متن کامل موجود است.</div>
+                    <textarea class="form-control mt-2" rows="12" readonly aria-label="پیش‌نمایش صورت‌حساب">@BuildText()</textarea>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter] public long AccountId { get; set; }
+    private long loadedId;
+    private int version;
+    private bool visible, busy;
+    private string error = "";
+    private AccountStatementFilter filter = new();
+    private AccountStatementFilter? applied;
+    private AccountStatementResult? result;
+    private IJSObjectReference? module;
+    protected override void OnParametersSet()
+    {
+        if (loadedId == AccountId) return;
+        loadedId = AccountId; version++; busy = false; visible = false; Reset();
+    }
+    private void Reset() { filter = new() { AccountId = AccountId }; applied = null; result = null; error = ""; }
+    private async Task Preview()
+    {
+        if (busy) return;
+        var requestVersion = ++version; busy = true; result = null; applied = null; error = "";
+        var snapshot = new AccountStatementFilter { AccountId = AccountId, From = filter.From, To = filter.To, Currency = filter.Currency.Trim().ToUpperInvariant(), Search = filter.Search, Direction = filter.Direction, MinAmount = filter.MinAmount, MaxAmount = filter.MaxAmount };
+        try { var data = await StatementService.GetAsync(snapshot); if (version == requestVersion) { result = data; applied = snapshot; } }
+        catch (Exception ex) { if (version == requestVersion) error = ex.Message; }
+        finally { if (version == requestVersion) busy = false; }
+    }
+    private static string Money(decimal value) => AmountValueHelper.Format(value);
+    private string BuildText()
+    {
+        if (result == null || applied == null) return "";
+        var text = new StringBuilder();
+        text.AppendLine($"صورت‌حساب: {result.AccountName}").AppendLine($"کد حساب: {result.AccountCode}")
+            .AppendLine($"از {DisplayDates.Date(applied.From)} تا {DisplayDates.Date(applied.To)}");
+        if (applied.Search != "" || applied.Direction != "" || applied.MinAmount.HasValue || applied.MaxAmount.HasValue)
+            text.AppendLine($"جزئیات فیلتر شده‌اند؛ مانده‌ها مربوط به تمام دوره‌اند. جستجو: {applied.Search}؛ جهت: {(applied.Direction == "Credit" ? "طلبکاری" : applied.Direction == "Debit" ? "بدهکاری" : "همه")}؛ حداقل: {(applied.MinAmount.HasValue ? Money(applied.MinAmount.Value) : "—")}؛ حداکثر: {(applied.MaxAmount.HasValue ? Money(applied.MaxAmount.Value) : "—")}");
+        foreach (var summary in result.Summaries)
+        {
+            text.AppendLine("────────────").AppendLine($"ارز: {summary.Currency}")
+                .AppendLine($"مانده اول دوره: {Money(summary.Opening)}").AppendLine($"مجموع طلبکاری: {Money(summary.Credit)}")
+                .AppendLine($"مجموع بدهکاری: {Money(summary.Debit)}").AppendLine($"مانده آخر دوره: {Money(summary.Closing)}")
+                .AppendLine($"کمیشن منتظر طلبکاری: {Money(summary.PendingCredit)}؛ بدهکاری: {Money(summary.PendingDebit)} (شامل مانده نیست)");
+            foreach (var row in result.Entries.Where(x => x.Currency == summary.Currency))
+                text.AppendLine($"{DisplayDates.Date(row.Date.ToLocalTime())} | سند: {row.Document} | طلبکار: {Money(row.Credit)} | بدهکار: {Money(row.Debit)} | مانده: {Money(row.Balance)}").AppendLine(row.Description);
+        }
+        text.AppendLine("────────────").AppendLine("مانده مثبت: طلبکار؛ منفی: بدهکار. کمیشن منتظر فقط پس از بستن دوره شامل مانده می‌شود.");
+        return text.ToString();
+    }
+    private string ShareUrl(string target) => (target switch { "whatsapp" => "https://wa.me/?text=", "telegram" => "https://t.me/share/url?url=&text=", "viber" => "viber://forward?text=", _ => throw new ArgumentOutOfRangeException(nameof(target)) }) + Uri.EscapeDataString(BuildText());
+    private async Task<IJSObjectReference> Module() => module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/record-selection.js");
+    private async Task Copy() { try { await (await Module()).InvokeVoidAsync("copy", BuildText()); error = ""; } catch { error = "کاپی مجاز نیست؛ از پیش‌نمایش دستی کاپی کنید یا فایل بگیرید."; } }
+    private async Task Download() { try { await (await Module()).InvokeVoidAsync("download", "AccountStatement.txt", "text/plain;charset=utf-8", Convert.ToBase64String(Encoding.UTF8.GetBytes(BuildText()))); error = ""; } catch { error = "دریافت فایل انجام نشد."; } }
+    public async ValueTask DisposeAsync() { version++; if (module != null) try { await module.DisposeAsync(); } catch (JSDisconnectedException) { } }
+}

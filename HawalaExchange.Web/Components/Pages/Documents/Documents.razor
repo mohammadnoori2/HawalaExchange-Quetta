@@ -9,6 +9,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -33,7 +34,8 @@
     </div>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر اسناد"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterEntityType))"
+                      ActiveFilterCount="@advancedFilters.Count"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterEntityType)))"
                       Reset="ClearSearch">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با نام فایل یا نوع موجودیت..."
@@ -47,8 +49,13 @@
                 <option value="Correspondent">نماینده</option>
                 <option value="Account">حساب</option>
             </select>
+            <RecordFilterFields TItem="DocumentDto" Items="@documents" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="EntityType" Quick="true" QuickLimit="1" />
         </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="DocumentDto" Items="@documents" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="EntityType" QuickLimit="1" />
+        </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <!-- کارت جدول -->
     <div class="table-card">
@@ -325,8 +332,14 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadDocuments();
+    }
     private List<DocumentDto> documents = new();
-    private List<DocumentDto> filteredDocuments = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<DocumentDto> basefilteredDocuments = new();
+    private List<DocumentDto> filteredDocuments { get => advancedFilters.Apply(basefilteredDocuments).ToList(); set => basefilteredDocuments = value; }
 
     private string _searchTerm = string.Empty;
     private string searchTerm
@@ -461,6 +474,7 @@
 
     private void ClearSearch()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         _filterEntityType = "";
         filteredDocuments = documents;

@@ -1,0 +1,19 @@
+/* Final override: all list headers and record cells, including numeric/LTR cells. */
+.page-wrapper table :is(th, td),
+.modal table :is(th, td),
+table[data-global-grid] :is(th, td) {
+    text-align: center !important;
+    vertical-align: middle !important;
+}
+
+.page-wrapper table :is(th, td) :is(.text-start, .text-end),
+.modal table :is(th, td) :is(.text-start, .text-end),
+table[data-global-grid] :is(th, td) :is(.text-start, .text-end) {
+    text-align: center !important;
+}
+
+.page-wrapper table :is(th, td) .d-flex,
+.modal table :is(th, td) .d-flex,
+table[data-global-grid] :is(th, td) .d-flex {
+    justify-content: center !important;
+}

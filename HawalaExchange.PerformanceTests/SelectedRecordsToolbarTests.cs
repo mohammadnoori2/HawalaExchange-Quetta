@@ -78,6 +78,14 @@ public sealed class SelectedRecordsToolbarTests
             Assert.Contains("https://wa.me/?text=", html);
             Assert.Contains("https://t.me/share/url?url=&text=", html);
             Assert.Contains("noopener noreferrer", html);
+            Assert.Contains("وایبر", html);
+            Assert.Contains("200", html);
+            var viberLink = System.Text.RegularExpressions.Regex.Match(html, "href=\"viber://forward\\?text=([^\"]+)\"");
+            Assert.True(viberLink.Success);
+            var forwardedText = Uri.UnescapeDataString(viberLink.Groups[1].Value);
+            Assert.Equal((string)typeof(SelectedRecordsToolbar).GetMethod("BuildText", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(component, null)!, forwardedText);
+            Assert.True(forwardedText.Length > 200); // Never replace a long message with an empty draft or copy-only action.
+            Assert.Contains("تعداد: 2", forwardedText);
             typeof(SelectedRecordsToolbar).GetField("includePhones", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(component, true);
             component.Refresh();
             Assert.Contains("PRIVATE phone", Html(root.ToHtmlString()));

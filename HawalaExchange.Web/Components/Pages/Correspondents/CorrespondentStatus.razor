@@ -9,6 +9,7 @@
 @inject NavigationManager NavigationManager
 @implements IDisposable
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(correspondent == null ? "وضعیت نمایندگی" : $"وضعیت {correspondent.Name}")</PageTitle>
 
 <div class="page-wrapper entity-details-page" dir="rtl">
@@ -34,7 +35,7 @@
     }
     else
     {
-        <AccountDetailsModal IsVisible="true"
+        <AccountDetailsModal @ref="refreshAccountDetails" IsVisible="true"
                              PageMode="true"
                              Account="@accountForView"
                              ViewTitle="وضعیت نمایندگی"
@@ -58,6 +59,11 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadCorrespondentAsync(); if (refreshAccountDetails != null) await refreshAccountDetails.RefreshDataAsync();
+    }
+    private AccountDetailsModal? refreshAccountDetails;
     [Parameter] public long CorrespondentId { get; set; }
 
     private CorrespondentDto? correspondent;

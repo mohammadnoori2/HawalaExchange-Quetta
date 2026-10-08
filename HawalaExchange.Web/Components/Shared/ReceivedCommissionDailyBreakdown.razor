@@ -1,0 +1,79 @@
+@namespace HawalaExchange.Web.Components.Shared
+@using System.Globalization
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Services
+@using Microsoft.AspNetCore.Components
+@inherits HawalaExchange.Web.Components.DateAwareComponent
+
+<h6 class="fw-bold mb-3">کمیشن دریافتی به تفکیک روز</h6>
+<small class="text-muted d-block mb-2">روی تاریخ کلیک کنید تا حواله‌های همان روز نمایش داده شوند. مبنا، روز ثبت حواله است؛ کسر کمیشن با علامت منفی نمایش داده می‌شود.</small>
+@if (days.Sum(day => AmountValueHelper.RoundConvertedAmount(day.Items.Sum(x => x.CommissionAfn))) != AmountValueHelper.RoundConvertedAmount(TotalCommissionUsd))
+{
+    <div class="form-text mb-2">کمیشن هر روز برای نمایش گرد شده است؛ کمیشن نهایی دوره طبق محاسبه اصلی، پس از جمع سهم‌ها و گردکردن نهایی نشان داده می‌شود.</div>
+}
+<div class="table-responsive mb-4">
+    <table class="table table-sm table-bordered align-middle">
+        <thead><tr><th>تاریخ</th><th>تعداد حواله</th><th>مجموع AFN</th><th>مجموع USD</th><th>مبنای USD</th><th>کمیشن USD</th></tr></thead>
+        <tbody>
+        @foreach (var day in days)
+        {
+            <tr @key="day.Date" class="@(selectedDay == day.Date ? "table-primary" : null)">
+                <td><button type="button" class="btn btn-link p-0" aria-expanded="@(selectedDay == day.Date ? "true" : "false")" @onclick="() => ToggleDay(day.Date)">@DisplayDates.Date(day.Date)</button></td>
+                <td dir="ltr">@day.Items.Count.ToString(CultureInfo.InvariantCulture)</td>
+                <td dir="ltr">@Money(Total(day.Items, "AFN")) AFN</td>
+                <td dir="ltr">@Money(Total(day.Items, "USD")) USD</td>
+                <td dir="ltr">@Money(day.Items.Sum(x => x.AfnEquivalent)) USD</td>
+                <td dir="ltr">@Money(day.Items.Sum(x => x.CommissionAfn)) USD</td>
+            </tr>
+            @if (selectedDay == day.Date)
+            {
+                <tr><td colspan="6" class="p-3">
+                    <h6>حواله‌های @DisplayDates.Date(day.Date)</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead><tr><th>نمبر حواله</th><th>نمبر متفرقه</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>روز نرخ</th><th>نرخ USD/AFN</th><th>مبنای USD</th><th>کمیشن USD هر لک</th><th>سهم کمیشن USD</th><th>وضعیت</th></tr></thead>
+                            <tbody>
+                            @foreach (var item in day.Items)
+                            {
+                                <tr class="@(!item.IsActive || item.SourceAmount < 0 ? "table-secondary" : null)">
+                                    <td dir="ltr">@item.HawalaNumber.ToString(CultureInfo.InvariantCulture)</td>
+                                    <td>@item.ReferenceNumber</td><td>@item.SenderName</td><td>@item.ReceiverName</td><td>@item.PaymentLocationName</td>
+                                    <td dir="ltr">@Money(item.SourceAmount) @item.CurrencyCode</td>
+                                    <td>@DisplayDates.Date(item.ValuationDate)</td>
+                                    <td dir="ltr">@AmountValueHelper.Format(item.SourceToAfnRate, 8)</td>
+                                    <td dir="ltr">@Money(item.AfnEquivalent) USD</td>
+                                    <td dir="ltr">@Money(item.PerLakhRate) USD</td>
+                                    <td dir="ltr">@Money(item.CommissionAfn) USD</td>
+                                    <td>@(item.SourceAmount < 0 ? "کسر کمیشن" : item.IsActive ? "فعال" : "برگشت‌شده/کسرشده")</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </td></tr>
+            }
+        }
+        </tbody>
+        <tfoot><tr><th>مجموع نهایی دوره</th><th dir="ltr">@Items.Count.ToString(CultureInfo.InvariantCulture)</th><th dir="ltr">@Money(Total(Items, "AFN")) AFN</th><th dir="ltr">@Money(Total(Items, "USD")) USD</th><th dir="ltr">@Money(Items.Sum(x => x.AfnEquivalent)) USD</th><th dir="ltr">@Money(TotalCommissionUsd) USD</th></tr></tfoot>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CorrespondentCommissionItemDto> Items { get; set; } = [];
+    [Parameter] public decimal TotalCommissionUsd { get; set; }
+    private IReadOnlyList<CorrespondentCommissionItemDto>? previousItems;
+    private List<DayGroup> days = [];
+    private DateTime? selectedDay;
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(previousItems, Items)) return;
+        previousItems = Items; selectedDay = null;
+        days = Items.GroupBy(x => x.HawalaDate.ToLocalTime().Date).OrderBy(x => x.Key)
+            .Select(day => new DayGroup(day.Key, day.OrderBy(x => x.HawalaDate).ThenBy(x => x.HawalaNumber).ToList())).ToList();
+    }
+    internal void ToggleDay(DateTime date) { selectedDay = selectedDay == date ? null : date; StateHasChanged(); }
+    private static decimal Total(IEnumerable<CorrespondentCommissionItemDto> items, string currency) =>
+        items.Where(x => string.Equals(x.CurrencyCode, currency, StringComparison.OrdinalIgnoreCase)).Sum(x => x.SourceAmount);
+    private static string Money(decimal value) => AmountValueHelper.Format(value);
+    private sealed record DayGroup(DateTime Date, List<CorrespondentCommissionItemDto> Items);
+}

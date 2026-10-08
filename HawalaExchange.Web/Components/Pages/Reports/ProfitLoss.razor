@@ -9,6 +9,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>صورت حساب مفاد و ضرر</PageTitle>
 
 <div class="financial-page" dir="rtl">
@@ -111,6 +112,10 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadAsync();
+    }
     private DateTime fromDate = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime toDate = DateTime.Today;
     private ProfitLossStatementDto? report;

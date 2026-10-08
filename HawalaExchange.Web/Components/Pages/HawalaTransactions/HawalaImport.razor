@@ -12,6 +12,7 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(IsPreviewPage ? "پیش‌نمایش و تأیید فایل حواله‌ها" : "آپلود گروهی حواله‌های دریافتی")</PageTitle>
 
 <div class="page-wrapper @(IsPreviewPage ? "import-preview-workspace" : string.Empty)" dir="rtl">
@@ -246,6 +247,7 @@
                 <i class="bi bi-arrow-clockwise ms-1"></i>تازه‌سازی
             </button>
         </div>
+        <RecordFilterBar TItem="HawalaImportHistoryDto" Items="@baseImportHistory" State="@historyFilters" Changed="StateHasChanged" />
         @if (isHistoryBusy && importHistory.Count == 0)
         { <div class="card-body text-muted">در حال بارگذاری تاریخچه...</div> }
         else if (importHistory.Count == 0)
@@ -397,6 +399,10 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); activeCorrespondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList(); await LoadHistoryAsync(); if (IsPreviewPage && PreviewBatchId.HasValue) { preview = await HawalaImportService.GetPreviewAsync(PreviewBatchId.Value); } if (selectedHistory != null) selectedHistory = await HawalaImportService.GetDetailsAsync(selectedHistory.BatchId);
+    }
     [Parameter] public long CorrespondentId { get; set; }
     [Parameter] public long? PreviewBatchId { get; set; }
     private const long MaximumFileSize = 10 * 1024 * 1024;
@@ -404,7 +410,9 @@
     private List<CorrespondentDto> activeCorrespondents = [];
     private HawalaImportPreviewDto? preview;
     private HawalaImportResultDto? result;
-    private List<HawalaImportHistoryDto> importHistory = [];
+    private readonly RecordFilterSet historyFilters = new();
+    private List<HawalaImportHistoryDto> baseImportHistory = [];
+    private List<HawalaImportHistoryDto> importHistory { get => historyFilters.Apply(baseImportHistory).ToList(); set => baseImportHistory = value; }
     private HawalaImportDetailsDto? selectedHistory;
     private HawalaImportGroupDetailsDto? selectedHistoryGroup;
     private bool shareOriginalImportHawalas;

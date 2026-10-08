@@ -7,6 +7,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>روزنامچه</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
@@ -55,8 +56,8 @@
     }
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر روزنامچه"
-                      HasActiveFilters="@(ActiveFilterCount > 0)"
-                      ActiveFilterCount="@ActiveFilterCount"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (ActiveFilterCount > 0))"
+                      ActiveFilterCount="@(advancedFilters.Count + (ActiveFilterCount))"
                       Reset="ResetFilters">
         <SearchContent>
             <input type="text"
@@ -85,6 +86,7 @@
                     <option value="@currencyCode">@currencyCode</option>
                 }
             </select>
+            <RecordFilterFields TItem="JournalOperationDto" Items="@journal.Operations" State="@advancedFilters" Changed="ApplyFilters"  Exclude="SourceType,CurrencyCode,OperationDate" Quick="true" QuickLimit="0" />
         </QuickFilters>
         <AdvancedFilters>
                 <div class="compact-filter-field">
@@ -109,8 +111,10 @@
                                           AllowClear="true"
                                           ClearText="همه حساب‌ها" />
                 </div>
+            <RecordFilterFields TItem="JournalOperationDto" Items="@journal.Operations" State="@advancedFilters" Changed="ApplyFilters"  Exclude="SourceType,CurrencyCode,OperationDate" QuickLimit="0" />
         </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <div class="alert alert-light border d-flex flex-wrap gap-3 align-items-center mb-4">
         <strong><i class="bi bi-info-circle text-primary"></i> راهنمای روزنامچه:</strong>
@@ -750,6 +754,13 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        var operationKey = selectedOperation?.OperationKey;
+        await LoadJournal();
+        if (operationKey != null)
+            selectedOperation = journal.Operations.FirstOrDefault(x => x.OperationKey == operationKey);
+    }
     private static IReadOnlyList<string> GetDescriptionItems(string? description)
     {
         if (string.IsNullOrWhiteSpace(description))
@@ -784,7 +795,9 @@
     }
 
     private DailyJournalDto journal = new();
-    private List<JournalOperationDto> filteredOperations = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<JournalOperationDto> baseFilteredOperations = new();
+    private List<JournalOperationDto> filteredOperations { get => advancedFilters.Apply(baseFilteredOperations).ToList(); set => baseFilteredOperations = value; }
     private JournalOperationDto? selectedOperation;
     private DateTime filterFromDate = DateTime.Today;
     private DateTime filterToDate = DateTime.Today;
@@ -1124,6 +1137,7 @@
 
     private async Task ResetFilters()
     {
+        advancedFilters.Clear();
         filterFromDate = DateTime.Today;
         filterToDate = DateTime.Today;
         _searchTerm = string.Empty;

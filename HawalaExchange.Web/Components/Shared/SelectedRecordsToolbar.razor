@@ -17,7 +17,7 @@
     <div class="d-flex flex-wrap align-items-center gap-2">
         <strong>@selected.Count.ToString(CultureInfo.InvariantCulture) ردیف انتخاب‌شده</strong>
         <button class="btn btn-sm btn-outline-secondary" disabled="@(busy || selected.Count == 0)" @onclick="Clear">لغو همه انتخاب‌ها</button>
-        <button class="btn btn-sm btn-primary" disabled="@(busy || selected.Count == 0)" @onclick="PreviewAsync">کاپی / واتساپ / تلگرام</button>
+        <button class="btn btn-sm btn-primary" disabled="@(busy || selected.Count == 0)" @onclick="PreviewAsync">کاپی / واتساپ / تلگرام / وایبر</button>
         <button class="btn btn-sm btn-success" disabled="@(busy || selected.Count == 0)" @onclick="ExportAsync">خروج اکسل انتخاب‌شده‌ها</button>
     </div>
     <small class="text-muted">انتخاب‌ها بین صفحات حفظ می‌شوند. برای انتخاب بازه، کلیک چپ را روی ستون انتخاب نگه دارید و موس را بکشید یا اسکرول کنید؛ Shift + Click برای بازه و Ctrl + Click برای انتخاب تکی.</small>
@@ -41,10 +41,16 @@
                     <label><input type="checkbox" @bind="includeCommission" /> کمیشن</label>
                 </div>
                 <textarea class="form-control" rows="13" readonly dir="rtl" value="@BuildText()"></textarea>
-                <div class="form-text">یادداشت موجود در متن نمایش داده می‌شود؛ موارد اضافی فقط با انتخاب چک‌باکس اضافه می‌شوند. ارسال نهایی و انتخاب گیرنده در واتساپ یا تلگرام انجام می‌شود.</div>
+                <div class="form-text">یادداشت موجود در متن نمایش داده می‌شود؛ موارد اضافی فقط با انتخاب چک‌باکس اضافه می‌شوند. ارسال نهایی و انتخاب گیرنده در واتساپ، تلگرام یا وایبر انجام می‌شود.</div>
+                <div class="form-text">وایبر باید نصب باشد؛ اجازه باز کردن برنامه را در مرورگر تأیید کنید، سپس گروه یا مخاطب و ارسال نهایی را در وایبر انتخاب کنید.</div>
+                @if (BuildText().Length > 200)
+                {
+                    <div class="alert alert-warning py-2 mt-2">وایبر ممکن است فقط 200 کاراکتر اول را بگیرد. قبل از ارسال به گروه، کامل‌بودن جزئیات و مجموع را بررسی کنید؛ اگر متن ناقص بود، از کاپی جزئیات یا فایل متنی استفاده کنید.</div>
+                }
                 @if (BuildText().Length > 3500) { <div class="form-text text-warning">متن طولانی است؛ آن را کاپی کنید یا فایل متنی بگیرید و در برنامه ارسال کنید.</div> }
                 @if (!Transactions) { <div class="form-text">اکسل: 9 ستون بدون عنوان، مطابق قالب آپلود. هر نمایندگی و نوع حواله در فایل جدا؛ چند فایل داخل ZIP. فیلدهای ناقص باید قبل از آپلود تکمیل شوند.</div> }
                 @if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger mt-2">@error</div> }
+                @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-success mt-2" role="status">@message</div> }
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline-primary" @onclick="CopyAsync">کاپی جزئیات</button>
@@ -52,6 +58,7 @@
                 {
                     <a class="btn btn-success" href='@ShareUrl("whatsapp")' target="_blank" rel="noopener noreferrer">واتساپ</a>
                     <a class="btn btn-info" href='@ShareUrl("telegram")' target="_blank" rel="noopener noreferrer">تلگرام</a>
+                    <a class="btn btn-outline-primary" href='@ShareUrl("viber")'>ارسال به وایبر</a>
                 }
                 <button class="btn btn-outline-secondary" @onclick="DownloadTextAsync">فایل متنی</button>
             </div>
@@ -184,7 +191,13 @@
         try { await module!.InvokeVoidAsync("copy", BuildText()); message = "جزئیات کاپی شد."; error = ""; }
         catch { error = "کاپی در این مرورگر مجاز نیست؛ متن پیش‌نمایش را دستی کاپی کنید یا فایل متنی بگیرید."; }
     }
-    private string ShareUrl(string target) => (target == "whatsapp" ? "https://wa.me/?text=" : "https://t.me/share/url?url=&text=") + Uri.EscapeDataString(BuildText());
+    private string ShareUrl(string target) => (target switch
+    {
+        "whatsapp" => "https://wa.me/?text=",
+        "telegram" => "https://t.me/share/url?url=&text=",
+        "viber" => "viber://forward?text=",
+        _ => throw new ArgumentOutOfRangeException(nameof(target))
+    }) + Uri.EscapeDataString(BuildText());
     private async Task DownloadTextAsync()
     {
         try { await module!.InvokeVoidAsync("download", "SelectedDetails.txt", "text/plain;charset=utf-8", Convert.ToBase64String(Encoding.UTF8.GetBytes(BuildText()))); }

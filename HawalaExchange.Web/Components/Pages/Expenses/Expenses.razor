@@ -11,6 +11,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper" dir="rtl">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -37,7 +38,8 @@
     </div>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر مصارف"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || filterCurrencyId != 0)"
+                      ActiveFilterCount="@advancedFilters.Count"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || filterCurrencyId != 0))"
                       Reset="ClearSearch">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با کتگوری، ارز، حساب یا توضیحات..."
@@ -51,8 +53,13 @@
                     <option value="@currency.Id">@currency.Code - @currency.Name</option>
                 }
             </select>
+            <RecordFilterFields TItem="ExpenseDto" Items="@expenses" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="CurrencyCode" Quick="true" QuickLimit="1" />
         </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="ExpenseDto" Items="@expenses" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="CurrencyCode" QuickLimit="1" />
+        </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     @if (validationErrors.Any() && !showModal)
     {
@@ -630,8 +637,14 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadLookupData(); await LoadExpenses();
+    }
     private List<ExpenseDto> expenses = new();
-    private List<ExpenseDto> filteredExpenses = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<ExpenseDto> basefilteredExpenses = new();
+    private List<ExpenseDto> filteredExpenses { get => advancedFilters.Apply(basefilteredExpenses).ToList(); set => basefilteredExpenses = value; }
 
     private List<CurrencyDto> currencies = new();
     private List<AccountDto> accounts = new();
@@ -862,6 +875,7 @@
 
     private void ClearSearch()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         _filterCurrencyId = 0;
         filteredExpenses = expenses.ToList();

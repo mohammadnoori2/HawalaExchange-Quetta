@@ -13,6 +13,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت حساب‌ها</PageTitle>
 
 <div class="page-wrapper accounts-page-compact">
@@ -38,10 +39,11 @@
     </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر حساب‌ها"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterAccountType))"
+                      ActiveFilterCount="@advancedFilters.Count"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterAccountType)))"
                       Reset="ClearSearch">
         <SearchContent>
-            <input class="form-control" placeholder="جستجو با کد، نام یا مرجع..."
+            <input class="form-control" placeholder="کد، نام حساب یا صاحب حساب..."
                    @bind="searchTerm" @bind:event="oninput" />
         </SearchContent>
         <QuickFilters>
@@ -59,8 +61,13 @@
                 <option value="Equity">سرمایه</option>
                 <option value="OpeningBalanceEquity">انتقال مانده افتتاحیه</option>
             </select>
+            <RecordFilterFields TItem="AccountDto" Items="@accounts" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="AccountType,IsArchived,AccountCode,ReferenceName" Quick="true" QuickLimit="1" />
         </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="AccountDto" Items="@accounts" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="AccountType,IsArchived,AccountCode,ReferenceName" QuickLimit="1" />
+        </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <!-- کارت جدول -->
     <div class="table-card">
@@ -521,11 +528,19 @@
 <!-- کامپوننت مودال جزییات حساب -->
 <!-- ============================================================ -->
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadLookupData(); await LoadAccounts();
+    }
     // ===== لیست‌های اصلی =====
     private List<AccountDto> accounts = new();
-    private List<AccountDto> filteredAccounts = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<AccountDto> basefilteredAccounts = new();
+    private List<AccountDto> filteredAccounts { get => advancedFilters.Apply(basefilteredAccounts).ToList(); set => basefilteredAccounts = value; }
     private List<CustomerDto> customers = new();
     private List<CorrespondentDto> correspondents = new();
+    private Dictionary<long, string> customerOwnerNames = new();
+    private Dictionary<long, string> correspondentOwnerNames = new();
 
     private List<CurrencyDto> currencies = new();
 
@@ -687,8 +702,12 @@
     {
         try
         {
-            customers = (await CustomerService.GetAllAsync()).Where(x => !x.IsArchived).ToList();
-            correspondents = (await CorrespondentService.GetAllAsync()).Where(x => !x.IsArchived).ToList();
+            var allCustomers = (await CustomerService.GetAllAsync()).ToList();
+            var allCorrespondents = (await CorrespondentService.GetAllAsync()).ToList();
+            customerOwnerNames = allCustomers.ToDictionary(x => x.Id, x => x.FullName);
+            correspondentOwnerNames = allCorrespondents.ToDictionary(x => x.Id, x => x.Name);
+            customers = allCustomers.Where(x => !x.IsArchived).ToList();
+            correspondents = allCorrespondents.Where(x => !x.IsArchived).ToList();
 
             var currencyResult = await CurrencyService.GetActiveCurrenciesAsync();
             currencies = currencyResult.ToList();
@@ -706,6 +725,14 @@
             isLoading = true;
             var result = await AccountService.GetAllAsync();
             accounts = result.ToList();
+            foreach (var account in accounts)
+            {
+                if (!account.ReferenceId.HasValue) continue;
+                var owners = account.ReferenceType == "Customer" ? customerOwnerNames
+                    : account.ReferenceType == "Correspondent" ? correspondentOwnerNames : null;
+                if (owners != null && owners.TryGetValue(account.ReferenceId.Value, out var owner))
+                    account.ReferenceName = owner;
+            }
             SearchAccounts();
             currentPage = 1;
         }
@@ -728,13 +755,7 @@
 
         if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
-            var term = _searchTerm.Trim();
-            query = query.Where(a =>
-                a.AccountCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                a.AccountName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                (a.ReferenceType != null && a.ReferenceType.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                (a.ReferenceId.HasValue && a.ReferenceId.Value.ToString().Contains(term))
-            );
+            query = query.Where(a => AccountSearch.Matches(a, _searchTerm));
         }
 
         if (!string.IsNullOrEmpty(_filterAccountType))
@@ -749,6 +770,7 @@
 
     private void ClearSearch()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         _filterAccountType = string.Empty;
         filteredAccounts = accounts.Where(a => a.IsArchived == showArchived).ToList();

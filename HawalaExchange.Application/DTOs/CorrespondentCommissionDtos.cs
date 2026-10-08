@@ -82,6 +82,9 @@ public sealed class CorrespondentCommissionItemDto
 {
     public long HawalaId { get; set; }
     public long HawalaNumber { get; set; }
+    public string ReferenceNumber { get; set; } = string.Empty;
+    public string SenderName { get; set; } = string.Empty;
+    public string ReceiverName { get; set; } = string.Empty;
     public DateTime HawalaDate { get; set; }
     public DateTime? ValuationDate { get; set; }
     public long CurrencyId { get; set; }

@@ -1,20 +1,26 @@
 @using System.Globalization
 @using HawalaExchange.Web.Helpers
+@using Microsoft.AspNetCore.Components
+@namespace HawalaExchange.Web.Components.Shared
+@inherits HawalaExchange.Web.Components.DateAwareComponent
 
 <div class="persian-date-picker-wrapper" dir="rtl">
-    <div class="input-group">
+    <div class="date-picker-control @(AllowEmpty && Value != DateTime.MinValue ? "has-clear" : "")">
         <input type="text"
                id="@Id"
-               class="@CssClass"
+               class="@CssClass date-picker-input"
                value="@displayText"
+               title="@DateEquivalentsTitle"
                placeholder="@Placeholder"
                readonly
                disabled="@Disabled"
                aria-label="@Placeholder"
+               aria-haspopup="dialog"
+               aria-expanded="@(showCalendar ? "true" : "false")"
                @onclick="OpenCalendar" />
 
         <button type="button"
-                class="btn btn-outline-secondary"
+                class="date-picker-icon date-picker-calendar"
                 disabled="@Disabled"
                 aria-label="باز کردن تقویم شمسی و میلادی"
                 @onclick="OpenCalendar">
@@ -24,8 +30,9 @@
         @if (AllowEmpty && Value != DateTime.MinValue)
         {
             <button type="button"
-                    class="btn btn-outline-secondary"
+                    class="date-picker-icon date-picker-clear"
                     title="پاک کردن تاریخ"
+                    aria-label="پاک کردن تاریخ"
                     disabled="@Disabled"
                     @onclick="ClearDate">
                 <i class="bi bi-x-lg"></i>
@@ -33,19 +40,18 @@
         }
     </div>
 
-    @if (Value != DateTime.MinValue)
-    {
-        <div class="calendar-date-equivalents" aria-live="polite">
-            <span>شمسی: <b dir="ltr">@DualCalendarDateHelper.PersianText(Value, IncludeTime)</b></span>
-            <span>میلادی: <b dir="ltr">@DualCalendarDateHelper.GregorianText(Value, IncludeTime)</b></span>
-        </div>
-    }
-
     @if (showCalendar)
     {
         <div class="persian-calendar-backdrop" @onclick="CloseCalendar"></div>
 
         <div class="persian-calendar-modal shadow-lg" dir="rtl" role="dialog" aria-label="انتخاب تاریخ شمسی یا میلادی">
+            @if (Value != DateTime.MinValue)
+            {
+                <div class="calendar-date-equivalents" aria-live="polite">
+                    <span>شمسی: <b dir="ltr">@DualCalendarDateHelper.PersianText(Value, IncludeTime)</b></span>
+                    <span>میلادی: <b dir="ltr">@DualCalendarDateHelper.GregorianText(Value, IncludeTime)</b></span>
+                </div>
+            }
             <div class="calendar-modes" role="group" aria-label="نوع تقویم">
                 <button type="button" class="btn btn-sm @(!gregorianMode ? "btn-primary" : "btn-outline-primary")" aria-pressed="@(!gregorianMode)" @onclick="() => ChangeCalendar(false)">شمسی</button>
                 <button type="button" class="btn btn-sm @(gregorianMode ? "btn-primary" : "btn-outline-primary")" aria-pressed="@gregorianMode" @onclick="() => ChangeCalendar(true)">میلادی</button>
@@ -196,6 +202,9 @@
     private string amPm = "AM";
 
     private string displayText = string.Empty;
+
+    private string? DateEquivalentsTitle => Value == DateTime.MinValue ? null
+        : $"شمسی: {DualCalendarDateHelper.PersianText(Value, IncludeTime)} | میلادی: {DualCalendarDateHelper.GregorianText(Value, IncludeTime)}";
 
     private static readonly string[] MonthNames =
     {

@@ -19,6 +19,7 @@
 @attribute [Authorize]
 @implements IDisposable
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper" dir="rtl">
     <div class="page-header">
         <div>
@@ -61,7 +62,8 @@
     }
 
     <CompactFilterBar AriaLabel="جستجوی حواله‌های دریافتی"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
+                      ActiveFilterCount="@extraFilters.Count"
+                      HasActiveFilters="@(extraFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm)))"
                       Reset="ResetFilter">
         <SearchContent>
             <input class="form-control"
@@ -70,6 +72,9 @@
                    @bind:event="oninput"
                    @bind:after="OnSearchChangedAsync" />
         </SearchContent>
+        <AdvancedFilters>
+            <HawalaExtraFilters Filter="@extraFilters" ShowBasic="true" ShowCorrespondents="true" Changed="OnSearchChangedAsync" />
+        </AdvancedFilters>
     </CompactFilterBar>
 
     <div class="table-card hawala-list-card">
@@ -698,6 +703,11 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadAccounts(); await LoadCustomers(); await LoadData();
+    }
+    private HawalaExtraFilter extraFilters = new();
     private List<HawalaDto> hawalas = new();
     private List<AccountDto> accounts = new();
     private List<CurrencyDto> currencies = new();
@@ -802,6 +812,7 @@
 
             var filter = new HawalaFilterDto
             {
+                Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm.Trim(),
                 SearchAmount = searchAmount,
                 Number = searchNumber,
@@ -839,6 +850,7 @@
 
     private async Task ResetFilter()
     {
+        extraFilters = new();
         CancelPendingSearchChange();
         searchTerm = string.Empty;
         currentPage = 1;

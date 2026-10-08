@@ -7,6 +7,7 @@
 @inject ISaasBillingService BillingService
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مالی و فاکتورهای SaaS</PageTitle>
 
 <div class="page-wrapper">
@@ -94,6 +95,10 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        dashboard = await BillingService.GetDashboardReadOnlyAsync(); invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); options = (await BillingService.GetSubscriptionOptionsAsync()).ToList();
+    }
     private BillingDashboardDto dashboard = new(); private List<SubscriptionInvoiceDto> invoices = []; private List<BillingSubscriptionOptionDto> options = [];
     private CreateSubscriptionInvoiceDto createModel = new(); private RecordInvoicePaymentDto paymentModel = new(); private EditContext createContext = default!; private EditContext paymentContext = default!;
     private SubscriptionInvoiceDto? selectedInvoice; private string search = "", statusFilter = ""; private string? message; private bool isError, isLoading = true, isSaving, showCreate, showPayment;

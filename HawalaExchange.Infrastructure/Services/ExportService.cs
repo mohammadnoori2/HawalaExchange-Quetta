@@ -33,6 +33,8 @@ public class ExportService : IExportService
     {
         if (!filter.CustomerId.HasValue || filter.CustomerId.Value <= 0)
             throw new ArgumentException("مشتری مشخص نشده است.");
+        if (filter.FromDate > filter.ToDate || filter.MinAmount < 0 || filter.MaxAmount < 0 || filter.MinAmount > filter.MaxAmount)
+            throw new ArgumentException("بازه تاریخ یا مبلغ معتبر نیست.");
 
         var customer = await _context.Customers.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == filter.CustomerId.Value)
@@ -41,7 +43,6 @@ public class ExportService : IExportService
         var account = await _context.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.CustomerId == customer.Id);
         var rows = account == null ? new List<ActivityRow>() : await LoadActivityRowsAsync(account.Id, filter);
 
-        CalculateRunningBalances(rows);
         return format == ExportFormat.Excel
             ? BuildExcelReport(customer, company, rows)
             : BuildPdfReport(customer, company, rows);
@@ -65,10 +66,7 @@ public class ExportService : IExportService
         var rows = new List<ActivityRow>(entries.Count);
         foreach (var entry in entries)
         {
-            if (filter.FromDate.HasValue && entry.CreatedAt < filter.FromDate.Value) continue;
-            if (filter.ToDate.HasValue && entry.CreatedAt > filter.ToDate.Value) continue;
             var typeCode = ResolveTypeCode(entry);
-            if (filter.TransactionTypes is { Count: > 0 } && !filter.TransactionTypes.Contains(typeCode)) continue;
 
             rows.Add(new ActivityRow
             {
@@ -83,7 +81,16 @@ public class ExportService : IExportService
                 Description = ResolveDescription(entry)
             });
         }
-        return rows;
+        CalculateRunningBalances(rows);
+        var search = filter.Search?.Trim() ?? "";
+        return rows.Where(row => (!filter.FromDate.HasValue || row.Date >= filter.FromDate) &&
+            (!filter.ToDate.HasValue || row.Date <= filter.ToDate) &&
+            (filter.TransactionTypes is not { Count: > 0 } || filter.TransactionTypes.Contains(row.Type)) &&
+            (string.IsNullOrWhiteSpace(filter.CurrencyCode) || row.Currency.Equals(filter.CurrencyCode.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (search == "" || (row.Reference?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) || (row.Description?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)) &&
+            (string.IsNullOrWhiteSpace(filter.Direction) || (filter.Direction == "Credit" ? row.TalabKar > 0 : row.BadehKar > 0)) &&
+            (!filter.MinAmount.HasValue || Math.Max(row.TalabKar, row.BadehKar) >= filter.MinAmount) &&
+            (!filter.MaxAmount.HasValue || Math.Max(row.TalabKar, row.BadehKar) <= filter.MaxAmount)).ToList();
     }
 
     private static void CalculateRunningBalances(IEnumerable<ActivityRow> rows)

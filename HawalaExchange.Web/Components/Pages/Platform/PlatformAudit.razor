@@ -7,6 +7,7 @@
 @inject ISaasAdministrationService AdministrationService
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>رویدادهای امنیتی پلتفرم</PageTitle>
 
 <div class="page-wrapper">
@@ -52,6 +53,10 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        tenants = (await AdministrationService.GetTenantsAsync()).ToList(); actions = (await AuditService.GetActionsAsync()).ToList(); await LoadAsync();
+    }
     private PlatformAuditFilterDto filter = new();
     private PlatformAuditPageDto auditPage = new();
     private List<SaasTenantDto> tenants = [];

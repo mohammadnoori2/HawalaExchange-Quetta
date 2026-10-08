@@ -11,6 +11,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(correspondent == null ? "محدوده حواله‌های نمایندگی" : $"محدوده حواله‌های {correspondent.Name}")</PageTitle>
 
 <div class="page-wrapper correspondent-details-page">
@@ -210,6 +211,12 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        var hasReport = rangeResult != null;
+        await LoadCorrespondentAsync(resetFilters: false);
+        if (hasReport && correspondent != null) await LoadRangeReport();
+    }
     [Parameter] public long CorrespondentId { get; set; }
 
     private CorrespondentDto? correspondent;
@@ -235,7 +242,7 @@
         await LoadCorrespondentAsync();
     }
 
-    private async Task LoadCorrespondentAsync()
+    private async Task LoadCorrespondentAsync(bool resetFilters = true)
     {
         try
         {
@@ -248,7 +255,7 @@
                 return;
             }
 
-            ResetRangeFilter();
+            if (resetFilters) ResetRangeFilter();
         }
         catch (Exception ex)
         {

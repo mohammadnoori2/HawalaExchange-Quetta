@@ -24,6 +24,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         using var bypass = context.BypassSubscriptionEnforcement();
         await ConfigureOwnLocationAsync(context);
         var afn = Receive(199_000_001 + offset, 1, 1_000_000m, day);
+        afn.ReferenceNumber = "INCOMING-DAILY-REF";
         var usd = Receive(199_000_002 + offset, 2, 10_000m, day);
         context.Hawalas.AddRange(afn, usd);
         context.CorrespondentDailyCommissionRates.Add(Rate(day, 70m));
@@ -41,6 +42,11 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         Assert.Equal(97m, incomingPreview.TotalCommissionUsd);
         Assert.Equal(1_000_000m, incomingPreview.TotalSourceAfn);
         Assert.Equal(10_000m, incomingPreview.TotalSourceUsd);
+        var incomingDisplay = incomingPreview.Items.Single(x => x.HawalaId == afn.Id);
+        Assert.Equal(afn.SenderName, incomingDisplay.SenderName);
+        Assert.Equal(afn.ReceiverName, incomingDisplay.ReceiverName);
+        Assert.Equal(afn.ReferenceNumber, incomingDisplay.ReferenceNumber);
+        Assert.Equal(fixture.OwnLocation.Name, incomingDisplay.PaymentLocationName);
         var forwarded = await service.PreviewAsync(forwarding);
         Assert.Equal(53m, forwarded.TotalCommissionUsd);
         Assert.Equal(500_000m, forwarded.TotalSourceAfn);
@@ -65,6 +71,11 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
             {
                 Assert.Equal(1_000_000m, details.TotalSourceAfn);
                 Assert.Equal(10_000m, details.TotalSourceUsd);
+                var displayed = details.Items.Single(x => x.HawalaId == afn.Id);
+                Assert.Equal(afn.ReferenceNumber, displayed.ReferenceNumber);
+                Assert.Equal(afn.SenderName, displayed.SenderName);
+                Assert.Equal(afn.ReceiverName, displayed.ReceiverName);
+                Assert.Equal(fixture.OwnLocation.Name, displayed.PaymentLocationName);
             }
             AssertBalanced(details.LedgerEntries);
             Assert.Contains(details.LedgerEntries, entry => entry.AccountId == fixture.SourceAccount.Id && entry.BadehKar == details.TotalCommissionUsd);

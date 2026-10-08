@@ -1,0 +1,156 @@
+@page "/reports/hawalas"
+@using System.Globalization
+@using System.Text.Json
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.JSInterop
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject IHawalaCommissionReportService ReportService
+@inject ICorrespondentService CorrespondentService
+@inject IPaymentLocationService LocationService
+@inject ICurrencyService CurrencyService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
+<PageTitle>گزارش حواله‌ها و کمیشن</PageTitle>
+<div class="page-wrapper reports-page" dir="rtl">
+    <AppPageHeader Title="گزارش حواله‌ها و کمیشن" Subtitle="گزارش خواندنی؛ بدون ثبت کمیشن یا سند حسابداری" Icon="bi-file-earmark-bar-graph" />
+    <div class="alert alert-info py-2">بازه مربوط به روز ثبت حواله است. کمیشن ثبت‌شده با نرخ ذخیره‌شده خوانده می‌شود؛ برگشت‌ها در خالص ثبت‌شده شامل نیستند. کسرهای ثبت‌شده با علامت منفی نمایش داده می‌شوند. مبالغ دریافتی و ارسالی و همچنین ارزها جدا جمع می‌شوند.</div>
+    @if (error != "") { <div class="alert alert-danger" role="alert">@error</div> }
+    <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش حواله‌ها" HasActiveFilters="@(ReportFilterCount > 0 || !string.IsNullOrWhiteSpace(filter.Search))" ActiveFilterCount="@ReportFilterCount" Reset="ResetReportFilters">
+        <SearchContent><input class="form-control" placeholder="نمبر حواله، نمبر متفرقه، فرستنده یا گیرنده" @bind="filter.Search" @bind:event="oninput" /></SearchContent>
+        <QuickFilters><select class="form-select compact-quick-filter" @bind="filter.HawalaType"><option value="">همه</option><option value="HawalaReceive">دریافتی</option><option value="HawalaSend">ارسالی</option></select>
+<select class="form-select compact-quick-filter" @bind="filter.CommissionType"><option value="">همه</option>@foreach (var type in new[] { "Incoming", "Destination", "Forwarding", "Direct", "None" }) { <option value="@type">@HawalaReportLabels.Type(type)</option> }</select></QuickFilters>
+        <AdvancedFilters>
+            <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="filter.From" /></div>
+<div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="filter.To" /></div>
+<div class="compact-filter-field"><label class="form-label">محل پرداخت</label><select class="form-select" @bind="filter.PaymentLocationId"><option value="">همه</option>@foreach (var location in locations) { <option value="@location.Id">@location.Name</option> }</select></div>
+<div class="compact-filter-field"><label class="form-label">ارز مبلغ حواله</label><select class="form-select" @bind="filter.Currency"><option value="">همه</option>@foreach (var currency in currencies) { <option value="@currency.Code">@currency.Code</option> }</select></div>
+<div class="compact-filter-field"><label class="form-label">وضعیت حواله</label><select class="form-select" @bind="filter.Status"><option value="">همه</option><option value="Pending">در انتظار</option><option value="Paid">پرداخت‌شده</option><option value="Cancel">لغوشده</option></select></div>
+<div class="compact-filter-field"><label class="form-label">وضعیت کمیشن</label><select class="form-select" @bind="filter.CommissionStatus"><option value="">همه</option>@foreach (var state in new[] { "Pending", "Calculated", "Recognized", "Reversed", "Direct" }) { <option value="@state">@HawalaReportLabels.State(state)</option> }</select></div>
+<div class="compact-filter-field"><label class="form-label">نوع ثبت</label><select class="form-select" @bind="filter.Registration"><option value="">همه</option><option value="Bulk">آپلود گروهی</option><option value="Manual">دستی</option></select></div>
+<div class="compact-filter-field"><label class="form-label">تفکیک گزارش</label><select class="form-select" @bind="filter.GroupBy"><option value="Day">روز</option><option value="Correspondent">نمایندگی کمیشن</option><option value="Location">محل پرداخت</option><option value="Type">نوع کمیشن</option></select></div>
+            <div class="compact-filter-field" style="grid-column: 1 / -1">
+                <label class="form-label">نمایندگی‌ها — @(filter.CorrespondentIds.Count == 0 ? "همه نمایندگی‌ها" : $"{filter.CorrespondentIds.Count.ToString(CultureInfo.InvariantCulture)} نمایندگی انتخاب‌شده")</label>
+                <button class="btn btn-sm btn-outline-secondary mb-2" @onclick="() => filter.CorrespondentIds.Clear()">همه نمایندگی‌ها</button>
+                <div class="row g-2">@foreach (var correspondent in correspondents)
+                { <label class="col-md-4"><input type="checkbox" checked="@filter.CorrespondentIds.Contains(correspondent.Id)" @onchange="e => SelectCorrespondent(correspondent.Id, e.Value is true)" /> @correspondent.Name @(correspondent.IsArchived ? "(بایگانی)" : "")</label> }</div>
+                <small class="text-muted">فیلتر بر اساس نمایندگی صاحب کمیشن است: فرستنده در کمیشن دریافتی/ارسالی و مقصد در کمیشن پرداختی.</small>
+            </div>
+        </AdvancedFilters>
+    </CompactFilterBar>
+    <div class="card mb-3"><div class="card-body">
+        <label class="form-check mt-3"><input class="form-check-input" type="checkbox" @bind="filter.Estimate" /> برآورد جداگانه برای حواله‌های محاسبه‌نشده</label>
+        @if (filter.Estimate)
+        {
+            <div class="alert alert-warning py-2">این نرخ‌ها فقط فرض گزارش‌اند و نرخ محاسبات ثبت‌شده را تغییر نمی‌دهند. تبدیل AFN با نرخ همان روز نمایندگی فرستنده انجام می‌شود؛ نبود نرخ باعث خالی‌ماندن برآورد می‌شود. برآورد فقط AFN/USD است.</div>
+            <div class="row g-2">
+                <div class="col-md-3"><label>دریافتی USD هر لک</label><MoneyInput class="form-control" @bind-Value="filter.IncomingRate" /></div>
+                <div class="col-md-3"><label>ارسالی USD هر لک</label><MoneyInput class="form-control" @bind-Value="filter.ForwardingRate" /></div>
+                <div class="col-md-3"><label>پرداختی AFN هر لک</label><MoneyInput class="form-control" @bind-Value="filter.DestinationAfnRate" /></div>
+                <div class="col-md-3"><label>پرداختی USD هر لک</label><MoneyInput class="form-control" @bind-Value="filter.DestinationUsdRate" /></div>
+            </div>
+            <details class="mt-2"><summary>نرخ برآورد متفاوت به تفکیک محل پرداخت (خالی = نرخ بالا)</summary><div class="table-responsive"><table class="table table-sm"><thead><tr><th>محل</th><th>ارسالی USD</th><th>پرداختی AFN</th><th>پرداختی USD</th></tr></thead><tbody>
+            @foreach (var rate in filter.LocationRates)
+            { <tr><td>@locations.First(x => x.Id == rate.LocationId).Name</td><td><NullableMoneyInput class="form-control" @bind-Value="rate.ForwardingRate" /></td><td><NullableMoneyInput class="form-control" @bind-Value="rate.DestinationAfnRate" /></td><td><NullableMoneyInput class="form-control" @bind-Value="rate.DestinationUsdRate" /></td></tr> }
+            </tbody></table></div></details>
+        }
+        <div class="d-flex gap-2 mt-3"><button class="btn btn-primary" disabled="@busy" @onclick="LoadReport">@(busy ? "در حال پردازش..." : "نمایش گزارش")</button><button class="btn btn-success" disabled="@(busy || report == null)" @onclick="Export">اکسل با فیلتر گزارش فعلی</button></div>
+    </div></div>
+    @if (report != null)
+    {
+        <div class="alert alert-secondary py-2">گزارش آخرین اجرا: @DisplayDates.Date(applied!.From) تا @DisplayDates.Date(applied.To). پس از تغییر فیلترها دوباره «نمایش گزارش» را بزنید.</div>
+        <h6>خلاصه حواله‌ها — بدون دوباره‌شماری انواع کمیشن</h6>
+        <div class="d-flex flex-wrap gap-2 mb-3">@foreach (var amount in report.Amounts) { <div class="border rounded p-3">@(amount.HawalaType == "HawalaReceive" ? "دریافتی" : "ارسالی") · @amount.Count.ToString(CultureInfo.InvariantCulture) حواله · <span dir="ltr">@Money(amount.Amount) @amount.Currency</span></div> }</div>
+        <h6>خلاصه کمیشن — خالص فقط در همان ارز</h6>
+        @if (report.Rows.Any(x => x.IsEstimate && !x.Commission.HasValue))
+        { <div class="alert alert-warning">برآورد @report.Rows.Where(x => x.IsEstimate && !x.Commission.HasValue).Select(x => x.HawalaId).Distinct().Count().ToString(CultureInfo.InvariantCulture) حواله انجام نشده است؛ جمع برآورد و خالص آن فقط شامل موارد دارای نرخ معتبر است. توضیح را در جزئیات ببینید.</div> }
+        <div class="d-flex flex-wrap gap-2 mb-3">
+        @foreach (var summary in report.Summaries)
+        {
+            <div class="border rounded p-3 @(summary.Estimate ? "bg-warning-subtle" : "bg-light")">
+                <div>مجموع کمیشن‌ها — @(summary.Estimate ? "برآورد (ثبت نشده)" : "ثبت‌شده")</div>
+                <strong dir="ltr">@Money(summary.Total) @summary.Currency</strong>
+            </div>
+        }
+        </div>
+        <small class="text-muted">مجموع کمیشن‌ها = دریافتی + پرداختی؛ خالص = دریافتی − پرداختی. برگشت‌ها شامل مجموع نیستند و کسرهای ثبت‌شده از آن کم می‌شوند.</small>
+        <div class="table-responsive mb-3"><table class="table table-bordered"><thead><tr><th>نوع مقدار</th><th>ارز</th><th>دریافتی / درآمد</th><th>پرداختی / هزینه</th><th>مجموع کمیشن‌ها</th><th>خالص</th></tr></thead><tbody>
+        @foreach (var summary in report.Summaries) { <tr><td>@(summary.Estimate ? "برآورد (ثبت نشده)" : "ثبت‌شده")</td><td>@summary.Currency</td><td dir="ltr">@Money(summary.Income)</td><td dir="ltr">@Money(summary.Expense)</td><td dir="ltr" class="fw-bold">@Money(summary.Total)</td><td dir="ltr">@Money(summary.Net)</td></tr> }
+        </tbody></table></div>
+        <h6>تفکیک گزارش</h6><div class="table-responsive mb-3"><table class="table table-sm"><thead><tr><th>گروه</th><th>نوع کمیشن</th><th>وضعیت</th><th>برآورد</th><th>حواله</th><th>کمیشن</th></tr></thead><tbody>
+        @foreach (var group in report.Groups) { <tr><td>@GroupLabel(group.Label)</td><td>@HawalaReportLabels.Type(group.Type)</td><td>@HawalaReportLabels.State(group.State)</td><td>@(group.Estimate ? "بلی" : "نه")</td><td>@group.Count.ToString(CultureInfo.InvariantCulture)</td><td dir="ltr">@Money(group.Commission) @group.Currency</td></tr> }
+        </tbody></table></div>
+        <h6>جزئیات حواله‌ها و کمیشن</h6>
+        <small class="text-muted">یک حواله ممکن است چند نوع کمیشن یا سند داشته باشد؛ تعداد ردیف‌های کمیشن برابر تعداد حواله‌ها نیست. کمیشن برگشت‌شده فقط برای پیگیری نمایش داده می‌شود.</small>
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>نمبر / متفرقه</th><th>تاریخ</th><th>نوع حواله / ثبت</th><th>نمایندگی کمیشن</th><th>فرستنده اصلی / مقصد</th><th>فرستنده / گیرنده</th><th>محل</th><th>مبلغ / وضعیت حواله</th><th>نوع کمیشن</th><th>وضعیت کمیشن</th><th>روز نرخ / نرخ</th><th>مبنای USD</th><th>نرخ هر لک</th><th>کمیشن</th><th>سند / توضیح</th></tr></thead><tbody>
+        @foreach (var row in report.Rows.Skip((page - 1) * PageSize).Take(PageSize))
+        {
+            <tr class="@(row.IsEstimate ? "table-warning" : row.CommissionStatus == "Reversed" ? "table-secondary" : "")"><td>@row.Number.ToString(CultureInfo.InvariantCulture)<br />@row.Reference</td><td>@DisplayDates.Date(row.Date.ToLocalTime())</td><td>@(row.HawalaType == "HawalaReceive" ? "دریافتی" : "ارسالی")<br />@(row.BulkImport ? "گروهی" : "دستی")</td><td>@row.Correspondent</td><td>@row.Source<br />@row.Destination</td><td>@row.Sender<br />@row.Receiver</td><td>@row.Location</td><td dir="ltr">@Money(row.Amount) @row.Currency<br />@AppDisplayText.Status(row.Status, row.HawalaType)</td><td>@HawalaReportLabels.Type(row.CommissionType)</td><td>@HawalaReportLabels.State(row.CommissionStatus)</td><td>@DisplayDates.Date(row.RateDate)<br /><span dir="ltr">@(row.ExchangeRate.HasValue ? AmountValueHelper.Format(row.ExchangeRate.Value, 8) : "—")</span></td><td dir="ltr">@Money(row.BasisUsd)</td><td dir="ltr">@Money(row.PerLakhRate)</td><td dir="ltr">@Money(row.Commission) @row.CommissionCurrency</td><td>@row.BatchId?.ToString(CultureInfo.InvariantCulture)<br />@row.Note</td></tr>
+        }
+        </tbody></table></div>
+        @if (report.Rows.Count == 0) { <div class="alert alert-light">اطلاعاتی مطابق فیلتر وجود ندارد.</div> }
+        <div class="d-flex gap-2 align-items-center mt-2"><button class="btn btn-outline-primary" disabled="@(page <= 1)" @onclick="() => page--">قبلی</button><span>@(page.ToString(CultureInfo.InvariantCulture)) / @TotalPages.ToString(CultureInfo.InvariantCulture) — @report.Rows.Count.ToString(CultureInfo.InvariantCulture) ردیف</span><button class="btn btn-outline-primary" disabled="@(page >= TotalPages)" @onclick="() => page++">بعدی</button></div>
+    }
+</div>
+
+@code {
+    private async Task RefreshPageDataAsync()
+    {
+        correspondents = (await CorrespondentService.GetAllAsync()).OrderBy(x => x.Name).ToList(); locations = (await LocationService.GetAllAsync()).OrderBy(x => x.Name).ToList(); currencies = (await CurrencyService.GetAllAsync()).ToList(); if (report != null) { var oldPage = page; await LoadReport(); page = oldPage; }
+    }
+    private HawalaCommissionReportFilter filter = new();
+    private int ReportFilterCount => new[] { filter.From.Date != DateTime.Today.AddDays(-30), filter.To.Date != DateTime.Today,
+        filter.CorrespondentIds.Count > 0, !string.IsNullOrWhiteSpace(filter.HawalaType), !string.IsNullOrWhiteSpace(filter.CommissionType),
+        filter.PaymentLocationId.HasValue, !string.IsNullOrWhiteSpace(filter.Currency), !string.IsNullOrWhiteSpace(filter.Status),
+        !string.IsNullOrWhiteSpace(filter.CommissionStatus), !string.IsNullOrWhiteSpace(filter.Registration), filter.GroupBy != "Day" }.Count(x => x);
+    private void ResetReportFilters()
+    {
+        filter = new() { LocationRates = locations.Select(x => new HawalaReportLocationRate { LocationId = x.Id }).ToList() };
+    }
+    private HawalaCommissionReportFilter? applied;
+    private HawalaCommissionReportResult? report;
+    private List<CorrespondentDto> correspondents = [];
+    private List<PaymentLocationDto> locations = [];
+    private List<CurrencyDto> currencies = [];
+    private bool busy;
+    private string error = "";
+    private int page = 1;
+    private const int PageSize = 100;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling((report?.Rows.Count ?? 0) / (double)PageSize));
+    private IJSObjectReference? module;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            correspondents = (await CorrespondentService.GetAllAsync()).OrderBy(x => x.Name).ToList();
+            locations = (await LocationService.GetAllAsync()).OrderBy(x => x.Name).ToList();
+            currencies = (await CurrencyService.GetAllAsync()).ToList();
+            filter.LocationRates = locations.Select(x => new HawalaReportLocationRate { LocationId = x.Id }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+    private void SelectCorrespondent(long id, bool value) { if (value && !filter.CorrespondentIds.Contains(id)) filter.CorrespondentIds.Add(id); else if (!value) filter.CorrespondentIds.Remove(id); }
+    private async Task LoadReport()
+    {
+        if (busy) return; busy = true; error = "";
+        try { var snapshot = JsonSerializer.Deserialize<HawalaCommissionReportFilter>(JsonSerializer.Serialize(filter))!; var result = await ReportService.GetAsync(snapshot); report = result; applied = snapshot; page = 1; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private async Task Export()
+    {
+        if (busy || applied == null) return; busy = true; error = "";
+        try { var file = await ReportService.ExportAsync(applied); module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/record-selection.js"); await module.InvokeVoidAsync("download", file.FileName, file.ContentType, Convert.ToBase64String(file.Content)); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private string GroupLabel(string label) => applied?.GroupBy == "Day" && DateTime.TryParseExact(label, "yyyy/MM/dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? DisplayDates.Date(date) : label;
+    private static string Money(decimal value) => AmountValueHelper.Format(value);
+    private static string Money(decimal? value) => value.HasValue ? Money(value.Value) : "—";
+    public async ValueTask DisposeAsync() { if (module != null) try { await module.DisposeAsync(); } catch (JSDisconnectedException) { } }
+}

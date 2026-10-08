@@ -12,9 +12,11 @@ public sealed class SaasBillingService(ApplicationDbContext context) : ISaasBill
     private static readonly SubscriptionInvoiceStatus[] OpenStatuses =
         [SubscriptionInvoiceStatus.Issued, SubscriptionInvoiceStatus.PartiallyPaid, SubscriptionInvoiceStatus.Overdue];
 
-    public async Task<BillingDashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default)
+    public Task<BillingDashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default) => ReadDashboardAsync(true, cancellationToken);
+    public Task<BillingDashboardDto> GetDashboardReadOnlyAsync(CancellationToken cancellationToken = default) => ReadDashboardAsync(false, cancellationToken);
+    private async Task<BillingDashboardDto> ReadDashboardAsync(bool updateStatuses, CancellationToken cancellationToken)
     {
-        await RefreshOverdueInvoicesAsync(cancellationToken);
+        if (updateStatuses) await RefreshOverdueInvoicesAsync(cancellationToken);
         var now = DateTime.UtcNow;
         var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var subscriptions = await context.TenantSubscriptions.AsNoTracking()

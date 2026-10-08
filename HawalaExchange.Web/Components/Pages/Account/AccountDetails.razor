@@ -11,6 +11,7 @@
 @inject ICurrencyService CurrencyService
 @inject NavigationManager NavigationManager
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(account == null ? "مشاهده حساب" : account.AccountName)</PageTitle>
 
 <div class="page-wrapper account-details-page">
@@ -41,7 +42,7 @@
             </div>
         }
 
-        <AccountDetailsModal @key="detailsRefreshKey"
+        <AccountDetailsModal @ref="refreshAccountDetails" @key="detailsRefreshKey"
                              IsVisible="true"
                              PageMode="true"
                              Account="@account"
@@ -253,6 +254,11 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadPageData(); if (refreshAccountDetails != null) await refreshAccountDetails.RefreshDataAsync();
+    }
+    private AccountDetailsModal? refreshAccountDetails;
     [Parameter] public long AccountId { get; set; }
 
     private AccountDto? account;

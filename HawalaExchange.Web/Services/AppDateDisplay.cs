@@ -23,6 +23,13 @@ public sealed class AppDateDisplay(DbContextOptions<ApplicationDbContext> option
         return initialization ?? Task.CompletedTask;
     }
 
+    public Task ReloadAsync()
+    {
+        loadedTenantId = currentTenant.TenantId;
+        initialization = LoadAsync(loadedTenantId);
+        return initialization;
+    }
+
     private async Task LoadAsync(long tenantId)
     {
         SetCalendar(true);

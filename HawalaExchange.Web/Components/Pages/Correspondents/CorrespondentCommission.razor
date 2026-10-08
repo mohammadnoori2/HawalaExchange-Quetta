@@ -11,6 +11,7 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(busy || calculating || loadingPage)" />
 <PageTitle>@(isOrigin ? "کمیشن ارسالی به نمایندگی‌ها" : isOutgoing ? "کمیشن پرداختی به نمایندگی‌ها" : "کمیشن حواله‌های دریافتی")</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
@@ -185,8 +186,13 @@
                 {
                     <CommissionDailyBreakdown Items="preview.Items" />
                 }
-                else
+                else if (!isOutgoing)
                 {
+                    <ReceivedCommissionDailyBreakdown Items="preview.Items" TotalCommissionUsd="preview.TotalCommissionUsd" />
+                }
+                @if (!isOrigin)
+                {
+                <h6 class="fw-bold mb-3">جزئیات تمام حواله‌ها</h6>
                 <div class="table-card mb-4">
                     <div class="table-card-body"><div class="table-scroll-wrapper">
                         <GlobalDataGrid class="table-modern table-striped-modern">
@@ -231,6 +237,7 @@
         <div class="modern-card mt-4">
             <div class="card-header"><h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>تاریخچه محاسبات</h6></div>
             <div class="card-body">
+                <RecordFilterBar TItem="CorrespondentCommissionBatchDto" Items="@baseHistory" State="@historyFilters" Changed="StateHasChanged" />
                 @if (history.Count == 0)
                 {
                     <div class="text-muted">هنوز محاسبه‌ای ثبت نشده است.</div>
@@ -364,7 +371,11 @@
                 {
                     <CommissionDailyBreakdown Items="selectedDetails.Items" />
                 }
-                else
+                else if (!detailsOutgoing)
+                {
+                    <ReceivedCommissionDailyBreakdown Items="selectedDetails.Items" TotalCommissionUsd="selectedDetails.TotalCommissionUsd" />
+                }
+                @if (!detailsOrigin)
                 {
                 <h6 class="fw-bold mb-3">جزئیات تمام حواله‌ها</h6>
                 <div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle">
@@ -423,11 +434,17 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId); await LoadHistory(); if (selectedDetails != null) selectedDetails = await CommissionService.GetDetailsAsync(selectedDetails.Id); if (preview != null) preview = await CommissionService.PreviewReadOnlyAsync(request);
+    }
     [Parameter] public long CorrespondentId { get; set; }
     private CorrespondentDto? correspondent;
     private CorrespondentCommissionPreviewRequestDto request = new();
     private CorrespondentCommissionPreviewDto? preview;
-    private List<CorrespondentCommissionBatchDto> history = [];
+    private readonly RecordFilterSet historyFilters = new();
+    private List<CorrespondentCommissionBatchDto> baseHistory = [];
+    private List<CorrespondentCommissionBatchDto> history { get => historyFilters.Apply(baseHistory).ToList(); set => baseHistory = value; }
     private bool loadingPage = true;
     private bool busy;
     private bool calculating;

@@ -7,6 +7,7 @@
 @inject ISaasAdministrationService SaasService
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت مرکزی SaaS</PageTitle>
 
 <div class="page-wrapper">
@@ -69,6 +70,10 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        dashboard = await SaasService.GetDashboardReadOnlyAsync();
+    }
     private SaasDashboardDto dashboard = new();
     private bool isLoading = true;
     private string? errorMessage;

@@ -11,6 +11,7 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>گزارش فعالیت مشتری</PageTitle>
 
 <div class="page-wrapper reports-page">
@@ -49,6 +50,19 @@
                 }
 
                 <div class="d-flex align-items-center gap-2 flex-wrap">
+                <CompactFilterBar CssClass="mb-3 w-100" AriaLabel="جستجو و فیلتر صورت‌حساب" HasActiveFilters="@(!string.IsNullOrWhiteSpace(search) || !string.IsNullOrWhiteSpace(currency) || !string.IsNullOrWhiteSpace(direction) || ((fromDate != DateTime.MinValue ? 1 : 0) + (toDate != DateTime.MinValue ? 1 : 0) + (minAmount.HasValue ? 1 : 0) + (maxAmount.HasValue ? 1 : 0)) > 0)" ActiveFilterCount="@((fromDate != DateTime.MinValue ? 1 : 0) + (toDate != DateTime.MinValue ? 1 : 0) + (minAmount.HasValue ? 1 : 0) + (maxAmount.HasValue ? 1 : 0))" Reset="ResetFilters">
+                    <SearchContent><input class="form-control" placeholder="جستجوی شماره سند یا شرح..." @bind="search" @bind:event="oninput" /></SearchContent>
+                    <QuickFilters>
+                        <input class="form-control compact-quick-filter" aria-label="ارز" placeholder="همه ارزها؛ مانند USD" @bind="currency" />
+                        <select class="form-select compact-quick-filter" aria-label="بدهکاری / طلبکاری" @bind="direction"><option value="">بدهکاری و طلبکاری</option><option value="Credit">طلبکاری</option><option value="Debit">بدهکاری</option></select>
+                    </QuickFilters>
+                    <AdvancedFilters>
+                        <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="fromDate" AllowEmpty="true" /></div>
+                        <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="toDate" AllowEmpty="true" /></div>
+                        <div class="compact-filter-field"><label class="form-label">حداقل مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="minAmount" /></div>
+                        <div class="compact-filter-field"><label class="form-label">حداکثر مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="maxAmount" /></div>
+                    </AdvancedFilters>
+                </CompactFilterBar>
                     <button class="btn-modern btn-primary-modern" @onclick="ExportExcel">
                         <i class="bi bi-file-earmark-excel"></i> دانلود اکسل
                     </button>
@@ -66,6 +80,10 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        if (selectedCustomerId > 0) { var fresh = await SafeGetCustomerAsync(selectedCustomerId); if (fresh != null) customerName = $"{fresh.FullName} ({fresh.CustomerCode})"; await LoadCustomerBalanceAsync(selectedCustomerId); }
+    }
     [SupplyParameterFromQuery(Name = "customerId")]
     public long? CustomerIdQuery { get; set; }
 
@@ -75,6 +93,10 @@
     private List<CustomerBalanceItem>? customerBalance;
     private string error = string.Empty;
     private string customerName = string.Empty;
+    private DateTime fromDate = DateTime.MinValue, toDate = DateTime.MinValue;
+    private string currency = "", direction = "", search = "";
+    private decimal? minAmount, maxAmount;
+    private void ResetFilters() { fromDate = toDate = DateTime.MinValue; currency = direction = search = ""; minAmount = maxAmount = null; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -155,7 +177,10 @@
 
         try
         {
-            var filter = new ExportFilterDto { CustomerId = selectedCustomerId };
+            var filter = new ExportFilterDto { CustomerId = selectedCustomerId,
+                FromDate = fromDate == DateTime.MinValue ? null : fromDate.Date.ToUniversalTime(),
+                ToDate = toDate == DateTime.MinValue ? null : toDate.Date.AddDays(1).ToUniversalTime().AddTicks(-1),
+                CurrencyCode = currency, Search = search, Direction = direction, MinAmount = minAmount, MaxAmount = maxAmount };
             var (content, contentType, fileName) = await ExportService.ExportCustomerActivitiesAsync(filter, format);
 
             var base64 = Convert.ToBase64String(content);

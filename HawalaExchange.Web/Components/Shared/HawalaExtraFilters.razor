@@ -1,0 +1,52 @@
+@using HawalaExchange.Application.DTOs
+@using Microsoft.EntityFrameworkCore
+@using HawalaExchange.Infrastructure.Data
+@inject DbContextOptions<ApplicationDbContext> DbOptions
+@inject HawalaExchange.Application.Interfaces.ICurrentTenant CurrentTenant
+
+        @if (ShowBasic)
+        {
+            @if (ShowCorrespondents)
+            { <div class="compact-filter-field"><label class="form-label">نمایندگی</label><select class="form-select" @bind="Filter.CorrespondentId" @bind:after="Notify"><option value="">همه</option>@foreach (var c in correspondents) { <option value="@c.Id">@c.Name</option> }</select></div> }
+            <div class="compact-filter-field"><label class="form-label">ارز مبلغ</label><select class="form-select" @bind="Filter.CurrencyId" @bind:after="Notify"><option value="">همه</option>@foreach (var c in currencies) { <option value="@c.Id">@c.Code</option> }</select></div>
+            <div class="compact-filter-field"><label class="form-label">محل پرداخت</label><select class="form-select" @bind="Filter.PaymentLocationId" @bind:after="Notify"><option value="">همه</option>@foreach (var c in locations) { <option value="@c.Id">@c.Name</option> }</select></div>
+            <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="Filter.From" @bind-Value:after="Notify" AllowEmpty="true" /></div>
+            <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="Filter.To" @bind-Value:after="Notify" AllowEmpty="true" /></div>
+            <div class="compact-filter-field"><label class="form-label">حداقل مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="Filter.MinAmount" @bind-Value:after="Notify" /></div>
+            <div class="compact-filter-field"><label class="form-label">حداکثر مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="Filter.MaxAmount" @bind-Value:after="Notify" /></div>
+        }
+        <div class="compact-filter-field"><label class="form-label">فرستنده</label><input class="form-control" @bind="Filter.Sender" @bind:after="Notify" /></div>
+        <div class="compact-filter-field"><label class="form-label">گیرنده</label><input class="form-control" @bind="Filter.Receiver" @bind:after="Notify" /></div>
+        <div class="compact-filter-field"><label class="form-label">نمبر متفرقه</label><input class="form-control" @bind="Filter.Reference" @bind:after="Notify" /></div>
+        <div class="compact-filter-field"><label class="form-label">از نمبر حواله</label><input class="form-control" type="number" lang="en" @bind="Filter.MinNumber" @bind:after="Notify" /></div>
+        <div class="compact-filter-field"><label class="form-label">تا نمبر حواله</label><input class="form-control" type="number" lang="en" @bind="Filter.MaxNumber" @bind:after="Notify" /></div>
+        <div class="compact-filter-field"><label class="form-label">نوع ثبت</label><select class="form-select" @bind="Filter.Registration" @bind:after="Notify"><option value="">همه</option><option value="Bulk">آپلود گروهی</option><option value="Manual">دستی</option></select></div>
+        <div class="compact-filter-field"><label class="form-label">کمیشن ثبت‌شده</label><select class="form-select" @bind="Filter.Commission" @bind:after="Notify"><option value="">همه</option><option value="With">دارای کمیشن</option><option value="Without">بدون کمیشن</option></select></div>
+    @if (error != "") { <div class="alert alert-danger mt-2">@error</div> }
+
+@code {
+    [Parameter, EditorRequired] public HawalaExtraFilter Filter { get; set; } = default!;
+    [Parameter] public bool ShowBasic { get; set; }
+    [Parameter] public bool ShowCorrespondents { get; set; }
+    [Parameter] public EventCallback Changed { get; set; }
+    private IReadOnlyList<CurrencyDto> currencies = [];
+    private IReadOnlyList<PaymentLocationDto> locations = [];
+    private IReadOnlyList<CorrespondentDto> correspondents = [];
+    private string error = "";
+    private Task Notify() => Changed.InvokeAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (!ShowBasic) return;
+        try
+        {
+            // A separate read-only context avoids overlapping the parent's paged
+            // queries on Blazor's scoped DbContext while loading reference choices.
+            await using var context = new ApplicationDbContext(DbOptions, CurrentTenant);
+            if (CurrentTenant.TenantId <= 0) throw new InvalidOperationException("صرافی جاری مشخص نیست.");
+            currencies = await context.Currencies.AsNoTracking().OrderBy(x => x.Code).Select(x => new CurrencyDto { Id = x.Id, Code = x.Code, Name = x.Name }).ToListAsync();
+            locations = await context.PaymentLocations.AsNoTracking().OrderBy(x => x.Name).Select(x => new PaymentLocationDto { Id = x.Id, Name = x.Name }).ToListAsync();
+            if (ShowCorrespondents) correspondents = await context.Correspondents.AsNoTracking().OrderBy(x => x.Name).Select(x => new CorrespondentDto { Id = x.Id, Name = x.Name }).ToListAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+}

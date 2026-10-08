@@ -8,6 +8,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin,Manager")]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>هشدار موجودی صندوق</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
@@ -34,7 +35,8 @@
     }
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر هشدار موجودی"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(search) || !string.IsNullOrWhiteSpace(statusFilter))"
+                      ActiveFilterCount="@advancedFilters.Count"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (!string.IsNullOrWhiteSpace(search) || !string.IsNullOrWhiteSpace(statusFilter)))"
                       Reset="ClearFilters">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با نام صندوق یا ارز..."
@@ -47,8 +49,13 @@
                 <option value="active">فعال</option>
                 <option value="inactive">غیرفعال</option>
             </select>
+            <RecordFilterFields TItem="CashBalanceAlertSettingDto" Items="@settings" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="IsEnabled" Quick="true" QuickLimit="1" />
         </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="CashBalanceAlertSettingDto" Items="@settings" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="IsEnabled" QuickLimit="1" />
+        </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <div class="table-card">
         <div class="table-card-body">
@@ -236,6 +243,10 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadReferenceData(); await LoadSettings();
+    }
     private List<CashBalanceAlertSettingDto> settings = [];
     private List<AccountDto> cashAccounts = [];
     private List<CurrencyDto> currencies = [];
@@ -253,7 +264,8 @@
     private int pageSize = 20;
     private int currentPage = 1;
 
-    private List<CashBalanceAlertSettingDto> FilteredSettings => settings.Where(x =>
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<CashBalanceAlertSettingDto> FilteredSettings => advancedFilters.Apply(settings).Where(x =>
             (string.IsNullOrWhiteSpace(search) ||
              x.AccountName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
              x.CurrencyCode.Contains(search, StringComparison.OrdinalIgnoreCase)) &&
@@ -383,6 +395,7 @@
 
     private void ClearFilters()
     {
+        advancedFilters.Clear();
         search = string.Empty;
         statusFilter = string.Empty;
         currentPage = 1;

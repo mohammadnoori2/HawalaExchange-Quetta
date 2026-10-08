@@ -7,6 +7,7 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -34,8 +35,8 @@
     </div>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر دفتر کل"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || filterAccountId != 0 || filterCurrencyId != 0 || fromDate.Date != DateTime.Now.AddMonths(-1).Date || toDate.Date != DateTime.Today)"
-                      ActiveFilterCount="@((filterAccountId != 0 ? 1 : 0) + (fromDate.Date != DateTime.Now.AddMonths(-1).Date ? 1 : 0) + (toDate.Date != DateTime.Today ? 1 : 0))"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || filterAccountId != 0 || filterCurrencyId != 0 || fromDate.Date != DateTime.Now.AddMonths(-1).Date || toDate.Date != DateTime.Today))"
+                      ActiveFilterCount="@(advancedFilters.Count + ((filterAccountId != 0 ? 1 : 0) + (fromDate.Date != DateTime.Now.AddMonths(-1).Date ? 1 : 0) + (toDate.Date != DateTime.Today ? 1 : 0)))"
                       Reset="ResetLedgerFilters">
         <SearchContent>
                     <input type="text" class="form-control" placeholder="شماره تراکنش، حساب..."
@@ -49,6 +50,7 @@
                     <option value="@currency.Id">@currency.Code - @currency.Name</option>
                 }
             </select>
+            <RecordFilterFields TItem="LedgerEntryDto" Items="@ledgerEntries" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="AccountName,CurrencyCode,CreatedAt" Quick="true" QuickLimit="1" />
         </QuickFilters>
         <AdvancedFilters>
                 <div class="compact-filter-field">
@@ -67,8 +69,10 @@
                     <label class="form-label">تا تاریخ</label>
                     <PersianDatePicker @bind-Value="toDate" IncludeTime="false" />
                 </div>
+            <RecordFilterFields TItem="LedgerEntryDto" Items="@ledgerEntries" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="AccountName,CurrencyCode,CreatedAt" QuickLimit="1" />
         </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <!-- کارت جدول -->
     <div class="table-card">
@@ -447,9 +451,15 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadLookupData(); await LoadLedgerEntries();
+    }
     // ===== لیست‌های اصلی =====
     private List<LedgerEntryDto> ledgerEntries = new();
-    private List<LedgerEntryDto> filteredEntries = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<LedgerEntryDto> basefilteredEntries = new();
+    private List<LedgerEntryDto> filteredEntries { get => advancedFilters.Apply(basefilteredEntries).ToList(); set => basefilteredEntries = value; }
     private List<AccountDto> accounts = new();
     private List<CurrencyDto> currencies = new();
 
@@ -676,6 +686,7 @@
 
     private void ResetLedgerFilters()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         _filterAccountId = 0;
         _filterCurrencyId = 0;

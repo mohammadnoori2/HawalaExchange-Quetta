@@ -9,6 +9,7 @@
 @inject IJSRuntime JS
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>گزارش‌های مدیریتی SaaS</PageTitle>
 <div class="page-wrapper">
     <div class="page-header no-print">
@@ -62,6 +63,10 @@
     }
 </div>
 @code{
+    private async Task RefreshPageDataAsync()
+    {
+        plans = (await AdministrationService.GetPlansAsync()).ToList(); await LoadAsync();
+    }
     private SaasManagementReportDto report=new();private SaasReportFilterDto filter=new(){PageSize=25};private List<SubscriptionPlanDto> plans=[];private bool isLoading=true;private string? message;
     private string ExcelUrl=>"/api/platform/reports/excel?"+string.Join("&",new[]{filter.FromDate.HasValue?$"fromDate={filter.FromDate:yyyy-MM-dd}":null,filter.ToDate.HasValue?$"toDate={filter.ToDate:yyyy-MM-dd}":null,filter.PlanId.HasValue?$"planId={filter.PlanId}":null,filter.Status.HasValue?$"status={filter.Status}":null,!string.IsNullOrWhiteSpace(filter.CurrencyCode)?$"currencyCode={Uri.EscapeDataString(filter.CurrencyCode)}":null,!string.IsNullOrWhiteSpace(filter.Search)?$"search={Uri.EscapeDataString(filter.Search)}":null,$"sortBy={Uri.EscapeDataString(filter.SortBy)}",$"sortDescending={filter.SortDescending.ToString().ToLowerInvariant()}"}.Where(x=>x!=null));
     private int TotalPages=>Math.Max(1,(int)Math.Ceiling(report.TotalRows/(double)filter.PageSize));private int MaxGrowth=>Math.Max(1,report.Growth.SelectMany(x=>new[]{x.NewTenants,x.NewUsers,x.NewSubscriptions}).DefaultIfEmpty(1).Max());private int BarHeight(int x)=>Math.Max(2,(int)(140d*x/MaxGrowth));

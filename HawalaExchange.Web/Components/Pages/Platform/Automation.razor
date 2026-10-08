@@ -7,6 +7,7 @@
 @inject ISaasAutomationService AutomationService
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>اعلان‌ها و اتوماسیون SaaS</PageTitle>
 <div class="page-wrapper">
     <div class="page-header">
@@ -36,6 +37,10 @@
     }
 </div>
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        dashboard = await AutomationService.GetDashboardReadOnlyAsync(search, ParsedType()); settings = dashboard.Settings; settingsContext = new(settings);
+    }
     private SaasAutomationDashboardDto dashboard = new(); private SaasAutomationSettingsDto settings = new(); private EditContext settingsContext = default!; private string search="", typeFilter=""; private string? message; private bool isError,isLoading=true,isRunning;
     protected override async Task OnInitializedAsync() => await LoadAsync();
     private async Task LoadAsync() { dashboard=await AutomationService.GetDashboardAsync(search,ParsedType()); settings=dashboard.Settings; settingsContext=new(settings); isLoading=false; }

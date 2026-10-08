@@ -1,4 +1,5 @@
 .compact-filter-bar {
+    --filter-control-height: 38px;
     padding: 8px;
     border: 1px solid var(--app-border, #e1e6eb);
     border-radius: var(--radius-card, 6px);
@@ -7,14 +8,61 @@
 
 .compact-filter-main {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: flex-end;
     gap: 8px;
+}
+
+/* Keep one instance of each input; fitting fields participate in the main row. */
+.compact-advanced-filters.compact-adaptive-fields {
+    display: contents;
+}
+
+.compact-adaptive-fields > * {
+    display: none;
+    flex: 0 0 180px;
+    min-width: 0;
+    max-width: 100%;
+    order: 3;
+}
+
+.compact-adaptive-fields > [data-inline-visible="true"] {
+    display: block;
+    order: 0;
+}
+
+.compact-filter-bar[data-expanded="true"] .compact-adaptive-fields > * {
+    display: block;
+}
+
+.compact-filter-bar[data-expanded="true"] .compact-adaptive-fields::before {
+    content: "";
+    flex: 0 0 100%;
+    order: 2;
+    border-top: 1px solid #edf0f2;
+    margin-top: 8px;
+}
+
+.compact-filter-main > .compact-more-filter,
+.compact-filter-main > .compact-reset-filter {
+    order: 1;
+}
+
+.compact-filter-bar[data-filter-overflow="false"] .compact-more-filter,
+.compact-filter-bar[data-filter-overflow="false"] .compact-adaptive-fields::before {
+    display: none;
+}
+
+.compact-adaptive-fields > [style*="grid-column"] {
+    flex-basis: 100%;
 }
 
 .compact-filter-search {
     position: relative;
-    flex: 1 1 340px;
-    min-width: 250px;
+    flex: 0 1 280px;
+    width: 280px;
+    max-width: 100%;
+    min-width: 200px;
 }
 
 .compact-filter-search > i {
@@ -28,8 +76,31 @@
 }
 
 .compact-filter-search input {
-    min-height: 38px;
     padding-right: 36px !important;
+}
+
+/* One height for every filter control, including both parts of date inputs. */
+.compact-filter-bar .form-control:not(textarea),
+.compact-filter-bar .form-select,
+.compact-filter-bar .date-picker-control,
+.compact-filter-main > button {
+    box-sizing: border-box;
+    height: var(--filter-control-height) !important;
+    min-height: var(--filter-control-height) !important;
+    max-height: var(--filter-control-height) !important;
+}
+
+.compact-filter-bar .form-control:not(textarea),
+.compact-filter-bar .form-select {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    line-height: 1.25 !important;
+}
+
+.compact-filter-main > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .compact-filter-main .compact-quick-filter {
@@ -74,7 +145,7 @@
     display: inline-flex;
     width: 38px;
     min-width: 38px;
-    height: 38px;
+    height: var(--filter-control-height);
     padding: 0;
     align-items: center;
     justify-content: center;
@@ -107,11 +178,6 @@
     font-size: .68rem !important;
 }
 
-.compact-advanced-filters .form-control,
-.compact-advanced-filters .form-select {
-    min-height: 36px !important;
-}
-
 @media (min-width: 1500px) {
     .compact-advanced-filters {
         grid-template-columns: repeat(7, minmax(130px, 1fr));
@@ -124,12 +190,12 @@
     }
 
     .compact-filter-search {
-        flex-basis: 100%;
+        flex-basis: 280px;
     }
 
     .compact-filter-main .compact-quick-filter {
-        width: auto;
-        flex: 1 1 150px;
+        width: 150px;
+        flex: 0 1 150px;
     }
 }
 
@@ -139,12 +205,17 @@
     }
 
     .compact-filter-search {
+        flex: 1 1 100%;
         min-width: 100%;
     }
 
     .compact-more-filter {
         flex: 1 1 auto;
         justify-content: center;
+    }
+
+    .compact-adaptive-fields > * {
+        flex: 1 1 calc(50% - 8px);
     }
 
     .compact-advanced-filters {

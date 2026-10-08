@@ -78,7 +78,8 @@
     }
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر حواله‌های نمایندگی"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(statusFilter))"
+                      ActiveFilterCount="@extraFilters.Count"
+                      HasActiveFilters="@(extraFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(statusFilter)))"
                       Reset="ResetFiltersAsync">
         <SearchContent>
             <input class="form-control"
@@ -95,6 +96,9 @@
             <option value="Cancel">لغو شده</option>
         </select>
         </QuickFilters>
+        <AdvancedFilters>
+            <HawalaExtraFilters Filter="@extraFilters" ShowBasic="true" ShowCorrespondents="false" Changed="OnFilterChangedAsync" />
+        </AdvancedFilters>
     </CompactFilterBar>
     <div class="small text-muted d-flex gap-3 px-1 pb-2">
         <span><i class="settlement-legend settlement-legend-pending"></i> نیازمند تبدیل به ارز توافقی</span>
@@ -442,6 +446,7 @@
     [Parameter, EditorRequired] public string SingularTitle { get; set; } = string.Empty;
     [Parameter] public bool CanCreate { get; set; } = true;
 
+    private HawalaExtraFilter extraFilters = new();
     private List<HawalaDto> hawalas = new();
     private List<AccountDto> paymentAccounts = new();
     private List<CustomerDto> customers = new();
@@ -503,6 +508,7 @@
     private bool currenciesLoaded;
 
     private string ReceiptPrintId => $"correspondentHawalaReceipt-{CorrespondentId}-{HawalaType}";
+    public Task RefreshDataAsync() => LoadHawalasAsync();
 
     protected override async Task OnParametersSetAsync()
     {
@@ -1015,7 +1021,8 @@
         }
 
         return new HawalaFilterDto
-        {
+            {
+                Extra = extraFilters.Copy(),
             CorrespondentId = CorrespondentId,
             HawalaType = HawalaType,
             Status = string.IsNullOrWhiteSpace(statusFilter) ? null : statusFilter,
@@ -1097,6 +1104,7 @@
 
     private async Task ResetFiltersAsync()
     {
+        extraFilters = new();
         CancelPendingFilterChange();
         searchTerm = string.Empty;
         statusFilter = string.Empty;

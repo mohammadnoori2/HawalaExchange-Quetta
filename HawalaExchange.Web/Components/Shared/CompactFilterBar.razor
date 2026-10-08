@@ -1,4 +1,11 @@
-<section class="compact-filter-bar @CssClass" aria-label="@AriaLabel">
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<section @ref="filterElement" class="compact-filter-bar @CssClass" aria-label="@AriaLabel" data-expanded="@(showAdvancedFilters ? "true" : "false")">
     <div class="compact-filter-main">
         <div class="compact-filter-search">
             <i class="bi bi-search" aria-hidden="true"></i>
@@ -6,6 +13,13 @@
         </div>
 
         @QuickFilters
+
+        @if (AdvancedFilters is not null)
+        {
+            <div class="compact-advanced-filters compact-adaptive-fields">
+                @AdvancedFilters
+            </div>
+        }
 
         @if (AdvancedFilters is not null)
         {
@@ -35,12 +49,6 @@
         }
     </div>
 
-    @if (showAdvancedFilters && AdvancedFilters is not null)
-    {
-        <div class="compact-advanced-filters">
-            @AdvancedFilters
-        </div>
-    }
 </section>
 
 @code {
@@ -72,6 +80,31 @@
     public bool InitiallyExpanded { get; set; }
 
     private bool showAdvancedFilters;
+    private ElementReference filterElement;
+    private IJSObjectReference? module;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || AdvancedFilters is null) return;
+        try
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/compact-filter-bar.js");
+            await module.InvokeVoidAsync("initialize", filterElement);
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is null) return;
+        try
+        {
+            await module.InvokeVoidAsync("dispose", filterElement);
+            await module.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
 
     protected override void OnInitialized()
     {

@@ -15,6 +15,7 @@
 
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper" dir="rtl">
     <div class="page-header">
         <div>
@@ -56,6 +57,7 @@
         </div>
     }
 
+    <RecordFilterBar TItem="CapitalInvestmentDto" Items="@baseInvestments" State="@advancedFilters" Changed="StateHasChanged" />
     <div class="modern-card mt-3 p-3">
         <h6>خلاصه به تفکیک ارز</h6>
         <GlobalDataGrid class="table table-sm mb-0">
@@ -453,13 +455,19 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadData(); await LoadInvestments();
+    }
     private CreateCapitalInvestmentDto model = new();
 
     private List<CurrencyDto> currencies = new();
     private List<AccountDto> accounts = new();
     private List<AccountDto> receivingAccounts = new();
     private List<AccountDto> capitalAccounts = new();
-    private List<CapitalInvestmentDto> investments = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<CapitalInvestmentDto> baseInvestments = new();
+    private List<CapitalInvestmentDto> investments { get => advancedFilters.Apply(baseInvestments).ToList(); set => baseInvestments = value; }
     private long defaultProfitCurrencyId;
 
     private List<string> validationErrors = new();

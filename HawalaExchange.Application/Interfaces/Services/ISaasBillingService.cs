@@ -6,6 +6,7 @@ namespace HawalaExchange.Application.Interfaces.Services;
 public interface ISaasBillingService
 {
     Task<BillingDashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default);
+    Task<BillingDashboardDto> GetDashboardReadOnlyAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<BillingSubscriptionOptionDto>> GetSubscriptionOptionsAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SubscriptionInvoiceDto>> GetInvoicesAsync(string? search = null, SubscriptionInvoiceStatus? status = null, CancellationToken cancellationToken = default);
     Task<SubscriptionInvoiceDto?> GetInvoiceAsync(long id, CancellationToken cancellationToken = default);

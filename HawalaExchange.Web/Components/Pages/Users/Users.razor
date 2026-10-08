@@ -18,6 +18,7 @@
 @inject HawalaExchange.Infrastructure.Data.ApplicationDbContext DbContext
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت کاربران</PageTitle>
 
 <div class="page-wrapper">
@@ -40,8 +41,8 @@
     </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر کاربران"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterRole) || !string.IsNullOrWhiteSpace(filterStatus) || filterBranchId != 0)"
-                      ActiveFilterCount="@((!string.IsNullOrWhiteSpace(filterRole) ? 1 : 0) + (!string.IsNullOrWhiteSpace(filterStatus) ? 1 : 0) + (filterBranchId != 0 ? 1 : 0))"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterRole) || !string.IsNullOrWhiteSpace(filterStatus) || filterBranchId != 0 || filterFrom != DateTime.MinValue || filterTo != DateTime.MinValue)"
+                      ActiveFilterCount="@((!string.IsNullOrWhiteSpace(filterRole) ? 1 : 0) + (!string.IsNullOrWhiteSpace(filterStatus) ? 1 : 0) + (filterBranchId != 0 ? 1 : 0) + (filterFrom != DateTime.MinValue ? 1 : 0) + (filterTo != DateTime.MinValue ? 1 : 0))"
                       Reset="ResetFilters">
         <SearchContent>
             <input type="text" class="form-control" placeholder="نام، نام کاربری یا ایمیل..."
@@ -62,6 +63,8 @@
             </select>
         </QuickFilters>
         <AdvancedFilters>
+            <div class="compact-filter-field"><label class="form-label">از تاریخ ثبت</label><PersianDatePicker @bind-Value="filterFrom" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" /></div>
+            <div class="compact-filter-field"><label class="form-label">تا تاریخ ثبت</label><PersianDatePicker @bind-Value="filterTo" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" /></div>
             <div class="compact-filter-field">
                 <label class="form-label">شعبه</label>
                 <select class="form-select" aria-label="شعبه کاربر" @bind="filterBranchId" @bind:event="oninput" @bind:after="OnFilterChangedAsync">
@@ -599,6 +602,10 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadBranches(); await LoadRoles(); await LoadUsers();
+    }
     private List<UserDto> users = new();
     private List<UserDto> filteredUsers = new();
     private List<BranchDto> branches = new();
@@ -608,6 +615,7 @@
     private string filterRole = "";
     private string filterStatus = "";
     private long filterBranchId = 0;
+    private DateTime filterFrom = DateTime.MinValue, filterTo = DateTime.MinValue;
 
     private int pageSize = 10;
     private int currentPage = 1;
@@ -700,6 +708,10 @@
             todayUsersCount = await baseQuery.CountAsync(u => u.CreatedAt >= today);
 
             var query = baseQuery;
+            if (filterFrom != DateTime.MinValue && filterTo != DateTime.MinValue && filterFrom.Date > filterTo.Date)
+                throw new InvalidOperationException("بازه تاریخ معتبر نیست.");
+            if (filterFrom != DateTime.MinValue) { var from = filterFrom.Date.ToUniversalTime(); query = query.Where(u => u.CreatedAt >= from); }
+            if (filterTo != DateTime.MinValue) { var to = filterTo.Date.AddDays(1).ToUniversalTime(); query = query.Where(u => u.CreatedAt < to); }
 
             if (!string.IsNullOrEmpty(searchTerm))
             {
@@ -803,6 +815,7 @@
 
     private async Task ResetFilters()
     {
+        filterFrom = filterTo = DateTime.MinValue;
         searchTerm = string.Empty;
         filterRole = "";
         filterStatus = "";

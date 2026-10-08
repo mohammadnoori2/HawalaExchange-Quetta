@@ -13,14 +13,22 @@ namespace HawalaExchange.Infrastructure.Services;
 public sealed class CorrespondentCommissionService(ApplicationDbContext context)
     : ICorrespondentCommissionService
 {
-    public async Task<CorrespondentCommissionPreviewDto> PreviewAsync(
+    public Task<CorrespondentCommissionPreviewDto> PreviewAsync(
         CorrespondentCommissionPreviewRequestDto request,
         CancellationToken cancellationToken = default)
+        => BuildPreviewAsync(request, true, cancellationToken);
+
+    public Task<CorrespondentCommissionPreviewDto> PreviewReadOnlyAsync(
+        CorrespondentCommissionPreviewRequestDto request, CancellationToken cancellationToken = default)
+        => BuildPreviewAsync(request, false, cancellationToken);
+
+    private async Task<CorrespondentCommissionPreviewDto> BuildPreviewAsync(
+        CorrespondentCommissionPreviewRequestDto request, bool persistValuations, CancellationToken cancellationToken)
     {
         ValidateRequest(request);
         using var budget = CreateCalculationBudget(request, cancellationToken);
         cancellationToken = budget.Token;
-        await EnsureCommissionUsdValuationsAsync(request, cancellationToken);
+        if (persistValuations) await EnsureCommissionUsdValuationsAsync(request, cancellationToken);
         var preview = await ExecutePreviewAsync(request, cancellationToken);
         var deductions = await GetPendingCancellationDeductionsAsync(
             request.CorrespondentId, request.HawalaType, request.CommissionScope, cancellationToken);
@@ -31,7 +39,28 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             request.HawalaType == "HawalaSend" && request.CommissionScope != "Forwarding",
             request.CommissionScope is "Origin" or "Forwarding" or "Incoming",
             request.CommissionScope == "Forwarding");
+        if (request.HawalaType == "HawalaReceive")
+            await LoadReceivedItemDisplayDetailsAsync(preview.Items, cancellationToken);
         return preview;
+    }
+
+    private async Task LoadReceivedItemDisplayDetailsAsync(IReadOnlyList<CorrespondentCommissionItemDto> items, CancellationToken cancellationToken)
+    {
+        if (items.Count == 0) return;
+        var ids = items.Select(x => x.HawalaId).Distinct().ToArray();
+        var details = await context.Hawalas.AsNoTracking().Where(x => ids.Contains(x.Id))
+            .Select(x => new { x.Id, x.ReferenceNumber, x.SenderName, x.ReceiverName, x.PaymentLocationId,
+                Location = x.PaymentLocation == null ? "محل پرداخت نامشخص" : x.PaymentLocation.Name })
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        foreach (var item in items)
+            if (details.TryGetValue(item.HawalaId, out var detail))
+            {
+                item.ReferenceNumber = detail.ReferenceNumber ?? "";
+                item.SenderName = detail.SenderName ?? "";
+                item.ReceiverName = detail.ReceiverName ?? "";
+                if (!item.PaymentLocationId.HasValue)
+                { item.PaymentLocationId = detail.PaymentLocationId; item.PaymentLocationName = detail.Location; }
+            }
     }
 
     public async Task<CorrespondentCommissionBatchDto> PostAsync(
@@ -503,6 +532,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             .Include(x => x.ReversalTransaction)
             .Include(x => x.Items).ThenInclude(x => x.Hawala).ThenInclude(x => x.SourceHawala).ThenInclude(x => x!.Correspondent)
             .Include(x => x.Items).ThenInclude(x => x.SourceCurrency)
+            .Include(x => x.Items).ThenInclude(x => x.Hawala).ThenInclude(x => x.PaymentLocation)
             .SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken)
             ?? throw new KeyNotFoundException("محاسبه کمیشن یافت نشد.");
 
@@ -561,6 +591,9 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 {
                     HawalaId = x.HawalaId,
                     HawalaNumber = x.Hawala.Number,
+                    ReferenceNumber = x.Hawala.ReferenceNumber ?? "",
+                    SenderName = x.Hawala.SenderName ?? "",
+                    ReceiverName = x.Hawala.ReceiverName ?? "",
                     HawalaDate = x.Hawala.CreatedAt,
                     ValuationDate = x.ValuationDate,
                     CurrencyId = x.SourceCurrencyId,
@@ -569,8 +602,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                     SourceToAfnRate = x.SourceToAfnRate,
                     AfnEquivalent = x.AfnEquivalent,
                     CommissionAfn = x.CommissionAfn,
-                    PaymentLocationId = x.PaymentLocationId,
-                    PaymentLocationName = x.PaymentLocationName ?? "محل پرداخت نامشخص",
+                    PaymentLocationId = x.PaymentLocationId ?? x.Hawala.PaymentLocationId,
+                    PaymentLocationName = x.PaymentLocationName ?? x.Hawala.PaymentLocation?.Name ?? "محل پرداخت نامشخص",
                     PerLakhRate = x.PerLakhRate ?? batch.CommissionPerLakhAfn,
                     IsActive = x.IsActive,
                     SourceType = x.Hawala.SourceHawalaId.HasValue ? "Correspondent" : "OwnOffice",

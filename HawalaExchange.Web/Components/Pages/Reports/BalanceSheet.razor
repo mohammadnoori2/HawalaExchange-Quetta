@@ -9,6 +9,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>بیلانس شیت</PageTitle>
 
 <div class="financial-page" dir="rtl">
@@ -106,6 +107,10 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadAsync();
+    }
     private DateTime asOfDate = DateTime.Today;
     private BalanceSheetDto? report;
     private bool isLoading;

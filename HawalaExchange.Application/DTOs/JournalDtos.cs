@@ -111,6 +111,9 @@ public class JournalOperationDto
 
 public sealed class AccountOperationsFilterDto
 {
+    public decimal? MinAmount { get; set; }
+    public decimal? MaxAmount { get; set; }
+    public string? Direction { get; set; }
     public long AccountId { get; set; }
     public string? SearchTerm { get; set; }
     public string? SourceType { get; set; }

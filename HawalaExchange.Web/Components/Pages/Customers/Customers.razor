@@ -13,6 +13,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت مشتریان</PageTitle>
 
 <div class="page-wrapper">
@@ -60,13 +61,23 @@
     }
 
     <CompactFilterBar AriaLabel="@(IsRegisteredReceiverTab ? "جستجوی گیرندگان ثبت‌شده" : "جستجوی مشتریان")"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
+                      ActiveFilterCount="@advancedFilters.Count"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm)))"
                       Reset="ClearSearch">
         <SearchContent>
-            <input class="form-control" placeholder="جستجو با کد، نام، نام پدر، تلفن یا تذکره..."
+            <input class="form-control" placeholder="جستجو در مشخصات مشتری..."
+                   aria-label="جستجو با کد مشتری، نام کامل، نام پدر، شماره تماس، نمبر تذکره، آدرس یا یادداشت"
+                   title="کد مشتری، نام کامل، نام پدر، شماره تماس، نمبر تذکره، آدرس یا یادداشت"
                    @bind="searchTerm" @bind:event="oninput" />
         </SearchContent>
+        <QuickFilters>
+            <RecordFilterFields TItem="CustomerDto" Items="@customers" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="CustomerType,IsArchived,CustomerCode,FullName,FatherName,PhoneNumber,TazkiraNumber,Address,Remarks" Quick="true" QuickLimit="2" />
+        </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="CustomerDto" Items="@customers" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="CustomerType,IsArchived,CustomerCode,FullName,FatherName,PhoneNumber,TazkiraNumber,Address,Remarks" QuickLimit="2" />
+        </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <!-- کارت جدول -->
     <div class="table-card">
@@ -775,9 +786,15 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadCustomers(); await LoadCurrencies(); await LoadAccounts();
+    }
     // ===== لیست‌ها =====
     private List<CustomerDto> customers = new();
-    private List<CustomerDto> filteredCustomers = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<CustomerDto> basefilteredCustomers = new();
+    private List<CustomerDto> filteredCustomers { get => advancedFilters.Apply(basefilteredCustomers).ToList(); set => basefilteredCustomers = value; }
     private List<CurrencyDto> currencies = new();
     private List<AccountDto> accounts = new();
     private readonly HashSet<long> customerIdsWithAccounts = [];
@@ -985,15 +1002,7 @@
         var query = activeTypeCustomers.Where(c => c.IsArchived == showArchived);
         if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
-            var term = _searchTerm.Trim();
-            query = query.Where(c =>
-                c.CustomerCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                c.FullName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                (c.FatherName != null && c.FatherName.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                (c.PhoneNumber != null && c.PhoneNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                (c.TazkiraNumber != null && c.TazkiraNumber.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
-                (c.Address != null && c.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
-            );
+            query = query.Where(c => CustomerSearch.Matches(c, _searchTerm));
         }
         filteredCustomers = query.ToList();
         currentPage = 1;
@@ -1002,6 +1011,7 @@
 
     private void ClearSearch()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         filteredCustomers = activeTypeCustomers.Where(c => c.IsArchived == showArchived).ToList();
         currentPage = 1;

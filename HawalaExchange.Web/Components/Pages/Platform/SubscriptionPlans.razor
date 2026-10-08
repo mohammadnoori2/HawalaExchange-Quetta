@@ -6,6 +6,7 @@
 @inject ISaasAdministrationService SaasService
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>پلن‌های اشتراک</PageTitle>
 
 <div class="page-wrapper">
@@ -98,6 +99,10 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadAsync();
+    }
     private List<SubscriptionPlanDto> plans = [];
     private SaveSubscriptionPlanDto model = new();
     private EditContext editContext = default!;

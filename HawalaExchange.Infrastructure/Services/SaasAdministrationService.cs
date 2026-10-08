@@ -8,9 +8,11 @@ namespace HawalaExchange.Infrastructure.Services;
 
 public sealed class SaasAdministrationService(ApplicationDbContext context) : ISaasAdministrationService
 {
-    public async Task<SaasDashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default)
+    public Task<SaasDashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default) => ReadDashboardAsync(true, cancellationToken);
+    public Task<SaasDashboardDto> GetDashboardReadOnlyAsync(CancellationToken cancellationToken = default) => ReadDashboardAsync(false, cancellationToken);
+    private async Task<SaasDashboardDto> ReadDashboardAsync(bool updateStatuses, CancellationToken cancellationToken)
     {
-        await RefreshSubscriptionStatusesAsync(cancellationToken);
+        if (updateStatuses) await RefreshSubscriptionStatusesAsync(cancellationToken);
         var tenants = await GetTenantsAsync(cancellationToken: cancellationToken);
         var monthStart = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 

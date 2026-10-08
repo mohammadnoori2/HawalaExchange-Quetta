@@ -1,0 +1,98 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject IHawalaService HawalaService
+@inject IHawalaPaymentHistoryExportService ExportService
+@inject IJSRuntime JS
+
+<section class="table-card mt-3" dir="rtl">
+    <div class="table-card-header"><h6 class="mb-0">تاریخچه اجرای گروهی حواله‌ها</h6><button type="button" class="btn-modern btn-light-modern" disabled="@busy" @onclick="RefreshAsync">بروزرسانی تاریخچه</button></div>
+    <div class="table-card-body">
+        @if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger" role="alert">@error</div> }
+        @if (busy) { <div role="status"><span class="spinner-border spinner-border-sm"></span> در حال بارگذاری...</div> }
+        <div class="table-responsive"><table class="table-modern text-center">
+            <thead><tr><th>شماره اجرا</th><th>تاریخ اجرا</th><th>حساب پرداخت</th><th>اجراکننده</th><th>تعداد</th><th>عملیات</th></tr></thead>
+            <tbody>@foreach (var batch in history.Items)
+            {
+                <tr><td>@batch.Id</td><td><AppDateTime Value="batch.ExecutedAt" /></td><td>@batch.AccountName</td><td>@batch.ExecutedByName</td><td>@batch.Count</td><td>
+                    <button type="button" class="btn btn-sm btn-outline-primary" disabled="@busy" @onclick="() => Details(batch.Id)">جزئیات</button>
+                    <button type="button" class="btn btn-sm btn-outline-success" disabled="@busy" @onclick="() => Export(batch.Id, ExportFormat.Excel)">اکسل</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" disabled="@busy" @onclick="() => Export(batch.Id, ExportFormat.Pdf)">PDF</button>
+                </td></tr>
+            }
+            @if (!history.Items.Any() && !busy) { <tr><td colspan="6">اجرای گروهی ثبت نشده است.</td></tr> }
+            </tbody>
+        </table></div>
+        <CompactPagination CurrentPage="page" TotalPages="history.TotalPages" PageChanged="ChangePage" />
+    </div>
+</section>
+@if (selected != null)
+{
+    <div class="modal show d-block modal-modern" role="dialog" aria-modal="true" aria-label="جزئیات اجرای گروهی" dir="rtl" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">جزئیات اجرای گروهی @selected.Id</h5><button type="button" class="btn-close" disabled="@busy" @onclick="() => selected = null"></button></div>
+            <div class="modal-body">
+                <p>حساب پرداخت: @selected.AccountName · اجراکننده: @selected.ExecutedByName · تاریخ: <AppDateTime Value="selected.ExecutedAt" /> · تعداد: @selected.Count</p>
+                <small class="text-muted">این اطلاعات مربوط به زمان اجرا است و با ویرایش یا حذف بعدی حواله تغییر نمی‌کند.</small>
+                @if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger mt-2" role="alert">@error</div> }
+                <div class="table-responsive mt-3"><table class="table table-bordered text-center">
+                    <thead><tr><th>ارز</th><th>مجموع اصل حواله</th><th>کمیشن عامل پرداخت</th><th>مجموع پرداخت</th></tr></thead>
+                    <tbody>@foreach (var total in selected.Totals)
+                    { <tr><td>@total.CurrencyCode</td><td dir="ltr">@MoneyFormatHelper.Format(total.Principal)</td><td dir="ltr">@MoneyFormatHelper.Format(total.AgentCommission)</td><td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(total.Total)</td></tr> }</tbody>
+                </table></div>
+                @foreach (var group in selected.Items.GroupBy(x => x.CurrencyCode))
+                {
+                    <h6>@group.Key · تعداد: @group.Count() · مجموع اصل حواله: <span dir="ltr">@MoneyFormatHelper.Format(group.Sum(x => x.Amount)) @group.Key</span></h6>
+                    <div class="table-responsive"><table class="table table-striped text-center">
+                        <thead><tr><th>نمبر</th><th>متفرقه</th><th>فرستنده</th><th>گیرنده</th><th>نمایندگی</th><th>محل پرداخت</th><th>مبلغ پرداخت</th><th>کمیشن عامل پرداخت</th><th>تاریخ ثبت</th></tr></thead>
+                        <tbody>@foreach (var item in group)
+                        { <tr><td>@item.Number</td><td>@item.ReferenceNumber</td><td>@item.SenderName</td><td>@item.ReceiverName</td><td>@item.CorrespondentName</td><td>@item.PaymentLocation</td><td dir="ltr">@MoneyFormatHelper.Format(item.Amount) @item.CurrencyCode</td><td dir="ltr">@MoneyFormatHelper.Format(item.AgentCommission) @item.CommissionCurrencyCode</td><td><AppDateTime Value="item.RegisteredAt" /></td></tr> }</tbody>
+                    </table></div>
+                }
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-success" disabled="@busy" @onclick="() => Export(selected.Id, ExportFormat.Excel)">خروج اکسل</button><button type="button" class="btn btn-danger" disabled="@busy" @onclick="() => Export(selected.Id, ExportFormat.Pdf)">خروج PDF</button><button type="button" class="btn btn-secondary" disabled="@busy" @onclick="() => selected = null">بستن</button></div>
+        </div></div>
+    </div>
+}
+
+@code {
+    private PaginatedResult<HawalaPaymentBatchDto> history = new() { TotalPages = 1 };
+    private HawalaPaymentBatchDto? selected;
+    private int page = 1;
+    private bool busy;
+    private string error = "";
+    protected override Task OnInitializedAsync() => RefreshAsync();
+    public async Task RefreshAsync()
+    {
+        if (busy) return;
+        busy = true; error = "";
+        try
+        {
+            history = await HawalaService.GetPaymentHistoryAsync(page);
+            if (page > history.TotalPages) { page = history.TotalPages; history = await HawalaService.GetPaymentHistoryAsync(page); }
+            if (selected != null) selected = await HawalaService.GetPaymentBatchAsync(selected.Id);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; await InvokeAsync(StateHasChanged); }
+    }
+    private async Task ChangePage(int value) { page = value; await RefreshAsync(); }
+    private async Task Details(long id)
+    {
+        if (busy) return;
+        busy = true; error = "";
+        try { selected = await HawalaService.GetPaymentBatchAsync(id); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private async Task Export(long id, ExportFormat format)
+    {
+        if (busy) return;
+        busy = true; error = "";
+        try
+        {
+            var file = await ExportService.ExportAsync(id, format);
+            await JS.InvokeVoidAsync("downloadFile", Convert.ToBase64String(file.Content), file.FileName, file.ContentType);
+        }
+        catch (Exception ex) { error = $"خطا در خروجی: {ex.Message}"; }
+        finally { busy = false; }
+    }
+}

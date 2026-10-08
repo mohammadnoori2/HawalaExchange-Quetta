@@ -12,6 +12,7 @@
 @inject IJSRuntime JS
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت صرافی‌ها</PageTitle>
 
 <div class="page-wrapper">
@@ -308,6 +309,10 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadAsync();
+    }
     private List<TenantDto> tenants = [];
     private List<SubscriptionPlanDto> plans = [];
     private List<SaasTenantDto> saasTenants = [];

@@ -11,6 +11,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper reports-page">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -24,6 +25,14 @@
     </div>
 
     <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <a href="/reports/hawalas" class="text-decoration-none">
+                <div class="info-card h-100 p-3"><div class="d-flex align-items-center gap-3">
+                    <i class="bi bi-file-earmark-bar-graph fs-2 text-primary"></i>
+                    <div><div class="fw-bold fs-5 text-dark">گزارش حواله‌ها و کمیشن</div><div class="text-muted mt-1">کمیشن ثبت‌شده و برآورد جداگانه، با فیلتر نمایندگی، تاریخ، ارز و محل پرداخت</div></div>
+                </div></div>
+            </a>
+        </div>
         <div class="col-md-6">
             <a href="/reports/balance-sheet" class="text-decoration-none">
                 <div class="info-card h-100 p-3" style="border-right: 4px solid #1a5c8a;">
@@ -204,36 +213,36 @@
             @if (activeTab == "transactions")
             {
                 <div>
-                    <div class="row g-3 mb-3 align-items-end">
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <PersianDatePicker @bind-Value="txnFromDate" @bind-Value:after="LoadTransactionReport" IncludeTime="false" />
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <PersianDatePicker @bind-Value="txnToDate" @bind-Value:after="LoadTransactionReport" IncludeTime="false" />
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
-                            <select class="form-select" @bind="txnBranchId" @bind:after="LoadTransactionReport">
-                                <option value="0">همه</option>
+                    <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش" HasActiveFilters="@(transactionReportsFilters.Count > 0 || !string.IsNullOrWhiteSpace(transactionReportsFilters.Search) || ((txnFromDate.Date != DateTime.Today.AddDays(-30).Date ? 1 : 0) + (txnToDate.Date != DateTime.Today.Date ? 1 : 0) + (txnBranchId != 0 ? 1 : 0) + (!string.IsNullOrWhiteSpace(txnStatus) ? 1 : 0) + (txnCurrencyId != 0 ? 1 : 0)) > 0)" ActiveFilterCount="@(transactionReportsFilters.Count + (txnFromDate.Date != DateTime.Today.AddDays(-30).Date ? 1 : 0) + (txnToDate.Date != DateTime.Today.Date ? 1 : 0) + (txnBranchId != 0 ? 1 : 0) + (!string.IsNullOrWhiteSpace(txnStatus) ? 1 : 0) + (txnCurrencyId != 0 ? 1 : 0))" Reset="ResetTransactionReport">
+                        <SearchContent><input class="form-control" placeholder="جستجو در جزئیات گزارش..." @bind="transactionReportsFilters.Search" @bind:event="oninput" /></SearchContent>
+                        <QuickFilters>
+<select class="form-select compact-quick-filter" aria-label="شعبه" @bind="txnBranchId" @bind:after="LoadTransactionReport">
+                                <option value="0">همه — شعبه</option>
                                 @foreach (var b in branches)
                                 {
                                     <option value="@b.Id">@b.Name</option>
                                 }
                             </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-circle text-muted me-1"></i> وضعیت</label>
-                            <select class="form-select" @bind="txnStatus" @bind:after="LoadTransactionReport">
-                                <option value="">همه</option>
+<select class="form-select compact-quick-filter" aria-label="وضعیت" @bind="txnStatus" @bind:after="LoadTransactionReport">
+                                <option value="">همه — وضعیت</option>
                                 <option value="Pending">در انتظار</option>
                                 <option value="Paid">پرداخت شده</option>
                                 <option value="Cancel">لغو شده</option>
                             </select>
+                            <RecordFilterFields TItem="TransactionReportDto" Items="@basetransactionReports" State="@transactionReportsFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" Quick="true" QuickLimit="0" />
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadTransactionReport"><i class="bi bi-search"></i> نمایش</button>
+                        </QuickFilters>
+                        <AdvancedFilters>
+                            <div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
+                            <PersianDatePicker @bind-Value="txnFromDate" @bind-Value:after="LoadTransactionReport" IncludeTime="false" />
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-cash-stack text-muted me-1"></i> ارز</label>
+<div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
+                            <PersianDatePicker @bind-Value="txnToDate" @bind-Value:after="LoadTransactionReport" IncludeTime="false" />
+                        </div>
+<div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-cash-stack text-muted me-1"></i> ارز</label>
                             <select class="form-select" @bind="txnCurrencyId" @bind:after="LoadTransactionReport">
                                 <option value="0">همه</option>
                                 @foreach (var currency in currencies)
@@ -242,16 +251,10 @@
                                 }
                             </select>
                         </div>
-                        <div class="col-md-2 d-flex align-items-end gap-2">
-                            <button class="btn-modern btn-primary-modern" @onclick="LoadTransactionReport">
-                                <i class="bi bi-search"></i> نمایش
-                            </button>
-                            <button class="btn-modern btn-light-modern" @onclick="ResetTransactionReport">
-                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
-                            </button>
-                        </div>
-                    </div>
-
+                            <RecordFilterFields TItem="TransactionReportDto" Items="@basetransactionReports" State="@transactionReportsFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" QuickLimit="0" />
+                        </AdvancedFilters>
+                    </CompactFilterBar>
+                    @if (transactionReportsFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@transactionReportsFilters.Error</div> }
                     @if (isLoadingTransactions)
                     {
                         <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
@@ -314,45 +317,39 @@
             @if (activeTab == "commission")
             {
                 <div>
-                    <div class="row g-3 mb-3 align-items-end">
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
-                            <PersianDatePicker @bind-Value="commFromDate" @bind-Value:after="LoadCommissionReport" IncludeTime="false" />
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
-                            <PersianDatePicker @bind-Value="commToDate" @bind-Value:after="LoadCommissionReport" IncludeTime="false" />
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
-                            <select class="form-select" @bind="commBranchId" @bind:after="LoadCommissionReport">
-                                <option value="0">همه</option>
+                    <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش" HasActiveFilters="@(commissionReportsFilters.Count > 0 || !string.IsNullOrWhiteSpace(commissionReportsFilters.Search) || ((commFromDate.Date != DateTime.Today.AddDays(-30).Date ? 1 : 0) + (commToDate.Date != DateTime.Today.Date ? 1 : 0) + (commBranchId != 0 ? 1 : 0) + (commCurrencyId != 0 ? 1 : 0)) > 0)" ActiveFilterCount="@(commissionReportsFilters.Count + (commFromDate.Date != DateTime.Today.AddDays(-30).Date ? 1 : 0) + (commToDate.Date != DateTime.Today.Date ? 1 : 0) + (commBranchId != 0 ? 1 : 0) + (commCurrencyId != 0 ? 1 : 0))" Reset="ResetCommissionReport">
+                        <SearchContent><input class="form-control" placeholder="جستجو در جزئیات گزارش..." @bind="commissionReportsFilters.Search" @bind:event="oninput" /></SearchContent>
+                        <QuickFilters>
+<select class="form-select compact-quick-filter" aria-label="شعبه" @bind="commBranchId" @bind:after="LoadCommissionReport">
+                                <option value="0">همه — شعبه</option>
                                 @foreach (var b in branches)
                                 {
                                     <option value="@b.Id">@b.Name</option>
                                 }
                             </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-cash-stack text-muted me-1"></i> ارز</label>
-                            <select class="form-select" @bind="commCurrencyId" @bind:after="LoadCommissionReport">
-                                <option value="0">همه</option>
+<select class="form-select compact-quick-filter" aria-label="ارز" @bind="commCurrencyId" @bind:after="LoadCommissionReport">
+                                <option value="0">همه — ارز</option>
                                 @foreach (var currency in currencies)
                                 {
                                     <option value="@currency.Id">@currency.Code</option>
                                 }
                             </select>
+                            <RecordFilterFields TItem="CommissionReportDto" Items="@basecommissionReports" State="@commissionReportsFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" Quick="true" QuickLimit="0" />
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadCommissionReport"><i class="bi bi-search"></i> نمایش</button>
+                        </QuickFilters>
+                        <AdvancedFilters>
+                            <div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
+                            <PersianDatePicker @bind-Value="commFromDate" @bind-Value:after="LoadCommissionReport" IncludeTime="false" />
                         </div>
-                        <div class="col-md-4 d-flex align-items-end gap-2">
-                            <button class="btn-modern btn-primary-modern" @onclick="LoadCommissionReport">
-                                <i class="bi bi-search"></i> نمایش
-                            </button>
-                            <button class="btn-modern btn-light-modern" @onclick="ResetCommissionReport">
-                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
-                            </button>
+<div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
+                            <PersianDatePicker @bind-Value="commToDate" @bind-Value:after="LoadCommissionReport" IncludeTime="false" />
                         </div>
-                    </div>
-
+                            <RecordFilterFields TItem="CommissionReportDto" Items="@basecommissionReports" State="@commissionReportsFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" QuickLimit="0" />
+                        </AdvancedFilters>
+                    </CompactFilterBar>
+                    @if (commissionReportsFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@commissionReportsFilters.Error</div> }
                     @if (isLoadingCommission)
                     {
                         <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
@@ -407,31 +404,28 @@
             @if (activeTab == "trialbalance")
             {
                 <div>
-                    <div class="row g-3 mb-3 align-items-end">
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold"><i class="bi bi-calendar-date text-muted me-1"></i> تاریخ (تا)</label>
-                            <PersianDatePicker @bind-Value="tbAsOfDate" @bind-Value:after="LoadTrialBalance" IncludeTime="false" />
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold"><i class="bi bi-building text-muted me-1"></i> شعبه</label>
-                            <select class="form-select" @bind="tbBranchId" @bind:after="LoadTrialBalance">
-                                <option value="0">همه</option>
+                    <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش" HasActiveFilters="@(trialBalanceFilters.Count > 0 || !string.IsNullOrWhiteSpace(trialBalanceFilters.Search) || ((tbAsOfDate.Date != DateTime.Today.Date ? 1 : 0) + (tbBranchId != 0 ? 1 : 0)) > 0)" ActiveFilterCount="@(trialBalanceFilters.Count + (tbAsOfDate.Date != DateTime.Today.Date ? 1 : 0) + (tbBranchId != 0 ? 1 : 0))" Reset="ResetTrialBalance">
+                        <SearchContent><input class="form-control" placeholder="جستجو در جزئیات گزارش..." @bind="trialBalanceFilters.Search" @bind:event="oninput" /></SearchContent>
+                        <QuickFilters>
+<select class="form-select compact-quick-filter" aria-label="شعبه" @bind="tbBranchId" @bind:after="LoadTrialBalance">
+                                <option value="0">همه — شعبه</option>
                                 @foreach (var b in branches)
                                 {
                                     <option value="@b.Id">@b.Name</option>
                                 }
                             </select>
+                            <RecordFilterFields TItem="TrialBalanceDto" Items="@basetrialBalance" State="@trialBalanceFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" Quick="true" QuickLimit="1" />
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadTrialBalance"><i class="bi bi-search"></i> نمایش</button>
+                        </QuickFilters>
+                        <AdvancedFilters>
+                            <div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-calendar-date text-muted me-1"></i> تاریخ (تا)</label>
+                            <PersianDatePicker @bind-Value="tbAsOfDate" @bind-Value:after="LoadTrialBalance" IncludeTime="false" />
                         </div>
-                        <div class="col-md-6 d-flex align-items-end gap-2">
-                            <button class="btn-modern btn-primary-modern" @onclick="LoadTrialBalance">
-                                <i class="bi bi-search"></i> نمایش
-                            </button>
-                            <button class="btn-modern btn-light-modern" @onclick="ResetTrialBalance">
-                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
-                            </button>
-                        </div>
-                    </div>
-
+                            <RecordFilterFields TItem="TrialBalanceDto" Items="@basetrialBalance" State="@trialBalanceFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" QuickLimit="1" />
+                        </AdvancedFilters>
+                    </CompactFilterBar>
+                    @if (trialBalanceFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@trialBalanceFilters.Error</div> }
                     @if (isLoadingTB)
                     {
                         <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
@@ -484,35 +478,32 @@
             @if (activeTab == "customer")
             {
                 <div>
-                    <div class="row g-3 mb-3 align-items-end">
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold"><i class="bi bi-person text-muted me-1"></i> مشتری</label>
-                            <select class="form-select" @bind="custCustomerId" @bind:after="LoadCustomerReport">
+                    <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش" HasActiveFilters="@(customerReportsFilters.Count > 0 || !string.IsNullOrWhiteSpace(customerReportsFilters.Search) || ((custCustomerId != 0 ? 1 : 0) + (custFromDate.Date != DateTime.Today.AddDays(-30).Date ? 1 : 0) + (custToDate.Date != DateTime.Today.Date ? 1 : 0)) > 0)" ActiveFilterCount="@(customerReportsFilters.Count + (custCustomerId != 0 ? 1 : 0) + (custFromDate.Date != DateTime.Today.AddDays(-30).Date ? 1 : 0) + (custToDate.Date != DateTime.Today.Date ? 1 : 0))" Reset="ResetCustomerReport">
+                        <SearchContent><input class="form-control" placeholder="جستجو در جزئیات گزارش..." @bind="customerReportsFilters.Search" @bind:event="oninput" /></SearchContent>
+                        <QuickFilters>
+<select class="form-select compact-quick-filter" aria-label="مشتری" @bind="custCustomerId" @bind:after="LoadCustomerReport">
                                 <option value="0">انتخاب مشتری</option>
                                 @foreach (var c in customers)
                                 {
                                     <option value="@c.Id">@c.FullName (@c.CustomerCode)</option>
                                 }
                             </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
+                            <RecordFilterFields TItem="TransactionReportDto" Items="@basecustomerReports" State="@customerReportsFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" Quick="true" QuickLimit="1" />
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadCustomerReport"><i class="bi bi-search"></i> نمایش</button>
+                        </QuickFilters>
+                        <AdvancedFilters>
+                            <div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
                             <PersianDatePicker @bind-Value="custFromDate" @bind-Value:after="LoadCustomerReport" IncludeTime="false" />
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
+<div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
                             <PersianDatePicker @bind-Value="custToDate" @bind-Value:after="LoadCustomerReport" IncludeTime="false" />
                         </div>
-                        <div class="col-md-5 d-flex align-items-end gap-2">
-                            <button class="btn-modern btn-primary-modern" @onclick="LoadCustomerReport">
-                                <i class="bi bi-search"></i> نمایش
-                            </button>
-                            <button class="btn-modern btn-light-modern" @onclick="ResetCustomerReport">
-                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
-                            </button>
-                        </div>
-                    </div>
-
+                            <RecordFilterFields TItem="TransactionReportDto" Items="@basecustomerReports" State="@customerReportsFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" QuickLimit="1" />
+                        </AdvancedFilters>
+                    </CompactFilterBar>
+                    @if (customerReportsFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@customerReportsFilters.Error</div> }
                     @if (isLoadingCustomer)
                     {
                         <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
@@ -567,35 +558,32 @@
             @if (activeTab == "correspondent")
             {
                 <div>
-                    <div class="row g-3 mb-3 align-items-end">
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold"><i class="bi bi-globe text-muted me-1"></i> نماینده</label>
-                            <select class="form-select" @bind="corrCorrespondentId" @bind:after="LoadCorrespondentReport">
+                    <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش" HasActiveFilters="@(correspondentReportsFilters.Count > 0 || !string.IsNullOrWhiteSpace(correspondentReportsFilters.Search) || ((corrCorrespondentId != 0 ? 1 : 0) + (corrFromDate.Date != DateTime.Today.AddDays(-30).Date ? 1 : 0) + (corrToDate.Date != DateTime.Today.Date ? 1 : 0)) > 0)" ActiveFilterCount="@(correspondentReportsFilters.Count + (corrCorrespondentId != 0 ? 1 : 0) + (corrFromDate.Date != DateTime.Today.AddDays(-30).Date ? 1 : 0) + (corrToDate.Date != DateTime.Today.Date ? 1 : 0))" Reset="ResetCorrespondentReport">
+                        <SearchContent><input class="form-control" placeholder="جستجو در جزئیات گزارش..." @bind="correspondentReportsFilters.Search" @bind:event="oninput" /></SearchContent>
+                        <QuickFilters>
+<select class="form-select compact-quick-filter" aria-label="نمایندگی" @bind="corrCorrespondentId" @bind:after="LoadCorrespondentReport">
                                 <option value="0">انتخاب نماینده</option>
                                 @foreach (var c in correspondents)
                                 {
                                     <option value="@c.Id">@c.Name (@c.Code)</option>
                                 }
                             </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
+                            <RecordFilterFields TItem="TransactionReportDto" Items="@basecorrespondentReports" State="@correspondentReportsFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" Quick="true" QuickLimit="1" />
+                            <button class="btn-modern btn-primary-modern" @onclick="LoadCorrespondentReport"><i class="bi bi-search"></i> نمایش</button>
+                        </QuickFilters>
+                        <AdvancedFilters>
+                            <div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-calendar-start text-muted me-1"></i> از تاریخ</label>
                             <PersianDatePicker @bind-Value="corrFromDate" @bind-Value:after="LoadCorrespondentReport" IncludeTime="false" />
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label fw-bold"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
+<div class="compact-filter-field">
+                            <label class="form-label"><i class="bi bi-calendar-end text-muted me-1"></i> تا تاریخ</label>
                             <PersianDatePicker @bind-Value="corrToDate" @bind-Value:after="LoadCorrespondentReport" IncludeTime="false" />
                         </div>
-                        <div class="col-md-5 d-flex align-items-end gap-2">
-                            <button class="btn-modern btn-primary-modern" @onclick="LoadCorrespondentReport">
-                                <i class="bi bi-search"></i> نمایش
-                            </button>
-                            <button class="btn-modern btn-light-modern" @onclick="ResetCorrespondentReport">
-                                <i class="bi bi-arrow-clockwise"></i> بازنشانی
-                            </button>
-                        </div>
-                    </div>
-
+                            <RecordFilterFields TItem="TransactionReportDto" Items="@basecorrespondentReports" State="@correspondentReportsFilters" Changed="StateHasChanged"  Exclude="Date,CreatedAt,Status,BranchName,CurrencyCode,CommissionCurrency" QuickLimit="1" />
+                        </AdvancedFilters>
+                    </CompactFilterBar>
+                    @if (correspondentReportsFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@correspondentReportsFilters.Error</div> }
                     @if (isLoadingCorrespondent)
                     {
                         <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
@@ -648,6 +636,10 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadLookupData(); switch (activeTab) { case "daily": await LoadDailyReport(); break; case "transactions": await LoadTransactionReport(); break; case "commission": await LoadCommissionReport(); break; case "trialbalance": await LoadTrialBalance(); break; case "customer": await LoadCustomerReport(); break; case "correspondent": await LoadCorrespondentReport(); break; }
+    }
     // ===== داده‌های کمکی =====
     private List<BranchDto> branches = new();
     private List<CurrencyDto> currencies = new();
@@ -671,7 +663,9 @@
     private string txnStatus = "";
     private long txnCurrencyId = 0;
     private bool isLoadingTransactions = false;
-    private List<TransactionReportDto> transactionReports = new();
+    private readonly RecordFilterSet transactionReportsFilters = new();
+    private List<TransactionReportDto> basetransactionReports = new();
+    private List<TransactionReportDto> transactionReports { get => transactionReportsFilters.Apply(basetransactionReports).ToList(); set => basetransactionReports = value; }
 
     // ===== فیلدهای گزارش کارمزد =====
     private DateTime commFromDate = DateTime.Today.AddDays(-30);
@@ -679,27 +673,35 @@
     private long commBranchId = 0;
     private long commCurrencyId = 0;
     private bool isLoadingCommission = false;
-    private List<CommissionReportDto> commissionReports = new();
+    private readonly RecordFilterSet commissionReportsFilters = new();
+    private List<CommissionReportDto> basecommissionReports = new();
+    private List<CommissionReportDto> commissionReports { get => commissionReportsFilters.Apply(basecommissionReports).ToList(); set => basecommissionReports = value; }
 
     // ===== فیلدهای تراز آزمایشی =====
     private DateTime tbAsOfDate = DateTime.Today;
     private long tbBranchId = 0;
     private bool isLoadingTB = false;
-    private List<TrialBalanceDto> trialBalance = new();
+    private readonly RecordFilterSet trialBalanceFilters = new();
+    private List<TrialBalanceDto> basetrialBalance = new();
+    private List<TrialBalanceDto> trialBalance { get => trialBalanceFilters.Apply(basetrialBalance).ToList(); set => basetrialBalance = value; }
 
     // ===== فیلدهای گزارش مشتری =====
     private long custCustomerId = 0;
     private DateTime custFromDate = DateTime.Today.AddDays(-30);
     private DateTime custToDate = DateTime.Today;
     private bool isLoadingCustomer = false;
-    private List<TransactionReportDto> customerReports = new();
+    private readonly RecordFilterSet customerReportsFilters = new();
+    private List<TransactionReportDto> basecustomerReports = new();
+    private List<TransactionReportDto> customerReports { get => customerReportsFilters.Apply(basecustomerReports).ToList(); set => basecustomerReports = value; }
 
     // ===== فیلدهای گزارش نماینده =====
     private long corrCorrespondentId = 0;
     private DateTime corrFromDate = DateTime.Today.AddDays(-30);
     private DateTime corrToDate = DateTime.Today;
     private bool isLoadingCorrespondent = false;
-    private List<TransactionReportDto> correspondentReports = new();
+    private readonly RecordFilterSet correspondentReportsFilters = new();
+    private List<TransactionReportDto> basecorrespondentReports = new();
+    private List<TransactionReportDto> correspondentReports { get => correspondentReportsFilters.Apply(basecorrespondentReports).ToList(); set => basecorrespondentReports = value; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -790,6 +792,7 @@
 
     private void ResetTransactionReport()
     {
+        transactionReportsFilters.Clear();
         txnFromDate = DateTime.Today.AddDays(-30);
         txnToDate = DateTime.Today;
         txnBranchId = 0;
@@ -824,6 +827,7 @@
 
     private void ResetCommissionReport()
     {
+        commissionReportsFilters.Clear();
         commFromDate = DateTime.Today.AddDays(-30);
         commToDate = DateTime.Today;
         commBranchId = 0;
@@ -856,6 +860,7 @@
 
     private void ResetTrialBalance()
     {
+        trialBalanceFilters.Clear();
         tbAsOfDate = DateTime.Today;
         tbBranchId = 0;
         trialBalance = new();
@@ -886,6 +891,7 @@
 
     private void ResetCustomerReport()
     {
+        customerReportsFilters.Clear();
         custCustomerId = 0;
         custFromDate = DateTime.Today.AddDays(-30);
         custToDate = DateTime.Today;
@@ -917,6 +923,7 @@
 
     private void ResetCorrespondentReport()
     {
+        correspondentReportsFilters.Clear();
         corrCorrespondentId = 0;
         corrFromDate = DateTime.Today.AddDays(-30);
         corrToDate = DateTime.Today;

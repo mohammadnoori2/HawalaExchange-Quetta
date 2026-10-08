@@ -15,6 +15,10 @@ namespace HawalaExchange.Application.Interfaces.Services
        
         Task<HawalaDto> MarkAsPaidAsync(long id, long paidFromAccountId);
         Task<HawalaDto> MarkAsPaidAsync(long id, PayHawalaDto payment);
+        Task<BulkHawalaPaymentPreviewDto> PreviewBulkPaymentAsync(IReadOnlyCollection<long> ids, long paidFromAccountId);
+        Task<int> PayBulkAsync(BulkHawalaPaymentRequestDto request);
+        Task<PaginatedResult<HawalaPaymentBatchDto>> GetPaymentHistoryAsync(int page = 1, int pageSize = 20);
+        Task<HawalaPaymentBatchDto> GetPaymentBatchAsync(long id);
         Task<HawalaDto> AddAgentCommissionAsync(long id, AddHawalaAgentCommissionDto commission);
         Task<HawalaDto> CancelHawalaAsync(long id, CancelHawalaDto cancellation);
         Task<long> GetNextNumberAsync(long correspondentId, string hawalaType);

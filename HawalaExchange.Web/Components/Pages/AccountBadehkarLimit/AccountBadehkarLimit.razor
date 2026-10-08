@@ -9,6 +9,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>سقف بدهکاری</PageTitle>
 
 <div class="page-wrapper">
@@ -31,7 +32,8 @@
     </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر سقف بدهکاری"
-                      HasActiveFilters="@HasActiveFilters"
+                      ActiveFilterCount="@advancedFilters.Count"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (HasActiveFilters))"
                       Reset="ClearSearch">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با نام حساب یا کد ارز..."
@@ -46,8 +48,13 @@
                 <option value="true">فعال</option>
                 <option value="false">غیرفعال</option>
             </select>
+            <RecordFilterFields TItem="AccountBadehkarLimitDto" Items="@limits" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="CurrencyCode,IsOverLimit" Quick="true" QuickLimit="1" />
         </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="AccountBadehkarLimitDto" Items="@limits" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="CurrencyCode,IsOverLimit" QuickLimit="1" />
+        </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <!-- کارت جدول -->
     <div class="table-card">
@@ -413,8 +420,14 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadLookupData(); await LoadLimits();
+    }
     private List<AccountBadehkarLimitDto> limits = new();
-    private List<AccountBadehkarLimitDto> filteredLimits = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<AccountBadehkarLimitDto> basefilteredLimits = new();
+    private List<AccountBadehkarLimitDto> filteredLimits { get => advancedFilters.Apply(basefilteredLimits).ToList(); set => basefilteredLimits = value; }
     private List<AccountDto> accounts = new();
     private List<CurrencyDto> currencies = new();
 
@@ -587,6 +600,7 @@
 
     private void ClearSearch()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         _filterStatus = "";
         filteredLimits = limits;

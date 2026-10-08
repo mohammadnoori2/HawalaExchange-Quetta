@@ -8,6 +8,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت نرخ‌های ارز</PageTitle>
 
 <div class="page-wrapper">
@@ -29,8 +30,8 @@
     </AppPageHeader>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر نرخ‌های ارز"
-                      HasActiveFilters="@HasActiveFilters"
-                      ActiveFilterCount="@AdvancedFilterCount"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (HasActiveFilters))"
+                      ActiveFilterCount="@(advancedFilters.Count + (AdvancedFilterCount))"
                       Reset="ResetFilters">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با ارز مبدأ یا مقصد..."
@@ -59,6 +60,7 @@
                     <option value="@currency.Code">@currency.Code</option>
                 }
             </select>
+            <RecordFilterFields TItem="ExchangeRateDto" Items="@rates" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="CurrencyCode,FromCurrencyCode,ToCurrencyCode,RateDate,EffectiveDate" Quick="true" QuickLimit="0" />
         </QuickFilters>
         <AdvancedFilters>
             <div class="compact-filter-field">
@@ -77,8 +79,10 @@
                                    AllowEmpty="true"
                                    Placeholder="انتخاب تاریخ" />
             </div>
+            <RecordFilterFields TItem="ExchangeRateDto" Items="@rates" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="CurrencyCode,FromCurrencyCode,ToCurrencyCode,RateDate,EffectiveDate" QuickLimit="0" />
         </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <!-- کارت جدول -->
     <div class="table-card">
@@ -395,8 +399,14 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadCurrencies(); await LoadRates();
+    }
     private List<ExchangeRateDto> rates = new();
-    private List<ExchangeRateDto> filteredRates = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<ExchangeRateDto> basefilteredRates = new();
+    private List<ExchangeRateDto> filteredRates { get => advancedFilters.Apply(basefilteredRates).ToList(); set => basefilteredRates = value; }
     private List<CurrencyDto> currencies = new();
 
     private string _searchTerm = string.Empty;
@@ -552,6 +562,7 @@
 
     private void ResetFilters()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         fromCurrencyFilter = string.Empty;
         toCurrencyFilter = string.Empty;

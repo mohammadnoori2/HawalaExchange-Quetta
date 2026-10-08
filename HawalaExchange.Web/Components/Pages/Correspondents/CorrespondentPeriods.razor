@@ -7,6 +7,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>بستن دوره نمایندگی</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
@@ -25,6 +26,7 @@
         <div class="alert alert-danger">@error</div>
     }
 
+    <RecordFilterBar TItem="CorrespondentPeriodDto" Items="@basePeriods" State="@advancedFilters" Changed="StateHasChanged" />
     @if (PeriodId.HasValue && selected != null)
     {
         <button class="btn btn-light mb-3" @onclick="BackToPeriods">
@@ -209,10 +211,16 @@
 </div>
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        if (PeriodId.HasValue) selected = await CorrespondentService.GetPeriodAsync(PeriodId.Value); else periods = (await CorrespondentService.GetPeriodsAsync(CorrespondentId)).ToList(); if (closePreview != null) closePreview = await CorrespondentService.GetPeriodClosePreviewAsync(CorrespondentId);
+    }
     [Parameter] public long CorrespondentId { get; set; }
     [Parameter] public long? PeriodId { get; set; }
 
-    private List<CorrespondentPeriodDto> periods = [];
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<CorrespondentPeriodDto> basePeriods = [];
+    private List<CorrespondentPeriodDto> periods { get => advancedFilters.Apply(basePeriods).ToList(); set => basePeriods = value; }
     private CorrespondentPeriodDto? selected;
     private CorrespondentPeriodClosePreviewDto? closePreview;
     private string? note;

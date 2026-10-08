@@ -11,9 +11,12 @@ public sealed class SaasAutomationService(
     ISaasBillingService billingService,
     IPlatformMessageSender messageSender) : ISaasAutomationService
 {
-    public async Task<SaasAutomationDashboardDto> GetDashboardAsync(string? search = null, SaasNotificationType? type = null, CancellationToken cancellationToken = default)
+    public Task<SaasAutomationDashboardDto> GetDashboardAsync(string? search = null, SaasNotificationType? type = null, CancellationToken cancellationToken = default) => ReadDashboardAsync(search, type, true, cancellationToken);
+    public Task<SaasAutomationDashboardDto> GetDashboardReadOnlyAsync(string? search = null, SaasNotificationType? type = null, CancellationToken cancellationToken = default) => ReadDashboardAsync(search, type, false, cancellationToken);
+    private async Task<SaasAutomationDashboardDto> ReadDashboardAsync(string? search, SaasNotificationType? type, bool createSettings, CancellationToken cancellationToken)
     {
-        var settings = await GetSettingsAsync(cancellationToken);
+        var settings = createSettings ? await GetSettingsAsync(cancellationToken)
+            : await context.SaasAutomationSettings.AsNoTracking().SingleOrDefaultAsync(x => x.Id == 1, cancellationToken) ?? new SaasAutomationSettings();
         var query = context.SaasNotifications.AsNoTracking().Include(x => x.Tenant).AsQueryable();
         if (type.HasValue) query = query.Where(x => x.Type == type);
         if (!string.IsNullOrWhiteSpace(search)) { var term = search.Trim(); query = query.Where(x => x.Title.Contains(term) || x.Message.Contains(term) || (x.Tenant != null && x.Tenant.Name.Contains(term))); }

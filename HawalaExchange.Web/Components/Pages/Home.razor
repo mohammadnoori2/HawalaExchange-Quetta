@@ -15,6 +15,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>داشبورد</PageTitle>
 
 <div class="dashboard-wrapper" dir="rtl">
@@ -305,6 +306,10 @@
                       OnSaveSuccess="@OnDepositWithdrawSaved" />
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        currencies = (await CurrencyService.GetAllAsync()).Where(x => x.IsActive).OrderBy(x => x.Code).ToList(); await LoadDashboardAsync();
+    }
     private DateTime startDate = DateTime.Today.AddDays(-27);
     private DateTime endDate = DateTime.Today;
     private string selectedCurrency = "AFN";

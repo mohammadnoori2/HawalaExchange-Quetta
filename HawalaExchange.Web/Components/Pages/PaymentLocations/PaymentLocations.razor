@@ -7,6 +7,7 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت محل‌های پرداخت</PageTitle>
 
 <div class="page-wrapper">
@@ -33,7 +34,8 @@
     }
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر محل‌های پرداخت"
-                      HasActiveFilters="@HasActiveFilters"
+                      ActiveFilterCount="@advancedFilters.Count"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || (HasActiveFilters))"
                       Reset="ResetFilters">
         <SearchContent>
             <input class="form-control"
@@ -51,8 +53,13 @@
                 <option value="Active">فعال</option>
                 <option value="Inactive">غیرفعال</option>
             </select>
+            <RecordFilterFields TItem="PaymentLocationDto" Items="@paymentLocations" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="IsActive" Quick="true" QuickLimit="1" />
         </QuickFilters>
+        <AdvancedFilters>
+            <RecordFilterFields TItem="PaymentLocationDto" Items="@paymentLocations" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="IsActive" QuickLimit="1" />
+        </AdvancedFilters>
     </CompactFilterBar>
+    @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
 
     <div class="table-card">
         <div class="table-card-header">
@@ -349,6 +356,10 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadLocations();
+    }
     private List<PaymentLocationDto> paymentLocations = new();
     private List<PaymentLocationAssignmentDto> assignments = new();
     private List<CorrespondentDto> activeCorrespondents = new();
@@ -360,7 +371,9 @@
     private bool assignmentHasError;
     private string assignmentNotice = string.Empty;
     private string assignmentModalError = string.Empty;
-    private List<PaymentLocationDto> filteredLocations = new();
+    private readonly RecordFilterSet advancedFilters = new();
+    private List<PaymentLocationDto> basefilteredLocations = new();
+    private List<PaymentLocationDto> filteredLocations { get => advancedFilters.Apply(basefilteredLocations).ToList(); set => basefilteredLocations = value; }
     private string _searchTerm = "";
     private string statusFilter = string.Empty;
     private int pageSize = 10;
@@ -518,6 +531,7 @@
 
     private void ResetFilters()
     {
+        advancedFilters.Clear();
         _searchTerm = string.Empty;
         statusFilter = string.Empty;
         filteredLocations = paymentLocations;

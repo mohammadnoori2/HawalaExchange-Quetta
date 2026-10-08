@@ -159,6 +159,8 @@ public class JournalService : IJournalService
         CancellationToken cancellationToken = default)
     {
         var pageNumber = Math.Max(1, filter.PageNumber);
+        if (filter.FromDate?.Date > filter.ToDate?.Date || filter.MinAmount < 0 || filter.MaxAmount < 0 || filter.MinAmount > filter.MaxAmount)
+            throw new InvalidOperationException("بازه تاریخ یا مبلغ معتبر نیست.");
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
         var connection = (SqlConnection)_context.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
@@ -178,6 +180,9 @@ public class JournalService : IJournalService
             AddNullable(command, "@SearchTerm", SqlDbType.NVarChar, filter.SearchTerm, 200);
             AddNullable(command, "@SourceType", SqlDbType.NVarChar, filter.SourceType, 50);
             AddNullable(command, "@CurrencyCode", SqlDbType.NVarChar, filter.CurrencyCode, 20);
+            AddNullable(command, "@MinAmount", SqlDbType.Decimal, filter.MinAmount);
+            AddNullable(command, "@MaxAmount", SqlDbType.Decimal, filter.MaxAmount);
+            AddNullable(command, "@Direction", SqlDbType.NVarChar, filter.Direction, 10);
             AddNullable(command, "@FromDate", SqlDbType.DateTime2,
                 filter.FromDate?.Date.ToUniversalTime());
             AddNullable(command, "@ToDateExclusive", SqlDbType.DateTime2,

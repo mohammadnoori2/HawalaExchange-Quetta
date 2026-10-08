@@ -119,6 +119,8 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<AedDeal> AedDeals { get; set; }
         public DbSet<AedDealConversion> AedDealConversions { get; set; }
         public DbSet<CorrespondentCommissionBatch> CorrespondentCommissionBatches { get; set; }
+        public DbSet<HawalaPaymentBatch> HawalaPaymentBatches { get; set; }
+        public DbSet<HawalaPaymentBatchItem> HawalaPaymentBatchItems { get; set; }
         public DbSet<CorrespondentCommissionBatchItem> CorrespondentCommissionBatchItems { get; set; }
         public DbSet<CorrespondentAccountPeriod> CorrespondentAccountPeriods { get; set; }
         public DbSet<CorrespondentAccountPeriodBalance> CorrespondentAccountPeriodBalances { get; set; }
@@ -1177,6 +1179,8 @@ namespace HawalaExchange.Infrastructure.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<HawalaPaymentBatch>().HasIndex(x => new { x.TenantId, x.ExecutedAt });
+            modelBuilder.Entity<HawalaPaymentBatchItem>().HasIndex(x => new { x.TenantId, x.BatchId, x.HawalaId }).IsUnique();
 
             ConfigureIdentityTables(modelBuilder);
             ConfigureIdentity(modelBuilder);

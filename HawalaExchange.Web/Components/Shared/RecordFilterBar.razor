@@ -1,0 +1,28 @@
+@typeparam TItem
+@using Microsoft.AspNetCore.Components
+@using HawalaExchange.Application.Services
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+
+<CompactFilterBar AriaLabel="@AriaLabel" HasActiveFilters="@(State.Count > 0 || !string.IsNullOrWhiteSpace(State.Search))" ActiveFilterCount="@State.Count" Reset="ResetAsync">
+    <SearchContent>
+        <input class="form-control" aria-label="جستجو" placeholder="جستجو در اطلاعات..." @bind="State.Search" @bind:event="oninput" @bind:after="Notify" />
+    </SearchContent>
+    <QuickFilters>
+        <RecordFilterFields TItem="TItem" State="@State" Items="@Items" Changed="Notify" Quick="true" Exclude="@Exclude" />
+    </QuickFilters>
+    <AdvancedFilters>
+        <RecordFilterFields TItem="TItem" State="@State" Items="@Items" Changed="Notify" Exclude="@Exclude" />
+    </AdvancedFilters>
+</CompactFilterBar>
+@if (State.Error != "") { <div class="alert alert-danger py-2" role="alert">@State.Error</div> }
+
+@code {
+    [Parameter, EditorRequired] public RecordFilterSet State { get; set; } = default!;
+    [Parameter, EditorRequired] public IEnumerable<TItem> Items { get; set; } = [];
+    [Parameter] public EventCallback Changed { get; set; }
+    [Parameter] public string AriaLabel { get; set; } = "جستجو و فیلتر";
+    [Parameter] public string Exclude { get; set; } = "";
+    private Task Notify() => Changed.InvokeAsync();
+    private Task ResetAsync() { State.Clear(); return Notify(); }
+}

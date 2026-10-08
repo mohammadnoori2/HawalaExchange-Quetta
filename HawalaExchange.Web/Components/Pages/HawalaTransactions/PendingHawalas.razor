@@ -20,6 +20,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 
+<PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(bulkBusy || isLoading)" />
 <div class="page-wrapper" dir="rtl">
     <div class="page-header">
         <div>
@@ -63,8 +64,8 @@
     }
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر حواله‌های اجرا نشده"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || filterCorrespondentId != 0 || filterPaymentLocationId != 0 || filterCurrencyId != 0 || filterMinAmount.HasValue || filterMaxAmount.HasValue || filterFromDate != DateTime.MinValue || filterToDate != DateTime.MinValue)"
-                      ActiveFilterCount="@((filterCurrencyId != 0 ? 1 : 0) + (filterMinAmount.HasValue ? 1 : 0) + (filterMaxAmount.HasValue ? 1 : 0) + (filterFromDate != DateTime.MinValue ? 1 : 0) + (filterToDate != DateTime.MinValue ? 1 : 0))"
+                      HasActiveFilters="@(extraFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || filterCorrespondentId != 0 || filterPaymentLocationId != 0 || filterCurrencyId != 0 || filterMinAmount.HasValue || filterMaxAmount.HasValue || filterFromDate != DateTime.MinValue || filterToDate != DateTime.MinValue))"
+                      ActiveFilterCount="@(extraFilters.Count + ((filterCurrencyId != 0 ? 1 : 0) + (filterMinAmount.HasValue ? 1 : 0) + (filterMaxAmount.HasValue ? 1 : 0) + (filterFromDate != DateTime.MinValue ? 1 : 0) + (filterToDate != DateTime.MinValue ? 1 : 0)))"
                       Reset="ResetFilters">
         <SearchContent>
             <input type="text"
@@ -105,6 +106,7 @@
             <div class="compact-filter-field"><label class="form-label">حداکثر مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="filterMaxAmount" @bind-Value:after="OnFilterChangedAsync" placeholder="تا مبلغ" /></div>
             <div class="compact-filter-field"><label class="form-label">از تاریخ ثبت</label><PersianDatePicker @bind-Value="filterFromDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" /></div>
             <div class="compact-filter-field"><label class="form-label">تا تاریخ ثبت</label><PersianDatePicker @bind-Value="filterToDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" /></div>
+            <HawalaExtraFilters Filter="@extraFilters" ShowBasic="false" ShowCorrespondents="false" Changed="OnFilterChangedAsync" />
         </AdvancedFilters>
     </CompactFilterBar>
 
@@ -127,7 +129,13 @@
         </div>
 
         <div class="table-card-body">
-            <SelectedRecordsToolbar ScopeId="pending-record-selection" VisibleIds="@pagedHawalas.Select(x => x.Id)" />
+            <SelectedRecordsToolbar @ref="pendingSelectionToolbar" ScopeId="pending-record-selection" VisibleIds="@pagedHawalas.Select(x => x.Id)" SelectionChanged="OnPendingSelectionChanged" />
+            <div class="d-flex gap-2 align-items-center mb-2">
+                <button type="button" class="btn-modern btn-primary-modern" disabled="@(bulkBusy || isLoading || selectedPendingIds.Count == 0)" @onclick="OpenBulkPay">
+                    <i class="bi bi-check2-all"></i> اجرای گروهی (@selectedPendingIds.Count)
+                </button>
+                <small class="text-muted">حداکثر 1000 حواله در هر اجرا؛ انتخاب‌ها بین صفحات حفظ می‌شوند.</small>
+            </div>
             <div class="table-scroll-wrapper">
                 <GlobalDataGrid id="pending-record-selection" class="table-modern table-striped-modern">
                     <thead>
@@ -252,6 +260,52 @@
         </div>
     </div>
 </div>
+
+<HawalaPaymentHistory @ref="paymentHistory" />
+
+@if (showBulkPayModal)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" role="dialog" aria-modal="true" aria-label="اجرای گروهی حواله‌های اجرا نشده" dir="rtl" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+            <div class="modal-header gradient">
+                <h5 class="modal-title text-white">اجرای گروهی حواله‌های اجرا نشده</h5>
+                <button type="button" class="btn-close btn-close-white" disabled="@bulkBusy" @onclick="CloseBulkPay"></button>
+            </div>
+            <div class="modal-body">
+                <p>@bulkSelectedIds.Length حواله انتخاب شده است. اطلاعات گیرنده و کمیشن عامل پرداخت از هر حواله حفظ می‌شود؛ برای اصلاح آن‌ها از اجرای تکی استفاده کنید.</p>
+                <label class="form-label fw-bold">حساب پرداخت‌کننده</label>
+                <AccountSearchSelect Accounts="@paymentAccounts" @bind-Value="bulkPaymentAccountId" @bind-Value:after="RefreshBulkPreview" Disabled="@bulkBusy" ShowBalanceSummary="false" Placeholder="انتخاب حساب پرداخت‌کننده..." />
+                @if (bulkBusy) { <div class="py-3" role="status"><span class="spinner-border spinner-border-sm"></span> در حال پردازش...</div> }
+                @if (!string.IsNullOrWhiteSpace(bulkError)) { <div class="alert alert-danger mt-3" role="alert">@bulkError</div> }
+                @if (bulkPreview != null)
+                {
+                    @foreach (var error in bulkPreview.Errors) { <div class="alert alert-danger py-2 mt-2">@error</div> }
+                    <div class="table-responsive mt-3"><table class="table table-bordered text-center">
+                        <thead><tr><th>ارز پرداخت</th><th>اصل حواله</th><th>کمیشن عامل پرداخت</th><th>مجموع پرداخت</th><th>@(bulkPreview.IsCashOrBank ? "موجودی قبل" : "مانده حساب قبل")</th><th>@(bulkPreview.IsCashOrBank ? "موجودی پس از پرداخت" : "مانده حساب پس از ثبت")</th></tr></thead>
+                        <tbody>@foreach (var total in bulkPreview.Totals)
+                        {
+                            <tr><td>@total.CurrencyCode</td><td dir="ltr">@MoneyFormatHelper.Format(total.Principal)</td><td dir="ltr">@MoneyFormatHelper.Format(total.AgentCommission)</td><td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(total.Total)</td><td dir="ltr">@MoneyFormatHelper.Format(bulkPreview.IsCashOrBank ? -total.AccountBalance : total.AccountBalance)</td><td dir="ltr">@MoneyFormatHelper.Format(bulkPreview.IsCashOrBank ? -total.AccountBalanceAfter : total.AccountBalanceAfter)</td></tr>
+                        }</tbody>
+                    </table></div>
+                    @if (bulkPreview.IsCorrespondent) { <div class="alert alert-info">برای هر حواله، حوالهٔ ارسالی مرتبط به نمایندگی انتخاب‌شده با شماره‌گذاری فعلی ساخته می‌شود.</div> }
+                    <div class="table-responsive"><table class="table table-striped text-center">
+                        <thead><tr><th>نمبر حواله</th><th>گیرنده</th><th>مبلغ پرداخت</th><th>بررسی</th></tr></thead>
+                        <tbody>@foreach (var item in bulkPreview.Items)
+                        {
+                            <tr><td>@item.Number</td><td>@item.ReceiverName</td><td dir="ltr">@MoneyFormatHelper.Format(item.Amount) @item.CurrencyCode</td><td class="@(item.Error == null ? "text-success" : "text-danger")">@(item.Error ?? "آماده اجرا")</td></tr>
+                        }</tbody>
+                    </table></div>
+                }
+                <div class="alert alert-warning">تمام حواله‌ها و اسناد حسابداری با هم ثبت می‌شوند. در صورت خطا هیچ حواله‌ای اجرا نمی‌شود. موجودی ناکافی مانع اجرای گروهی نیست؛ ماندهٔ پس از پرداخت برای اطلاع نمایش داده می‌شود.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-modern btn-light-modern" disabled="@bulkBusy" @onclick="CloseBulkPay">انصراف</button>
+                <button type="button" class="btn-modern btn-light-modern" disabled="@bulkBusy" @onclick="RefreshBulkPreview">تازه‌سازی پیش‌نمایش</button>
+                <button type="button" class="btn-modern btn-primary-modern" disabled="@(bulkBusy || bulkPreview?.CanExecute != true || bulkPreview.PaidFromAccountId != bulkPaymentAccountId)" @onclick="ConfirmBulkPay">تأیید و اجرای همه</button>
+            </div>
+        </div></div>
+    </div>
+}
 
 @if (showPayModal)
 {
@@ -613,6 +667,76 @@
 }
 
 @code {
+    private async Task RefreshPageDataAsync()
+    {
+        await LoadFilterOptions(); await LoadAccounts(); await LoadCustomers(); await LoadData(); if (paymentHistory != null) await paymentHistory.RefreshAsync();
+    }
+    private SelectedRecordsToolbar? pendingSelectionToolbar;
+    private HawalaPaymentHistory? paymentHistory;
+    private IReadOnlyList<long> selectedPendingIds = [];
+    private long[] bulkSelectedIds = [];
+    private bool showBulkPayModal, bulkBusy;
+    private long bulkPaymentAccountId;
+    private BulkHawalaPaymentPreviewDto? bulkPreview;
+    private string bulkError = "";
+
+    private void OnPendingSelectionChanged(IReadOnlyList<long> ids) => selectedPendingIds = ids.ToArray();
+
+    private async Task OpenBulkPay()
+    {
+        if (bulkBusy || selectedPendingIds.Count == 0) return;
+        bulkSelectedIds = selectedPendingIds.ToArray();
+        bulkPaymentAccountId = 0;
+        bulkPreview = null;
+        bulkError = "";
+        showBulkPayModal = true;
+        await RefreshBulkPreview();
+    }
+
+    private void CloseBulkPay()
+    {
+        if (bulkBusy) return;
+        showBulkPayModal = false;
+        bulkPreview = null;
+        bulkError = "";
+    }
+
+    private async Task RefreshBulkPreview()
+    {
+        if (bulkBusy) return;
+        bulkBusy = true;
+        bulkError = "";
+        bulkPreview = null;
+        try { bulkPreview = await HawalaService.PreviewBulkPaymentAsync(bulkSelectedIds, bulkPaymentAccountId); }
+        catch (Exception ex) { bulkError = ex.Message; }
+        finally { bulkBusy = false; }
+    }
+
+    private async Task ConfirmBulkPay()
+    {
+        if (bulkBusy || bulkPreview?.CanExecute != true || bulkPreview.PaidFromAccountId != bulkPaymentAccountId) return;
+        bulkBusy = true;
+        bulkError = "";
+        try
+        {
+            var count = await HawalaService.PayBulkAsync(new BulkHawalaPaymentRequestDto
+            { PaidFromAccountId = bulkPaymentAccountId, Items = bulkPreview.Items });
+            showBulkPayModal = false;
+            if (pendingSelectionToolbar != null) await pendingSelectionToolbar.SetSelectionAsync([]);
+            await LoadData();
+            await LoadAccounts();
+            if (paymentHistory != null) await paymentHistory.RefreshAsync();
+            successMessage = $"{count} حواله با موفقیت اجرا شد و اسناد حسابداری ثبت گردید.";
+        }
+        catch (Exception ex)
+        {
+            bulkError = ex.Message;
+            bulkPreview = null; // A changed or failed batch must be previewed again before retrying.
+        }
+        finally { bulkBusy = false; }
+    }
+
+    private HawalaExtraFilter extraFilters = new();
     private List<HawalaDto> hawalas = new();
     private List<AccountDto> accounts = new();
     private List<CorrespondentDto> correspondents = new();
@@ -746,6 +870,7 @@
 
             var filter = new HawalaFilterDto
             {
+                Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm,
                 SearchAmount = searchAmount,
                 Number = searchNumber,
@@ -820,6 +945,7 @@
 
     private async Task ResetFilters()
     {
+        extraFilters = new();
         searchTerm = string.Empty;
         filterCorrespondentId = 0;
         filterPaymentLocationId = 0;

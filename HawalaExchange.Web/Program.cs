@@ -179,6 +179,9 @@ public partial class Program
         builder.Services.AddScoped<ICashBalanceAlertService, CashBalanceAlertService>();
         builder.Services.AddScoped<IHawalaService, HawalaService>();
         builder.Services.AddScoped<IHawalaImportService, HawalaImportService>();
+        builder.Services.AddScoped<HawalaImportQueue>();
+        builder.Services.AddScoped<IHawalaImportQueue>(sp => sp.GetRequiredService<HawalaImportQueue>());
+        builder.Services.AddHostedService<HawalaImportWorker>();
         builder.Services.AddScoped<ICapitalInvestmentService, CapitalInvestmentService>();
         builder.Services.AddScoped<IPaymentLocationService, PaymentLocationService>();
         builder.Services.AddScoped<IPaymentLocationAssignmentService, PaymentLocationAssignmentService>();

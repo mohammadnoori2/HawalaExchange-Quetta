@@ -112,6 +112,7 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<Hawala> Hawalas { get; set; }
         public DbSet<HawalaImportBatch> HawalaImportBatches { get; set; }
         public DbSet<HawalaImportRow> HawalaImportRows { get; set; }
+        public DbSet<HawalaImportJob> HawalaImportJobs { get; set; }
         public DbSet<CorrespondentSettlementConversion> CorrespondentSettlementConversions { get; set; }
         public DbSet<CorrespondentSettlementConversionItem> CorrespondentSettlementConversionItems { get; set; }
         public DbSet<CorrespondentSettlementConversionHawala> CorrespondentSettlementConversionHawalas { get; set; }
@@ -1902,6 +1903,14 @@ namespace HawalaExchange.Infrastructure.Data
         // ==========================================
         private static void ConfigureRelationships(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<HawalaImportJob>(entity =>
+            {
+                entity.HasIndex(x => new { x.TenantId, x.BatchId }).IsUnique();
+                entity.HasIndex(x => new { x.Status, x.CreatedAt });
+                entity.HasOne(x => x.Batch).WithOne(x => x.Job)
+                    .HasForeignKey<HawalaImportJob>(x => x.BatchId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
             modelBuilder.Entity<HawalaImportBatch>(entity =>
             {
                 entity.HasOne(x => x.Correspondent)

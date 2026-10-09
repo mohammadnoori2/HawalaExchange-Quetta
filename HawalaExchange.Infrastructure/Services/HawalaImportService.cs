@@ -23,19 +23,22 @@ public sealed class HawalaImportService : IHawalaImportService
     private readonly IPaymentLocationService _paymentLocationService;
     private readonly ICorrespondentService _correspondentService;
     private readonly IAuditLogService _auditLogService;
+    private readonly IDbContextFactory<ApplicationDbContext>? _contextFactory;
 
     public HawalaImportService(
         ApplicationDbContext context,
         IHawalaService hawalaService,
         IPaymentLocationService paymentLocationService,
         ICorrespondentService correspondentService,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IDbContextFactory<ApplicationDbContext>? contextFactory = null)
     {
         _context = context;
         _hawalaService = hawalaService;
         _paymentLocationService = paymentLocationService;
         _correspondentService = correspondentService;
         _auditLogService = auditLogService;
+        _contextFactory = contextFactory;
     }
 
     public async Task<HawalaImportPreviewDto> PreviewAsync(
@@ -143,7 +146,8 @@ public sealed class HawalaImportService : IHawalaImportService
             .Include(x => x.Correspondent)
             .Include(x => x.Rows).ThenInclude(x => x.PaymentLocation)
             .Include(x => x.Rows).ThenInclude(x => x.DestinationCorrespondent)
-            .SingleOrDefaultAsync(x => x.Id == batchId && x.Status == "Preview", cancellationToken);
+            .SingleOrDefaultAsync(x => x.Id == batchId && x.Status == "Preview" &&
+                (x.Job == null || x.Job.Status == "Failed"), cancellationToken);
         if (batch is null) return null;
         var ownLocationName = batch.OwnPaymentLocationId.HasValue
             ? await _context.PaymentLocations.AsNoTracking()
@@ -163,15 +167,20 @@ public sealed class HawalaImportService : IHawalaImportService
     }
 
     public async Task<IReadOnlyList<HawalaImportHistoryDto>> GetHistoryAsync(
-        CancellationToken cancellationToken = default) =>
-        await _context.HawalaImportBatches.AsNoTracking()
+        CancellationToken cancellationToken = default)
+    {
+        await using var readContext = _contextFactory is null ? null : await _contextFactory.CreateDbContextAsync(cancellationToken);
+        return await (readContext ?? _context).HawalaImportBatches.AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .Select(x => new HawalaImportHistoryDto
             {
                 BatchId = x.Id,
                 FileName = x.FileName,
                 SourceCorrespondentName = x.Correspondent!.Name,
-                Status = x.Status,
+                Status = x.Status == "Posted" ? "Posted" : x.Job != null ? x.Job.Status : x.Status,
+                ProgressPercent = x.Job != null ? x.Job.ProgressPercent : 0,
+                ProgressMessage = x.Job != null ? x.Job.ProgressMessage : null,
+                ErrorMessage = x.Job != null ? x.Job.ErrorMessage : null,
                 RowCount = x.RowCount,
                 CreatedAt = x.CreatedAt,
                 ConfirmedAt = x.ConfirmedAt,
@@ -180,6 +189,7 @@ public sealed class HawalaImportService : IHawalaImportService
                     : x.CreatedByUser!.FullName
             })
             .ToListAsync(cancellationToken);
+    }
 
     public async Task<HawalaImportDetailsDto?> GetDetailsAsync(
         long batchId,
@@ -197,6 +207,9 @@ public sealed class HawalaImportService : IHawalaImportService
             .SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken);
         if (batch is null) return null;
 
+        var job = await _context.HawalaImportJobs.AsNoTracking().Where(x => x.BatchId == batchId)
+            .Select(x => new { x.Status, x.ProgressPercent, x.ProgressMessage, x.ErrorMessage })
+            .SingleOrDefaultAsync(cancellationToken);
         var rows = batch.Rows.OrderBy(x => x.ExcelRowNumber).ToList();
         var groups = rows.GroupBy(row =>
         {
@@ -239,7 +252,10 @@ public sealed class HawalaImportService : IHawalaImportService
             BatchId = batch.Id,
             FileName = batch.FileName,
             SourceCorrespondentName = batch.Correspondent?.Name ?? string.Empty,
-            Status = batch.Status,
+            Status = batch.Status == "Posted" ? "Posted" : job?.Status ?? batch.Status,
+            ProgressPercent = job?.ProgressPercent ?? 0,
+            ProgressMessage = job?.ProgressMessage,
+            ErrorMessage = job?.ErrorMessage,
             RowCount = batch.RowCount,
             CreatedAt = batch.CreatedAt,
             ConfirmedAt = batch.ConfirmedAt,
@@ -257,6 +273,9 @@ public sealed class HawalaImportService : IHawalaImportService
         long batchId,
         CancellationToken cancellationToken = default)
     {
+        if (await _context.HawalaImportJobs.AsNoTracking().AnyAsync(x => x.BatchId == batchId &&
+                (x.Status == "Queued" || x.Status == "Running"), cancellationToken))
+            throw new InvalidOperationException("فایل در صف یا در حال ثبت است و قابل حذف نیست.");
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(MaximumBatchDeleteDuration);
         var operationToken = timeoutSource.Token;
@@ -305,13 +324,38 @@ public sealed class HawalaImportService : IHawalaImportService
         ConfirmHawalaImportDto request,
         IProgress<HawalaImportProgressDto>? progress = null,
         CancellationToken cancellationToken = default)
+        => await ConfirmCoreAsync(request, false, progress, cancellationToken);
+
+    internal Task<HawalaImportResultDto> ConfirmQueuedAsync(
+        ConfirmHawalaImportDto request,
+        IProgress<HawalaImportProgressDto>? progress,
+        CancellationToken cancellationToken)
+        => ConfirmCoreAsync(request, true, progress, cancellationToken);
+
+    private async Task<HawalaImportResultDto> ConfirmCoreAsync(
+        ConfirmHawalaImportDto request, bool queued,
+        IProgress<HawalaImportProgressDto>? progress,
+        CancellationToken cancellationToken)
     {
         Report(progress, 5, "در حال بارگذاری و اعتبارسنجی پیش‌نمایش...");
+        // Do not hold a shared job-row lock while the independent progress writer updates it.
+        var jobStatus = await _context.HawalaImportJobs.AsNoTracking()
+            .Where(x => x.BatchId == request.BatchId).Select(x => x.Status)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (queued ? jobStatus != "Running" : jobStatus is "Queued" or "Running")
+            throw new InvalidOperationException("این فایل در صف ثبت گروهی است.");
         await using var transaction = await _context.Database.BeginTransactionAsync(
             System.Data.IsolationLevel.Serializable,
             cancellationToken);
         try
         {
+            // Serialize confirmations/enqueue/delete for this batch, even with RCSI enabled.
+            await _context.HawalaImportBatches
+                .FromSqlInterpolated($"SELECT * FROM dbo.HawalaImportBatches WITH (UPDLOCK, HOLDLOCK) WHERE TenantId = {_context.CurrentTenantId} AND Id = {request.BatchId}")
+                .AsNoTracking().SingleOrDefaultAsync(cancellationToken);
+            if (!queued && await _context.HawalaImportJobs.AsNoTracking().AnyAsync(x => x.BatchId == request.BatchId &&
+                    (x.Status == "Queued" || x.Status == "Running"), cancellationToken))
+                throw new InvalidOperationException("این فایل در صف ثبت گروهی است.");
             var batch = await _context.HawalaImportBatches
                 .AsNoTracking()
                 .Include(x => x.Correspondent)
@@ -337,20 +381,35 @@ public sealed class HawalaImportService : IHawalaImportService
                 .GroupBy(x => PaymentLocationNameNormalizer.Normalize(x.PaymentLocationText))
                 .ToList();
 
+            // Read names/aliases once on the import connection. A factory-created context
+            // would wait on our own uncommitted inserts when RCSI is disabled on the host.
+            var knownLocations = await _context.PaymentLocations.AsNoTracking()
+                .Where(x => x.IsActive).Include(x => x.Aliases).ToListAsync(cancellationToken);
+            var locationsByName = new Dictionary<string, long>(StringComparer.Ordinal);
+            foreach (var known in knownLocations)
+            {
+                locationsByName[known.NormalizedName] = known.Id;
+                foreach (var alias in known.Aliases)
+                    locationsByName[alias.NormalizedName] = known.Id;
+            }
             foreach (var group in unresolvedGroups)
             {
                 if (!selectedLocations.TryGetValue(group.Key, out var displayName))
                     throw new InvalidOperationException($"محل پرداخت «{group.First().PaymentLocationText}» باید برای ایجاد تأیید شود.");
 
-                var existing = await _paymentLocationService.FindByNameOrAliasAsync(displayName);
-                var location = existing ?? await _paymentLocationService.CreateAsync(new CreatePaymentLocationDto
+                if (!locationsByName.TryGetValue(group.Key, out var locationId))
                 {
-                    Name = displayName,
-                    Address = string.Empty,
-                    IsActive = true
-                });
+                    var location = await _paymentLocationService.CreateAsync(new CreatePaymentLocationDto
+                    {
+                        Name = displayName,
+                        Address = string.Empty,
+                        IsActive = true
+                    });
+                    locationId = location.Id;
+                    locationsByName[group.Key] = locationId;
+                }
                 foreach (var row in group)
-                    row.PaymentLocationId = location.Id;
+                    row.PaymentLocationId = locationId;
             }
             Report(progress, 25, "محل‌های پرداخت آماده شدند.");
 
@@ -634,6 +693,13 @@ public sealed class HawalaImportService : IHawalaImportService
                 null,
                 $"{created.Count} حواله از فایل '{batchFileName}' به‌صورت گروهی ثبت شد.",
                 confirmedBy);
+            if (queued)
+                await _context.HawalaImportJobs.Where(x => x.BatchId == batchId && x.Status == "Running")
+                    .ExecuteUpdateAsync(update => update.SetProperty(x => x.Status, "Completed")
+                        .SetProperty(x => x.ProgressPercent, 100)
+                        .SetProperty(x => x.ProgressMessage, "ثبت گروهی تکمیل شد.")
+                        .SetProperty(x => x.CompletedAt, DateTime.UtcNow)
+                        .SetProperty(x => x.ErrorMessage, (string?)null), cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             Report(progress, 100, "ثبت گروهی تکمیل شد.");
 

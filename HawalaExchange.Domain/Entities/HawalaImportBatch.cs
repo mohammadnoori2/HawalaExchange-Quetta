@@ -25,5 +25,6 @@ namespace HawalaExchange.Domain.Entities
         [ForeignKey(nameof(CreatedBy))] public virtual ApplicationUser? CreatedByUser { get; set; }
         [ForeignKey(nameof(ConfirmedBy))] public virtual ApplicationUser? ConfirmedByUser { get; set; }
         public virtual ICollection<HawalaImportRow> Rows { get; set; } = [];
+        public HawalaImportJob? Job { get; set; }
     }
 }

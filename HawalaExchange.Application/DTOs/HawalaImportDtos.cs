@@ -111,6 +111,9 @@ namespace HawalaExchange.Application.DTOs
 
     public class HawalaImportHistoryDto
     {
+        public int ProgressPercent { get; set; }
+        public string? ProgressMessage { get; set; }
+        public string? ErrorMessage { get; set; }
         public long BatchId { get; set; }
         public string FileName { get; set; } = string.Empty;
         public string SourceCorrespondentName { get; set; } = string.Empty;

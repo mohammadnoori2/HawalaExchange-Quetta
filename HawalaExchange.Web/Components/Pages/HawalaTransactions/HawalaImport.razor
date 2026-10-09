@@ -6,6 +6,8 @@
 @using Microsoft.Data.SqlClient
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @inject IHawalaImportService HawalaImportService
+@inject IHawalaImportQueue ImportQueue
+@implements IDisposable
 @inject IHawalaService HawalaService
 @inject ICorrespondentService CorrespondentService
 @inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
@@ -16,6 +18,12 @@
 <PageTitle>@(IsPreviewPage ? "پیش‌نمایش و تأیید فایل حواله‌ها" : "آپلود گروهی حواله‌های دریافتی")</PageTitle>
 
 <div class="page-wrapper @(IsPreviewPage ? "import-preview-workspace" : string.Empty)" dir="rtl">
+    @if (queuedNotice)
+    {
+        <div class="alert alert-info" role="status">درخواست در صف ثبت گروهی ذخیره شد. می‌توانید به صفحات دیگر بروید یا مرورگر را ببندید؛ نتیجه در تاریخچه نمایش داده می‌شود.</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(completedNotice))
+    { <div class="alert alert-success" role="status">@completedNotice</div> }
     <AppPageHeader Title="@(IsPreviewPage ? "پیش‌نمایش و تأیید فایل" : "آپلود گروهی حواله‌های دریافتی")"
                    Subtitle="@(IsPreviewPage ? $"محیط مستقل بررسی فایل {preview?.FileName ?? string.Empty}" : "انتخاب فایل Excel و مشاهده تاریخچه آپلودها")"
                    Icon="@(IsPreviewPage ? "bi-layout-text-window-reverse" : "bi-file-earmark-spreadsheet")">
@@ -260,11 +268,24 @@
                 {
                     <tr class="@(selectedHistory?.BatchId == item.BatchId ? "table-primary" : string.Empty)">
                         <td><strong>@item.FileName</strong></td><td>@item.SourceCorrespondentName</td>
-                        <td>@item.RowCount.ToString("N0")</td><td><span class="badge @HistoryStatusClass(item.Status)">@HistoryStatusText(item.Status)</span></td>
+                        <td>@item.RowCount.ToString("N0")</td><td>
+                            <span class="badge @HistoryStatusClass(item.Status)">@HistoryStatusText(item.Status)</span>
+                            @if (item.Status is "Queued" or "Running")
+                            {
+                                <div class="small mt-1" role="status">@item.ProgressPercent% · @item.ProgressMessage</div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.ErrorMessage))
+                            { <div class="small text-danger mt-1">@item.ErrorMessage</div> }
+                        </td>
                         <td>@item.UploadedBy</td><td><AppDateTime Value="@(item.ConfirmedAt ?? item.CreatedAt)" /></td>
                         <td><div class="btn-group btn-group-sm" role="group" aria-label="عملیات فایل آپلود">
-                            <button class="btn btn-outline-primary" disabled="@isHistoryBusy" @onclick="() => OpenHistoryDetailsAsync(item.BatchId)">جزئیات</button>
-                            <button class="btn btn-outline-danger" title="حذف فایل و تمام حواله‌های آن" disabled="@isHistoryBusy" @onclick="() => AskDeleteBatch(item)"><i class="bi bi-trash"></i></button>
+                            <button class="btn btn-outline-primary" disabled="@(isHistoryBusy || item.Status is "Queued" or "Running")" @onclick="() => OpenHistoryDetailsAsync(item.BatchId)">جزئیات</button>
+                            @if (item.Status == "Failed")
+                            {
+                                <button class="btn btn-outline-success" disabled="@isHistoryBusy" @onclick="() => RetryImportAsync(item.BatchId)">تلاش مجدد</button>
+                                <button class="btn btn-outline-warning" @onclick="() => EditImportPreview(item.BatchId)">اصلاح تنظیمات</button>
+                            }
+                            <button class="btn btn-outline-danger" title="حذف فایل و تمام حواله‌های آن" disabled="@(isHistoryBusy || item.Status is "Queued" or "Running")" @onclick="() => AskDeleteBatch(item)"><i class="bi bi-trash"></i></button>
                         </div></td>
                     </tr>
                 }</tbody>
@@ -399,6 +420,51 @@
 </div>
 
 @code {
+    private readonly CancellationTokenSource historyPollingCancellation = new();
+    private bool queuedNotice;
+    private string? completedNotice;
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) _ = PollHistoryAsync(historyPollingCancellation.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task PollHistoryAsync(CancellationToken token)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (token.IsCancellationRequested || IsPreviewPage || isBusy || isHistoryBusy ||
+                        !baseImportHistory.Any(x => x.Status is "Queued" or "Running")) return;
+                    await LoadHistoryAsync();
+                    if (!token.IsCancellationRequested) StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (ObjectDisposedException) when (token.IsCancellationRequested) { }
+    }
+
+    public void Dispose()
+    {
+        historyPollingCancellation.Cancel();
+        historyPollingCancellation.Dispose();
+    }
+
+    private async Task RetryImportAsync(long batchId)
+    {
+        if (isHistoryBusy) return;
+        isHistoryBusy = true;
+        try { await ImportQueue.RetryAsync(batchId); queuedNotice = true; await LoadHistoryAsync(); }
+        catch (Exception error) { importError = BuildImportError(error, "تلاش مجدد ثبت گروهی", false); }
+        finally { isHistoryBusy = false; }
+    }
+    private void EditImportPreview(long batchId) => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/hawala-import/preview/{batchId}");
     private async Task RefreshPageDataAsync()
     {
         currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); activeCorrespondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList(); await LoadHistoryAsync(); if (IsPreviewPage && PreviewBatchId.HasValue) { preview = await HawalaImportService.GetPreviewAsync(PreviewBatchId.Value); } if (selectedHistory != null) selectedHistory = await HawalaImportService.GetDetailsAsync(selectedHistory.BatchId);
@@ -514,7 +580,12 @@
         isHistoryBusy = true;
         try
         {
+            var previouslyRunning = baseImportHistory.Where(x => x.Status is "Queued" or "Running").Select(x => x.BatchId).ToHashSet();
             importHistory = (await HawalaImportService.GetHistoryAsync()).ToList();
+            var completed = baseImportHistory.Where(x => previouslyRunning.Contains(x.BatchId) && x.Status == "Posted").ToList();
+            if (completed.Count > 0)
+                completedNotice = $"ثبت گروهی تکمیل شد: {string.Join("، ", completed.Select(x => x.FileName))}";
+            if (!baseImportHistory.Any(x => x.Status is "Queued" or "Running")) queuedNotice = false;
         }
         catch (Exception ex)
         {
@@ -611,6 +682,10 @@
     {
         "Posted" => "ثبت‌شده",
         "Preview" => "پیش‌نمایش",
+        "Queued" => "در صف",
+        "Running" => "در حال ثبت",
+        "Failed" => "ناموفق",
+        "Completed" => "ثبت‌شده",
         _ => AppDisplayText.Status(status)
     };
 
@@ -618,6 +693,10 @@
     {
         "Posted" => "text-bg-success",
         "Preview" => "text-bg-warning",
+        "Queued" => "text-bg-info",
+        "Running" => "text-bg-primary",
+        "Failed" => "text-bg-danger",
+        "Completed" => "text-bg-success",
         _ => "text-bg-secondary"
     };
 
@@ -727,7 +806,7 @@
         importError = null; isBusy = true; progressPercent = 1; progressMessage = "در حال آغاز ثبت گروهی...";
         try
         {
-            result = await HawalaImportService.ConfirmAsync(new ConfirmHawalaImportDto
+            await ImportQueue.EnqueueAsync(new ConfirmHawalaImportDto
             {
                 BatchId = preview.BatchId,
                 OwnPaymentLocationName = selectedOwnLocationName,
@@ -742,7 +821,8 @@
                     }).ToList(),
                 Commissions = preview.Rows.Where(IsOutgoing).Select(x => new HawalaImportCommissionDto
                 { RowId = x.Id, Amount = x.AgentCommissionAmount, CurrencyId = x.AgentCommissionCurrencyId }).ToList()
-            }, CreateProgressReporter());
+            });
+            queuedNotice = true;
             await LoadHistoryAsync();
             preview = null; locationsToCreate.Clear(); destinationChoices.Clear();
             plannedNewCorrespondents.Clear(); selectedOwnLocationName = string.Empty;

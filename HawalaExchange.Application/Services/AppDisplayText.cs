@@ -35,6 +35,7 @@ public static class AppDisplayText
     {
         "Pending" when hawalaType == "HawalaReceive" => "هنوز اجرا نشده",
         "Pending" => "در انتظار اجرا",
+        "Sent" => "ارسال‌شده",
         "Paid" => "پرداخت و تکمیل شده",
         "Held" => "نگهداری شده",
         "PartiallyConverted" => "قسمتی تبدیل شده",

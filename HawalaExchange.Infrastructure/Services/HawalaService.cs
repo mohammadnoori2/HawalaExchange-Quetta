@@ -691,6 +691,9 @@
                         sent.Number = nextNumber;
                         sent.CorrespondentId = payingAccount.CorrespondentId;
                         sent.PaidFromAccountId = payingAccount.Id;
+                        sent.Status = "Paid";
+                        sent.PaidAt ??= hawala.PaidAt ?? sent.CreatedAt;
+                        sent.PaidBy ??= hawala.PaidBy ?? sent.CreatedBy;
                         sent.FromCurrencyId = hawala.FromCurrencyId;
                         sent.ToCurrencyId = hawala.ToCurrencyId;
                         sent.FromAmount = hawala.FromAmount;
@@ -1710,7 +1713,7 @@
                     {
                         Number = allocatedNumbers[dto],
                         HawalaType = "HawalaSend",
-                        Status = hasCommission ? "Paid" : "Pending",
+                        Status = "Paid",
                         CorrespondentId = destinationAccount.CorrespondentId,
                         SourceHawala = received,
                         IsSystemGenerated = true,
@@ -1731,8 +1734,8 @@
                         Notes = received.Notes,
                         CreatedAt = now,
                         CreatedBy = currentUserId,
-                        PaidAt = hasCommission ? now : null,
-                        PaidBy = hasCommission ? currentUserId : null
+                        PaidAt = now,
+                        PaidBy = currentUserId
                     };
                     generatedHawalas.Add(generated);
                     ledgerEntries.Add(NewLedger(generated, pendingAccount.Id, received.ToCurrencyId, 0, payableAmount,
@@ -2480,7 +2483,7 @@
                 {
                     Number = generatedNumber,
                     HawalaType = "HawalaSend",
-                    Status = hasCommission ? "Paid" : "Pending",
+                    Status = "Paid",
                     CorrespondentId = destinationCorrespondentId,
                     SourceHawalaId = receivedHawala.Id,
                     IsSystemGenerated = true,
@@ -2513,8 +2516,8 @@
                     Notes = receivedHawala.Notes,
                     CreatedAt = now,
                     CreatedBy = GetCurrentUserId(),
-                    PaidAt = hasCommission ? now : null,
-                    PaidBy = hasCommission ? GetCurrentUserId() : null
+                    PaidAt = now,
+                    PaidBy = GetCurrentUserId()
                 };
 
                 await _context.Hawalas.AddAsync(generatedHawala);

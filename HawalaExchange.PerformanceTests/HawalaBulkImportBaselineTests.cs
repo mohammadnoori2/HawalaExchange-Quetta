@@ -33,11 +33,21 @@ public sealed class HawalaBulkImportBaselineTests(
             (x.CorrespondentId == first.CorrespondentId || x.CorrespondentId == second.CorrespondentId)).ToListAsync();
         Assert.Equal(new long[] { 1, 2 }, sends.Where(x => x.CorrespondentId == first.CorrespondentId).Select(x => x.Number).OrderBy(x => x));
         Assert.Equal(new long[] { 1, 2 }, sends.Where(x => x.CorrespondentId == second.CorrespondentId).Select(x => x.Number).OrderBy(x => x));
-        Assert.All(sends, x => Assert.NotNull(x.SourceHawalaId));
+        Assert.All(sends, x =>
+        {
+            Assert.NotNull(x.SourceHawalaId);
+            Assert.Equal("Paid", x.Status);
+            Assert.NotNull(x.PaidAt);
+            Assert.Equal(fixture.UserId, x.PaidBy);
+        });
         var next = BuildItems(1, 96_300_010, forceRemote: true).Single();
         next.GeneratedSendHawalaNumber = null;
         next.FromAccountId = first.Id;
         await fixture.CreateService(context).CreateHawalaAsync(next);
+        var singleSend = await context.Hawalas.AsNoTracking().SingleAsync(x => x.HawalaType == "HawalaSend" && x.SourceHawala!.Number == next.Number);
+        Assert.Equal("Paid", singleSend.Status);
+        Assert.NotNull(singleSend.PaidAt);
+        Assert.Equal(fixture.UserId, singleSend.PaidBy);
         Assert.Equal(4, await fixture.CreateService(context).GetNextNumberAsync(first.CorrespondentId!.Value, "HawalaSend"));
         Assert.Equal(3, await fixture.CreateService(context).GetNextNumberAsync(second.CorrespondentId!.Value, "HawalaSend"));
     }
@@ -138,6 +148,7 @@ public sealed class HawalaBulkImportBaselineTests(
             Assert.Null(x.AgentCommissionAmount);
         });
         Assert.All(generated, x => Assert.Contains(x.SourceHawalaId!.Value, receivedIds));
+        Assert.All(generated, x => Assert.Equal("Paid", x.Status));
         Assert.Equal(2 * rowCount + 2 * remoteItems.Count + 2 * commissionedItems.Count, ledger.Count);
         Assert.Equal(totalAmount, ledger.Where(x => x.AccountId == fixture.SourceAccount.Id).Sum(x => x.BadehKar));
         Assert.Equal(localAmount,

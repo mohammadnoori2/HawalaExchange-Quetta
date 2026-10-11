@@ -22,6 +22,58 @@ public sealed class HawalaImportStagingPerformanceTests(
     SqlServerPerformanceFixture fixture,
     ITestOutputHelper output)
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(25)]
+    public async Task Forwarded_rows_are_sent_in_import_history_and_generated_send_is_paid(int commission)
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await ConfigureOwnLocationAsync(context);
+        var location = await EnsureDestinationLocationAsync(context);
+        var number = Random.Shared.NextInt64(200_000_000, 900_000_000);
+        await using var workbook = CreateWorkbook([
+            [number, $"FWD-LOCAL-{number}", "Sender", "Receiver", fixture.OwnLocation.Name, 1_000, "USD"],
+            commission > 0
+                ? [number + 1, $"FWD-REMOTE-{number}", "Sender", "Receiver", location.Name, 2_000, "USD", commission]
+                : [number + 1, $"FWD-REMOTE-{number}", "Sender", "Receiver", location.Name, 2_000, "USD"]
+        ]);
+        var service = fixture.CreateImportService(context);
+        var preview = await service.PreviewAsync(workbook, "forwarded-status.xlsx", fixture.SourceCorrespondent.Id);
+        Assert.Equal(0, preview.InvalidRowCount);
+        var before = await service.GetDetailsAsync(preview.BatchId);
+        Assert.DoesNotContain(before!.Groups.SelectMany(x => x.Hawalas), x => x.Status == "Sent");
+        await service.ConfirmAsync(new ConfirmHawalaImportDto
+        {
+            BatchId = preview.BatchId,
+            Commissions = preview.Rows.Where(x => x.RequiresOutgoingHawala).Select(x => new HawalaImportCommissionDto
+            { RowId = x.Id, Amount = commission > 0 ? commission : null, CurrencyId = commission > 0 ? 2 : null }).ToList()
+        });
+        context.ChangeTracker.Clear();
+        var details = await service.GetDetailsAsync(preview.BatchId);
+        var remote = Assert.Single(details!.Groups.SelectMany(x => x.Hawalas), x => x.GeneratedSendHawalaId.HasValue);
+        Assert.Equal("Sent", remote.Status);
+        Assert.Equal("ارسال‌شده", AppDisplayText.Status(remote.Status, "HawalaReceive"));
+        Assert.Equal("Pending", Assert.Single(details.Groups.Where(x => x.IsOwnOffice)).Hawalas.Single().Status);
+        var received = await context.Hawalas.SingleAsync(x => x.Id == remote.HawalaId);
+        var generated = await context.Hawalas.SingleAsync(x => x.Id == remote.GeneratedSendHawalaId);
+        Assert.Equal("HawalaReceive", received.HawalaType);
+        Assert.Equal("Paid", received.Status);
+        Assert.Equal("Paid", generated.Status);
+        Assert.NotNull(generated.PaidAt);
+        Assert.Equal(fixture.UserId, generated.PaidBy);
+        var entries = await context.LedgerEntries.AsNoTracking()
+            .Where(x => x.HawalaId == received.Id || x.HawalaId == generated.Id).ToListAsync();
+        Assert.Equal(commission > 0 ? 6 : 4, entries.Count);
+        Assert.Equal(0, entries.Sum(x => x.TalabKar - x.BadehKar));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.CreateService(context).MarkAsPaidAsync(generated.Id, fixture.DestinationAccount.Id));
+        Assert.Equal(entries.Count, await context.LedgerEntries.CountAsync(x => x.HawalaId == received.Id || x.HawalaId == generated.Id));
+        generated.Status = "Cancel";
+        await context.SaveChangesAsync();
+        var cancelled = await service.GetDetailsAsync(preview.BatchId);
+        Assert.Equal("Paid", cancelled!.Groups.SelectMany(x => x.Hawalas).Single(x => x.HawalaId == received.Id).Status);
+    }
+
     [Fact]
     public async Task Preview_bulk_stages_7_8_and_9_column_rows_and_validates_duplicates()
     {

@@ -243,7 +243,12 @@ public sealed class HawalaImportService : IHawalaImportService
                 PaymentLocationName = row.PaymentLocation?.Name ?? row.PaymentLocationText ?? string.Empty,
                 Amount = row.Amount ?? 0,
                 CurrencyCode = row.CurrencyCode ?? string.Empty,
-                Status = row.Hawala?.Status ?? (batch.Status == "Posted" ? "ثبت‌شده" : "پیش‌نمایش")
+                // Forwarding is a display status; the source remains Paid for accounting.
+                Status = row.Hawala is { HawalaType: "HawalaReceive", Status: "Paid" } source &&
+                    row.GeneratedSendHawala is { IsSystemGenerated: true, HawalaType: "HawalaSend", Status: "Paid" or "Pending" } sent &&
+                    sent.SourceHawalaId == source.Id
+                    ? "Sent"
+                    : row.Hawala?.Status ?? (batch.Status == "Posted" ? "ثبت‌شده" : "پیش‌نمایش")
             }).ToList()
         }).OrderByDescending(x => x.IsOwnOffice).ThenBy(x => x.CorrespondentName).ToList();
 

@@ -31,6 +31,26 @@ public class ExportService : IExportService
         ExportFilterDto filter,
         ExportFormat format)
     {
+        var (customer, company, report) = await LoadReportAsync(filter);
+        return format == ExportFormat.Excel
+            ? BuildExcelReport(customer, company, report)
+            : BuildPdfReport(customer, company, report);
+    }
+
+    public async Task<CustomerActivityReportDto> GetCustomerActivitiesPreviewAsync(ExportFilterDto filter) =>
+        (await LoadReportAsync(filter)).Report;
+
+    // Export the server-held preview snapshot, not a newly queried set of financial movements.
+    public async Task<(byte[] Content, string ContentType, string FileName)> ExportCustomerActivitiesPreviewAsync(CustomerActivityReportDto report, ExportFormat format)
+    {
+        var customer = await _context.Customers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == report.CustomerId)
+            ?? throw new ArgumentException("مشتری مورد نظر پیدا نشد.");
+        var company = await _context.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
+        return format == ExportFormat.Excel ? BuildExcelReport(customer, company, report) : BuildPdfReport(customer, company, report);
+    }
+
+    private async Task<(Customer Customer, CompanySetting? Company, CustomerActivityReportDto Report)> LoadReportAsync(ExportFilterDto filter)
+    {
         if (!filter.CustomerId.HasValue || filter.CustomerId.Value <= 0)
             throw new ArgumentException("مشتری مشخص نشده است.");
         if (filter.FromDate > filter.ToDate || filter.MinAmount < 0 || filter.MaxAmount < 0 || filter.MinAmount > filter.MaxAmount)
@@ -41,16 +61,28 @@ public class ExportService : IExportService
             ?? throw new ArgumentException("مشتری مورد نظر پیدا نشد.");
         var company = await _context.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
         var account = await _context.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.CustomerId == customer.Id);
-        var rows = account == null ? new List<ActivityRow>() : await LoadActivityRowsAsync(account.Id, filter);
-
-        return format == ExportFormat.Excel
-            ? BuildExcelReport(customer, company, rows)
-            : BuildPdfReport(customer, company, rows);
+        var report = account == null ? new CustomerActivityReportDto() : await LoadActivityRowsAsync(account.Id, filter);
+        report.CustomerName = customer.FullName;
+        report.CustomerId = customer.Id;
+        report.CustomerCode = customer.CustomerCode;
+        report.FromDate = filter.FromDate;
+        report.ToDate = filter.ToDate;
+        return (customer, company, report);
     }
 
-    private async Task<List<ActivityRow>> LoadActivityRowsAsync(long accountId, ExportFilterDto filter)
+    private async Task<CustomerActivityReportDto> LoadActivityRowsAsync(long accountId, ExportFilterDto filter)
     {
-        var entries = await _context.LedgerEntries.AsNoTracking()
+        var ledger = _context.LedgerEntries.AsNoTracking().Where(e => e.AccountId == accountId);
+        if (!string.IsNullOrWhiteSpace(filter.CurrencyCode))
+            ledger = ledger.Where(e => e.Currency!.Code == filter.CurrencyCode.Trim());
+        var opening = filter.FromDate.HasValue
+            ? await ledger.Where(e => e.CreatedAt < filter.FromDate.Value)
+                .GroupBy(e => e.Currency!.Code)
+                .Select(g => new CustomerActivityBalanceDto { Currency = g.Key, Opening = g.Sum(e => e.TalabKar - e.BadehKar) }).ToListAsync()
+            : new List<CustomerActivityBalanceDto>();
+        if (filter.FromDate.HasValue) ledger = ledger.Where(e => e.CreatedAt >= filter.FromDate.Value);
+        if (filter.ToDate.HasValue) ledger = ledger.Where(e => e.CreatedAt <= filter.ToDate.Value);
+        var entries = await ledger
             .Include(e => e.Account).Include(e => e.Currency).Include(e => e.Hawala)
             .Include(e => e.Transfer!).ThenInclude(t => t!.FromAccount)
             .Include(e => e.Transfer!).ThenInclude(t => t!.ToAccount)
@@ -63,14 +95,14 @@ public class ExportService : IExportService
             .OrderBy(e => e.CreatedAt).ThenBy(e => e.Id)
             .ToListAsync();
 
-        var rows = new List<ActivityRow>(entries.Count);
+        var rows = new List<CustomerActivityRowDto>(entries.Count);
         foreach (var entry in entries)
         {
             var typeCode = ResolveTypeCode(entry);
 
-            rows.Add(new ActivityRow
+            rows.Add(new CustomerActivityRowDto
             {
-                Date = entry.CreatedAt,
+                Date = DateTime.SpecifyKind(entry.CreatedAt, DateTimeKind.Utc),
                 Type = typeCode,
                 Reference = ResolveReference(entry),
                 TalabKar = entry.TalabKar,
@@ -81,9 +113,17 @@ public class ExportService : IExportService
                 Description = ResolveDescription(entry)
             });
         }
-        CalculateRunningBalances(rows);
+        CalculateRunningBalances(rows, opening);
+        foreach (var row in rows) row.DisplayDescription = BuildPlainDescription(row);
+        var summaries = opening.ToDictionary(x => x.Currency, StringComparer.OrdinalIgnoreCase);
+        foreach (var group in rows.GroupBy(x => x.Currency))
+        {
+            if (!summaries.TryGetValue(group.Key, out var summary)) summaries[group.Key] = summary = new() { Currency = group.Key };
+            summary.Debit = group.Sum(x => x.BadehKar);
+            summary.Credit = group.Sum(x => x.TalabKar);
+        }
         var search = filter.Search?.Trim() ?? "";
-        return rows.Where(row => (!filter.FromDate.HasValue || row.Date >= filter.FromDate) &&
+        var selected = rows.Where(row => (!filter.FromDate.HasValue || row.Date >= filter.FromDate) &&
             (!filter.ToDate.HasValue || row.Date <= filter.ToDate) &&
             (filter.TransactionTypes is not { Count: > 0 } || filter.TransactionTypes.Contains(row.Type)) &&
             (string.IsNullOrWhiteSpace(filter.CurrencyCode) || row.Currency.Equals(filter.CurrencyCode.Trim(), StringComparison.OrdinalIgnoreCase)) &&
@@ -91,11 +131,12 @@ public class ExportService : IExportService
             (string.IsNullOrWhiteSpace(filter.Direction) || (filter.Direction == "Credit" ? row.TalabKar > 0 : row.BadehKar > 0)) &&
             (!filter.MinAmount.HasValue || Math.Max(row.TalabKar, row.BadehKar) >= filter.MinAmount) &&
             (!filter.MaxAmount.HasValue || Math.Max(row.TalabKar, row.BadehKar) <= filter.MaxAmount)).ToList();
+        return new() { Rows = selected, Balances = summaries.Values.OrderBy(x => x.Currency).ToList() };
     }
 
-    private static void CalculateRunningBalances(IEnumerable<ActivityRow> rows)
+    private static void CalculateRunningBalances(IEnumerable<CustomerActivityRowDto> rows, IEnumerable<CustomerActivityBalanceDto> opening)
     {
-        var balances = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        var balances = opening.ToDictionary(x => x.Currency, x => x.Opening, StringComparer.OrdinalIgnoreCase);
         foreach (var row in rows)
         {
             balances.TryGetValue(row.Currency, out var balance);
@@ -106,8 +147,9 @@ public class ExportService : IExportService
     }
 
     private static (byte[] Content, string ContentType, string FileName) BuildExcelReport(
-        Customer customer, CompanySetting? company, IReadOnlyCollection<ActivityRow> rows)
+        Customer customer, CompanySetting? company, CustomerActivityReportDto report)
     {
+        var rows = report.Rows;
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add("صورت حساب مشتری");
         worksheet.RightToLeft = true;
@@ -129,7 +171,20 @@ public class ExportService : IExportService
         worksheet.Cell(2, 5).Value = $"تاریخ تهیه: {FormatDate(DateTime.Now, company)}";
         worksheet.Cell(2, 5).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Left);
 
-        const int headerRowNumber = 4;
+        worksheet.Range(3, 1, 3, ReportColumnCount).Merge();
+        worksheet.Cell(3, 1).Value = ReportRange(report, company);
+        worksheet.Cell(3, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+        var headerRowNumber = 4;
+        foreach (var balance in report.Balances)
+        {
+            worksheet.Range(headerRowNumber, 1, headerRowNumber, 6).Merge();
+            worksheet.Cell(headerRowNumber, 1).Value = $"مانده قبل از شروع بازه - {balance.Currency}";
+            worksheet.Cell(headerRowNumber, 7).Value = Math.Abs(balance.Opening);
+            worksheet.Cell(headerRowNumber, 8).Value = BalanceStatus(balance.Opening);
+            worksheet.Range(headerRowNumber, 1, headerRowNumber, ReportColumnCount).Style.Fill.SetBackgroundColor(XLColor.FromHtml("#EDF4FF"));
+            worksheet.Cell(headerRowNumber, 7).Style.NumberFormat.Format = "#,##0";
+            headerRowNumber++;
+        }
         var headers = new[] { "ردیف", "تاریخ", "شرح", "بدهکار", "طلبکار", "نوع ارز", "باقی‌مانده", "وضعیت" };
         for (var column = 1; column <= headers.Length; column++)
             worksheet.Cell(headerRowNumber, column).Value = headers[column - 1];
@@ -160,7 +215,7 @@ public class ExportService : IExportService
         if (rows.Count == 0)
         {
             worksheet.Range(currentRow, 1, currentRow, ReportColumnCount).Merge();
-            worksheet.Cell(currentRow, 1).Value = "برای این مشتری فعالیت مالی ثبت نشده است.";
+            worksheet.Cell(currentRow, 1).Value = "در بازه و فیلتر انتخاب‌شده فعالیتی یافت نشد.";
             worksheet.Cell(currentRow, 1).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
             currentRow++;
         }
@@ -172,18 +227,18 @@ public class ExportService : IExportService
         tableRange.Style.Alignment.WrapText = true;
         worksheet.Range(headerRowNumber + 1, 1, dataEndRow, 2).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
         worksheet.Range(headerRowNumber + 1, 4, dataEndRow, 8).Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-        worksheet.Range(headerRowNumber + 1, 4, dataEndRow, 7).Style.NumberFormat.Format = "#,##0.##";
+        worksheet.Range(headerRowNumber + 1, 4, dataEndRow, 7).Style.NumberFormat.Format = "#,##0";
 
-        foreach (var currencyGroup in rows.GroupBy(x => x.Currency).OrderBy(x => x.Key))
+        foreach (var summary in report.Balances)
         {
-            var totalTalabKar = currencyGroup.Sum(x => x.TalabKar);
-            var totalBadehKar = currencyGroup.Sum(x => x.BadehKar);
-            var balance = totalTalabKar - totalBadehKar;
+            var totalTalabKar = summary.Credit;
+            var totalBadehKar = summary.Debit;
+            var balance = summary.Closing;
             worksheet.Range(currentRow, 1, currentRow, 3).Merge();
-            worksheet.Cell(currentRow, 1).Value = $"جمع {currencyGroup.Key}";
+            worksheet.Cell(currentRow, 1).Value = $"جمع بازه و مانده پایان {summary.Currency}";
             worksheet.Cell(currentRow, 4).Value = totalBadehKar;
             worksheet.Cell(currentRow, 5).Value = totalTalabKar;
-            worksheet.Cell(currentRow, 6).Value = currencyGroup.Key;
+            worksheet.Cell(currentRow, 6).Value = summary.Currency;
             worksheet.Cell(currentRow, 7).Value = Math.Abs(balance);
             worksheet.Cell(currentRow, 8).Value = BalanceStatus(balance);
             var totalRange = worksheet.Range(currentRow, 1, currentRow, ReportColumnCount);
@@ -192,10 +247,14 @@ public class ExportService : IExportService
             totalRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             totalRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
             totalRange.Style.Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
-            worksheet.Range(currentRow, 4, currentRow, 7).Style.NumberFormat.Format = "#,##0.##";
+            worksheet.Range(currentRow, 4, currentRow, 7).Style.NumberFormat.Format = "#,##0";
             currentRow++;
         }
 
+        worksheet.Range(currentRow, 1, currentRow, ReportColumnCount).Merge();
+        worksheet.Cell(currentRow, 1).Value = "خلاصه حساب شامل تمام فعالیت‌های بازه است؛ فیلترهای جزئی فقط ردیف‌های جدول را محدود می‌کنند.";
+        worksheet.Row(currentRow).Height = 30;
+        worksheet.Range(currentRow, 1, currentRow, ReportColumnCount).Style.Alignment.WrapText = true;
         worksheet.Column(1).Width = 7; worksheet.Column(2).Width = 14; worksheet.Column(3).Width = 46;
         worksheet.Column(4).Width = 15; worksheet.Column(5).Width = 15; worksheet.Column(6).Width = 11;
         worksheet.Column(7).Width = 16; worksheet.Column(8).Width = 12;
@@ -222,7 +281,7 @@ public class ExportService : IExportService
     }
 
     private (byte[] Content, string ContentType, string FileName) BuildPdfReport(
-        Customer customer, CompanySetting? company, IReadOnlyCollection<ActivityRow> rows)
+        Customer customer, CompanySetting? company, CustomerActivityReportDto report)
     {
         var document = new HtmlToPdfDocument
         {
@@ -236,7 +295,7 @@ public class ExportService : IExportService
             {
                 new ObjectSettings
                 {
-                    HtmlContent = BuildPdfHtml(customer, company, rows), PagesCount = true,
+                    HtmlContent = BuildPdfHtml(customer, company, report), PagesCount = true,
                     WebSettings = new WebSettings { DefaultEncoding = "utf-8", PrintMediaType = true, EnableIntelligentShrinking = true },
                     FooterSettings = new FooterSettings
                     {
@@ -251,8 +310,9 @@ public class ExportService : IExportService
         return (pdf, "application/pdf", fileName);
     }
 
-    private static string BuildPdfHtml(Customer customer, CompanySetting? company, IReadOnlyCollection<ActivityRow> rows)
+    private static string BuildPdfHtml(Customer customer, CompanySetting? company, CustomerActivityReportDto report)
     {
+        var rows = report.Rows;
         var builder = new StringBuilder();
         builder.Append("""
             <!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><style>
@@ -269,6 +329,10 @@ public class ExportService : IExportService
         builder.Append($"<h1 class='company'>{Encode(CompanyName(company))}</h1><table class='meta'><tr>");
         builder.Append($"<td>صورت حساب {Encode(customer.FullName)} - کد {Encode(customer.CustomerCode)}</td>");
         builder.Append($"<td class='date'>تاریخ تهیه: {Encode(FormatDate(DateTime.Now, company))}</td></tr></table>");
+        builder.Append($"<p class='center'>{Encode(ReportRange(report, company))}</p><table class='report'>");
+        foreach (var balance in report.Balances)
+            builder.Append($"<tr class='total'><td>مانده قبل از شروع بازه - {Encode(balance.Currency)}</td><td class='number'>{FormatMoney(Math.Abs(balance.Opening))}</td><td class='center'>{BalanceStatus(balance.Opening)}</td></tr>");
+        builder.Append("</table><p>خلاصه حساب شامل تمام فعالیت‌های بازه است؛ فیلترهای جزئی فقط ردیف‌های جدول را محدود می‌کنند.</p>");
         builder.Append("""
             <table class="report"><thead><tr><th class="w-seq">ردیف</th><th class="w-date">تاریخ</th>
             <th class="w-desc">شرح</th><th class="w-money">بدهکار</th><th class="w-money">طلبکار</th>
@@ -283,22 +347,22 @@ public class ExportService : IExportService
             builder.Append($"<td class='number'>{FormatMoney(row.TalabKar)}</td><td class='center'>{Encode(row.Currency)}</td>");
             builder.Append($"<td class='number'>{FormatMoney(Math.Abs(row.RunningBalance))}</td><td class='center'>{BalanceStatus(row.RunningBalance)}</td></tr>");
         }
-        if (rows.Count == 0) builder.Append("<tr><td colspan='8' class='empty'>برای این مشتری فعالیت مالی ثبت نشده است.</td></tr>");
-        foreach (var currencyGroup in rows.GroupBy(x => x.Currency).OrderBy(x => x.Key))
+        if (rows.Count == 0) builder.Append("<tr><td colspan='8' class='empty'>در بازه و فیلتر انتخاب‌شده فعالیتی یافت نشد.</td></tr>");
+        foreach (var summary in report.Balances)
         {
-            var totalTalabKar = currencyGroup.Sum(x => x.TalabKar);
-            var totalBadehKar = currencyGroup.Sum(x => x.BadehKar);
-            var balance = totalTalabKar - totalBadehKar;
-            builder.Append($"<tr class='total'><td colspan='3' class='center'>جمع {Encode(currencyGroup.Key)}</td>");
+            var totalTalabKar = summary.Credit;
+            var totalBadehKar = summary.Debit;
+            var balance = summary.Closing;
+            builder.Append($"<tr class='total'><td colspan='3' class='center'>جمع بازه و مانده پایان {Encode(summary.Currency)}</td>");
             builder.Append($"<td class='number'>{FormatMoney(totalBadehKar)}</td><td class='number'>{FormatMoney(totalTalabKar)}</td>");
-            builder.Append($"<td class='center'>{Encode(currencyGroup.Key)}</td><td class='number'>{FormatMoney(Math.Abs(balance))}</td>");
+            builder.Append($"<td class='center'>{Encode(summary.Currency)}</td><td class='number'>{FormatMoney(Math.Abs(balance))}</td>");
             builder.Append($"<td class='center'>{BalanceStatus(balance)}</td></tr>");
         }
         builder.Append("</tbody></table></body></html>");
         return builder.ToString();
     }
 
-    private static string BuildPlainDescription(ActivityRow row)
+    private static string BuildPlainDescription(CustomerActivityRowDto row)
     {
         var parts = new List<string>();
         var type = AppDisplayText.TransactionType(row.Type);
@@ -323,7 +387,9 @@ public class ExportService : IExportService
     }
 
     private static string BalanceStatus(decimal balance) => balance > 0 ? "طلبکار" : balance < 0 ? "بدهکار" : "تسویه";
-    private static string FormatMoney(decimal amount) => amount == 0 ? string.Empty : amount.ToString("#,##0.##", CultureInfo.InvariantCulture);
+    private static string FormatMoney(decimal amount) => AmountValueHelper.Format(amount, 0);
+    private static string ReportRange(CustomerActivityReportDto report, CompanySetting? company) =>
+        $"از تاریخ: {(report.FromDate.HasValue ? FormatDate(DateTime.SpecifyKind(report.FromDate.Value, DateTimeKind.Utc), company) : "ابتدای حساب")}   تا تاریخ: {(report.ToDate.HasValue ? FormatDate(DateTime.SpecifyKind(report.ToDate.Value, DateTimeKind.Utc), company) : "آخرین فعالیت")}";
     private static string FormatDate(DateTime date, CompanySetting? company)
     {
         var formatter = new DisplayDateFormatter();
@@ -380,17 +446,4 @@ public class ExportService : IExportService
         return null;
     }
 
-    private sealed class ActivityRow
-    {
-        public DateTime Date { get; init; }
-        public string Type { get; init; } = string.Empty;
-        public string? Reference { get; init; }
-        public decimal TalabKar { get; init; }
-        public decimal BadehKar { get; init; }
-        public string Currency { get; init; } = string.Empty;
-        public string? AccountFrom { get; init; }
-        public string? AccountTo { get; init; }
-        public string? Description { get; init; }
-        public decimal RunningBalance { get; set; }
-    }
 }

@@ -39,7 +39,7 @@
                 @if (customerBalance != null)
                 {
                     <div class="alert alert-success py-2">
-                        <i class="bi bi-wallet2"></i> مانده حساب:
+                        <i class="bi bi-wallet2"></i> مانده فعلی حساب (مستقل از بازه گزارش):
                         @foreach (var b in customerBalance)
                         {
                             <span class="badge-modern @(b.Status == "طلبکار" ? "badge-success" : (b.Status == "بدهکار" ? "badge-danger" : "badge-secondary")) ms-1">
@@ -53,20 +53,21 @@
                 <CompactFilterBar CssClass="mb-3 w-100" AriaLabel="جستجو و فیلتر صورت‌حساب" HasActiveFilters="@(!string.IsNullOrWhiteSpace(search) || !string.IsNullOrWhiteSpace(currency) || !string.IsNullOrWhiteSpace(direction) || ((fromDate != DateTime.MinValue ? 1 : 0) + (toDate != DateTime.MinValue ? 1 : 0) + (minAmount.HasValue ? 1 : 0) + (maxAmount.HasValue ? 1 : 0)) > 0)" ActiveFilterCount="@((fromDate != DateTime.MinValue ? 1 : 0) + (toDate != DateTime.MinValue ? 1 : 0) + (minAmount.HasValue ? 1 : 0) + (maxAmount.HasValue ? 1 : 0))" Reset="ResetFilters">
                     <SearchContent><input class="form-control" placeholder="جستجوی شماره سند یا شرح..." @bind="search" @bind:event="oninput" /></SearchContent>
                     <QuickFilters>
+                        <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="fromDate" AllowEmpty="true" /></div>
+                        <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="toDate" AllowEmpty="true" /></div>
                         <input class="form-control compact-quick-filter" aria-label="ارز" placeholder="همه ارزها؛ مانند USD" @bind="currency" />
                         <select class="form-select compact-quick-filter" aria-label="بدهکاری / طلبکاری" @bind="direction"><option value="">بدهکاری و طلبکاری</option><option value="Credit">طلبکاری</option><option value="Debit">بدهکاری</option></select>
                     </QuickFilters>
                     <AdvancedFilters>
-                        <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="fromDate" AllowEmpty="true" /></div>
-                        <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="toDate" AllowEmpty="true" /></div>
                         <div class="compact-filter-field"><label class="form-label">حداقل مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="minAmount" /></div>
                         <div class="compact-filter-field"><label class="form-label">حداکثر مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="maxAmount" /></div>
                     </AdvancedFilters>
                 </CompactFilterBar>
-                    <button class="btn-modern btn-primary-modern" @onclick="ExportExcel">
+                    <button class="btn-modern btn-primary-modern" disabled="@busy" @onclick="LoadPreviewAsync"><i class="bi bi-eye"></i> @(busy ? "در حال آماده‌سازی..." : "نمایش گزارش")</button>
+                    <button class="btn-modern btn-primary-modern" disabled="@(busy || preview == null)" @onclick="ExportExcel">
                         <i class="bi bi-file-earmark-excel"></i> دانلود اکسل
                     </button>
-                    <button class="btn-modern btn-light-modern" @onclick="ExportPdf">
+                    <button class="btn-modern btn-light-modern" disabled="@(busy || preview == null)" @onclick="ExportPdf">
                         <i class="bi bi-file-earmark-pdf"></i> دانلود PDF
                     </button>
                     @if (!string.IsNullOrEmpty(error))
@@ -77,12 +78,34 @@
             }
         </div>
     </div>
+    @if (preview != null)
+    {
+        <div class="table-card mt-3"><div class="table-card-body">
+            <h5>پیش‌نمایش گزارش فعالیت مشتری</h5>
+            <div class="alert alert-info py-2">@preview.CustomerName (@preview.CustomerCode) | از تاریخ: @RangeDate(preview.FromDate, "ابتدای حساب") تا تاریخ: @RangeDate(preview.ToDate, "آخرین فعالیت")</div>
+            <p class="text-muted">این گزارش مربوط به آخرین اجرای «نمایش گزارش» است. پس از تغییر فیلترها دوباره آن را بزنید. خلاصه حساب شامل تمام فعالیت‌های بازه است؛ فیلترهای جزئی فقط ردیف‌ها را محدود می‌کنند.</p>
+            <div class="table-responsive"><table class="table table-bordered text-center align-middle">
+                <thead><tr><th>ارز</th><th>مانده قبل از شروع بازه</th><th>مجموع بدهکاری بازه</th><th>مجموع طلبکاری بازه</th><th>مانده پایان بازه</th></tr></thead>
+                <tbody>@foreach (var balance in preview.Balances)
+                {<tr><td>@balance.Currency</td><td><span dir="ltr">@MoneyFormatHelper.Format(Math.Abs(balance.Opening))</span> (@BalanceStatus(balance.Opening))</td><td dir="ltr">@MoneyFormatHelper.Format(balance.Debit)</td><td dir="ltr">@MoneyFormatHelper.Format(balance.Credit)</td><td><span dir="ltr">@MoneyFormatHelper.Format(Math.Abs(balance.Closing))</span> (@BalanceStatus(balance.Closing))</td></tr>}</tbody>
+            </table></div>
+            <div class="table-responsive"><table class="table table-bordered text-center align-middle">
+                <thead><tr><th>ردیف</th><th>تاریخ</th><th>شرح</th><th>بدهکار</th><th>طلبکار</th><th>ارز</th><th>باقی‌مانده</th><th>وضعیت</th></tr></thead>
+                <tbody>@foreach (var item in preview.Rows.Skip(previewPage * PreviewPageSize).Take(PreviewPageSize).Select((row, index) => new { Row = row, Number = previewPage * PreviewPageSize + index + 1 }))
+                {<tr><td>@item.Number</td><td dir="ltr">@RangeDate(item.Row.Date, "—")</td><td>@item.Row.DisplayDescription</td><td dir="ltr">@MoneyFormatHelper.Format(item.Row.BadehKar)</td><td dir="ltr">@MoneyFormatHelper.Format(item.Row.TalabKar)</td><td>@item.Row.Currency</td><td dir="ltr">@MoneyFormatHelper.Format(Math.Abs(item.Row.RunningBalance))</td><td>@BalanceStatus(item.Row.RunningBalance)</td></tr>}
+                @if (preview.Rows.Count == 0) {<tr><td colspan="8">در بازه و فیلتر انتخاب‌شده فعالیتی یافت نشد؛ مانده حساب در خلاصه نمایش داده شده است.</td></tr>}
+                </tbody>
+            </table></div>
+            <div class="d-flex align-items-center gap-2"><button class="btn-modern btn-light-modern" disabled="@(previewPage == 0)" @onclick="() => previewPage--">قبلی</button><span>تعداد: @preview.Rows.Count</span><button class="btn-modern btn-light-modern" disabled="@((previewPage + 1) * PreviewPageSize >= preview.Rows.Count)" @onclick="() => previewPage++">بعدی</button></div>
+        </div></div>
+    }
 </div>
 
 @code {
     private async Task RefreshPageDataAsync()
     {
-        if (selectedCustomerId > 0) { var fresh = await SafeGetCustomerAsync(selectedCustomerId); if (fresh != null) customerName = $"{fresh.FullName} ({fresh.CustomerCode})"; await LoadCustomerBalanceAsync(selectedCustomerId); }
+        if (busy) return;
+        if (selectedCustomerId > 0) { var fresh = await SafeGetCustomerAsync(selectedCustomerId); if (fresh != null) customerName = $"{fresh.FullName} ({fresh.CustomerCode})"; await LoadCustomerBalanceAsync(selectedCustomerId); if (preview != null) await LoadPreviewAsync(); }
     }
     [SupplyParameterFromQuery(Name = "customerId")]
     public long? CustomerIdQuery { get; set; }
@@ -96,6 +119,24 @@
     private DateTime fromDate = DateTime.MinValue, toDate = DateTime.MinValue;
     private string currency = "", direction = "", search = "";
     private decimal? minAmount, maxAmount;
+    private CustomerActivityReportDto? preview;
+    private bool busy;
+    private int previewPage;
+    private const int PreviewPageSize = 100;
+    private string RangeDate(DateTime? date, string empty) => DisplayDates.Date(date.HasValue ? DateTime.SpecifyKind(date.Value, DateTimeKind.Utc).ToLocalTime() : null, empty);
+    private static string BalanceStatus(decimal balance) => balance > 0 ? "طلبکار" : balance < 0 ? "بدهکار" : "تسویه";
+    private ExportFilterDto CreateFilter() => new() { CustomerId = selectedCustomerId,
+        FromDate = fromDate == DateTime.MinValue ? null : fromDate.Date.ToUniversalTime(),
+        ToDate = toDate == DateTime.MinValue ? null : toDate.Date.AddDays(1).ToUniversalTime().AddTicks(-1),
+        CurrencyCode = currency, Search = search, Direction = direction, MinAmount = minAmount, MaxAmount = maxAmount };
+    private async Task LoadPreviewAsync()
+    {
+        if (busy || selectedCustomerId <= 0) return;
+        busy = true; error = "";
+        try { preview = await ExportService.GetCustomerActivitiesPreviewAsync(CreateFilter()); previewPage = 0; }
+        catch (Exception ex) { preview = null; error = ex.Message; }
+        finally { busy = false; }
+    }
     private void ResetFilters() { fromDate = toDate = DateTime.MinValue; currency = direction = search = ""; minAmount = maxAmount = null; }
 
     protected override async Task OnInitializedAsync()
@@ -167,6 +208,7 @@
 
     private async Task Export(ExportFormat format)
     {
+        if (busy || preview == null) return;
         error = string.Empty;
 
         if (selectedCustomerId <= 0)
@@ -177,11 +219,8 @@
 
         try
         {
-            var filter = new ExportFilterDto { CustomerId = selectedCustomerId,
-                FromDate = fromDate == DateTime.MinValue ? null : fromDate.Date.ToUniversalTime(),
-                ToDate = toDate == DateTime.MinValue ? null : toDate.Date.AddDays(1).ToUniversalTime().AddTicks(-1),
-                CurrencyCode = currency, Search = search, Direction = direction, MinAmount = minAmount, MaxAmount = maxAmount };
-            var (content, contentType, fileName) = await ExportService.ExportCustomerActivitiesAsync(filter, format);
+            busy = true;
+            var (content, contentType, fileName) = await ExportService.ExportCustomerActivitiesPreviewAsync(preview, format);
 
             var base64 = Convert.ToBase64String(content);
             var url = $"data:{contentType};base64,{base64}";
@@ -191,6 +230,7 @@
         {
             error = ex.Message;
         }
+        finally { busy = false; }
     }
 
     private Task ExportExcel() => Export(ExportFormat.Excel);

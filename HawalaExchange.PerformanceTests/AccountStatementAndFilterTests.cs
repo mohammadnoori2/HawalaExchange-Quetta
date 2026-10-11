@@ -133,8 +133,11 @@ public sealed class AccountStatementAndFilterTests(SqlServerPerformanceFixture f
         var service = new ExportService(context, Mock.Of<IConverter>());
         var file = await service.ExportCustomerActivitiesAsync(new() { CustomerId = customer.Id, FromDate = day.ToUniversalTime(), ToDate = day.AddDays(1).ToUniversalTime().AddTicks(-1), Direction = "Debit", Search = "Statement test", CurrencyCode = "USD", MinAmount = 100 }, ExportFormat.Excel);
         using var workbook = new XLWorkbook(new MemoryStream(file.Content));
-        Assert.Equal(1300m, workbook.Worksheet(1).Cell(5, 7).GetValue<decimal>());
-        Assert.Equal(200m, workbook.Worksheet(1).Cell(5, 4).GetValue<decimal>());
+        Assert.Equal(1000m, workbook.Worksheet(1).Cell(4, 7).GetValue<decimal>());
+        Assert.Equal(1300m, workbook.Worksheet(1).Cell(6, 7).GetValue<decimal>());
+        Assert.Equal(200m, workbook.Worksheet(1).Cell(6, 4).GetValue<decimal>());
+        Assert.Equal(500m, workbook.Worksheet(1).Cell(7, 5).GetValue<decimal>());
+        Assert.Equal(1300m, workbook.Worksheet(1).Cell(7, 7).GetValue<decimal>());
     }
     private LedgerEntry Entry(long account, DateTime local, decimal credit, decimal debit) => new() { AccountId = account, CurrencyId = 2, CreatedAt = local.ToUniversalTime(), TalabKar = credit, BadehKar = debit, Description = "Statement test" };
     private Hawala Transfer(long number, string sender, DateTime day) => new() { Number = number, SenderName = sender, ReceiverName = "Receiver", ReferenceNumber = "FILTER", HawalaType = "HawalaReceive", CorrespondentId = fixture.SourceCorrespondent.Id, FromCurrencyId = 2, ToCurrencyId = 2, FromAmount = 1000, ToAmount = 1000, Status = "Paid", CreatedBy = fixture.UserId, CreatedAt = day.AddHours(10).ToUniversalTime() };

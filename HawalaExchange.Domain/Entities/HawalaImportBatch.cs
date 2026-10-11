@@ -12,6 +12,7 @@ namespace HawalaExchange.Domain.Entities
         public long TenantId { get; set; }
         public long CorrespondentId { get; set; }
         public long? OwnPaymentLocationId { get; set; }
+        public DateTime? LocationsPreparedAt { get; set; }
         [Required, MaxLength(260)] public string FileName { get; set; } = string.Empty;
         [Required, MaxLength(64)] public string FileHash { get; set; } = string.Empty;
         [Required, MaxLength(30)] public string Status { get; set; } = "Preview";

@@ -78,6 +78,121 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         Assert.Equal(rows, await worker.HawalaImportRows.CountAsync(x => x.BatchId == request.BatchId && x.HawalaId != null));
     }
 
+    [Theory]
+    [InlineData(3)]
+    [InlineData(417)]
+    [InlineData(3700)]
+    public async Task Preparation_saves_locations_without_financial_posting_and_survives_reload_and_repeat(int rows)
+    {
+        var request = await PreviewAsync(rows);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var beforeHawalas = await context.Hawalas.CountAsync();
+        var beforeLedger = await context.LedgerEntries.CountAsync();
+        var import = CreateImport(context);
+        var queue = CreateQueue(context);
+        var final = new ConfirmHawalaImportDto { BatchId = request.BatchId, UsePreparedLocations = true };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => queue.EnqueueAsync(final));
+        var watch = Stopwatch.StartNew();
+        var prepared = await import.PrepareLocationsAsync(request);
+        output.WriteLine($"Rows={rows}; preparation={watch.Elapsed.TotalSeconds:F3}s");
+        Assert.True(prepared.LocationsPrepared);
+        Assert.Empty(prepared.MissingLocations);
+        Assert.All(prepared.PaymentLocations.Where(x => x.PaymentLocationId != prepared.OwnPaymentLocationId), x => Assert.NotNull(x.ResponsibleCorrespondentId));
+        Assert.Equal(beforeHawalas, await context.Hawalas.CountAsync());
+        Assert.Equal(beforeLedger, await context.LedgerEntries.CountAsync());
+        var locationCount = await context.PaymentLocations.CountAsync();
+        Assert.True((await import.GetPreviewAsync(request.BatchId))!.LocationsPrepared);
+        Assert.True((await import.PrepareLocationsAsync(request)).LocationsPrepared);
+        Assert.Equal(locationCount, await context.PaymentLocations.CountAsync());
+        Assert.Equal("Preview", (await context.HawalaImportBatches.AsNoTracking().SingleAsync(x => x.Id == request.BatchId)).Status);
+        await queue.EnqueueAsync(final);
+        var jobId = await context.HawalaImportJobs.Where(x => x.BatchId == request.BatchId).Select(x => x.Id).SingleAsync();
+        Assert.True(await queue.ProcessAsync(jobId, CancellationToken.None));
+        context.ChangeTracker.Clear();
+        Assert.Equal("Completed", (await context.HawalaImportJobs.SingleAsync(x => x.Id == jobId)).Status);
+        Assert.Equal(beforeHawalas + 2 * rows - 1, await context.Hawalas.CountAsync());
+        Assert.Equal(locationCount, await context.PaymentLocations.CountAsync());
+    }
+
+    [Fact]
+    public async Task Diagnose_delete_of_3700_imported_rows_with_real_audit_service()
+    {
+        var request = await PreviewAsync(3700);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var queue = CreateQueue(context);
+        await queue.EnqueueAsync(request);
+        var jobId = await context.HawalaImportJobs.Where(x => x.BatchId == request.BatchId).Select(x => x.Id).SingleAsync();
+        Assert.True(await queue.ProcessAsync(jobId, CancellationToken.None));
+        context.ChangeTracker.Clear();
+        Assert.Equal("Completed", await context.HawalaImportJobs.Where(x => x.Id == jobId).Select(x => x.Status).SingleAsync());
+        var ids = await context.HawalaImportRows.Where(x => x.BatchId == request.BatchId)
+            .Select(x => new { x.HawalaId, x.GeneratedSendHawalaId }).ToListAsync();
+        var hawalaIds = ids.SelectMany(x => new[] { x.HawalaId, x.GeneratedSendHawalaId })
+            .Where(x => x.HasValue).Select(x => x!.Value).ToArray();
+        var mapper = new MapperConfiguration(config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
+        var import = new HawalaImportService(context, fixture.CreateService(context),
+            Mock.Of<IPaymentLocationService>(), Mock.Of<ICorrespondentService>(), new AuditLogService(context, mapper));
+        var watch = Stopwatch.StartNew();
+        await import.DeleteBatchAsync(request.BatchId);
+        output.WriteLine($"Deleted rows=3700; hawalas={hawalaIds.Length}; deletion={watch.Elapsed.TotalSeconds:F3}s");
+        Assert.False(await context.HawalaImportBatches.AnyAsync(x => x.Id == request.BatchId));
+        Assert.False(await context.HawalaImportJobs.AnyAsync(x => x.BatchId == request.BatchId));
+        Assert.False(await context.Hawalas.AnyAsync(x => hawalaIds.Contains(x.Id)));
+        Assert.False(await context.LedgerEntries.AnyAsync(x => x.HawalaId.HasValue && hawalaIds.Contains(x.HawalaId.Value)));
+    }
+
+    [Fact]
+    public async Task Failed_posting_preserves_prepared_locations_and_responsibilities_for_corrected_retry()
+    {
+        var request = await PreviewAsync(3);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var import = CreateImport(context);
+        var prepared = await import.PrepareLocationsAsync(request);
+        var beforeHawalas = await context.Hawalas.CountAsync();
+        var beforeLedger = await context.LedgerEntries.CountAsync();
+        var row = prepared.Rows.First(x => x.RequiresOutgoingHawala);
+        var final = new ConfirmHawalaImportDto
+        {
+            BatchId = request.BatchId, UsePreparedLocations = true,
+            Commissions = [new HawalaImportCommissionDto { RowId = row.Id, Amount = 0, CurrencyId = 2 }]
+        };
+        var queue = CreateQueue(context);
+        await queue.EnqueueAsync(final);
+        var jobId = await context.HawalaImportJobs.Where(x => x.BatchId == request.BatchId).Select(x => x.Id).SingleAsync();
+        await queue.ProcessAsync(jobId, CancellationToken.None);
+        context.ChangeTracker.Clear();
+        Assert.Equal("Failed", (await context.HawalaImportJobs.SingleAsync(x => x.Id == jobId)).Status);
+        Assert.Equal(beforeHawalas, await context.Hawalas.CountAsync());
+        Assert.Equal(beforeLedger, await context.LedgerEntries.CountAsync());
+        var retained = await import.GetPreviewAsync(request.BatchId);
+        Assert.True(retained!.LocationsPrepared);
+        Assert.Empty(retained.MissingLocations);
+        Assert.All(retained.PaymentLocations.Where(x => x.PaymentLocationId != retained.OwnPaymentLocationId), x => Assert.NotNull(x.ResponsibleCorrespondentId));
+        final.Commissions.Clear();
+        await queue.EnqueueAsync(final);
+        await queue.ProcessAsync(jobId, CancellationToken.None);
+        context.ChangeTracker.Clear();
+        Assert.Equal("Completed", (await context.HawalaImportJobs.SingleAsync(x => x.Id == jobId)).Status);
+    }
+
+    [Fact]
+    public async Task Invalid_preparation_rolls_back_locations_and_never_marks_batch_prepared()
+    {
+        var request = await PreviewAsync(3);
+        request.OwnPaymentLocationName = "Unknown own location";
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var locations = await context.PaymentLocations.CountAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateImport(context).PrepareLocationsAsync(request));
+        context.ChangeTracker.Clear();
+        Assert.Equal(locations, await context.PaymentLocations.CountAsync());
+        Assert.Null((await context.HawalaImportBatches.SingleAsync(x => x.Id == request.BatchId)).LocationsPreparedAt);
+        Assert.False((await CreateImport(context).GetPreviewAsync(request.BatchId))!.LocationsPrepared);
+    }
+
     [Fact]
     public async Task Failure_rolls_back_locations_and_hawalas_and_can_be_corrected_and_retried()
     {

@@ -1254,14 +1254,24 @@ namespace HawalaExchange.Infrastructure.Data
             if (subscriptionEnforcementBypassDepth > 0) return;
             var tenantIds = PendingTenantWriteIds();
             foreach (var tenantId in tenantIds)
-            {
-                var subscription = await TenantSubscriptions.AsNoTracking()
-                    .Where(x => x.TenantId == tenantId)
-                    .OrderByDescending(x => x.StartAt).ThenByDescending(x => x.Id)
-                    .Select(x => new { x.Status, x.EndAt, x.GracePeriodEndAt })
-                    .FirstOrDefaultAsync(cancellationToken);
-                EnsureSubscriptionAllowsWrite(subscription?.Status, subscription?.EndAt, subscription?.GracePeriodEndAt);
-            }
+                await ValidateTenantSubscriptionAsync(tenantId, cancellationToken);
+        }
+
+        public async Task EnsureCurrentTenantWriteAccessAsync(CancellationToken cancellationToken = default)
+        {
+            if (CurrentTenantId <= 0) throw new InvalidOperationException("صرافی جاری تشخیص داده نشد.");
+            if (subscriptionEnforcementBypassDepth == 0)
+                await ValidateTenantSubscriptionAsync(CurrentTenantId, cancellationToken);
+        }
+
+        private async Task ValidateTenantSubscriptionAsync(long tenantId, CancellationToken cancellationToken)
+        {
+            var subscription = await TenantSubscriptions.AsNoTracking()
+                .Where(x => x.TenantId == tenantId)
+                .OrderByDescending(x => x.StartAt).ThenByDescending(x => x.Id)
+                .Select(x => new { x.Status, x.EndAt, x.GracePeriodEndAt })
+                .FirstOrDefaultAsync(cancellationToken);
+            EnsureSubscriptionAllowsWrite(subscription?.Status, subscription?.EndAt, subscription?.GracePeriodEndAt);
         }
 
         private long[] PendingTenantWriteIds() => ChangeTracker.Entries()

@@ -4,6 +4,11 @@ namespace HawalaExchange.Application.Interfaces.Services
 {
     public interface IHawalaImportService
     {
+        Task<HawalaImportPreviewDto> PrepareLocationsAsync(
+            ConfirmHawalaImportDto request,
+            IProgress<HawalaImportProgressDto>? progress = null,
+            CancellationToken cancellationToken = default);
+
         Task<HawalaImportPreviewDto> PreviewAsync(
             Stream file,
             string fileName,

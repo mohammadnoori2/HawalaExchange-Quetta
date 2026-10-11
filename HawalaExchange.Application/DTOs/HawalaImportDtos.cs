@@ -39,6 +39,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class HawalaImportPreviewDto
     {
+        public bool LocationsPrepared { get; set; }
         public long BatchId { get; set; }
         public string FileName { get; set; } = string.Empty;
         public string CorrespondentName { get; set; } = string.Empty;
@@ -56,6 +57,8 @@ namespace HawalaExchange.Application.DTOs
 
     public class ConfirmHawalaImportDto
     {
+        // New UI posts only saved preparation. False preserves older persisted queue requests.
+        public bool UsePreparedLocations { get; set; }
         public long BatchId { get; set; }
         public string? OwnPaymentLocationName { get; set; }
         public List<HawalaImportLocationMappingDto> LocationMappings { get; set; } = [];

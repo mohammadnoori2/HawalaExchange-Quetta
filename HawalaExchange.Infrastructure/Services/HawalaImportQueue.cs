@@ -34,6 +34,8 @@ public sealed class HawalaImportQueue(
             return; // Double-clicks/reconnects are idempotent, not new financial postings.
         }
         if (batch.Status != "Preview") throw new InvalidOperationException("این فایل قابل ثبت نیست.");
+        if (request.UsePreparedLocations && !batch.LocationsPreparedAt.HasValue)
+            throw new InvalidOperationException("ابتدا محل‌های پرداخت و مسئول‌های آن را ذخیره کنید.");
         if (await database.HawalaImportRows.AnyAsync(x => x.BatchId == batch.Id &&
                 x.ValidationErrors != null && x.ValidationErrors != "", cancellationToken))
             throw new InvalidOperationException("ابتدا خطاهای پیش‌نمایش را اصلاح کنید.");

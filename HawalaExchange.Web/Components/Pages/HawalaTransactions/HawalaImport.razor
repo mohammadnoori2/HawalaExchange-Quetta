@@ -129,14 +129,14 @@
     {
         <div class="preview-stage mt-3">
         <div class="preview-stage-banner">
-            <div><span class="preview-step">مرحله نهایی</span><h4 class="mb-1 mt-2">بررسی، تعیین مسئول و ثبت فایل</h4><div class="text-muted">هیچ حواله‌ای تا زمان فشردن «تأیید و ثبت» وارد سیستم نمی‌شود.</div></div>
+            <div><span class="preview-step">@(preview.LocationsPrepared ? "مرحله دوم" : "مرحله اول")</span><h4 class="mb-1 mt-2">@(preview.LocationsPrepared ? "بررسی کمیشن‌ها و ثبت گروهی حواله‌ها" : "ایجاد محل‌های پرداخت و تعیین مسئول")</h4><div class="text-muted">@(preview.LocationsPrepared ? "محل‌ها و مسئول‌ها ذخیره شده‌اند. ثبت حواله‌ها با تأیید شما در پس‌زمینه انجام می‌شود." : "با ذخیره این مرحله فقط محل‌ها و مسئول‌هایشان ایجاد می‌شوند؛ هیچ حواله یا ثبت حسابداری ایجاد نمی‌شود.")</div></div>
             <div class="text-start"><div class="fw-bold">@preview.FileName</div><small>@preview.CorrespondentName</small></div>
         </div>
         <div class="alert alert-info mt-3 mb-0">محل پرداخت خود صرافی را برای این فایل مشخص کنید. ردیف‌های آن فقط دریافتی ثبت می‌شوند؛ برای سایر محل‌ها حواله ارسالی جفت‌شده ساخته می‌شود.</div>
         <div class="card shadow-sm mt-3"><div class="card-body row g-2 align-items-end">
             <div class="col-md-6">
                 <label class="form-label fw-bold" for="ownImportLocation">محل پرداخت خود صرافی</label>
-                <select id="ownImportLocation" class="form-select" value="@selectedOwnLocationName" @onchange="ChangeOwnLocation">
+                <select id="ownImportLocation" class="form-select" value="@selectedOwnLocationName" @onchange="ChangeOwnLocation" disabled="@(preview.LocationsPrepared || isBusy)">
                     <option value="">انتخاب کنید</option>
                     @if (!string.IsNullOrWhiteSpace(preview.OwnPaymentLocationName) &&
                         !preview.PaymentLocations.Any(x => x.PaymentLocationId == preview.OwnPaymentLocationId))
@@ -181,7 +181,7 @@
             </div>
         }
 
-        @if (preview.MissingLocations.Count > 0)
+        @if (!preview.LocationsPrepared && preview.MissingLocations.Count > 0)
         {
             <div class="card shadow-sm mt-3 border-warning"><div class="card-header bg-warning-subtle d-flex justify-content-between align-items-center"><strong>محل‌های پرداخت جدید</strong><button type="button" class="btn btn-sm btn-outline-dark" @onclick="ToggleAllLocations">@(AllLocationsSelected ? "لغو انتخاب همه" : "انتخاب همه")</button></div><div class="card-body">
                 <p class="mb-1">ایجاد این محل‌های پرداخت را تأیید کنید:</p>
@@ -217,7 +217,7 @@
             </div></div>
         }
 
-        @if (preview.Rows.Any(x => x.RequiresOutgoingHawala))
+        @if (preview.LocationsPrepared && preview.Rows.Any(x => x.RequiresOutgoingHawala))
         {
             <div class="card shadow-sm mt-3"><div class="card-header"><strong>اعمال کمیشن یکسان روی تمام حواله‌های ارسالی</strong></div><div class="card-body row g-2 align-items-end">
                 <div class="col-md-4"><label class="form-label">مبلغ کمیشن</label><InputNumber class="form-control" @bind-Value="bulkCommissionAmount" /></div>
@@ -227,8 +227,13 @@
         }
 
         <div class="card shadow-sm mt-3">
-            <div class="card-header d-flex justify-content-between align-items-center"><div><strong>پیش‌نمایش فایل</strong> — @preview.CorrespondentName</div><button class="btn btn-success" @onclick="ConfirmAsync" disabled="@(!CanConfirm)" title="@ConfirmDisabledReason"><i class="bi bi-check2-circle ms-1"></i>تأیید و ثبت</button></div>
-            @if (!CanConfirm){<div class="alert alert-warning rounded-0 mb-0">@ConfirmDisabledReason</div>}
+            <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><div><strong>پیش‌نمایش فایل</strong> — @preview.CorrespondentName</div>
+                @if (!preview.LocationsPrepared)
+                { <button class="btn btn-primary" @onclick="PrepareLocationsAsync" disabled="@(!CanPrepareLocations)" title="@ConfirmDisabledReason">ذخیره محل‌ها و مسئول‌ها و ادامه</button> }
+                else
+                { <button class="btn btn-success" @onclick="ConfirmAsync" disabled="@(!CanConfirm)" title="@ConfirmDisabledReason"><i class="bi bi-check2-circle ms-1"></i>تأیید و ثبت حواله‌ها</button> }
+            </div>
+            @if ((!preview.LocationsPrepared && !CanPrepareLocations) || (preview.LocationsPrepared && !CanConfirm)){<div class="alert alert-warning rounded-0 mb-0">@ConfirmDisabledReason</div>}
             <div class="table-responsive" style="max-height: 560px;"><table class="table table-sm table-hover align-middle mb-0">
                 <thead class="table-light sticky-top"><tr><th>ردیف</th><th>شماره / رفرنس</th><th>فرستنده / گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>نوع ثبت</th><th>کمیشن عامل پرداخت</th><th>ارز کمیشن</th><th>بررسی</th></tr></thead>
                 <tbody><Virtualize Items="@preview.Rows" Context="row" ItemSize="58" SpacerElement="tr">
@@ -236,8 +241,8 @@
                         <td>@row.ExcelRowNumber</td><td><strong>@row.HawalaNumber</strong><br/><small>@row.ReferenceNumber</small></td><td>@row.SenderName<br/><small>@row.ReceiverName</small></td>
                         <td>@row.PaymentLocationText @if (!row.PaymentLocationId.HasValue){<span class="badge bg-warning text-dark">جدید</span>}</td><td dir="ltr">@row.Amount?.ToString("N0") @row.CurrencyCode</td>
                         <td>@if (row.RequiresOutgoingHawala){<span class="badge bg-primary">دریافتی + ارسالی</span><div class="small mt-1">به @(row.DestinationCorrespondentName ?? row.PaymentLocationText)</div>}else{<span class="badge bg-secondary">فقط دریافتی</span>}</td>
-                        <td>@if (row.RequiresOutgoingHawala){<InputNumber class="form-control form-control-sm" @bind-Value="row.AgentCommissionAmount" placeholder="اختیاری"/>}else{<span>—</span>}</td>
-                        <td>@if (row.RequiresOutgoingHawala){<select class="form-select form-select-sm" @bind="row.AgentCommissionCurrencyId"><option value="">انتخاب ارز</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code</option>}</select>}else{<span>—</span>}</td>
+                        <td>@if (row.RequiresOutgoingHawala){<InputNumber class="form-control form-control-sm" @bind-Value="row.AgentCommissionAmount" placeholder="اختیاری" disabled="@(!preview.LocationsPrepared || isBusy)"/>}else{<span>—</span>}</td>
+                        <td>@if (row.RequiresOutgoingHawala){<select class="form-select form-select-sm" @bind="row.AgentCommissionCurrencyId" disabled="@(!preview.LocationsPrepared || isBusy)"><option value="">انتخاب ارز</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code</option>}</select>}else{<span>—</span>}</td>
                         <td>@if (row.IsValid){<span class="text-success"><i class="bi bi-check-circle"></i> معتبر</span>}else{<span class="text-danger">@row.ValidationErrors</span>}</td>
                     </tr>
                 </Virtualize></tbody>
@@ -508,12 +513,13 @@
     private string progressMessage = "در حال آماده‌سازی...";
     private bool IsPreviewPage => PreviewBatchId.HasValue;
 
-    private bool CanConfirm => preview is not null && preview.InvalidRowCount == 0 &&
+    private bool CanPrepareLocations => preview is not null && !preview.LocationsPrepared && preview.InvalidRowCount == 0 &&
         !string.IsNullOrWhiteSpace(selectedOwnLocationName) &&
         preview.MissingLocations.All(locationsToCreate.Contains) &&
         preview.PaymentLocations.Where(x => !IsOwnLocation(x.Name)).All(x => !string.IsNullOrWhiteSpace(DestinationChoice(x.Name))) &&
-        preview.Rows.Where(x => IsOutgoing(x) && x.AgentCommissionAmount is > 0)
-            .All(x => x.AgentCommissionCurrencyId is > 0) && !isBusy;
+        !isBusy;
+    private bool CanConfirm => preview is { LocationsPrepared: true, InvalidRowCount: 0 } && !isBusy &&
+        preview.Rows.Where(x => IsOutgoing(x) && x.AgentCommissionAmount is > 0).All(x => x.AgentCommissionCurrencyId is > 0);
     private string? ConfirmDisabledReason => preview is null
         ? "ابتدا فایل را انتخاب و بررسی کنید."
         : isBusy
@@ -800,13 +806,14 @@
         foreach (var row in preview.Rows.Where(IsOutgoing)) { row.AgentCommissionAmount = bulkCommissionAmount; row.AgentCommissionCurrencyId = bulkCommissionCurrencyId > 0 ? bulkCommissionCurrencyId : row.CurrencyId; }
     }
 
-    private async Task ConfirmAsync()
+    private async Task PrepareLocationsAsync()
     {
-        if (!CanConfirm || preview is null) return;
-        importError = null; isBusy = true; progressPercent = 1; progressMessage = "در حال آغاز ثبت گروهی...";
+        if (!CanPrepareLocations || preview is null) return;
+        importError = null; isBusy = true; progressPercent = 1;
+        progressMessage = "در حال ذخیره محل‌های پرداخت و مسئول‌ها...";
         try
         {
-            await ImportQueue.EnqueueAsync(new ConfirmHawalaImportDto
+            preview = await HawalaImportService.PrepareLocationsAsync(new ConfirmHawalaImportDto
             {
                 BatchId = preview.BatchId,
                 OwnPaymentLocationName = selectedOwnLocationName,
@@ -818,7 +825,25 @@
                         CorrespondentId = TryGetExistingCorrespondentId(DestinationChoice(x.Name)),
                         CreateCorrespondent = GetNewCorrespondentName(DestinationChoice(x.Name)) is not null,
                         NewCorrespondentName = GetNewCorrespondentName(DestinationChoice(x.Name))
-                    }).ToList(),
+                    }).ToList()
+            }, CreateProgressReporter());
+            activeCorrespondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList();
+            InitializePreviewState();
+        }
+        catch (Exception ex) { importError = BuildImportError(ex, progressMessage, false); }
+        finally { isBusy = false; }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (!CanConfirm || preview is null) return;
+        importError = null; isBusy = true; progressPercent = 1; progressMessage = "در حال آغاز ثبت گروهی...";
+        try
+        {
+            await ImportQueue.EnqueueAsync(new ConfirmHawalaImportDto
+            {
+                BatchId = preview.BatchId,
+                UsePreparedLocations = true,
                 Commissions = preview.Rows.Where(IsOutgoing).Select(x => new HawalaImportCommissionDto
                 { RowId = x.Id, Amount = x.AgentCommissionAmount, CurrencyId = x.AgentCommissionCurrencyId }).ToList()
             });

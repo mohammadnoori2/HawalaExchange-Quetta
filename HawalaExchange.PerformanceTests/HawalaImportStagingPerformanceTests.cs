@@ -460,7 +460,9 @@ public sealed class HawalaImportStagingPerformanceTests(
             [number, $"NEW-AGENT-{Guid.NewGuid():N}", "Sender", "Receiver", name, 1_000, "USD"]
         ]);
         var preview = await service.PreviewAsync(workbook, "new-agent.xlsx", fixture.SourceCorrespondent.Id);
-        var result = await service.ConfirmAsync(new ConfirmHawalaImportDto
+        var beforeHawalas = await context.Hawalas.CountAsync();
+        var beforeLedger = await context.LedgerEntries.CountAsync();
+        var prepared = await service.PrepareLocationsAsync(new ConfirmHawalaImportDto
         {
             BatchId = preview.BatchId,
             OwnPaymentLocationName = fixture.OwnLocation.Name,
@@ -470,7 +472,10 @@ public sealed class HawalaImportStagingPerformanceTests(
                 CreateCorrespondent = true
             }]
         });
-
+        Assert.True(prepared.LocationsPrepared);
+        Assert.Equal(beforeHawalas, await context.Hawalas.CountAsync());
+        Assert.Equal(beforeLedger, await context.LedgerEntries.CountAsync());
+        var result = await service.ConfirmAsync(new ConfirmHawalaImportDto { BatchId = preview.BatchId, UsePreparedLocations = true });
         Assert.Equal(1, result.GeneratedSendCount);
         var agent = await context.Correspondents.AsNoTracking().SingleAsync(x => x.Name == name);
         var assignment = await context.PaymentLocationCorrespondentAssignments.AsNoTracking()
@@ -670,7 +675,9 @@ public sealed class HawalaImportStagingPerformanceTests(
         Assert.Equal(rowCount, result.ImportedCount);
         Assert.Equal(rowCount, result.GeneratedSendCount);
         Assert.Equal(rowCount, result.MissingCommissionCount);
-        Assert.InRange(fixture.Commands.Count, 1, 30);
+        // One fixed tenant preparation lock protects concurrent code/location allocation.
+        // The command bound remains independent of the number of imported rows.
+        Assert.InRange(fixture.Commands.Count, 1, 31);
     }
 
     [Fact]

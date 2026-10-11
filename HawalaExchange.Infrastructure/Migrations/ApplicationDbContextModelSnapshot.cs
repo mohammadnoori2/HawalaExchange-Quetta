@@ -2356,6 +2356,9 @@ namespace HawalaExchange.Infrastructure.Migrations
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
 
+                    b.Property<DateTime?>("LocationsPreparedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<long?>("OwnPaymentLocationId")
                         .HasColumnType("bigint");
 

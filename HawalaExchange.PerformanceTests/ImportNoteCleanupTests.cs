@@ -30,14 +30,15 @@ public sealed class ImportNoteCleanupTests
             var unrelated = Row(98610004, "HawalaReceive", systemNote);
             context.Hawalas.AddRange(received, sent, edited, unrelated);
             await context.SaveChangesAsync();
-            var batch = new HawalaImportBatch
-            {
-                FileName = file, FileHash = "test", CorrespondentId = database.SourceCorrespondent.Id,
-                CreatedBy = database.UserId, Status = "Confirmed", RowCount = 2,
-                Rows = [new HawalaImportRow { ExcelRowNumber = 1, HawalaId = received.Id, GeneratedSendHawalaId = sent.Id },
-                        new HawalaImportRow { ExcelRowNumber = 2, HawalaId = edited.Id }]
-            };
-            context.HawalaImportBatches.Add(batch);
+            // Seed the historical schema, which intentionally predates later batch columns.
+            await context.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT dbo.HawalaImportBatches ([TenantId], [FileName], [FileHash], [CorrespondentId], [CreatedBy], [CreatedAt], [Status], [RowCount])
+                VALUES ({context.CurrentTenantId}, {file}, {"test"}, {database.SourceCorrespondent.Id}, {database.UserId}, {DateTime.UtcNow}, {"Confirmed"}, {2})
+                """);
+            var batchId = await context.HawalaImportBatches.Where(x => x.FileName == file).Select(x => x.Id).SingleAsync();
+            context.HawalaImportRows.AddRange(
+                new HawalaImportRow { BatchId = batchId, ExcelRowNumber = 1, HawalaId = received.Id, GeneratedSendHawalaId = sent.Id },
+                new HawalaImportRow { BatchId = batchId, ExcelRowNumber = 2, HawalaId = edited.Id });
             await context.SaveChangesAsync();
             var service = new SelectedRecordsService(context);
             var shared = await service.ReadAsync([received.Id, sent.Id, edited.Id, unrelated.Id]);

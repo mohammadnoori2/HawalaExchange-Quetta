@@ -1,4 +1,6 @@
 @page "/reports/customer-activities"
+@page "/reports/correspondent-activities"
+@page "/reports/account-activities"
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Authorization
@@ -8,23 +10,25 @@
 @inject IBalanceService BalanceService
 @inject IJSRuntime JSRuntime
 @inject ICustomerService CustomerService
+@inject ICorrespondentService CorrespondentService
+@inject IAccountService AccountService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
-<PageTitle>گزارش فعالیت مشتری</PageTitle>
+<PageTitle>@ReportTitle</PageTitle>
 
 <div class="page-wrapper reports-page">
-    <AppPageHeader Title="گزارش فعالیت مشتری"
-                   Subtitle="تمام فعالیت‌های مالی مشتری"
+    <AppPageHeader Title="@ReportTitle"
+                   Subtitle="@($"تمام فعالیت‌های مالی {OwnerType}")"
                    Icon="bi-clipboard-data" />
 
     <div class="table-card">
         <div class="table-card-body">
-            @if (selectedCustomerId <= 0)
+            @if (SelectedOwnerId <= 0)
             {
                 <div class="alert alert-warning mb-0">
-                    مشتری مشخص نشده است. گزارش را از دکمهٔ «گزارشات» در صفحهٔ مشتری باز کنید.
+                    @OwnerType مشخص نشده است. گزارش را از صفحهٔ @OwnerType باز کنید.
                 </div>
             }
             else
@@ -32,7 +36,7 @@
                 @if (!string.IsNullOrEmpty(customerName))
                 {
                     <div class="alert alert-info py-2">
-                        <i class="bi bi-person"></i> مشتری: <strong>@customerName</strong>
+                        <i class="bi bi-person"></i> @OwnerType: <strong>@customerName</strong>
                     </div>
                 }
 
@@ -81,7 +85,7 @@
     @if (preview != null)
     {
         <div class="table-card mt-3"><div class="table-card-body">
-            <h5>پیش‌نمایش گزارش فعالیت مشتری</h5>
+            <h5>پیش‌نمایش @ReportTitle</h5>
             <div class="alert alert-info py-2">@preview.CustomerName (@preview.CustomerCode) | از تاریخ: @RangeDate(preview.FromDate, "ابتدای حساب") تا تاریخ: @RangeDate(preview.ToDate, "آخرین فعالیت")</div>
             <p class="text-muted">این گزارش مربوط به آخرین اجرای «نمایش گزارش» است. پس از تغییر فیلترها دوباره آن را بزنید. خلاصه حساب شامل تمام فعالیت‌های بازه است؛ فیلترهای جزئی فقط ردیف‌ها را محدود می‌کنند.</p>
             <div class="table-responsive"><table class="table table-bordered text-center align-middle">
@@ -89,10 +93,17 @@
                 <tbody>@foreach (var balance in preview.Balances)
                 {<tr><td>@balance.Currency</td><td><span dir="ltr">@MoneyFormatHelper.Format(Math.Abs(balance.Opening))</span> (@BalanceStatus(balance.Opening))</td><td dir="ltr">@MoneyFormatHelper.Format(balance.Debit)</td><td dir="ltr">@MoneyFormatHelper.Format(balance.Credit)</td><td><span dir="ltr">@MoneyFormatHelper.Format(Math.Abs(balance.Closing))</span> (@BalanceStatus(balance.Closing))</td></tr>}</tbody>
             </table></div>
+            @if (preview.CorrespondentId.HasValue)
+            {
+                <div class="alert alert-warning py-2">کمیشن‌های زیر منتظر بستن دوره‌اند و در مانده حساب شامل نیستند.</div>
+                <div class="table-responsive"><table class="table table-bordered text-center align-middle"><thead><tr><th>ارز</th><th>کمیشن منتظر بدهکار</th><th>کمیشن منتظر طلبکار</th></tr></thead><tbody>
+                    @foreach (var balance in preview.Balances) {<tr><td>@balance.Currency</td><td dir="ltr">@MoneyFormatHelper.Format(balance.PendingDebit)</td><td dir="ltr">@MoneyFormatHelper.Format(balance.PendingCredit)</td></tr>}
+                </tbody></table></div>
+            }
             <div class="table-responsive"><table class="table table-bordered text-center align-middle">
                 <thead><tr><th>ردیف</th><th>تاریخ</th><th>شرح</th><th>بدهکار</th><th>طلبکار</th><th>ارز</th><th>باقی‌مانده</th><th>وضعیت</th></tr></thead>
                 <tbody>@foreach (var item in preview.Rows.Skip(previewPage * PreviewPageSize).Take(PreviewPageSize).Select((row, index) => new { Row = row, Number = previewPage * PreviewPageSize + index + 1 }))
-                {<tr><td>@item.Number</td><td dir="ltr">@RangeDate(item.Row.Date, "—")</td><td>@item.Row.DisplayDescription</td><td dir="ltr">@MoneyFormatHelper.Format(item.Row.BadehKar)</td><td dir="ltr">@MoneyFormatHelper.Format(item.Row.TalabKar)</td><td>@item.Row.Currency</td><td dir="ltr">@MoneyFormatHelper.Format(Math.Abs(item.Row.RunningBalance))</td><td>@BalanceStatus(item.Row.RunningBalance)</td></tr>}
+                {<tr><td>@item.Number</td><td dir="ltr">@RangeDate(item.Row.Date, "—")</td><td>@if (item.Row.MoneyOperationType is "Deposit" or "Withdraw") {<span class="badge-modern @AccountOperationDisplay.Badge(item.Row.MoneyOperationType)">@AccountOperationDisplay.Name(item.Row.MoneyOperationType)</span>@item.Row.DisplayDescription[AccountOperationDisplay.Name(item.Row.MoneyOperationType).Length..]} else {@item.Row.DisplayDescription}</td><td dir="ltr">@MoneyFormatHelper.Format(item.Row.BadehKar)</td><td dir="ltr">@MoneyFormatHelper.Format(item.Row.TalabKar)</td><td>@item.Row.Currency</td><td dir="ltr">@MoneyFormatHelper.Format(Math.Abs(item.Row.RunningBalance))</td><td>@BalanceStatus(item.Row.RunningBalance)</td></tr>}
                 @if (preview.Rows.Count == 0) {<tr><td colspan="8">در بازه و فیلتر انتخاب‌شده فعالیتی یافت نشد؛ مانده حساب در خلاصه نمایش داده شده است.</td></tr>}
                 </tbody>
             </table></div>
@@ -105,10 +116,23 @@
     private async Task RefreshPageDataAsync()
     {
         if (busy) return;
+        if (selectedAccountId > 0) { await LoadAccountNameAsync(); if (preview != null) await LoadPreviewAsync(); return; }
+        if (selectedCorrespondentId > 0) { await LoadCorrespondentNameAsync(); if (preview != null) await LoadPreviewAsync(); return; }
         if (selectedCustomerId > 0) { var fresh = await SafeGetCustomerAsync(selectedCustomerId); if (fresh != null) customerName = $"{fresh.FullName} ({fresh.CustomerCode})"; await LoadCustomerBalanceAsync(selectedCustomerId); if (preview != null) await LoadPreviewAsync(); }
     }
     [SupplyParameterFromQuery(Name = "customerId")]
     public long? CustomerIdQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "correspondentId")]
+    public long? CorrespondentIdQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "accountId")]
+    public long? AccountIdQuery { get; set; }
+    private bool IsAccountReport => new Uri(NavigationManager.Uri).AbsolutePath.EndsWith("/reports/account-activities", StringComparison.OrdinalIgnoreCase);
+    private bool IsCorrespondentReport => new Uri(NavigationManager.Uri).AbsolutePath == "/reports/correspondent-activities";
+    private string OwnerType => IsAccountReport ? "حساب" : IsCorrespondentReport ? "نمایندگی" : "مشتری";
+    private string ReportTitle => $"گزارش فعالیت {OwnerType}";
+    private long selectedCorrespondentId;
+    private long selectedAccountId;
+    private long SelectedOwnerId => IsAccountReport ? selectedAccountId : IsCorrespondentReport ? selectedCorrespondentId : selectedCustomerId;
 
     private record CustomerBalanceItem(string CurrencyCode, decimal Balance, string Status);
 
@@ -125,13 +149,13 @@
     private const int PreviewPageSize = 100;
     private string RangeDate(DateTime? date, string empty) => DisplayDates.Date(date.HasValue ? DateTime.SpecifyKind(date.Value, DateTimeKind.Utc).ToLocalTime() : null, empty);
     private static string BalanceStatus(decimal balance) => balance > 0 ? "طلبکار" : balance < 0 ? "بدهکار" : "تسویه";
-    private ExportFilterDto CreateFilter() => new() { CustomerId = selectedCustomerId,
+    private ExportFilterDto CreateFilter() => new() { AccountId = IsAccountReport ? selectedAccountId : null, CustomerId = IsCorrespondentReport || IsAccountReport ? null : selectedCustomerId, CorrespondentId = IsCorrespondentReport ? selectedCorrespondentId : null,
         FromDate = fromDate == DateTime.MinValue ? null : fromDate.Date.ToUniversalTime(),
         ToDate = toDate == DateTime.MinValue ? null : toDate.Date.AddDays(1).ToUniversalTime().AddTicks(-1),
         CurrencyCode = currency, Search = search, Direction = direction, MinAmount = minAmount, MaxAmount = maxAmount };
     private async Task LoadPreviewAsync()
     {
-        if (busy || selectedCustomerId <= 0) return;
+        if (busy || SelectedOwnerId <= 0) return;
         busy = true; error = "";
         try { preview = await ExportService.GetCustomerActivitiesPreviewAsync(CreateFilter()); previewPage = 0; }
         catch (Exception ex) { preview = null; error = ex.Message; }
@@ -139,13 +163,34 @@
     }
     private void ResetFilters() { fromDate = toDate = DateTime.MinValue; currency = direction = search = ""; minAmount = maxAmount = null; }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         await ApplyQueryPrefillAsync();
     }
 
     private async Task ApplyQueryPrefillAsync()
     {
+        if (IsAccountReport)
+        {
+            var id = AccountIdQuery;
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(NavigationManager.Uri);
+            if (id is null or <= 0 && query.TryGetValue("accountId", out var value) && long.TryParse(value, out var parsed)) id = parsed;
+            if (selectedAccountId != (id ?? 0) || selectedCustomerId != 0 || selectedCorrespondentId != 0) { preview = null; ResetFilters(); }
+            selectedAccountId = id ?? 0; selectedCustomerId = selectedCorrespondentId = 0; customerBalance = null; customerName = "";
+            if (selectedAccountId > 0) await LoadAccountNameAsync();
+            return;
+        }
+        if (selectedAccountId != 0) { selectedAccountId = 0; preview = null; ResetFilters(); }
+        if (IsCorrespondentReport)
+        {
+            var id = CorrespondentIdQuery;
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(NavigationManager.Uri);
+            if (id is null or <= 0 && query.TryGetValue("correspondentId", out var value) && long.TryParse(value, out var parsed)) id = parsed;
+            if (selectedCustomerId != 0 || selectedCorrespondentId != (id ?? 0)) { preview = null; ResetFilters(); }
+            selectedCustomerId = 0; selectedCorrespondentId = id ?? 0; customerBalance = null; customerName = "";
+            if (selectedCorrespondentId > 0) await LoadCorrespondentNameAsync();
+            return;
+        }
         // در فاز interactive (بعد از prerender / ناوبری enhanced) پارامتر query
         // همیشه دوباره تزریق نمی‌شود، پس آن را مستقیم از URI هم می‌خوانیم.
         var customerId = CustomerIdQuery;
@@ -160,6 +205,8 @@
 
         if (customerId is > 0)
         {
+            if (selectedCorrespondentId != 0 || selectedCustomerId != customerId.Value) { preview = null; ResetFilters(); }
+            selectedCorrespondentId = 0;
             selectedCustomerId = customerId.Value;
             var customer = await SafeGetCustomerAsync(customerId.Value);
 
@@ -168,6 +215,22 @@
 
             await LoadCustomerBalanceAsync(customerId.Value);
         }
+        else
+        {
+            selectedCustomerId = selectedCorrespondentId = 0; preview = null; customerBalance = null; customerName = "";
+        }
+    }
+
+    private async Task LoadCorrespondentNameAsync()
+    {
+        try { var owner = await CorrespondentService.GetByIdAsync(selectedCorrespondentId); customerName = owner == null ? "" : $"{owner.Name} ({owner.Code})"; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadAccountNameAsync()
+    {
+        try { var owner = await AccountService.GetByIdAsync(selectedAccountId); customerName = owner == null ? "" : $"{owner.AccountName} ({owner.AccountCode})"; }
+        catch (Exception ex) { error = ex.Message; }
     }
 
     private async Task LoadCustomerBalanceAsync(long customerId)
@@ -211,9 +274,9 @@
         if (busy || preview == null) return;
         error = string.Empty;
 
-        if (selectedCustomerId <= 0)
+        if (SelectedOwnerId <= 0)
         {
-            error = "مشتری را انتخاب کنید.";
+            error = $"{OwnerType} را انتخاب کنید.";
             return;
         }
 

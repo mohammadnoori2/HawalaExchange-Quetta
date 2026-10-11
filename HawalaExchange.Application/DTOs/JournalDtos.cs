@@ -97,6 +97,7 @@ public class JournalOperationDto
     public string Description { get; set; } = string.Empty;
 
     public string SummarySentence { get; set; } = string.Empty;
+    public string? MoneyOperationType { get; set; }
 
     public List<string> AccountNames { get; set; } = new();
 

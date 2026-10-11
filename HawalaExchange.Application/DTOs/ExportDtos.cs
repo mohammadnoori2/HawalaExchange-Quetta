@@ -6,6 +6,8 @@ namespace HawalaExchange.Application.DTOs
     public class ExportFilterDto
     {
         public long? CustomerId { get; set; }
+        public long? CorrespondentId { get; set; }
+        public long? AccountId { get; set; }
         public DateTime? FromDate { get; set; }
         public DateTime? ToDate { get; set; }
         public List<string>? TransactionTypes { get; set; }

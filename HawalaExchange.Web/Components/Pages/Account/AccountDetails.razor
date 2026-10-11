@@ -52,6 +52,9 @@
                              OnEditRequested="OpenEditModal"
                              OnArchiveToggleRequested="OpenArchiveConfirmation">
             <HeaderActions>
+                <button type="button" class="btn btn-sm btn-light border" @onclick="OpenActivityReport">
+                    <i class="bi bi-clipboard-data me-1"></i> گزارش فعالیت حساب
+                </button>
                 @if (string.Equals(account.AccountType, "Cash", StringComparison.OrdinalIgnoreCase) && !account.IsArchived)
                 {
                     <button type="button" class="btn btn-sm btn-light border" @onclick="OpenOpeningBalanceModal">
@@ -254,6 +257,7 @@
 }
 
 @code {
+    private void OpenActivityReport() => NavigationManager.NavigateTo($"/reports/account-activities?accountId={AccountId}");
     private async Task RefreshPageDataAsync()
     {
         await LoadPageData(); if (refreshAccountDetails != null) await refreshAccountDetails.RefreshDataAsync();

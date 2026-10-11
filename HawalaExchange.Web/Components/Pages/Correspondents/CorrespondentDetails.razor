@@ -63,6 +63,9 @@
                 <button class="btn btn-outline-primary" @onclick="OpenPeriods">
                     <i class="bi bi-calendar-check me-1"></i> بستن دوره
                 </button>
+                <button class="btn btn-outline-primary" @onclick="OpenActivityReport">
+                    <i class="bi bi-clipboard-data me-1"></i> گزارش فعالیت نمایندگی
+                </button>
                 @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
                 {
                     <button class="btn btn-success" @onclick="OpenCommissionPage">
@@ -124,10 +127,6 @@
         }
 
         <div class="correspondent-hawala-sections">
-            @if (correspondentAccountId.HasValue)
-            {
-                <AccountStatementPanel @key="correspondentAccountId.Value" AccountId="correspondentAccountId.Value" />
-            }
             <div class="correspondent-hawala-tabs" role="tablist" aria-label="نوع حواله‌های نمایندگی">
                 <button type="button"
                         class="@(activeHawalaType == "HawalaSend" ? "active" : null)"
@@ -600,6 +599,7 @@
         NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/commission");
 
     private void OpenPeriods() => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/periods");
+    private void OpenActivityReport() => NavigationManager.NavigateTo($"/reports/correspondent-activities?correspondentId={CorrespondentId}");
 
     private void OpenOutgoingCommissionPage() =>
         NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/outgoing-commission");

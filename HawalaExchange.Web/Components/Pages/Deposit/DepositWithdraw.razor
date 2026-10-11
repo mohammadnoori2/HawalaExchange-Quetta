@@ -226,7 +226,7 @@
                                     </td>
 
                                     <td>
-                                        @(item.Description ?? "-")
+                                        @OperationDescription(item)
                                     </td>
 
                                     <td class="text-center operation-cell">
@@ -379,7 +379,7 @@
                         <div class="col-md-6">
                             <div class="info-card">
                                 <span class="info-label">توضیحات</span>
-                                <span class="info-value">@(selectedOperation.Description ?? "-")</span>
+                                <span class="info-value">@OperationDescription(selectedOperation)</span>
                             </div>
                         </div>
                     </div>
@@ -878,6 +878,10 @@
             _ => "عملیات رسید یا برد"
         };
     }
+
+    private static string OperationDescription(AccountMoneyOperationDto operation) =>
+        AccountOperationDisplay.Description(operation.OperationType, operation.AccountName, operation.CashOrBankAccountName,
+            operation.Amount, operation.CurrencyCode, operation.Description);
 
     private string GetOperationBadge(string operationType)
     {

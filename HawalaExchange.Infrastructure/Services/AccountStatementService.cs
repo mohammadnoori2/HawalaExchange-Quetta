@@ -14,14 +14,14 @@ public sealed class AccountStatementService(ApplicationDbContext context, bool o
         if (filter.From.Date > filter.To.Date || filter.To.Year >= 9999 || filter.MinAmount < 0 || filter.MaxAmount < 0 || filter.MinAmount > filter.MaxAmount)
             throw new InvalidOperationException("بازه تاریخ یا مبلغ معتبر نیست.");
         using var scope = context.UseTenantScope(context.CurrentTenantId);
-        var account = await context.Accounts.AsNoTracking().Where(x => x.Id == filter.AccountId &&
-            (x.AccountType == "Customer" || x.AccountType == "Correspondent")).Select(x => new { x.AccountName, x.AccountCode }).SingleOrDefaultAsync(cancellationToken)
-            ?? throw new InvalidOperationException("حساب مشتری یا نمایندگی در این صرافی یافت نشد.");
+        var account = await context.Accounts.AsNoTracking().Where(x => x.Id == filter.AccountId)
+            .Select(x => new { x.AccountName, x.AccountCode }).SingleOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("حساب در این صرافی یافت نشد.");
         var start = filter.From.Date.ToUniversalTime(); var end = filter.To.Date.AddDays(1).ToUniversalTime();
         // Recognized commission affects operational balance on the period's closing
         // boundary, not on its older posting date. This preserves opening + movement = closing.
         var query = context.Database.SqlQuery<AccountStatementEntry>($"""
-            SELECT e.Id,
+            SELECT e.Id, e.HawalaId, e.AccountMoneyOperationId,
                 CASE WHEN a.CorrespondentId IS NOT NULL AND t.TransactionType IN
                     (N'PeriodicCorrespondentCommission', N'PeriodicOutgoingCommission', N'PeriodicForwardingCommission', N'PeriodicCorrespondentCommissionReversal')
                     AND p.PeriodTo > e.CreatedAt THEN p.PeriodTo ELSE e.CreatedAt END AS [Date],

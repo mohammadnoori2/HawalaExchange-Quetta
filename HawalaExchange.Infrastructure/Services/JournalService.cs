@@ -191,8 +191,11 @@ public class JournalService : IJournalService
                 command.Transaction = transaction;
 
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            return await ReadAccountOperationsPageAsync(
+            var page = await ReadAccountOperationsPageAsync(
                 reader, pageNumber, pageSize, cancellationToken);
+            await reader.DisposeAsync();
+            await PopulateAccountOperationDetailsAsync(page.Items);
+            return page;
         }
         finally
         {
@@ -1145,6 +1148,9 @@ public class JournalService : IJournalService
                 continue;
 
             Add(operation, "نوع عملیات", source.OperationType == "Deposit" ? "رسید" : source.OperationType == "Withdraw" ? "برد" : "عملیات حساب");
+            operation.MoneyOperationType = source.OperationType;
+            operation.SummarySentence = AccountOperationDisplay.Description(source.OperationType, source.Account.AccountName,
+                source.CashOrBankAccount.AccountName, source.Amount, source.Currency.Code, source.Description);
             Add(operation, "تاریخ عملیات", displayDates.DateTime(source.OperationDate, true));
             Add(operation, "مبلغ", Money(source.Amount, source.Currency.Code));
             Add(operation, "حساب طرف", source.Account.AccountName);
@@ -1346,6 +1352,7 @@ public class JournalService : IJournalService
 
     private static string BuildSummarySentence(JournalOperationDto operation)
     {
+        if (operation.MoneyOperationType is "Deposit" or "Withdraw") return operation.SummarySentence;
         var accounts = operation.AccountNames.Count == 0
             ? "حساب نامشخص"
             : string.Join(" و ", operation.AccountNames.Take(3));

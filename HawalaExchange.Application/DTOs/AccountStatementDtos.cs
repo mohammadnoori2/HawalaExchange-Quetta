@@ -14,6 +14,8 @@ public sealed class AccountStatementFilter
 public sealed class AccountStatementEntry
 {
     public long Id { get; set; }
+    public long? HawalaId { get; set; }
+    public long? AccountMoneyOperationId { get; set; }
     public DateTime Date { get; set; }
     public string Document { get; set; } = "";
     public string Description { get; set; } = "";

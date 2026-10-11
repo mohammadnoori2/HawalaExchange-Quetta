@@ -3,6 +3,9 @@ namespace HawalaExchange.Application.DTOs;
 public sealed class CustomerActivityReportDto
 {
     public long CustomerId { get; set; }
+    public long? CorrespondentId { get; set; }
+    public long? AccountId { get; set; }
+    public string OwnerType => AccountId.HasValue ? "حساب" : CorrespondentId.HasValue ? "نمایندگی" : "مشتری";
     public string CustomerName { get; set; } = "";
     public string CustomerCode { get; set; } = "";
     public DateTime? FromDate { get; set; }
@@ -17,11 +20,16 @@ public sealed class CustomerActivityBalanceDto
     public decimal Opening { get; set; }
     public decimal Debit { get; set; }
     public decimal Credit { get; set; }
+    public decimal PendingCredit { get; set; }
+    public decimal PendingDebit { get; set; }
     public decimal Closing => Opening + Credit - Debit;
 }
 
 public sealed class CustomerActivityRowDto
 {
+    public long? HawalaId { get; init; }
+    public long? AccountMoneyOperationId { get; init; }
+    public string? MoneyOperationType { get; set; }
     public DateTime Date { get; init; }
     public string Type { get; init; } = "";
     public string? Reference { get; init; }

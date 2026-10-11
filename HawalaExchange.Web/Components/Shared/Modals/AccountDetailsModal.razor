@@ -108,10 +108,6 @@
 
                     @ProfileSummary
 
-                    @if (Account.Id > 0 && (Account.AccountType == "Customer" || Account.AccountType == "Correspondent"))
-                    {
-                        <AccountStatementPanel @key="Account.Id" AccountId="Account.Id" />
-                    }
 
                     <!-- اطلاعات خلاصه حساب -->
                     @if (ShowAccountFacts)
@@ -321,8 +317,8 @@
                                         <article class="account-operation-row border rounded-3 p-2 bg-white">
                                             <div class="d-flex flex-wrap justify-content-between gap-2 mb-1">
                                                 <div class="d-flex flex-wrap align-items-center gap-2">
-                                                    <span class="badge-modern @GetOperationBadge(operation.SourceType)">
-                                                        @GetSourceTypeName(operation.SourceType)
+                                                    <span class="badge-modern @GetOperationBadge(operation)">
+                                                        @GetSourceTypeName(operation)
                                                     </span>
                                                     <span class="text-muted small"><AppDateTime Value="@operation.CreatedAt" /></span>
                                                     <span class="text-muted small">شماره @operation.DocumentNumber</span>
@@ -964,9 +960,10 @@
         operation.SourceId.HasValue &&
         operation.SourceType is "تبدیل پول" or "انتقال" or "واریز / برداشت / پرداخت";
 
-    private static string GetOperationBadge(string sourceType)
+    private static string GetOperationBadge(JournalOperationDto operation)
     {
-        return sourceType switch
+        if (operation.MoneyOperationType is "Deposit" or "Withdraw") return AccountOperationDisplay.Badge(operation.MoneyOperationType);
+        return operation.SourceType switch
         {
             "تبدیل پول" => "badge-primary",
             "انتقال" => "badge-warning",
@@ -978,6 +975,6 @@
         };
     }
 
-    private static string GetSourceTypeName(string sourceType) =>
-        sourceType == "واریز / برداشت / پرداخت" ? "رسید / برد" : sourceType;
+    private static string GetSourceTypeName(JournalOperationDto operation) =>
+        operation.MoneyOperationType is "Deposit" or "Withdraw" ? AccountOperationDisplay.Name(operation.MoneyOperationType) : operation.SourceType;
 }

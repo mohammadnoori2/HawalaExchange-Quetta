@@ -387,7 +387,7 @@
                                     <td class="text-muted fw-bold">@operationIndex</td>
                                     <td class="journal-row-date"><AppDateTime Value="@operation.CreatedAt" ShowSeconds="true" /></td>
                                     <td>
-                                        <span class="badge-modern @GetSourceBadge(operation.SourceType)">@GetOperationTypeName(operation)</span>
+                                        <span class="badge-modern @GetSourceBadge(operation)">@GetOperationTypeName(operation)</span>
                                         <small class="d-block text-muted mt-1">@(IsCashOperation(operation) ? "نقدی" : "غیرنقدی")</small>
                                     </td>
                                     <td dir="ltr" class="fw-bold">@operation.DocumentNumber</td>
@@ -486,7 +486,7 @@
                                                     <li>
                                                         @if (descriptionIndex == 0)
                                                         {
-                                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetOperationTypeName(row.Operation)</span>
+                                                            <span class="badge-modern @GetSourceBadge(row.Operation)">@GetOperationTypeName(row.Operation)</span>
                                                         }
                                                         <span>@HighlightImportantText(row.Operation, receiptDescriptions[descriptionIndex])</span>
                                                     </li>
@@ -573,7 +573,7 @@
                                                     <li>
                                                         @if (descriptionIndex == 0)
                                                         {
-                                                            <span class="badge-modern @GetSourceBadge(row.Operation.SourceType)">@GetOperationTypeName(row.Operation)</span>
+                                                            <span class="badge-modern @GetSourceBadge(row.Operation)">@GetOperationTypeName(row.Operation)</span>
                                                         }
                                                         <span>@HighlightImportantText(row.Operation, withdrawalDescriptions[descriptionIndex])</span>
                                                     </li>
@@ -1245,7 +1245,8 @@
             : $"از {DisplayDates.Date(fromDate)} تا {DisplayDates.Date(toDate)}";
     }
 
-    private static string GetSourceBadge(string sourceType) => sourceType switch
+    private static string GetSourceBadge(JournalOperationDto operation) => operation.MoneyOperationType is "Deposit" or "Withdraw"
+        ? AccountOperationDisplay.Badge(operation.MoneyOperationType) : operation.SourceType switch
     {
         "حواله" => "badge-primary",
         "ثبت سرمایه" => "badge-success",
@@ -1262,6 +1263,7 @@
 
     private static string GetOperationTypeName(JournalOperationDto operation)
     {
+        if (operation.MoneyOperationType is "Deposit" or "Withdraw") return AccountOperationDisplay.Name(operation.MoneyOperationType);
         if (operation.SourceType == "تراکنش")
         {
             var transactionType = operation.SourceDetails

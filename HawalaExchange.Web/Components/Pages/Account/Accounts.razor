@@ -151,7 +151,7 @@
                                 <tr class="@(account.IsArchived ? "table-row-archived" : "")">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
                                     <td>
-                                        <span class="fw-semibold">@account.AccountName</span>
+                                        <RecordDetailsLink Kind="Account" Id="account.Id" Text="@account.AccountName" Class="fw-semibold" />
                                     </td>
                                     <td>
                                         <span class="badge-modern @GetAccountTypeBadge(account.AccountType)">
@@ -163,7 +163,7 @@
                                         {
                                             <small>
                                                 <span class="badge-modern badge-secondary">@GetReferenceTypeName(account.ReferenceType)</span>
-                                                <span class="fw-bold ms-1">@account.ReferenceId</span>
+                                                <RecordDetailsLink Kind="@account.ReferenceType" Id="account.ReferenceId" Text="@(account.ReferenceName ?? account.ReferenceId?.ToString())" Class="fw-bold ms-1" />
                                             </small>
                                         }
                                         else

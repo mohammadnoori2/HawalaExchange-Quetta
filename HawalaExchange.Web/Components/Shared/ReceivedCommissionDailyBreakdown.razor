@@ -38,7 +38,7 @@
                             {
                                 <tr class="@(!item.IsActive || item.SourceAmount < 0 ? "table-secondary" : null)">
                                     <td dir="ltr">@item.HawalaNumber.ToString(CultureInfo.InvariantCulture)</td>
-                                    <td>@item.ReferenceNumber</td><td>@item.SenderName</td><td>@item.ReceiverName</td><td>@item.PaymentLocationName</td>
+                                    <td>@item.ReferenceNumber</td><td>@item.SenderName</td><td>@item.ReceiverName</td><td><RecordDetailsLink Kind="PaymentLocation" Id="item.PaymentLocationId" Text="@item.PaymentLocationName" /></td>
                                     <td dir="ltr">@Money(item.SourceAmount) @item.CurrencyCode</td>
                                     <td>@DisplayDates.Date(item.ValuationDate)</td>
                                     <td dir="ltr">@AmountValueHelper.Format(item.SourceToAfnRate, 8)</td>

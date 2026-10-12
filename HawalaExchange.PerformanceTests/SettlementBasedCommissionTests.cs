@@ -36,6 +36,7 @@ public sealed class SettlementBasedCommissionTests : IAsyncLifetime
         await fixture.CreateSettlementService(context).ReverseAsync(fixture.SourceCorrespondent.Id,conversion.ConversionId,"Undo settlement");
         var history=await fixture.CreateSettlementService(context).GetHistoryDetailsAsync(fixture.SourceCorrespondent.Id,conversion.ConversionId);
         Assert.Equal("Reversed",history.Status); Assert.Equal(2,history.Items.Count);
+        Assert.All(history.Items,x=>Assert.Equal(fixture.OwnLocation.Id,x.PaymentLocationId));
         Assert.Equal(2,(await fixture.CreateSettlementService(context).GetHawalaPreviewAsync(fixture.SourceCorrespondent.Id,[afn.Id,pk.Id])).Count);
     }
 

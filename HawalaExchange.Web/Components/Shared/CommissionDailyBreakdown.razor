@@ -29,7 +29,7 @@
                     {
                         <details class="border rounded p-3 mb-2" @key="location.Id">
                             <summary>
-                                <strong>@location.Name</strong> — <span dir="ltr">@location.Items.Count.ToString(CultureInfo.InvariantCulture)</span> حواله
+                                <RecordDetailsLink Kind="PaymentLocation" Id="location.Id" Text="@location.Name" Class="fw-bold" /> — <span dir="ltr">@location.Items.Count.ToString(CultureInfo.InvariantCulture)</span> حواله
                                 <span class="d-block mt-2">
                                     مجموع افغانی: <span dir="ltr">@Number(Total(location.Items, "AFN")) AFN</span> |
                                     مجموع دالر: <span dir="ltr">@Number(Total(location.Items, "USD")) USD</span> |

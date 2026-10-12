@@ -99,6 +99,7 @@ public sealed class CorrespondentCommissionItemDto
     public bool IsActive { get; set; } = true;
     public string SourceType { get; set; } = string.Empty;
     public string SourceName { get; set; } = string.Empty;
+    public long? SourceCorrespondentId { get; set; }
 }
 
 public sealed class CorrespondentCommissionBatchDto

@@ -53,7 +53,7 @@ else
 @if(details!=null)
 {
     <div class="modal show d-block" dir="rtl" style="background:rgba(15,23,42,.6)"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered"><div class="modal-content">
-        <div class="modal-header"><h5>جزئیات تبدیل #@details.ConversionId — @Status(details.Status)</h5><button class="btn-close" @onclick="()=>details=null"></button></div>
+        <div class="modal-header"><h5>جزئیات تبدیل #@details.ConversionId — @Status(details.Status)</h5><button class="btn-close" disabled="@busy" @onclick="()=>details=null"></button></div>
         <div class="modal-body">
             <p>ارز توافقی: @details.TargetCurrencyCode · کاربر: @details.UserName · @DisplayDates.DateTime(details.CreatedAt.ToLocalTime())</p>
             @foreach(var day in details.Items.GroupBy(x=>x.RateDate).OrderBy(x=>x.Key))
@@ -61,7 +61,7 @@ else
                 <h6>@DisplayDates.Date(day.Key)</h6>
                 <div class="d-flex flex-wrap gap-2 mb-2">@foreach(var group in day.GroupBy(x=>x.SourceCurrencyCode)){<span class="badge bg-light text-dark border" dir="ltr">@Money(group.Sum(x=>x.SourceAmount)) @group.Key → @Money(group.Sum(x=>x.TargetAmount)) @details.TargetCurrencyCode</span>}</div>
                 <div class="table-responsive"><GlobalDataGrid class="table table-sm"><thead><tr><th>حواله</th><th>متفرقه</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>اصل/مانده قبل تبدیل</th><th>نرخ</th><th>مبلغ تبدیل حسابداری</th><th>اصل حواله به ارز توافقی</th><th>مبنای USD کمیشن</th></tr></thead><tbody>
-                    @foreach(var row in day){<tr><td>@row.HawalaNumber</td><td>@row.ReferenceNumber</td><td>@row.SenderName</td><td>@row.ReceiverName</td><td>@row.PaymentLocationName</td><td dir="ltr">@Money(row.SourceAmount) @row.SourceCurrencyCode</td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) @details.TargetCurrencyCode</td><td dir="ltr">@(row.PrincipalTargetAmount.HasValue?Money(row.PrincipalTargetAmount.Value):"—")</td><td dir="ltr">@(row.UsdAmount.HasValue?Money(row.UsdAmount.Value):"—")</td></tr>}
+                    @foreach(var row in day){<tr><td>@row.HawalaNumber</td><td>@row.ReferenceNumber</td><td>@row.SenderName</td><td>@row.ReceiverName</td><td><RecordDetailsLink Kind="PaymentLocation" Id="row.PaymentLocationId" Text="@row.PaymentLocationName" /></td><td dir="ltr">@Money(row.SourceAmount) @row.SourceCurrencyCode</td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) @details.TargetCurrencyCode</td><td dir="ltr">@(row.PrincipalTargetAmount.HasValue?Money(row.PrincipalTargetAmount.Value):"—")</td><td dir="ltr">@(row.UsdAmount.HasValue?Money(row.UsdAmount.Value):"—")</td></tr>}
                 </tbody></GlobalDataGrid></div>
             }
             @if(details.Revisions.Count>1)
@@ -71,10 +71,18 @@ else
                 {<details class="mb-2"><summary>@DisplayDates.DateTime(revision.CreatedAt.ToLocalTime()) · @revision.UserName</summary><table class="table table-sm"><thead><tr><th>روز</th><th>حواله</th><th>ارز</th><th>نرخ قبلی</th><th>مبلغ قبلی</th></tr></thead><tbody>@foreach(var row in revision.Items){<tr><td>@DisplayDates.Date(row.RateDate)</td><td>@row.HawalaNumber</td><td>@row.SourceCurrencyCode</td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) @details.TargetCurrencyCode</td></tr>}</tbody></table></details>}
             }
             @if(details.Status is "Active" or "Adjusted")
-            {<div class="alert alert-warning mt-3">برگشت، حسابداری تبدیل را معکوس می‌کند و سابقه را نگه می‌دارد. برای تبدیل دارای کمیشن ثبت‌شده، ابتدا کمیشن باید برگشت شود؛ دوره بسته قابل تغییر نیست.</div><label class="form-label">دلیل برگشت</label><input class="form-control" maxlength="500" @bind="reverseReason" />}
+            {
+                <div class="alert alert-warning mt-3">برگشت، حسابداری تبدیل را معکوس می‌کند و سابقه را نگه می‌دارد. برای تبدیل دارای کمیشن ثبت‌شده، ابتدا کمیشن مرتبط باید برگشت شود؛ دوره بسته قابل تغییر نیست.</div>
+                <label class="form-label" for="settlement-reversal-reason">دلیل برگشت (ضروری)</label>
+                <input id="settlement-reversal-reason" class="form-control" maxlength="500" disabled="@busy"
+                       aria-describedby="settlement-reversal-help" @bind="reverseReason" @bind:event="oninput" />
+                <div id="settlement-reversal-help" class="form-text">
+                    @(string.IsNullOrWhiteSpace(reverseReason) ? "برای فعال‌شدن دکمه برگشت، دلیل را وارد کنید." : "دلیل وارد شد؛ می‌توانید برگشت تبدیل را ثبت کنید. محدودیت کمیشن و دوره بسته هنگام ثبت بررسی می‌شود.")
+                </div>
+            }
             @if(!string.IsNullOrWhiteSpace(error)){<div class="alert alert-danger mt-2">@error</div>}
         </div>
-        <div class="modal-footer"><button class="btn btn-success" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Excel)">خروج اکسل</button><button class="btn btn-danger" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Pdf)">خروج PDF</button>@if(details.Status=="Active"){<button class="btn btn-outline-danger" disabled="@(busy || string.IsNullOrWhiteSpace(reverseReason))" @onclick="ReverseAsync">برگشت تبدیل</button>}<button class="btn btn-secondary" @onclick="()=>details=null">بستن</button></div>
+        <div class="modal-footer"><button class="btn btn-success" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Excel)">خروج اکسل</button><button class="btn btn-danger" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Pdf)">خروج PDF</button>@if(details.Status is "Active" or "Adjusted"){<button class="btn btn-outline-danger" disabled="@(busy || string.IsNullOrWhiteSpace(reverseReason))" @onclick="ReverseAsync">برگشت تبدیل</button>}<button class="btn btn-secondary" disabled="@busy" @onclick="()=>details=null">بستن</button></div>
     </div></div></div>
 }
 
@@ -96,7 +104,21 @@ else
     private Task PreviousAsync(){page=Math.Max(1,page-1);return ReloadAsync();}
     private Task NextAsync(){page++;return ReloadAsync();}
     private async Task DetailsAsync(long id){busy=true;error="";reverseReason="";try{details=await Settlements.GetHistoryDetailsAsync(CorrespondentId,id);}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
-    private async Task ReverseAsync(){if(details==null)return;busy=true;try{await Settlements.ReverseAsync(CorrespondentId,details.ConversionId,reverseReason);details=null;message="تبدیل برگشت داده شد؛ سابقه حفظ شد و حواله‌ها دوباره قابل تبدیل‌اند.";await ReloadAsync();}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+    private async Task ReverseAsync()
+    {
+        if(busy || details==null || details.Status is not ("Active" or "Adjusted"))return;
+        error="";
+        if(string.IsNullOrWhiteSpace(reverseReason)){error="دلیل برگشت را وارد کنید.";return;}
+        busy=true;
+        try
+        {
+            await Settlements.ReverseAsync(CorrespondentId,details.ConversionId,reverseReason.Trim());
+            details=null;message="تبدیل برگشت داده شد؛ سابقه حفظ شد و حواله‌ها دوباره قابل تبدیل‌اند. برای حذف آپلود گروهی، تاریخچه آپلود را بروزرسانی و دوباره حذف را انتخاب کنید.";
+            await ReloadAsync();
+        }
+        catch(Exception ex){error=ex.Message;}
+        finally{busy=false;}
+    }
     private async Task ExportAsync(ExportFormat format){if(details==null)return;busy=true;try{var file=await Exporter.ExportAsync(CorrespondentId,details.ConversionId,format);await using var module=await JS.InvokeAsync<IJSObjectReference>("import","./js/record-selection.js");await module.InvokeVoidAsync("download",file.FileName,file.ContentType,Convert.ToBase64String(file.Content));}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
     private bool Matches(string text)=>string.IsNullOrWhiteSpace(search)||text.Contains(search.Trim(),StringComparison.OrdinalIgnoreCase);
     private static string Rate(decimal value)=>value.ToString("0.########",CultureInfo.InvariantCulture);

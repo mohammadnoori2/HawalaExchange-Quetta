@@ -157,7 +157,7 @@
                                                 <td><AppDateTime Value="@hawala.CreatedAt" /></td>
                                                 <td>@GetFullName(hawala.SenderName, hawala.SenderFatherName)</td>
                                                 <td>@GetFullName(hawala.ReceiverName, hawala.ReceiverFatherName)</td>
-                                                <td>@GetPaymentLocation(hawala)</td>
+                                                <td><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@GetPaymentLocation(hawala)" /></td>
                                                 <td class="fw-bold" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount)</td>
                                                 <td>@hawala.FromCurrencyCode</td>
                                                 <td dir="ltr">@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "—")</td>

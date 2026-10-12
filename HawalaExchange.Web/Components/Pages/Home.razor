@@ -120,7 +120,7 @@
                             @foreach (var balance in currentCashBalances)
                             {
                                 <tr>
-                                    <td class="fw-bold">@balance.AccountName</td>
+                                    <td class="fw-bold"><RecordDetailsLink Kind="Account" Id="balance.AccountId" Text="@balance.AccountName" /></td>
                                     <td><span class="badge-modern badge-info">@balance.CurrencyCode</span></td>
                                     <td dir="ltr" class="fw-bold @(balance.Balance >= 0 ? "text-success" : "text-danger")">
                                         @MoneyFormatHelper.Format(balance.Balance)
@@ -197,7 +197,7 @@
                         <div class="remain-item">
                             <span class="remain-name">
                                 <span class="remain-initial">@item.Initial</span>
-                                <span>@item.Name</span>
+                                <RecordDetailsLink Kind="Account" Id="item.AccountId" Text="@item.Name" />
                             </span>
                             <span class="remain-account-type">@item.AccountTypeName</span>
                             <span class="remain-amount @(counterpartyListMode == "debtors" ? "debtors" : "creditors")">

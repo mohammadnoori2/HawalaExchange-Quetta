@@ -144,7 +144,7 @@
                                 <tr class="@(customer.IsArchived ? "table-row-archived" : "")">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
                                     <td>
-                                        <span class="fw-semibold">@customer.FullName</span>
+                                        <RecordDetailsLink Kind="Customer" Id="customer.Id" Text="@customer.FullName" Class="fw-semibold" />
                                     </td>
                                     <td>@(customer.FatherName ?? "—")</td>
                                     <td>

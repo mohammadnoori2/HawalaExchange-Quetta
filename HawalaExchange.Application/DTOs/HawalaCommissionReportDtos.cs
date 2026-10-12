@@ -40,6 +40,8 @@ public sealed class HawalaCommissionReportRow
     public long? CorrespondentId { get; set; }
     public string Correspondent { get; set; } = "";
     public string Source { get; set; } = "";
+    public long? SourceCorrespondentId { get; set; }
+    public long? DestinationCorrespondentId { get; set; }
     public string Destination { get; set; } = "";
     public long? LocationId { get; set; }
     public string Location { get; set; } = "";

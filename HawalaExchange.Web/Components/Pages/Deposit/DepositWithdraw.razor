@@ -209,7 +209,7 @@
 
                                     <td>
                                         <span class="fw-semibold">
-                                            @item.AccountName
+                                            <RecordDetailsLink Kind="Account" Id="item.AccountId" Text="@item.AccountName" />
                                         </span>
                                         <small class="text-muted d-block">
                                             @item.AccountCode
@@ -218,7 +218,7 @@
 
                                     <td>
                                         <span class="fw-semibold">
-                                            @item.CashOrBankAccountName
+                                            <RecordDetailsLink Kind="Account" Id="item.CashOrBankAccountId" Text="@item.CashOrBankAccountName" />
                                         </span>
                                         <small class="text-muted d-block">
                                             @item.CashOrBankAccountCode
@@ -349,7 +349,7 @@
                             <div class="info-card">
                                 <span class="info-label">حساب انتخاب‌شده</span>
                                 <span class="info-value">
-                                    @selectedOperation.AccountName
+                                    <RecordDetailsLink Kind="Account" Id="selectedOperation.AccountId" Text="@selectedOperation.AccountName" />
                                     <small class="text-muted d-block">@selectedOperation.AccountCode</small>
                                 </span>
                             </div>
@@ -359,7 +359,7 @@
                             <div class="info-card">
                                 <span class="info-label">حساب صندوق/بانک</span>
                                 <span class="info-value">
-                                    @selectedOperation.CashOrBankAccountName
+                                    <RecordDetailsLink Kind="Account" Id="selectedOperation.CashOrBankAccountId" Text="@selectedOperation.CashOrBankAccountName" />
                                     <small class="text-muted d-block">@selectedOperation.CashOrBankAccountCode</small>
                                 </span>
                             </div>

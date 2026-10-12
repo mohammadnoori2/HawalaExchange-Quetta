@@ -114,6 +114,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class HawalaImportHistoryDto
     {
+        public long? SourceCorrespondentId { get; set; }
         public int ProgressPercent { get; set; }
         public string? ProgressMessage { get; set; }
         public string? ErrorMessage { get; set; }
@@ -137,6 +138,7 @@ namespace HawalaExchange.Application.DTOs
 
     public sealed class HawalaImportCommissionCorrectionDto
     {
+        public long CorrespondentId { get; set; }
         public string CorrespondentName { get; set; } = string.Empty;
         public string Scope { get; set; } = string.Empty;
         public decimal PreviousAfn { get; set; }
@@ -167,6 +169,7 @@ namespace HawalaExchange.Application.DTOs
 
     public sealed class HawalaImportHawalaDetailsDto
     {
+        public long? PaymentLocationId { get; set; }
         public long RowId { get; set; }
         public int ExcelRowNumber { get; set; }
         public long? HawalaId { get; set; }

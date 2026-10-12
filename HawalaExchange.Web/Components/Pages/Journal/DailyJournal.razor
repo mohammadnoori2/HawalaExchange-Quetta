@@ -223,7 +223,7 @@
                             {
                                 <tr>
                                     <td>
-                                        <strong>@balance.AccountName</strong>
+                                        <RecordDetailsLink Kind="Account" Id="balance.AccountId" Text="@balance.AccountName" Class="fw-bold" />
                                         <small class="d-block text-muted" dir="ltr">@balance.AccountCode</small>
                                     </td>
                                     <td><span class="badge-modern badge-info">@balance.CurrencyCode</span></td>
@@ -395,7 +395,8 @@
                                     <td>
                                         @if (operation.AccountNames.Count > 0)
                                         {
-                                            <span>@string.Join("، ", operation.AccountNames.Take(3))</span>
+                                            @foreach (var account in operation.LedgerEntries.Where(x => !string.IsNullOrWhiteSpace(x.AccountName)).DistinctBy(x => x.AccountId).Take(3))
+                                            { <span class="me-2"><RecordDetailsLink Kind="Account" Id="account.AccountId" Text="@account.AccountName" /></span> }
                                             @if (operation.AccountNames.Count > 3)
                                             {
                                                 <small class="d-block text-muted">+ @(operation.AccountNames.Count - 3) حساب دیگر</small>
@@ -491,7 +492,7 @@
                                                         <span>@HighlightImportantText(row.Operation, receiptDescriptions[descriptionIndex])</span>
                                                     </li>
                                                 }
-                                                <li class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</li>
+                                                <li class="journal-cash-accounts">صندوق: @foreach(var account in row.Accounts) { <span class="me-2"><RecordDetailsLink Kind="Account" Id="account.AccountId" Text="@account.AccountName" /></span> }</li>
                                             </ul>
                                         </td>
                                         <td class="journal-movement-amount">
@@ -578,7 +579,7 @@
                                                         <span>@HighlightImportantText(row.Operation, withdrawalDescriptions[descriptionIndex])</span>
                                                     </li>
                                                 }
-                                                <li class="journal-cash-accounts">صندوق: @string.Join("، ", row.AccountNames)</li>
+                                                <li class="journal-cash-accounts">صندوق: @foreach(var account in row.Accounts) { <span class="me-2"><RecordDetailsLink Kind="Account" Id="account.AccountId" Text="@account.AccountName" /></span> }</li>
                                             </ul>
                                         </td>
                                         <td class="journal-movement-amount">
@@ -713,7 +714,7 @@
                                 <tr>
                                     <td dir="ltr">@entry.Id</td>
                                     <td><AppDateTime Value="@entry.CreatedAt" ShowSeconds="true" /></td>
-                                    <td>@entry.AccountName</td>
+                                    <td><RecordDetailsLink Kind="Account" Id="entry.AccountId" Text="@entry.AccountName" /></td>
                                     <td>@entry.CurrencyCode</td>
                                     <td dir="ltr" class="text-success">
                                         @(entry.TalabKar > 0 ? MoneyFormatHelper.Format(entry.TalabKar) : "-")
@@ -1213,6 +1214,7 @@
             rows.Add(new CashJournalRow
             {
                 Operation = operation,
+                Accounts = cashEntries.DistinctBy(x => x.AccountId).ToList(),
                 AccountNames = cashEntries
                     .Select(x => x.AccountName)
                     .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -1353,6 +1355,7 @@
 
     private sealed class CashJournalRow
     {
+        public List<JournalEntryDto> Accounts { get; init; } = new();
         public JournalOperationDto Operation { get; init; } = new();
         public List<string> AccountNames { get; init; } = new();
         public List<CashJournalAmount> Amounts { get; init; } = new();

@@ -22,6 +22,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class TransactionReportDto
     {
+        public long? CustomerId { get; set; }
         public string TransactionNo { get; set; }
         public string TransactionType { get; set; }
         public DateTime CreatedAt { get; set; }

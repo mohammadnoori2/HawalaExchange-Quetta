@@ -90,7 +90,7 @@
                             {
                                 <tr class="@(item.IsBelowMinimum ? "table-danger" : null)">
                                     <td>@number</td>
-                                    <td class="fw-semibold">@item.AccountName</td>
+                                    <td class="fw-semibold"><RecordDetailsLink Kind="Account" Id="item.AccountId" Text="@item.AccountName" /></td>
                                     <td><span class="badge-modern badge-info">@item.CurrencyCode</span></td>
                                     <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(item.MinimumBalance)</td>
                                     <td dir="ltr" class="fw-bold @(item.IsBelowMinimum ? "text-danger" : "text-success")">

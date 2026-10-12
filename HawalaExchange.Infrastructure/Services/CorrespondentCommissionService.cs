@@ -630,6 +630,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                     PerLakhRate = x.PerLakhRate ?? batch.CommissionPerLakhAfn,
                     IsActive = x.IsActive,
                     SourceType = x.Hawala.SourceHawalaId.HasValue ? "Correspondent" : "OwnOffice",
+                    SourceCorrespondentId = batch.CommissionScope is "Origin" or "Forwarding"
+                        ? batch.CorrespondentId : x.Hawala.SourceHawala?.CorrespondentId,
                     SourceName = batch.CommissionScope is "Origin" or "Forwarding"
                         ? batch.Correspondent.Name
                         : x.Hawala.SourceHawala?.Correspondent?.Name ?? "صرافی خود ما"

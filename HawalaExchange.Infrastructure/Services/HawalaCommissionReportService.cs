@@ -168,6 +168,8 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
         HawalaId = h.Id, Number = h.Number, Reference = h.Reference, Date = h.Date, HawalaType = h.Type,
         CorrespondentId = type == "Forwarding" ? h.SourceId : h.CorrespondentId,
         Correspondent = type == "Forwarding" ? h.Source : h.Correspondent, Source = h.Type == "HawalaReceive" ? h.Correspondent : h.Source,
+        SourceCorrespondentId = h.Type == "HawalaReceive" ? h.CorrespondentId : h.SourceId,
+        DestinationCorrespondentId = h.Type == "HawalaSend" ? h.CorrespondentId : null,
         Destination = h.Type == "HawalaSend" ? h.Correspondent : "صرافی", LocationId = h.LocationId, Location = h.Location,
         Sender = h.Sender, Receiver = h.Receiver, Currency = h.Currency, Amount = h.Amount, Status = h.Status,
         BulkImport = h.Bulk, CommissionType = type

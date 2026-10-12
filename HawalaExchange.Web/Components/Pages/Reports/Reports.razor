@@ -151,7 +151,7 @@
                             <div class="col-md-3">
                                 <div class="info-card">
                                     <span class="info-label">شعبه</span>
-                                    <span class="info-value">@dailyReport.BranchName</span>
+                                    <RecordDetailsLink Kind="Branch" Id="dailyReport.BranchId" Text="@dailyReport.BranchName" Class="info-value" />
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -285,7 +285,7 @@
                                         <tr>
                                             <td><span class="customer-code">@r.TransactionNo</span></td>
                                             <td>@GetTransactionTypeName(r.TransactionType)</td>
-                                            <td>@r.CustomerName</td>
+                                            <td><RecordDetailsLink Kind="Customer" Id="r.CustomerId" Text="@r.CustomerName" /></td>
                                             <td>@r.SenderName</td>
                                             <td>@r.ReceiverName</td>
                                             <td>@r.FromCurrency</td>
@@ -372,7 +372,7 @@
                                     {
                                         <tr>
                                             <td dir="ltr">@DisplayDates.Date(r.Date)</td>
-                                            <td>@r.BranchName</td>
+                                            <td><RecordDetailsLink Kind="Branch" Id="r.BranchId" Text="@r.BranchName" /></td>
                                             <td dir="ltr">@MoneyFormatHelper.Format(r.TotalCommission)</td>
                                             <td dir="ltr">@MoneyFormatHelper.Format(r.TotalAgentCommission)</td>
                                             <td dir="ltr" class="fw-bold text-success">@MoneyFormatHelper.Format(r.NetCommission)</td>
@@ -447,7 +447,7 @@
                                     @foreach (var r in trialBalance)
                                     {
                                         <tr>
-                                            <td>@r.AccountName</td>
+                                            <td><RecordDetailsLink Kind="Account" Id="r.AccountId" Text="@r.AccountName" /></td>
                                             <td class="text-danger">@MoneyFormatHelper.Format(r.TotalDebit)</td>
                                             <td class="text-success">@MoneyFormatHelper.Format(r.TotalCredit)</td>
                                             <td class="fw-bold">@MoneyFormatHelper.Format(r.Balance)</td>

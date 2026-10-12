@@ -276,8 +276,8 @@
                                         }
                                         else { <span>—</span> }
                                     </td>
-                                    <td>@(hawala.PaymentLocationName ?? "-")</td>
-                                    <td>@(hawala.CorrespondentName ?? "-")</td>
+                                    <td><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@hawala.PaymentLocationName" /></td>
+                                    <td><RecordDetailsLink Kind="Correspondent" Id="hawala.CorrespondentId" Text="@hawala.CorrespondentName" /></td>
                                     <td class="text-nowrap">
                                         @if (hawala.SettlementRates.Count > 0)
                                         {
@@ -535,7 +535,7 @@
                             </div>
                             <div class="row g-2">
                                 <div class="col-md-3"><small class="d-block text-muted">نمبر حواله دریافتی</small><strong>@selectedSourceHawala.Number</strong></div>
-                                <div class="col-md-3"><small class="d-block text-muted">نمایندگی اصلی</small><strong>@(selectedSourceHawala.CorrespondentName ?? "-")</strong></div>
+                                <div class="col-md-3"><small class="d-block text-muted">نمایندگی اصلی</small><RecordDetailsLink Kind="Correspondent" Id="selectedSourceHawala.CorrespondentId" Text="@selectedSourceHawala.CorrespondentName" Class="fw-bold" /></div>
                                 <div class="col-md-3"><small class="d-block text-muted">مبلغ</small><strong>@MoneyFormatHelper.Format(selectedSourceHawala.FromAmount) @selectedSourceHawala.FromCurrencyCode</strong></div>
                                 <div class="col-md-3"><small class="d-block text-muted">محل پرداخت</small><strong>@GetPaymentLocation(selectedSourceHawala)</strong></div>
                                 <div class="col-md-6"><small class="d-block text-muted">فرستنده</small><strong>@(selectedSourceHawala.SenderName ?? "-")</strong></div>
@@ -685,13 +685,13 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">نماینده</span>
-                                <span class="info-value">@(selectedHawala.CorrespondentName ?? "-")</span>
+                                <RecordDetailsLink Kind="Correspondent" Id="selectedHawala.CorrespondentId" Text="@selectedHawala.CorrespondentName" Class="info-value" />
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">محل پرداخت</span>
-                                <span class="info-value">@GetPaymentLocation(selectedHawala)</span>
+                                <RecordDetailsLink Kind="PaymentLocation" Id="selectedHawala.PaymentLocationId" Text="@GetPaymentLocation(selectedHawala)" Class="info-value" />
                             </div>
                         </div>
                         @if (selectedHawala.PaidAt.HasValue)

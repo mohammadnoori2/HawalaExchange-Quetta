@@ -144,7 +144,7 @@
                             <td class="fw-bold">@hawala.Number</td>
                             <td>@(hawala.SenderName ?? "—")</td>
                             <td>@(hawala.ReceiverName ?? "—")</td>
-                            <td title="@GetPaymentLocation(hawala)">@GetPaymentLocationName(hawala)</td>
+                            <td title="@GetPaymentLocation(hawala)"><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@GetPaymentLocationName(hawala)" /></td>
                             <td class="fw-bold text-primary" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount) @hawala.FromCurrencyCode</td>
                             <td dir="ltr">
                                 @if (HawalaType == "HawalaSend")

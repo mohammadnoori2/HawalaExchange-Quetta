@@ -1,0 +1,85 @@
+@page "/payment-locations/{Id:long}"
+@page "/branches/{Id:long}"
+@page "/currencies/{Id:long}"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IPaymentLocationService Locations
+@inject IPaymentLocationAssignmentService Assignments
+@inject IBranchService Branches
+@inject ICurrencyService Currencies
+@inject NavigationManager Navigation
+
+<PageTitle>@title</PageTitle>
+<PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@loading" />
+<div class="page-wrapper" dir="rtl">
+    <AppPageHeader Title="@title" Icon="bi-eye">
+        <Actions><a class="btn btn-outline-secondary" href="@listPath">بازگشت به لیست</a></Actions>
+    </AppPageHeader>
+    @if (loading) { <div class="text-center p-4"><span class="spinner-border text-primary"></span></div> }
+    else if (!string.IsNullOrEmpty(error)) { <div class="alert alert-danger" role="alert">@error</div> }
+    else
+    {
+        <div class="modern-card p-4 mb-3"><div class="row g-3">
+            @foreach (var field in fields)
+            { <div class="col-md-4"><small class="text-muted d-block">@field.Label</small><div class="fw-semibold text-break">@(string.IsNullOrWhiteSpace(field.Value) ? "—" : field.Value)</div></div> }
+            @if (createdAt.HasValue) { <div class="col-md-4"><small class="text-muted d-block">تاریخ ثبت</small><AppDateTime Value="@createdAt.Value" /></div> }
+        </div></div>
+        @if (listPath == "/payment-locations")
+        {
+            <div class="modern-card p-3"><h5>نمایندگی‌های مسئول پرداخت</h5>
+                <div class="table-responsive"><GlobalDataGrid class="table table-hover"><thead><tr><th>نمایندگی</th><th>از تاریخ</th><th>تا تاریخ</th></tr></thead><tbody>
+                    @foreach (var assignment in history)
+                    { <tr><td><RecordDetailsLink Kind="Correspondent" Id="assignment.CorrespondentId" Text="@assignment.CorrespondentName" /></td><td>@DisplayDates.Date(assignment.EffectiveFrom)</td><td>@DisplayDates.Date(assignment.EffectiveTo, "ادامه دارد")</td></tr> }
+                    @if (history.Count == 0) { <tr><td colspan="3" class="text-muted">نمایندگی مسئول تعیین نشده است.</td></tr> }
+                </tbody></GlobalDataGrid></div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public long Id { get; set; }
+    private string title="مشاهده جزئیات", listPath="/payment-locations", error="";
+    private bool loading;
+    private int requestVersion;
+    private DateTime? createdAt;
+    private List<(string Label,string? Value)> fields=[];
+    private IReadOnlyList<PaymentLocationAssignmentDto> history=[];
+    protected override Task OnParametersSetAsync() => RefreshPageDataAsync();
+    private async Task RefreshPageDataAsync()
+    {
+        var version=++requestVersion; loading=true; error=""; fields=[]; history=[]; createdAt=null;
+        listPath="/"+Navigation.ToBaseRelativePath(Navigation.Uri).Split('/')[0];
+        var id=Id;
+        try
+        {
+            if(listPath=="/payment-locations")
+            {
+                var row=await Locations.GetByIdAsync(id) ?? throw new KeyNotFoundException("محل پرداخت یافت نشد.");
+                var assignments=(await Assignments.GetAllAsync()).Where(x=>x.PaymentLocationId==id).OrderByDescending(x=>x.EffectiveFrom).ToList();
+                if(version!=requestVersion)return;
+                title="مشاهده محل پرداخت: "+row.Name;createdAt=row.CreatedAt;history=assignments;
+                fields=[("نام",row.Name),("آدرس",row.Address),("شماره تماس",row.Phone),("مسئول تماس",row.ContactPerson),("نام‌های جایگزین",string.Join("، ",row.Aliases)),("وضعیت",row.IsActive?"فعال":"غیرفعال")];
+            }
+            else if(listPath=="/branches")
+            {
+                var row=await Branches.GetByIdAsync(id) ?? throw new KeyNotFoundException("شعبه یافت نشد.");
+                if(version!=requestVersion)return;
+                title="مشاهده شعبه: "+row.Name;createdAt=row.CreatedAt;
+                fields=[("نام",row.Name),("کد",row.Code),("شماره تماس",row.PhoneNumber),("آدرس",row.Address),("وضعیت",row.IsArchived?"بایگانی":"فعال")];
+            }
+            else
+            {
+                var row=await Currencies.GetByIdAsync(id) ?? throw new KeyNotFoundException("ارز یافت نشد.");
+                if(version!=requestVersion)return;
+                title="مشاهده ارز: "+row.Name;
+                fields=[("نام",row.Name),("کد",row.Code),("نماد",row.Symbol),("وضعیت",row.IsActive?"فعال":"غیرفعال")];
+            }
+        }
+        catch(Exception ex){if(version==requestVersion)error=ex.Message;}
+        finally{if(version==requestVersion)loading=false;}
+    }
+}

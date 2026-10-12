@@ -177,6 +177,7 @@ public sealed class HawalaImportService : IHawalaImportService
                 BatchId = x.Id,
                 FileName = x.FileName,
                 SourceCorrespondentName = x.Correspondent!.Name,
+                SourceCorrespondentId = x.CorrespondentId,
                 Status = x.Status == "Posted" ? "Posted" : x.Job != null ? x.Job.Status : x.Status,
                 ProgressPercent = x.Job != null ? x.Job.ProgressPercent : 0,
                 ProgressMessage = x.Job != null ? x.Job.ProgressMessage : null,
@@ -241,6 +242,7 @@ public sealed class HawalaImportService : IHawalaImportService
                 SenderName = row.SenderName,
                 ReceiverName = row.ReceiverName,
                 PaymentLocationName = row.PaymentLocation?.Name ?? row.PaymentLocationText ?? string.Empty,
+                PaymentLocationId = row.PaymentLocationId,
                 Amount = row.Amount ?? 0,
                 CurrencyCode = row.CurrencyCode ?? string.Empty,
                 // Forwarding is a display status; the source remains Paid for accounting.
@@ -257,6 +259,7 @@ public sealed class HawalaImportService : IHawalaImportService
             BatchId = batch.Id,
             FileName = batch.FileName,
             SourceCorrespondentName = batch.Correspondent?.Name ?? string.Empty,
+            SourceCorrespondentId = batch.CorrespondentId,
             Status = batch.Status == "Posted" ? "Posted" : job?.Status ?? batch.Status,
             ProgressPercent = job?.ProgressPercent ?? 0,
             ProgressMessage = job?.ProgressMessage,
@@ -290,7 +293,7 @@ public sealed class HawalaImportService : IHawalaImportService
         foreach (var batch in batches)
         {
             var remaining = ImportCommissionCorrectionService.Totals(batch, batch.Items.Where(x => x.IsActive && !ids.Contains(x.HawalaId)).ToList(), currencies);
-            preview.Commissions.Add(new() { CorrespondentName = batch.Correspondent.Name, Scope = batch.CommissionScope,
+            preview.Commissions.Add(new() { CorrespondentId = batch.CorrespondentId, CorrespondentName = batch.Correspondent.Name, Scope = batch.CommissionScope,
                 PreviousAfn = batch.TotalCommissionAfn, PreviousUsd = batch.TotalCommissionUsd, RemainingAfn = remaining.Afn, RemainingUsd = remaining.Usd });
         }
         return preview;

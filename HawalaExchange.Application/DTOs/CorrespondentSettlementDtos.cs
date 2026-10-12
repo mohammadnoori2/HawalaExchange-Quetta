@@ -92,6 +92,7 @@ public sealed class CorrespondentSettlementHistoryItemDto
     public string SenderName { get; set; } = "";
     public string ReceiverName { get; set; } = "";
     public string PaymentLocationName { get; set; } = "";
+    public long? PaymentLocationId { get; set; }
     public DateTime RateDate { get; set; }
     public long SourceCurrencyId { get; set; }
     public string SourceCurrencyCode { get; set; } = "";

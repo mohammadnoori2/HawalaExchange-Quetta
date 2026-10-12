@@ -132,7 +132,7 @@
                                 <tr class="@(correspondent.IsArchived ? "table-row-archived" : "")">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
                                     <td>
-                                        <span class="fw-semibold">@correspondent.Name</span>
+                                        <RecordDetailsLink Kind="Correspondent" Id="correspondent.Id" Text="@correspondent.Name" Class="fw-semibold" />
                                     </td>
                                     <td>
                                         <span class="badge-modern badge-info">@correspondent.Country</span>
@@ -596,7 +596,7 @@
                                                     <td><AppDateTime Value="@hawala.CreatedAt" /></td>
                                                     <td>@GetFullName(hawala.SenderName, hawala.SenderFatherName)</td>
                                                     <td>@GetFullName(hawala.ReceiverName, hawala.ReceiverFatherName)</td>
-                                                    <td>@GetRangePaymentLocation(hawala)</td>
+                                                    <td><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@GetRangePaymentLocation(hawala)" /></td>
                                                     <td class="fw-bold" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount)</td>
                                                     <td>@hawala.FromCurrencyCode</td>
                                                     <td dir="ltr">@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")</td>

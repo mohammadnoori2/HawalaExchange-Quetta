@@ -176,9 +176,9 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <span class="fw-semibold">@(transaction.CustomerFullName ?? "-")</span>
+                                        <RecordDetailsLink Kind="Customer" Id="transaction.CustomerId" Text="@transaction.CustomerFullName" Class="fw-semibold" />
                                     </td>
-                                    <td>@transaction.BranchName</td>
+                                    <td><RecordDetailsLink Kind="Branch" Id="transaction.BranchId" Text="@transaction.BranchName" /></td>
                                     <td>
                                         <span class="badge-modern @GetStatusBadge(transaction.Status)">
                                             @GetStatusName(transaction.Status)
@@ -517,7 +517,7 @@
                         <div class="col-md-3">
                             <div class="info-card">
                                 <span class="info-label">شعبه</span>
-                                <span class="info-value">@selectedTransaction.BranchName</span>
+                                <RecordDetailsLink Kind="Branch" Id="selectedTransaction.BranchId" Text="@selectedTransaction.BranchName" Class="info-value" />
                             </div>
                         </div>
                     </div>
@@ -526,7 +526,7 @@
                         <div class="col-md-3">
                             <div class="info-card">
                                 <span class="info-label">مشتری</span>
-                                <span class="info-value">@(selectedTransaction.CustomerFullName ?? "نامشخص")</span>
+                                <RecordDetailsLink Kind="Customer" Id="selectedTransaction.CustomerId" Text="@selectedTransaction.CustomerFullName" Class="info-value" />
                             </div>
                         </div>
                         <div class="col-md-3">

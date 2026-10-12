@@ -154,7 +154,7 @@ public sealed class ReportService(ApplicationDbContext context) : IReportService
         long? correspondentId)
     {
         var range = CreateRange(fromDate, toDate);
-        return await WithCommandAsync(
+        var reports = await WithCommandAsync(
             "[dbo].[usp_GetTransactionReport_v1]",
             command =>
             {
@@ -188,6 +188,18 @@ public sealed class ReportService(ApplicationDbContext context) : IReportService
 
                 return rows;
             });
+        var numbers = reports.Select(x => x.TransactionNo).Distinct().ToArray();
+        if (numbers.Length > 0)
+        {
+            var references = await context.Transactions.AsNoTracking()
+                .Where(x => numbers.Contains(x.TransactionNo) && x.CustomerId != null)
+                .Select(x => new { x.TransactionNo, x.TransactionType, x.CustomerId }).ToListAsync();
+            var customers = references.GroupBy(x => (x.TransactionNo, x.TransactionType))
+                .ToDictionary(g => g.Key, g => g.Select(x => x.CustomerId).Distinct().Count() == 1 ? g.First().CustomerId : null);
+            foreach (var row in reports)
+                row.CustomerId = customers.GetValueOrDefault((row.TransactionNo, row.TransactionType));
+        }
+        return reports;
     }
 
     private async Task<List<CommissionReportDto>> ReadCommissionReportsAsync(

@@ -147,10 +147,10 @@
                                 <tr>
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
                                     <td>
-                                        <span class="customer-code">@transfer.FromAccountName</span>
+                                        <RecordDetailsLink Kind="Account" Id="transfer.FromAccountId" Text="@transfer.FromAccountName" Class="customer-code" />
                                     </td>
                                     <td>
-                                        <span class="customer-code">@transfer.ToAccountName</span>
+                                        <RecordDetailsLink Kind="Account" Id="transfer.ToAccountId" Text="@transfer.ToAccountName" Class="customer-code" />
                                     </td>
                                     <td>
                                         <span class="badge-modern badge-info">@transfer.CurrencyCode</span>
@@ -390,13 +390,13 @@
                         <div class="col-md-6">
                             <div class="info-card">
                                 <span class="info-label">حساب مبدأ</span>
-                                <span class="info-value">@selectedTransfer.FromAccountName</span>
+                                <RecordDetailsLink Kind="Account" Id="selectedTransfer.FromAccountId" Text="@selectedTransfer.FromAccountName" Class="info-value" />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="info-card">
                                 <span class="info-label">حساب مقصد</span>
-                                <span class="info-value">@selectedTransfer.ToAccountName</span>
+                                <RecordDetailsLink Kind="Account" Id="selectedTransfer.ToAccountId" Text="@selectedTransfer.ToAccountName" Class="info-value" />
                             </div>
                         </div>
                     </div>

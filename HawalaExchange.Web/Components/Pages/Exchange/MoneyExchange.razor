@@ -224,7 +224,7 @@
                                     </td>
 
                                     <td class="exchange-side-cell" title="@($"{item.FromAccountName} ({item.FromAccountCode})")">
-                                        <span class="exchange-account-name">@item.FromAccountName</span>
+                                        <RecordDetailsLink Kind="Account" Id="item.FromAccountId" Text="@item.FromAccountName" Class="exchange-account-name" />
                                         <small class="exchange-account-code">@item.FromAccountCode</small>
                                         <span class="exchange-amount text-danger" dir="ltr">
                                             @MoneyFormatHelper.Format(item.FromAmount)
@@ -233,7 +233,7 @@
                                     </td>
 
                                     <td class="exchange-side-cell" title="@($"{item.ToAccountName} ({item.ToAccountCode})")">
-                                        <span class="exchange-account-name">@item.ToAccountName</span>
+                                        <RecordDetailsLink Kind="Account" Id="item.ToAccountId" Text="@item.ToAccountName" Class="exchange-account-name" />
                                         <small class="exchange-account-code">@item.ToAccountCode</small>
                                         <span class="exchange-amount text-success" dir="ltr">
                                             @MoneyFormatHelper.Format(item.ToAmount)

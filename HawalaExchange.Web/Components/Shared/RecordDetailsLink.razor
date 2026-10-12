@@ -1,0 +1,22 @@
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@using HawalaExchange.Web.Helpers
+
+@if (RecordDetailsRoutes.Get(Kind, Id) is { } href && !string.IsNullOrWhiteSpace(Text))
+{
+    <a href="@href" class="record-details-link @Class" title="@($"مشاهده {Text}")"
+       @onclick:stopPropagation="true">@Text</a>
+}
+else
+{
+    <span class="@Class">@(string.IsNullOrWhiteSpace(Text) ? "—" : Text)</span>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Kind { get; set; } = "";
+    [Parameter] public long? Id { get; set; }
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

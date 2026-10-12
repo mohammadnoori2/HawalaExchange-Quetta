@@ -94,7 +94,7 @@
                     <thead class="table-light"><tr><th>نمایندگی</th><th>تعداد حواله</th><th>مجموع به تفکیک ارز</th></tr></thead>
                     <tbody>@foreach (var summary in result.DestinationSummaries)
                     {
-                        <tr><td><strong>@summary.CorrespondentName</strong></td><td>@summary.HawalaCount.ToString("N0")</td><td>
+                        <tr><td><RecordDetailsLink Kind="Correspondent" Id="summary.CorrespondentId" Text="@summary.CorrespondentName" Class="fw-bold" /></td><td>@summary.HawalaCount.ToString("N0")</td><td>
                             @foreach (var total in summary.Totals)
                             { <span class="badge text-bg-primary ms-2">@total.Amount.ToString("N0") @total.CurrencyCode (@total.RowCount.ToString("N0"))</span> }
                         </td></tr>
@@ -203,7 +203,7 @@
                         @if (!location.PaymentLocationId.HasValue){<span class="badge bg-warning text-dark me-2">محل جدید</span>}
                         @if (location.ResponsibleCorrespondentId.HasValue){<span class="badge bg-info text-dark me-2">مسئول ثبت‌شده</span>}
                         @if (location.ResponsibleCorrespondentId.HasValue)
-                        { <div class="form-control bg-light">@location.ResponsibleCorrespondentName</div> }
+                        { <div class="form-control bg-light"><RecordDetailsLink Kind="Correspondent" Id="location.ResponsibleCorrespondentId" Text="@location.ResponsibleCorrespondentName" /></div> }
                         else
                         {
                             <HawalaImportCorrespondentSelect Correspondents="@activeCorrespondents"
@@ -227,7 +227,7 @@
         }
 
         <div class="card shadow-sm mt-3">
-            <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><div><strong>پیش‌نمایش فایل</strong> — @preview.CorrespondentName</div>
+            <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center"><div><strong>پیش‌نمایش فایل</strong> — <RecordDetailsLink Kind="Correspondent" Id="CorrespondentId" Text="@preview.CorrespondentName" /></div>
                 @if (!preview.LocationsPrepared)
                 { <button class="btn btn-primary" @onclick="PrepareLocationsAsync" disabled="@(!CanPrepareLocations)" title="@ConfirmDisabledReason">ذخیره محل‌ها و مسئول‌ها و ادامه</button> }
                 else
@@ -244,8 +244,8 @@
                 <tbody><Virtualize Items="@preview.Rows" Context="row" ItemSize="58" SpacerElement="tr">
                     <tr class="@(row.IsValid ? string.Empty : "table-danger")">
                         <td>@row.ExcelRowNumber</td><td><strong>@row.HawalaNumber</strong><br/><small>@row.ReferenceNumber</small></td><td>@row.SenderName<br/><small>@row.ReceiverName</small></td>
-                        <td>@row.PaymentLocationText @if (!row.PaymentLocationId.HasValue){<span class="badge bg-warning text-dark">جدید</span>}</td><td dir="ltr">@row.Amount?.ToString("N0") @row.CurrencyCode</td>
-                        <td>@if (row.RequiresOutgoingHawala){<span class="badge bg-primary">دریافتی + ارسالی</span><div class="small mt-1">به @(row.DestinationCorrespondentName ?? row.PaymentLocationText)</div>}else{<span class="badge bg-secondary">فقط دریافتی</span>}</td>
+                        <td><RecordDetailsLink Kind="PaymentLocation" Id="row.PaymentLocationId" Text="@row.PaymentLocationText" /> @if (!row.PaymentLocationId.HasValue){<span class="badge bg-warning text-dark">جدید</span>}</td><td dir="ltr">@row.Amount?.ToString("N0") @row.CurrencyCode</td>
+                        <td>@if (row.RequiresOutgoingHawala){<span class="badge bg-primary">دریافتی + ارسالی</span><div class="small mt-1">به <RecordDetailsLink Kind="Correspondent" Id="row.DestinationCorrespondentId" Text="@(row.DestinationCorrespondentName ?? row.PaymentLocationText)" /></div>}else{<span class="badge bg-secondary">فقط دریافتی</span>}</td>
                         <td>@if (row.RequiresOutgoingHawala){<InputNumber class="form-control form-control-sm" @bind-Value="row.AgentCommissionAmount" placeholder="اختیاری" disabled="@(!preview.LocationsPrepared || isBusy)"/>}else{<span>—</span>}</td>
                         <td>@if (row.RequiresOutgoingHawala){<select class="form-select form-select-sm" @bind="row.AgentCommissionCurrencyId" disabled="@(!preview.LocationsPrepared || isBusy)"><option value="">انتخاب ارز</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code</option>}</select>}else{<span>—</span>}</td>
                         <td>@if (row.IsValid){<span class="text-success"><i class="bi bi-check-circle"></i> معتبر</span>}else{<span class="text-danger">@row.ValidationErrors</span>}</td>
@@ -277,7 +277,7 @@
                 <tbody>@foreach (var item in importHistory)
                 {
                     <tr class="@(selectedHistory?.BatchId == item.BatchId ? "table-primary" : string.Empty)">
-                        <td><strong>@item.FileName</strong></td><td>@item.SourceCorrespondentName</td>
+                        <td><strong>@item.FileName</strong></td><td><RecordDetailsLink Kind="Correspondent" Id="item.SourceCorrespondentId" Text="@item.SourceCorrespondentName" /></td>
                         <td>@item.RowCount.ToString("N0")</td><td>
                             <span class="badge @HistoryStatusClass(item.Status)">@HistoryStatusText(item.Status)</span>
                             @if (item.Status is "Queued" or "Running")
@@ -311,7 +311,7 @@
     {
         <div class="card shadow-sm mt-3 border-primary">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <div><strong>جزئیات آپلود: @selectedHistory.FileName</strong><div class="small text-muted">@selectedHistory.SourceCorrespondentName · @selectedHistory.RowCount.ToString("N0") ردیف</div></div>
+                <div><strong>جزئیات آپلود: @selectedHistory.FileName</strong><div class="small text-muted"><RecordDetailsLink Kind="Correspondent" Id="selectedHistory.SourceCorrespondentId" Text="@selectedHistory.SourceCorrespondentName" /> · @selectedHistory.RowCount.ToString("N0") ردیف</div></div>
                 <button type="button" class="btn-close" aria-label="بستن" @onclick="CloseHistoryDetails"></button>
             </div>
             <div class="card-body">
@@ -325,7 +325,7 @@
                     <tbody>@foreach (var group in selectedHistory.Groups)
                     {
                         <tr class="@(selectedHistoryGroup == group ? "table-info" : string.Empty)">
-                            <td><strong>@group.CorrespondentName</strong>@if(group.IsOwnOffice){<span class="badge text-bg-secondary me-2">دفتر</span>}</td>
+                            <td><RecordDetailsLink Kind="Correspondent" Id="group.CorrespondentId" Text="@group.CorrespondentName" Class="fw-bold" />@if(group.IsOwnOffice){<span class="badge text-bg-secondary me-2">دفتر</span>}</td>
                             <td>@group.HawalaCount.ToString("N0")</td><td>@foreach(var total in group.Totals){<span class="badge @(group.IsOwnOffice ? "text-bg-secondary" : "text-bg-primary") ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</td>
                             <td><button class="btn btn-sm btn-outline-info" @onclick="() => OpenShareGroup(group, false)">جزئیات حواله‌ها</button>
                                 <button class="btn btn-sm btn-outline-success" @onclick="() => OpenShareGroup(group, true)">انتخاب همه و خروجی</button></td>
@@ -359,7 +359,7 @@
                             @if (selectedHistoryGroup.IsOwnOffice)
                             { <span>این حواله‌ها در دفتر خود ما اجرا شده‌اند و حواله ارسالی خودکار ندارند.</span> }
                             else
-                            { <span>برای این ردیف‌ها حواله دریافتی ثبت شده و حواله ارسالی خودکار به نمایندگی <strong>@selectedHistoryGroup.CorrespondentName</strong> ساخته شده است.</span> }
+                            { <span>برای این ردیف‌ها حواله دریافتی ثبت شده و حواله ارسالی خودکار به نمایندگی <RecordDetailsLink Kind="Correspondent" Id="selectedHistoryGroup.CorrespondentId" Text="@selectedHistoryGroup.CorrespondentName" Class="fw-bold" /> ساخته شده است.</span> }
                         </div>
                     </div>
                     @if (!selectedHistoryGroup.IsOwnOffice)
@@ -379,7 +379,7 @@
                                     @if (hawala.GeneratedSendHawalaNumber.HasValue) { <br/><strong>ارسالی: @hawala.GeneratedSendHawalaNumber</strong> }
                                     <br/><small class="text-muted">@hawala.ReferenceNumber</small></td>
                                 <td><div><i class="bi bi-person-up ms-1 text-muted"></i>@hawala.SenderName</div><small><i class="bi bi-person-down ms-1 text-muted"></i>@hawala.ReceiverName</small></td>
-                                <td>@hawala.PaymentLocationName</td><td><strong dir="ltr">@hawala.Amount.ToString("N0") @hawala.CurrencyCode</strong></td>
+                                <td><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@hawala.PaymentLocationName" /></td><td><strong dir="ltr">@hawala.Amount.ToString("N0") @hawala.CurrencyCode</strong></td>
                                 <td>@if(hawala.GeneratedSendHawalaId.HasValue){<span class="badge text-bg-primary">دریافتی + ارسالی</span>}else{<span class="badge text-bg-secondary">فقط دریافتی</span>}</td>
                                 <td><span class="badge text-bg-light border text-dark">@AppDisplayText.Status(hawala.Status, "HawalaReceive")</span></td>
                                 <td>
@@ -430,11 +430,21 @@
                         {
                             <div class="table-responsive"><table class="table table-sm"><thead><tr><th>نمایندگی / کمیشن</th><th>قبل</th><th>باقی‌مانده برای سایر فایل‌ها</th></tr></thead><tbody>
                                 @foreach (var item in deleteImpact.Commissions)
-                                { <tr><td>@item.CorrespondentName / @CommissionScopeLabel(item.Scope)</td><td dir="ltr">@item.PreviousAfn.ToString("N0") AFN / @item.PreviousUsd.ToString("N0") USD</td><td dir="ltr">@item.RemainingAfn.ToString("N0") AFN / @item.RemainingUsd.ToString("N0") USD</td></tr> }
+                                { <tr><td><RecordDetailsLink Kind="Correspondent" Id="item.CorrespondentId" Text="@item.CorrespondentName" /> / @CommissionScopeLabel(item.Scope)</td><td dir="ltr">@item.PreviousAfn.ToString("N0") AFN / @item.PreviousUsd.ToString("N0") USD</td><td dir="ltr">@item.RemainingAfn.ToString("N0") AFN / @item.RemainingUsd.ToString("N0") USD</td></tr> }
                             </tbody></table></div>
                         }
                         @if (deleteImpact.HasClosedPeriod) { <div class="alert alert-warning">حواله در دوره بسته‌شده وجود دارد؛ سوابق دوره حفظ و اصلاحیه در دوره باز ثبت می‌شود.</div> }
-                        @if (deleteImpact.HasSettlementConversion) { <div class="alert alert-warning">ابتدا تبدیل ارز توافقی مربوط به این حواله‌ها را برگشت دهید؛ سپس حذف را انجام دهید.</div> }
+                        @if (deleteImpact.HasSettlementConversion)
+                        {
+                            <div class="alert alert-warning">
+                                <strong>حذف فعلاً غیرفعال است: این فایل حواله تبدیل‌شده به ارز توافقی دارد.</strong>
+                                <ol class="mt-2 mb-0">
+                                    <li>اگر کمیشن مرتبط ثبت شده است، ابتدا آن را از تاریخچه کمیشن برگشت دهید.</li>
+                                    <li>از تاریخچه تبدیل نمایندگی، تبدیل‌های مربوط به حواله‌های این فایل را برگشت دهید. تبدیل دوره بسته قابل برگشت نیست.</li>
+                                    <li>این پنجره را ببندید، تاریخچه آپلود را بروزرسانی کنید و دوباره حذف را انتخاب کنید.</li>
+                                </ol>
+                            </div>
+                        }
                     }
                     <div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle ms-1"></i>فایل و تمام <strong>@deleteBatch.RowCount.ToString("N0")</strong> ردیف از تاریخچه فعال خارج می‌شوند. حواله‌های ثبت‌شده ابطال، حسابداری برگشت و کمیشن‌های مرتبط اصلاح می‌شوند؛ سهم سایر فایل‌ها، محل‌های پرداخت و سوابق دوره بسته‌شده باقی می‌مانند.</div>
                 </div>

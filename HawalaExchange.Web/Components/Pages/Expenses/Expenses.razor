@@ -198,11 +198,11 @@
                                     </td>
 
                                     <td>
-                                        @(string.IsNullOrWhiteSpace(expense.ExpenseAccountName) ? "-" : expense.ExpenseAccountName)
+                                        <RecordDetailsLink Kind="Account" Id="expense.ExpenseAccountId" Text="@expense.ExpenseAccountName" />
                                     </td>
 
                                     <td>
-                                        @(string.IsNullOrWhiteSpace(expense.PaidFromAccountName) ? "-" : expense.PaidFromAccountName)
+                                        <RecordDetailsLink Kind="Account" Id="expense.PaidFromAccountId" Text="@expense.PaidFromAccountName" />
                                     </td>
 
                                     <td>
@@ -529,7 +529,7 @@
                             <div class="info-card">
                                 <span class="info-label">حساب مصرف</span>
                                 <span class="info-value">
-                                    @(string.IsNullOrWhiteSpace(selectedExpense.ExpenseAccountName) ? "-" : selectedExpense.ExpenseAccountName)
+                                    <RecordDetailsLink Kind="Account" Id="selectedExpense.ExpenseAccountId" Text="@selectedExpense.ExpenseAccountName" />
                                 </span>
                             </div>
                         </div>
@@ -538,7 +538,7 @@
                             <div class="info-card">
                                 <span class="info-label">حساب پرداخت‌کننده</span>
                                 <span class="info-value">
-                                    @(string.IsNullOrWhiteSpace(selectedExpense.PaidFromAccountName) ? "-" : selectedExpense.PaidFromAccountName)
+                                    <RecordDetailsLink Kind="Account" Id="selectedExpense.PaidFromAccountId" Text="@selectedExpense.PaidFromAccountName" />
                                 </span>
                             </div>
                         </div>

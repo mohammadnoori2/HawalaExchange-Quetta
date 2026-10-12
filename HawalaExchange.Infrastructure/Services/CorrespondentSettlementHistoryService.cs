@@ -44,6 +44,18 @@ public sealed partial class CorrespondentSettlementService
             """).ToListAsync(cancellationToken);
         details.Revisions = revisions.Select(x => new CorrespondentSettlementHistoryRevisionDto
         { CreatedAt = x.CreatedAt, UserName = x.UserName, Items = ReadItems(x.SnapshotJson) }).ToList();
+        // Older immutable snapshots stored only the location label. Resolve navigation
+        // by the original hawala ID, never by a potentially duplicated place name.
+        var items = details.Items.Concat(details.Revisions.SelectMany(x => x.Items)).ToList();
+        var ids = items.Where(x => x.HawalaId.HasValue).Select(x => x.HawalaId!.Value).Distinct().ToArray();
+        if (ids.Length > 0)
+        {
+            var locations = await context.Hawalas.AsNoTracking().Where(x => ids.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.PaymentLocationId, cancellationToken);
+            foreach (var item in items)
+                if (item.HawalaId.HasValue && locations.TryGetValue(item.HawalaId.Value, out var locationId))
+                    item.PaymentLocationId = locationId;
+        }
         return details;
     }
 

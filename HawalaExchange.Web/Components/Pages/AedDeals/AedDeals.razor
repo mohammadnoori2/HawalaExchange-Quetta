@@ -103,8 +103,8 @@
                         {
                             <tr>
                                 <td><strong>@deal.DealNumber</strong><div class="small text-muted">@DisplayDates.DateTime(deal.CreatedAt, true)</div></td>
-                                <td>@deal.SourceCorrespondentName</td>
-                                <td>@deal.DubaiCorrespondentName</td>
+                                <td><RecordDetailsLink Kind="Correspondent" Id="deal.SourceCorrespondentId" Text="@deal.SourceCorrespondentName" /></td>
+                                <td><RecordDetailsLink Kind="Correspondent" Id="deal.DubaiCorrespondentId" Text="@deal.DubaiCorrespondentName" /></td>
                                 <td>@Money(deal.OriginalAmount) @deal.SourceCurrencyCode</td>
                                 <td>@Money(deal.ConvertedAmount) @deal.SourceCurrencyCode</td>
                                 <td><strong>@Money(deal.RemainingAmount) @deal.SourceCurrencyCode</strong></td>
@@ -242,9 +242,9 @@
                 {
                     <div class="alert alert-primary mt-3 mb-0">
                         <div class="small text-muted mb-1">خلاصه معامله آماده ثبت</div>
-                        <strong>@SelectedSourceAccountName</strong>
+                        <RecordDetailsLink Kind="Account" Id="sourceAccountId" Text="@SelectedSourceAccountName" Class="fw-bold" />
                         <i class="bi bi-arrow-left mx-2"></i>
-                        <strong>@SelectedDubaiAccountName</strong>
+                        <RecordDetailsLink Kind="Account" Id="dubaiAccountId" Text="@SelectedDubaiAccountName" Class="fw-bold" />
                         <div class="mt-1">مبلغ: <strong>@Money(createModel.Amount) @SelectedCurrencyCode</strong> · نمبر: <strong>@createModel.DealNumber.Trim()</strong></div>
                     </div>
                 }

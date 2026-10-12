@@ -122,12 +122,12 @@
                             {
                                 <tr>
                                     <td>@rowIndex</td>
-                                    <td><span class="fw-bold">@location.Name</span></td>
+                                    <td><RecordDetailsLink Kind="PaymentLocation" Id="location.Id" Text="@location.Name" Class="fw-bold" /></td>
                                     <td>@(location.Aliases.Count == 0 ? "-" : string.Join("، ", location.Aliases))</td>
                                     <td>@location.Address</td>
                                     <td>@location.Phone</td>
                                     <td>@location.ContactPerson</td>
-                                    <td>@CurrentAssignmentName(location.Id)</td>
+                                    <td><RecordDetailsLink Kind="Correspondent" Id="@(LocationAssignments(location.Id).FirstOrDefault(x => x.EffectiveFrom <= DateTime.Today && (x.EffectiveTo == null || DateTime.Today < x.EffectiveTo))?.CorrespondentId)" Text="@CurrentAssignmentName(location.Id)" /></td>
                                     <td>
                                         <span class="badge-modern @(location.IsActive ? "badge-success" : "badge-danger")">
                                             @(location.IsActive ? "فعال" : "غیرفعال")
@@ -223,7 +223,7 @@
                                 <tbody>
                                     @foreach (var assignment in LocationAssignments(assignmentLocation.Id))
                                     {
-                                        <tr><td>@assignment.CorrespondentName</td><td>@DisplayDates.Date(assignment.EffectiveFrom)</td><td>@(DisplayDates.Date(assignment.EffectiveTo, "ادامه دارد"))</td></tr>
+                                        <tr><td><RecordDetailsLink Kind="Correspondent" Id="assignment.CorrespondentId" Text="@assignment.CorrespondentName" /></td><td>@DisplayDates.Date(assignment.EffectiveFrom)</td><td>@(DisplayDates.Date(assignment.EffectiveTo, "ادامه دارد"))</td></tr>
                                     }
                                 </tbody>
                             </table>

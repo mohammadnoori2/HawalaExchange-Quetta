@@ -195,7 +195,7 @@
 
                                     <td>@(hawala.ReceiverName ?? "-")</td>
 
-                                    <td>@(hawala.CorrespondentName ?? "-")</td>
+                                    <td><RecordDetailsLink Kind="Correspondent" Id="hawala.CorrespondentId" Text="@hawala.CorrespondentName" /></td>
 
                                     <td dir="ltr" class="fw-bold text-primary">
                                         @MoneyFormatHelper.Format(hawala.FromAmount) @hawala.FromCurrencyCode
@@ -464,14 +464,14 @@
                         <div class="col-md-6">
                             <div class="info-card">
                                 <span class="info-label">نماینده</span>
-                                <span class="info-value">@(selectedHawala.CorrespondentName ?? "-")</span>
+                                <RecordDetailsLink Kind="Correspondent" Id="selectedHawala.CorrespondentId" Text="@selectedHawala.CorrespondentName" Class="info-value" />
                             </div>
                         </div>
 
                         <div class="col-md-6">
                             <div class="info-card">
                                 <span class="info-label">محل پرداخت</span>
-                                <span class="info-value">@GetPaymentLocation(selectedHawala)</span>
+                                <RecordDetailsLink Kind="PaymentLocation" Id="selectedHawala.PaymentLocationId" Text="@GetPaymentLocation(selectedHawala)" Class="info-value" />
                             </div>
                         </div>
 

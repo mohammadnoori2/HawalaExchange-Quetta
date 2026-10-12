@@ -34,6 +34,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         context.Hawalas.AddRange(afnSent, usdSent);
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
+        await RecordedSettlementTestData.SeedAsync(context);
         var service = fixture.CreateCommissionService(context);
         var incoming = Request("Incoming", day);
         var forwarding = Request("Forwarding", day);
@@ -168,6 +169,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         await context.SaveChangesAsync();
         var request = Request("Forwarding", sendDay);
         request.PaymentLocationRates.Add(new() { PaymentLocationId = otherLocation.Id, PerLakhRate = 600m });
+        await RecordedSettlementTestData.SeedAsync(context);
         var service = fixture.CreateCommissionService(context);
         var preview = await service.PreviewAsync(request);
         Assert.Equal(10_000m, preview.TotalBaseAfn);
@@ -203,6 +205,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         Assert.DoesNotContain((await service.GetDetailsAsync(destination.Id)).LedgerEntries, x => x.AccountId == fixture.SourceAccount.Id);
         context.CorrespondentDailyCommissionRates.Add(Rate(day, 70m));
         await context.SaveChangesAsync();
+        await RecordedSettlementTestData.SeedAsync(context);
         Assert.Equal(3m, (await service.PostAsync(Request("Forwarding", day))).TotalCommissionUsd);
     }
 
@@ -271,6 +274,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         var service = fixture.CreateCommissionService(context);
         await service.PostAsync(Request("Destination", sendDay));
         await rates.SaveAsync(fixture.SourceCorrespondent.Id, day, 80m);
+        await RecordedSettlementTestData.SeedAsync(context);
         var forwarding = await service.PostAsync(Request("Forwarding", sendDay));
         Assert.Equal(3m, forwarding.TotalCommissionUsd);
         await Assert.ThrowsAsync<InvalidOperationException>(() => rates.SaveAsync(fixture.SourceCorrespondent.Id, day, 90m));
@@ -490,6 +494,7 @@ public sealed class ThreeWayCommissionTests(SqlServerPerformanceFixture fixture,
         context.Hawalas.AddRange(sources.Select((source, index) => Send(199_120_000 + index, source, source.FromAmount / 2, day)));
         await context.SaveChangesAsync();
         context.ChangeTracker.Clear();
+        await RecordedSettlementTestData.SeedAsync(context);
         var service = fixture.CreateCommissionService(context);
         var request = Request("Forwarding", day);
         var previewWatch = Stopwatch.StartNew();

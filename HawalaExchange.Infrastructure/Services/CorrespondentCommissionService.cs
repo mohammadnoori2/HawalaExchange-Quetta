@@ -101,7 +101,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 return new CorrespondentCommissionBatchDto
                 {
                     CommissionScope = request.CommissionScope,
-                    AccountingVersion = request.CommissionScope is "Incoming" or "Destination" or "Forwarding" ? 2 : 1,
+                    AccountingVersion = request.CommissionScope is "Incoming" or "Destination" or "Forwarding" ? 3 : 1,
                     HawalaType = request.HawalaType,
                     Id = reader.GetInt64(0),
                     CorrespondentId = reader.GetInt64(1),
@@ -126,6 +126,11 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 result, deductions, request.HawalaType == "HawalaSend" && request.CommissionScope != "Forwarding",
                 request.CommissionScope is "Origin" or "Forwarding" or "Incoming", cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        if (request.CommissionScope == "Destination")
+        {
+            var totals = await ReadCurrencyTotalsAsync([result.Id], cancellationToken);
+            result.CurrencyTotals = totals.GetValueOrDefault(result.Id) ?? [];
+        }
         return result;
     }
 
@@ -308,7 +313,10 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
                 batch.TotalBaseAfn / 100000m * batch.CommissionPerLakhAfn,
                 0, MidpointRounding.AwayFromZero);
         }
-        var postingAmount = isOutgoing
+        var postingAmount = isOutgoing && batch.AccountingVersion >= 3 && batch.CommissionScope == "Destination"
+            ? batch.Items.Where(x => x.IsActive).GroupBy(x => x.SourceCurrencyId)
+                .Select(g => decimal.Round(g.Sum(x => x.CommissionAfn), 0, MidpointRounding.AwayFromZero)).DefaultIfEmpty(0).Max()
+            : isOutgoing
             ? batch.AccountingVersion >= 2 ? Math.Max(batch.TotalCommissionAfn, batch.TotalCommissionUsd) : batch.TotalBaseAfn
             : batch.TotalCommissionUsd;
         if (postingAmount <= 0)
@@ -345,9 +353,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         var currencies = await context.Currencies.AsNoTracking()
             .Where(x => x.Code == "AFN" || x.Code == "USD")
             .ToDictionaryAsync(x => x.Code, x => x.Id, cancellationToken);
-        if (!currencies.TryGetValue("AFN", out var afnId) ||
-            !currencies.TryGetValue("USD", out var usdId))
-            throw new InvalidOperationException("ارزهای فعال USD و AFN در سیستم یافت نشد.");
+        var afnId = currencies.GetValueOrDefault("AFN");
+        var usdId = currencies.GetValueOrDefault("USD");
 
         var destinationAccountId = await context.Accounts.AsNoTracking()
             .Where(x => x.CorrespondentId == batch.CorrespondentId && !x.IsArchived)
@@ -362,8 +369,10 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             var previous = await context.LedgerEntries
                 .Where(x => x.TransactionId == batch.PostingTransactionId).ToListAsync(cancellationToken);
             context.LedgerEntries.RemoveRange(previous);
-            foreach (var (currencyId, amount) in new[] { (afnId, batch.TotalCommissionAfn), (usdId, batch.TotalCommissionUsd) })
+            foreach (var group in batch.Items.Where(x => x.IsActive).GroupBy(x => x.SourceCurrencyId))
             {
+                var currencyId = group.Key;
+                var amount = decimal.Round(group.Sum(x => x.CommissionAfn),0,MidpointRounding.AwayFromZero);
                 if (amount == 0) continue;
                 var destinationDescription = "کمیشن پرداختی به نمایندگی‌ها";
                 context.LedgerEntries.Add(NewEntry(batch.PostingTransactionId, destinationAccountId,
@@ -373,6 +382,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             }
             return;
         }
+        if (afnId<=0 || usdId<=0) throw new InvalidOperationException("ارزهای فعال USD و AFN در سیستم یافت نشد.");
         var clearing = await context.Accounts
             .SingleOrDefaultAsync(x => x.AccountCode == "SYS-SETTLEMENT-CLEARING", cancellationToken);
         if (clearing == null)
@@ -517,7 +527,18 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             foreach (var batch in history)
                 batch.LocationSummaries = byBatch.GetValueOrDefault(batch.Id) ?? [];
         }
+        var currencyTotals = await ReadCurrencyTotalsAsync(history.Where(x => x.CommissionScope == "Destination").Select(x => x.Id).ToArray(), cancellationToken);
+        foreach (var batch in history) batch.CurrencyTotals = currencyTotals.GetValueOrDefault(batch.Id) ?? [];
         return history;
+    }
+
+    private async Task<Dictionary<long,List<CurrencyCommissionRateDto>>> ReadCurrencyTotalsAsync(long[] ids,CancellationToken token)
+    {
+        var rows=await context.CorrespondentCommissionBatchItems.AsNoTracking().Where(x=>ids.Contains(x.BatchId))
+            .GroupBy(x=>new{x.BatchId,x.SourceCurrencyId,x.SourceCurrency.Code})
+            .Select(g=>new{g.Key.BatchId,g.Key.SourceCurrencyId,g.Key.Code,Fee=g.Sum(x=>x.CommissionAfn),Amount=g.Sum(x=>x.SourceAmount),Count=g.Count()}).ToListAsync(token);
+        return rows.GroupBy(x=>x.BatchId).ToDictionary(g=>g.Key,g=>g.Select(x=>new CurrencyCommissionRateDto
+            {CurrencyId=x.SourceCurrencyId,CurrencyCode=x.Code,CommissionAmount=x.Fee,TotalAmount=x.Amount,HawalaCount=x.Count}).ToList());
     }
 
     public async Task<CorrespondentCommissionBatchDto> GetDetailsAsync(
@@ -565,6 +586,8 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
 
         return new CorrespondentCommissionBatchDto
         {
+            CurrencyTotals = batch.CommissionScope == "Destination" ? batch.Items.GroupBy(x=>new{x.SourceCurrencyId,x.SourceCurrency.Code})
+                .Select(g=>new CurrencyCommissionRateDto{CurrencyId=g.Key.SourceCurrencyId,CurrencyCode=g.Key.Code,CommissionAmount=g.Sum(x=>x.CommissionAfn),TotalAmount=g.Sum(x=>x.SourceAmount),HawalaCount=g.Count()}).ToList() : [],
             Id = batch.Id,
             CommissionScope = batch.CommissionScope,
             AccountingVersion = batch.AccountingVersion,
@@ -637,7 +660,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
 
         var originalEntries = await context.LedgerEntries.AsNoTracking()
             .Where(x => x.TransactionId == batch.PostingTransactionId).ToListAsync(cancellationToken);
-        if (originalEntries.Count == 0 && (batch.TotalCommissionAfn != 0 || batch.TotalCommissionUsd != 0))
+        if (originalEntries.Count == 0 && (batch.TotalCommissionAfn != 0 || batch.TotalCommissionUsd != 0 || batch.Items.Any(x => x.CommissionAfn != 0)))
             throw new InvalidOperationException("سند حسابداری اصلی یافت نشد.");
         var reversal = new Transaction
         {

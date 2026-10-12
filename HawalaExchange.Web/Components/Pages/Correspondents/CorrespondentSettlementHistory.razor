@@ -1,0 +1,105 @@
+@page "/correspondents/{CorrespondentId:long}/settlement-history"
+@using System.Globalization
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject ICorrespondentSettlementService Settlements
+@inject ICorrespondentSettlementHistoryExportService Exporter
+@inject HawalaExchange.Web.Services.UiReferenceDataCache References
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>تاریخچه تبدیل و نرخ‌های نمایندگی</PageTitle>
+<PageRefreshButton Refresh="ReloadAsync" Disabled="@busy" />
+<AppPageHeader Title="تاریخچه تبدیل و نرخ‌های نمایندگی" Icon="bi-clock-history">
+    <Actions><button class="btn btn-outline-secondary" @onclick="Back">بازگشت به نمایندگی</button></Actions>
+</AppPageHeader>
+<div class="modern-card p-3 mb-3">
+    <div class="d-flex gap-2 mb-3"><button class="btn @(ratesView ? "btn-outline-primary" : "btn-primary")" @onclick="() => ratesView=false">تاریخچه تبدیل‌ها</button><button class="btn @(ratesView ? "btn-primary" : "btn-outline-primary")" @onclick="() => ratesView=true">مشاهده نرخ‌های نمایندگی</button></div>
+    <CompactFilterBar>
+        <SearchContent><input class="form-control" placeholder="جستجو در تاریخچه و نرخ‌ها..." @bind="search" @bind:event="oninput" /></SearchContent>
+        <QuickFilters>
+            <div class="compact-filter-field"><label>از تاریخ حواله</label><PersianDatePicker AllowEmpty="true" Value="@(from ?? default)" ValueChanged="@(value=>from=value==default?null:value)" /></div>
+            <div class="compact-filter-field"><label>تا تاریخ حواله</label><PersianDatePicker AllowEmpty="true" Value="@(to ?? default)" ValueChanged="@(value=>to=value==default?null:value)" /></div>
+            <div class="compact-filter-field"><label>ارز</label><select class="form-select" @bind="currencyId"><option value="0">همه ارزها</option>@foreach(var currency in currencies){<option value="@currency.Id">@currency.Code</option>}</select></div>
+            <div class="compact-filter-field"><label>وضعیت تبدیل</label><select class="form-select" @bind="status"><option value="">همه</option><option value="Active">فعال</option><option value="Adjusted">اصلاح‌شده</option><option value="Reversed">برگشت‌شده</option></select></div>
+            <button class="btn btn-primary" disabled="@busy" @onclick="ApplyFiltersAsync">اعمال فیلتر</button>
+        </QuickFilters>
+    </CompactFilterBar>
+    <div class="form-text">نرخ‌ها فقط هنگام تبدیل موفق ثبت می‌شوند؛ نرخ جداگانه برای کمیشن وارد نمی‌شود. مبنای کمیشن، اصل حواله است و کمیشن قبلی دوباره محاسبه نمی‌شود.</div>
+</div>
+@if(!string.IsNullOrWhiteSpace(error)){<div class="alert alert-danger">@error</div>}
+@if(!string.IsNullOrWhiteSpace(message)){<div class="alert alert-success">@message</div>}
+@if(busy){<div class="text-center p-4"><span class="spinner-border"></span></div>}
+else if(ratesView)
+{
+    <div class="table-responsive"><GlobalDataGrid class="table table-hover"><thead><tr><th>تاریخ حواله</th><th>ارز مبدأ</th><th>ارز توافقی</th><th>نرخ استفاده‌شده</th><th>آخرین ثبت</th></tr></thead><tbody>
+        @foreach(var rate in rates.Where(x=>(currencyId==0 || x.SourceCurrencyId==currencyId) && Matches($"{x.SourceCurrencyCode} {x.TargetCurrencyCode} {x.ExchangeRate}")))
+        {<tr><td>@DisplayDates.Date(rate.RateDate)</td><td>@rate.SourceCurrencyCode</td><td>@rate.TargetCurrencyCode</td><td dir="ltr">@Rate(rate.ExchangeRate)</td><td>@DisplayDates.DateTime(rate.ModifiedAt.ToLocalTime())</td></tr>}
+    </tbody></GlobalDataGrid></div>
+}
+else
+{
+    <div class="table-responsive"><GlobalDataGrid class="table table-hover"><thead><tr><th>شماره عملیات</th><th>تاریخ اجرا</th><th>روزهای حواله</th><th>کاربر</th><th>حواله</th><th>مبالغ و نرخ‌ها</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>
+        @foreach(var item in history.Where(x=>Matches($"{x.ConversionId} {x.UserName} {x.Note} {string.Join(" ",x.Items.Select(i=>i.SourceCurrencyCode))}")))
+        {<tr><td>@item.ConversionId</td><td>@DisplayDates.DateTime(item.CreatedAt.ToLocalTime())</td><td>@string.Join("، ",item.Items.Select(x=>x.RateDate).Distinct().Select(x=>DisplayDates.Date(x)))</td><td>@item.UserName</td><td>@item.HawalaCount</td>
+            <td>@foreach(var total in item.Items.GroupBy(x=>new{x.SourceCurrencyCode,x.ExchangeRate})){<div dir="ltr">@Money(total.Sum(x=>x.SourceAmount)) @total.Key.SourceCurrencyCode → @Money(total.Sum(x=>x.TargetAmount)) @item.TargetCurrencyCode (@Rate(total.Key.ExchangeRate))</div>}</td>
+            <td>@Status(item.Status)</td><td><button class="btn btn-sm btn-outline-primary" @onclick="()=>DetailsAsync(item.ConversionId)">جزئیات</button></td></tr>}
+    </tbody></GlobalDataGrid></div>
+    <div class="d-flex gap-2 align-items-center mt-2"><button class="btn btn-outline-secondary" disabled="@(page<=1)" @onclick="PreviousAsync">قبلی</button><span>صفحه @(page)</span><button class="btn btn-outline-secondary" disabled="@(history.Count<20)" @onclick="NextAsync">بعدی</button></div>
+}
+@if(details!=null)
+{
+    <div class="modal show d-block" dir="rtl" style="background:rgba(15,23,42,.6)"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered"><div class="modal-content">
+        <div class="modal-header"><h5>جزئیات تبدیل #@details.ConversionId — @Status(details.Status)</h5><button class="btn-close" @onclick="()=>details=null"></button></div>
+        <div class="modal-body">
+            <p>ارز توافقی: @details.TargetCurrencyCode · کاربر: @details.UserName · @DisplayDates.DateTime(details.CreatedAt.ToLocalTime())</p>
+            @foreach(var day in details.Items.GroupBy(x=>x.RateDate).OrderBy(x=>x.Key))
+            {
+                <h6>@DisplayDates.Date(day.Key)</h6>
+                <div class="d-flex flex-wrap gap-2 mb-2">@foreach(var group in day.GroupBy(x=>x.SourceCurrencyCode)){<span class="badge bg-light text-dark border" dir="ltr">@Money(group.Sum(x=>x.SourceAmount)) @group.Key → @Money(group.Sum(x=>x.TargetAmount)) @details.TargetCurrencyCode</span>}</div>
+                <div class="table-responsive"><GlobalDataGrid class="table table-sm"><thead><tr><th>حواله</th><th>متفرقه</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>اصل/مانده قبل تبدیل</th><th>نرخ</th><th>مبلغ تبدیل حسابداری</th><th>اصل حواله به ارز توافقی</th><th>مبنای USD کمیشن</th></tr></thead><tbody>
+                    @foreach(var row in day){<tr><td>@row.HawalaNumber</td><td>@row.ReferenceNumber</td><td>@row.SenderName</td><td>@row.ReceiverName</td><td>@row.PaymentLocationName</td><td dir="ltr">@Money(row.SourceAmount) @row.SourceCurrencyCode</td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) @details.TargetCurrencyCode</td><td dir="ltr">@(row.PrincipalTargetAmount.HasValue?Money(row.PrincipalTargetAmount.Value):"—")</td><td dir="ltr">@(row.UsdAmount.HasValue?Money(row.UsdAmount.Value):"—")</td></tr>}
+                </tbody></GlobalDataGrid></div>
+            }
+            @if(details.Revisions.Count>1)
+            {
+                <h6>سوابق نرخ و مبالغ قبلی</h6>
+                @foreach(var revision in details.Revisions.Take(details.Revisions.Count-1))
+                {<details class="mb-2"><summary>@DisplayDates.DateTime(revision.CreatedAt.ToLocalTime()) · @revision.UserName</summary><table class="table table-sm"><thead><tr><th>روز</th><th>حواله</th><th>ارز</th><th>نرخ قبلی</th><th>مبلغ قبلی</th></tr></thead><tbody>@foreach(var row in revision.Items){<tr><td>@DisplayDates.Date(row.RateDate)</td><td>@row.HawalaNumber</td><td>@row.SourceCurrencyCode</td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) @details.TargetCurrencyCode</td></tr>}</tbody></table></details>}
+            }
+            @if(details.Status is "Active" or "Adjusted")
+            {<div class="alert alert-warning mt-3">برگشت، حسابداری تبدیل را معکوس می‌کند و سابقه را نگه می‌دارد. برای تبدیل دارای کمیشن ثبت‌شده، ابتدا کمیشن باید برگشت شود؛ دوره بسته قابل تغییر نیست.</div><label class="form-label">دلیل برگشت</label><input class="form-control" maxlength="500" @bind="reverseReason" />}
+            @if(!string.IsNullOrWhiteSpace(error)){<div class="alert alert-danger mt-2">@error</div>}
+        </div>
+        <div class="modal-footer"><button class="btn btn-success" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Excel)">خروج اکسل</button><button class="btn btn-danger" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Pdf)">خروج PDF</button>@if(details.Status=="Active"){<button class="btn btn-outline-danger" disabled="@(busy || string.IsNullOrWhiteSpace(reverseReason))" @onclick="ReverseAsync">برگشت تبدیل</button>}<button class="btn btn-secondary" @onclick="()=>details=null">بستن</button></div>
+    </div></div></div>
+}
+
+@code{
+    [Parameter] public long CorrespondentId{get;set;}
+    [SupplyParameterFromQuery(Name="view")] public string? View{get;set;}
+    private long loadedId; private bool ratesView,busy;
+    private DateTime? from,to;
+    private long currencyId; private int page=1;
+    private string search="",status="",error="",message="",reverseReason="";
+    private IReadOnlyList<CurrencyDto> currencies=[];
+    private IReadOnlyList<CorrespondentSettlementDailyRateDto> rates=[];
+    private IReadOnlyList<CorrespondentSettlementHistoryDto> history=[];
+    private CorrespondentSettlementHistoryDto? details;
+    protected override async Task OnParametersSetAsync(){ratesView=View=="rates"; if(loadedId!=CorrespondentId){loadedId=CorrespondentId;currencies=await References.GetAllCurrenciesAsync();await ReloadAsync();}}
+    private async Task ReloadAsync(){busy=true;error="";try{history=await Settlements.GetHistoryAsync(new(){CorrespondentId=CorrespondentId,FromDate=from,ToDate=to,CurrencyId=currencyId==0?null:currencyId,Status=string.IsNullOrEmpty(status)?null:status,Page=page});rates=await Settlements.GetRatesAsync(CorrespondentId,from,to);}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+    private Task ApplyFiltersAsync(){page=1;return ReloadAsync();}
+    private void Back()=>Navigation.NavigateTo($"/correspondents/{CorrespondentId}");
+    private Task PreviousAsync(){page=Math.Max(1,page-1);return ReloadAsync();}
+    private Task NextAsync(){page++;return ReloadAsync();}
+    private async Task DetailsAsync(long id){busy=true;error="";reverseReason="";try{details=await Settlements.GetHistoryDetailsAsync(CorrespondentId,id);}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+    private async Task ReverseAsync(){if(details==null)return;busy=true;try{await Settlements.ReverseAsync(CorrespondentId,details.ConversionId,reverseReason);details=null;message="تبدیل برگشت داده شد؛ سابقه حفظ شد و حواله‌ها دوباره قابل تبدیل‌اند.";await ReloadAsync();}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+    private async Task ExportAsync(ExportFormat format){if(details==null)return;busy=true;try{var file=await Exporter.ExportAsync(CorrespondentId,details.ConversionId,format);await using var module=await JS.InvokeAsync<IJSObjectReference>("import","./js/record-selection.js");await module.InvokeVoidAsync("download",file.FileName,file.ContentType,Convert.ToBase64String(file.Content));}catch(Exception ex){error=ex.Message;}finally{busy=false;}}
+    private bool Matches(string text)=>string.IsNullOrWhiteSpace(search)||text.Contains(search.Trim(),StringComparison.OrdinalIgnoreCase);
+    private static string Rate(decimal value)=>value.ToString("0.########",CultureInfo.InvariantCulture);
+    private static string Money(decimal value)=>value.ToString("N0",CultureInfo.InvariantCulture);
+    private static string Status(string value)=>value switch{"Active"=>"فعال","Adjusted"=>"اصلاح‌شده","Reversed"=>"برگشت‌شده",_=>value};
+}

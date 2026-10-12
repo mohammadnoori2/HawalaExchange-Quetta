@@ -24,6 +24,7 @@ public sealed class HawalaCommissionReportTests(SqlServerPerformanceFixture fixt
         var sentUsd = Send(290000004, usd.Id, 2, 6000, day.AddDays(1));
         context.Hawalas.AddRange(sentAfn, sentUsd);
         context.CorrespondentDailyCommissionRates.AddRange(Rate(day, 66), Rate(day.AddDays(1), 99)); await context.SaveChangesAsync();
+        await RecordedSettlementTestData.SeedAsync(context);
         var transactions = await context.Transactions.CountAsync(); var ledger = await context.LedgerEntries.CountAsync();
         context.ChangeTracker.Clear();
         var service = new HawalaCommissionReportService(context);
@@ -65,7 +66,7 @@ public sealed class HawalaCommissionReportTests(SqlServerPerformanceFixture fixt
         var service = new HawalaCommissionReportService(context);
         var report = await service.GetAsync(filter);
         var income = report.Rows.Single(x => x.CommissionType == "Incoming");
-        Assert.Null(income.Commission); Assert.Contains("نرخ روز", income.Note);
+        Assert.Null(income.Commission); Assert.Contains("تبدیل به ارز توافقی", income.Note);
         Assert.DoesNotContain(report.Rows, x => x.CommissionType == "Forwarding");
         source.Status = "Cancel"; await context.SaveChangesAsync();
         report = await service.GetAsync(filter);

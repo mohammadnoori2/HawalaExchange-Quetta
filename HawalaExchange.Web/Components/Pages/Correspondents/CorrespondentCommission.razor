@@ -67,7 +67,7 @@
                 <div class="alert alert-info mt-3 mb-0">
                     @if (isOutgoing)
                     {
-                        <span>برای هر محل پرداخت، کمیشن هر لک AFN و USD را جدا وارد کنید؛ نرخ محل‌های مختلف می‌تواند متفاوت باشد. مقصد به همان ارز طلبکار و حساب هزینه شرکت بدهکار می‌شود؛ بدهی برای فرستنده ثبت نمی‌شود.</span>
+                        <span>برای هر محل پرداخت و هر ارز، کمیشن هر لک را جدا وارد کنید؛ نرخ محل‌های مختلف می‌تواند متفاوت باشد. مقصد به همان ارز طلبکار و حساب هزینه شرکت بدهکار می‌شود؛ بدهی برای فرستنده ثبت نمی‌شود.</span>
                     }
                     else if (isOrigin)
                     {
@@ -154,7 +154,7 @@
 
             @if (calculated && preview.HawalaCount > 0)
             {
-                @if (isOrigin)
+                @if (!isOutgoing)
                 {
                     <CommissionCurrencySummary Items="preview.Items" />
                 }
@@ -171,8 +171,8 @@
                     {
                         <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های ارسالی (USD)</small><h4>@preview.TotalSourceUsd.ToWholeMoney()</h4></div></div>
                         <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های ارسالی (AFN)</small><h4>@preview.TotalSourceAfn.ToWholeMoney()</h4></div></div>
-                        <div class="col-md-3"><div class="modern-card p-3"><small>طلب مقصد (AFN)</small><h4>@preview.TotalCommissionAfn.ToWholeMoney()</h4></div></div>
-                        <div class="col-md-3"><div class="modern-card p-3"><small>طلب مقصد (USD)</small><h4>@preview.TotalCommissionUsd.ToWholeMoney()</h4></div></div>
+                        @foreach(var total in preview.Items.GroupBy(x=>x.CurrencyCode))
+                        { <div class="col-md-3"><div class="modern-card p-3"><small>طلب مقصد (@total.Key)</small><h4 dir="ltr">@total.Sum(x=>x.CommissionAfn).ToWholeMoney() @total.Key</h4></div></div> }
                     }
                     else
                     {
@@ -196,7 +196,7 @@
                 <div class="table-card mb-4">
                     <div class="table-card-body"><div class="table-scroll-wrapper">
                         <GlobalDataGrid class="table-modern table-striped-modern">
-                            <thead><tr><th>نمبر</th><th>تاریخ</th>@if (isOutgoing || isOrigin){<th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th>@if (!isOutgoing){<th>روز نرخ</th><th>نرخ روز USD/AFN</th><th>مبنای USD</th>}<th>@(isOutgoing ? "کمیشن به ارز اصلی" : "سهم کمیشن USD")</th></tr></thead>
+                            <thead><tr><th>نمبر</th><th>تاریخ</th>@if (isOutgoing || isOrigin){<th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th>@if (!isOutgoing){<th>روز تبدیل</th><th>معادل 1 USD به ارز اصلی</th><th>مبنای USD</th>}<th>@(isOutgoing ? "کمیشن به ارز اصلی" : "سهم کمیشن USD")</th></tr></thead>
                             <tbody>
                             @foreach (var item in preview.Items)
                             {
@@ -225,7 +225,7 @@
                 }
                 <div class="alert alert-warning d-flex justify-content-between align-items-center">
                     <span>@(isOutgoing
-                        ? $"پس از تأیید، مقصد {preview.TotalCommissionAfn.ToWholeMoney()} AFN و {preview.TotalCommissionUsd.ToWholeMoney()} USD طلبکار و هزینه شرکت ثبت می‌شود؛ فرستنده بدهکار نمی‌شود."
+                        ? $"پس از تأیید، مقصد {string.Join(" / ",preview.Items.GroupBy(x=>x.CurrencyCode).Select(g=>$"{g.Sum(x=>x.CommissionAfn).ToWholeMoney()} {g.Key}"))} طلبکار و هزینه شرکت ثبت می‌شود؛ فرستنده بدهکار نمی‌شود."
                         : $"پس از تأیید، نمایندگی فرستنده {preview.TotalCommissionUsd.ToWholeMoney()} USD بدهکار و درآمد کمیشن ثبت می‌شود.")</span>
                     <button class="btn-modern btn-success-modern" disabled="@busy" @onclick="PostBatch">
                         <i class="bi bi-check2-circle"></i> تأیید و ثبت حسابداری
@@ -250,7 +250,7 @@
                         {
                             <tr><td>@DisplayDates.Date(batch.PeriodFrom) تا @DisplayDates.Date(batch.PeriodTo)</td><td>@batch.HawalaCount</td>
                                 <td>@if (isOutgoing)
-                                    {<span>@batch.TotalCommissionAfn.ToWholeMoney() AFN / @batch.TotalCommissionUsd.ToWholeMoney() USD</span>}
+                                    {<span dir="ltr">@(batch.CurrencyTotals.Count>0 ? string.Join(" / ",batch.CurrencyTotals.Select(x=>$"{x.CommissionAmount.ToWholeMoney()} {x.CurrencyCode}")) : $"{batch.TotalCommissionAfn.ToWholeMoney()} AFN / {batch.TotalCommissionUsd.ToWholeMoney()} USD")</span>}
                                     else
                                     {<span>@batch.TotalCommissionUsd.ToWholeMoney() USD</span>}</td>
                                 <td><span class="badge @(batch.Status == "Posted" ? "bg-success" : "bg-secondary")">@(batch.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></td>
@@ -313,8 +313,13 @@
                     }
                     @if (!detailsOutgoing || legacyOutgoing)
                     { <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">@(legacyOutgoing ? "بدهی فرستنده در ثبت قبلی" : "مبنای محاسبه")</small><div class="fw-bold">@selectedDetails.TotalBaseAfn.ToWholeMoney() USD</div></div></div> }
-                    <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن AFN</small><div class="fw-bold">@selectedDetails.TotalCommissionAfn.ToWholeMoney() AFN</div></div></div>
-                    <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن USD</small><div class="fw-bold">@selectedDetails.TotalCommissionUsd.ToWholeMoney() USD</div></div></div>
+                    @if(detailsOutgoing)
+                    {
+                        @foreach(var total in selectedDetails.Items.GroupBy(x=>x.CurrencyCode))
+                        { <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن @total.Key</small><div class="fw-bold" dir="ltr">@total.Sum(x=>x.CommissionAfn).ToWholeMoney() @total.Key</div></div></div> }
+                    }
+                    else
+                    { <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن USD</small><div class="fw-bold" dir="ltr">@selectedDetails.TotalCommissionUsd.ToWholeMoney() USD</div></div></div> }
                 </div>
 
                 <div class="row g-3 mb-4">
@@ -348,9 +353,12 @@
                     </table></div>
                 }
 
-                @if (detailsOrigin)
+                @if (!detailsOutgoing)
                 {
                     <CommissionCurrencySummary Items="selectedDetails.Items" />
+                }
+                @if (detailsOrigin)
+                {
                     <h6 class="fw-bold mb-3">خلاصه به تفکیک محل پرداخت</h6>
                     <div class="table-responsive mb-4"><table class="table table-sm table-bordered align-middle">
                         <thead><tr><th>محل پرداخت</th><th>تعداد</th><th>مجموع افغانی (AFN)</th><th>مجموع دالر (USD)</th><th>مبنای USD</th><th>کمیشن USD</th></tr></thead>

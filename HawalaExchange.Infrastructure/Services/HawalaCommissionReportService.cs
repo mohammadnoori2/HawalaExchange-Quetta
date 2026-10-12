@@ -35,6 +35,8 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
             CorrespondentId = x.CorrespondentId, Correspondent = x.Correspondent == null ? "صرافی" : x.Correspondent.Name,
             Periodic = x.Correspondent != null && x.Correspondent.CommissionMethod == "PeriodicPerLakh",
             SourceId = x.SourceHawala == null ? null : x.SourceHawala.CorrespondentId,
+            ParentHawalaId=x.SourceHawalaId,
+            CurrencyId=x.HawalaType=="HawalaSend"?x.ToCurrencyId:x.FromCurrencyId,
             Source = x.SourceHawala == null || x.SourceHawala.Correspondent == null ? "صرافی" : x.SourceHawala.Correspondent.Name,
             SourceDate = x.SourceHawala == null ? x.CreatedAt : x.SourceHawala.CreatedAt,
             ValidSource = x.SourceHawala != null && x.SourceHawala.HawalaType == "HawalaReceive" && x.SourceHawala.Status != "Cancel",
@@ -66,8 +68,9 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
             """).ToListAsync(cancellationToken);
         var recognitionKeys = recognized.Select(x => (x.TransactionId, x.CorrespondentId)).ToHashSet();
         var ownLocation = await context.CompanySettings.AsNoTracking().Select(x => x.OwnPaymentLocationId).FirstOrDefaultAsync(cancellationToken);
-        var rates = filter.Estimate ? await context.CorrespondentDailyCommissionRates.AsNoTracking().ToListAsync(cancellationToken) : [];
-        var rateMap = rates.ToDictionary(x => (x.CorrespondentId, x.RateDate.Date), x => x.UsdToAfnRate);
+        var valuationIds=System.Text.Json.JsonSerializer.Serialize(transfers.SelectMany(x=>new[]{x.Id,x.ParentHawalaId??0}).Where(x=>x>0).Distinct());
+        var valuations=filter.Estimate?await context.Database.SqlQuery<Valuation>($"SELECT v.HawalaId,v.SourceCurrencyId,v.SourceAmount,v.UsdAmount FROM dbo.CorrespondentSettlementValuations v WHERE v.TenantId={context.CurrentTenantId} AND v.HawalaId IN(SELECT CONVERT(bigint,[value]) FROM OPENJSON({valuationIds}))").ToListAsync(cancellationToken):[];
+        var valuationMap=valuations.ToDictionary(x=>x.HawalaId);
         var byTransfer = saved.ToLookup(x => x.HawalaId);
         var rows = new List<HawalaCommissionReportRow>();
         foreach (var transfer in transfers)
@@ -114,7 +117,7 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
                     row.PerLakhRate = type == "Incoming" ? filter.IncomingRate : type == "Forwarding" ? location?.ForwardingRate ?? filter.ForwardingRate :
                         transfer.Currency == "AFN" ? location?.DestinationAfnRate ?? filter.DestinationAfnRate : location?.DestinationUsdRate ?? filter.DestinationUsdRate;
                     row.CommissionCurrency = type == "Destination" ? transfer.Currency : "USD";
-                    if (transfer.Currency is not ("USD" or "AFN")) row.Note = "برآورد فقط برای AFN و USD پشتیبانی می‌شود";
+                    if (type=="Destination" && transfer.Currency is not ("USD" or "AFN")) row.Note="نرخ برآورد کمیشن این ارز را در صفحه کمیشن پرداختی وارد کنید؛ نرخ USD جایگزین نمی‌شود";
                     else if (type == "Destination") { row.Commission = transfer.Amount / 100000m * row.PerLakhRate; row.Note = "برآورد با نرخ واردشده؛ بدون ثبت حسابداری"; }
                     else if (type == "Forwarding" && !ownLocation.HasValue)
                         row.Note = "محل پرداخت خود صرافی در تنظیمات مشخص نیست؛ برآورد ارسالی انجام نشد";
@@ -124,10 +127,10 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
                         var day = (type == "Incoming" ? transfer.Date : transfer.SourceDate).ToLocalTime().Date;
                         row.RateDate = day;
                         if (transfer.Currency == "USD") { row.ExchangeRate = 1; row.BasisUsd = transfer.Amount; }
-                        else if (sourceId.HasValue && rateMap.TryGetValue((sourceId.Value, day), out var rate) && rate > 0)
-                        { row.ExchangeRate = rate; row.BasisUsd = transfer.Amount / rate; }
-                        else row.Note = "نرخ روز نمایندگی فرستنده موجود نیست؛ برآورد انجام نشد";
-                        if (row.BasisUsd.HasValue) { row.Commission = row.BasisUsd / 100000m * row.PerLakhRate; row.Note = "برآورد با نرخ همان روز؛ بدون ثبت حسابداری"; }
+                        else if (valuationMap.TryGetValue(type=="Incoming"?transfer.Id:transfer.ParentHawalaId??0,out var value) && value.SourceCurrencyId==transfer.CurrencyId && value.UsdAmount>0 && value.SourceAmount>0)
+                        {row.BasisUsd=transfer.Amount*value.UsdAmount.Value/value.SourceAmount;row.ExchangeRate=decimal.Round(transfer.Amount/row.BasisUsd.Value,8,MidpointRounding.AwayFromZero);}
+                        else row.Note = "تبدیل به ارز توافقی یا مبنای USD ثبت‌شده موجود نیست؛ برآورد انجام نشد";
+                        if (row.BasisUsd.HasValue) { row.Commission = row.BasisUsd / 100000m * row.PerLakhRate; row.Note = "برآورد از مبلغ تبدیل ثبت‌شده؛ بدون ثبت حسابداری"; }
                     }
                 }
                 rows.Add(row);
@@ -214,6 +217,7 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
         return new("HawalaCommissionReport.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", output.ToArray());
     }
     public sealed class Recognition { public long TransactionId { get; set; } public long CorrespondentId { get; set; } }
+    private sealed class Valuation {public long HawalaId{get;set;}public long SourceCurrencyId{get;set;}public decimal SourceAmount{get;set;}public decimal? UsdAmount{get;set;}}
     private sealed class Saved
     {
         public long HawalaId { get; set; } public long BatchId { get; set; } public string Scope { get; set; } = "";
@@ -225,6 +229,7 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
     }
     private sealed class Transfer
     {
+        public long? ParentHawalaId{get;set;}public long CurrencyId{get;set;}
         public long Id { get; set; } public long Number { get; set; } public string Reference { get; set; } = "";
         public string Type { get; set; } = ""; public DateTime Date { get; set; } public long? CorrespondentId { get; set; }
         public string Correspondent { get; set; } = ""; public bool Periodic { get; set; } public long? SourceId { get; set; }

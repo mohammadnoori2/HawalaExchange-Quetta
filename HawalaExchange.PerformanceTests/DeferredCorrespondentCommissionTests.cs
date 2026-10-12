@@ -227,6 +227,7 @@ public sealed class DeferredCorrespondentCommissionTests(SqlServerPerformanceFix
             FromCurrencyId = 1, ToCurrencyId = 1, FromAmount = 350_000m, ToAmount = 350_000m, PaymentLocationId = fixture.RemoteLocation.Id,
             CreatedAt = now, CreatedBy = fixture.UserId, Status = "Paid" });
         await context.SaveChangesAsync();
+        await RecordedSettlementTestData.SeedAsync(context,source.Id);
         return new(source.Id, sourceAccount.Id, destination.Id, destinationAccount.Id, day);
     }
 

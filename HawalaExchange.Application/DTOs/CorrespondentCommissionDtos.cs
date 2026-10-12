@@ -103,6 +103,7 @@ public sealed class CorrespondentCommissionItemDto
 
 public sealed class CorrespondentCommissionBatchDto
 {
+    public List<CurrencyCommissionRateDto> CurrencyTotals { get; set; } = [];
     public int AccountingVersion { get; set; }
     public string HawalaType { get; set; } = "HawalaReceive";
     public string CommissionScope { get; set; } = "Standard";

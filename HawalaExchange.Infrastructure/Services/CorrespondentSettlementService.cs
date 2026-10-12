@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HawalaExchange.Infrastructure.Services;
 
-public sealed class CorrespondentSettlementService(
+public sealed partial class CorrespondentSettlementService(
     ApplicationDbContext context) : ICorrespondentSettlementService
 {
     private const string ClearingAccountCode = "SYS-SETTLEMENT-CLEARING";
@@ -53,7 +53,7 @@ public sealed class CorrespondentSettlementService(
             CreateIdTable(ids),
             CreateHawalaRateTable(dto.HawalaRates),
             null,
-            cancellationToken);
+            cancellationToken, dto.ConfirmDifferentDailyRate);
     }
 
     public async Task<IReadOnlyList<CorrespondentSettlementHawalaBalanceDto>> GetHawalaPreviewAsync(
@@ -93,82 +93,32 @@ public sealed class CorrespondentSettlementService(
             CreateIdTable([]),
             CreateAccountRateTable(dto.Rates),
             dto.RateDate.Date,
-            cancellationToken);
+            cancellationToken, dto.ConfirmDifferentDailyRate);
     }
 
     private async Task<CorrespondentSettlementResultDto> ExecuteWithDailyRateAsync(
         string sourceMode, long correspondentId, string? note, DataTable hawalaIds,
-        DataTable rates, DateTime? balanceRateDate, CancellationToken cancellationToken)
+        DataTable rates, DateTime? balanceRateDate, CancellationToken cancellationToken, bool confirmDifferentDailyRate)
     {
         // The procedure participates in this outer transaction. A failed conversion must
         // never leave a newly entered daily rate behind (or vice versa).
         await using var transaction = context.Database.CurrentTransaction == null
             ? await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
             : null;
-        var correspondent = await GetConfiguredCorrespondentAsync(correspondentId, cancellationToken);
-        var sourceIds = rates.Rows.Cast<DataRow>().Select(x => (long)x["SourceCurrencyId"]).Distinct().ToArray();
-        var currencies = await context.Currencies.AsNoTracking().Where(x => sourceIds.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        await context.EnsureCurrentTenantWriteAccessAsync(cancellationToken);
+        await CorrespondentCommissionPeriodLock.AcquireAsync(context, correspondentId, cancellationToken);
+        await GetConfiguredCorrespondentAsync(correspondentId, cancellationToken);
         var ids = hawalaIds.Rows.Cast<DataRow>().Select(x => (long)x["Id"]).ToArray();
         var dates = sourceMode == "Hawalas"
             ? await context.Hawalas.AsNoTracking().Where(x => ids.Contains(x.Id) && x.CorrespondentId == correspondentId)
                 .Select(x => new { x.Id, x.CreatedAt }).ToDictionaryAsync(x => x.Id, x => x.CreatedAt, cancellationToken)
             : new Dictionary<long, DateTime>();
-        var candidates = new List<(DateTime Day, decimal Rate)>();
-        foreach (DataRow row in rates.Rows)
-        {
-            if (!currencies.TryGetValue((long)row["SourceCurrencyId"], out var source) ||
-                !CorrespondentRateCalculator.Supports(source.Code, correspondent.SettlementCurrency!.Code))
-                continue;
-            DateTime day;
-            if (sourceMode == "Account")
-                day = balanceRateDate!.Value;
-            else if (dates.TryGetValue((long)row["HawalaId"], out var createdAt))
-                day = createdAt.ToLocalTime().Date;
-            else
-                continue; // The procedure validates ownership and all requested IDs.
-            if (day > DateTime.Today)
-                throw new InvalidOperationException("برای روز آینده نمی‌توان نرخ نمایندگی ثبت کرد.");
-            candidates.Add((day, CorrespondentRateCalculator.ToDailyRate(source.Code, source.QuotationPriority,
-                correspondent.SettlementCurrency.Code, correspondent.SettlementCurrency.QuotationPriority, (decimal)row["Rate"])));
-        }
-
-        var days = candidates.Select(x => x.Day).Distinct().OrderBy(x => x).ToArray();
-        var existingDays = await context.CorrespondentDailyCommissionRates.AsNoTracking()
-            .Where(x => x.CorrespondentId == correspondentId && days.Contains(x.RateDate))
-            .Select(x => x.RateDate).ToListAsync(cancellationToken);
-        var newRates = new List<CorrespondentDailyCommissionRate>();
-        foreach (var group in candidates.GroupBy(x => x.Day).OrderBy(x => x.Key))
-        {
-            if (existingDays.Contains(group.Key))
-                continue; // An edited conversion rate is an override, not a daily-rate edit.
-            var values = group.Select(x => x.Rate).Distinct().ToArray();
-            if (values.Length != 1)
-                throw new InvalidOperationException("نرخ روزانه این نمایندگی موجود نیست؛ برای حواله‌های AFN/USD همان روز یک نرخ یکسان وارد کنید و سپس نرخ مستقل حواله را ویرایش کنید.");
-            if (values[0] <= 0)
-                throw new InvalidOperationException("نرخ روزانه نمایندگی معتبر نیست.");
-            newRates.Add(new CorrespondentDailyCommissionRate
-            {
-                CorrespondentId = correspondentId,
-                RateDate = group.Key,
-                UsdToAfnRate = values[0],
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = context.RequireCurrentUserId()
-            });
-        }
-
+        if (sourceMode == "Hawalas" && dates.Values.Select(x => x.ToLocalTime().Date).Distinct().Count() > 1)
+            throw new InvalidOperationException("تبدیل هر روز باید جداگانه ثبت شود؛ از گزینه ثبت همه روزها استفاده کنید.");
+        if (dates.Values.Any(x=>x.ToLocalTime().Date>DateTime.Today) || balanceRateDate>DateTime.Today)
+            throw new InvalidOperationException("برای روز آینده نمی‌توان نرخ تبدیل ثبت کرد.");
         var result = await ExecuteConversionAsync(sourceMode, correspondentId, note, hawalaIds, rates, cancellationToken);
-        if (newRates.Count > 0)
-        {
-            context.CorrespondentDailyCommissionRates.AddRange(newRates);
-            try { await context.SaveChangesAsync(cancellationToken); }
-            catch
-            {
-                foreach (var rate in newRates)
-                    context.Entry(rate).State = EntityState.Detached;
-                throw;
-            }
-        }
+        await CaptureAsync(result.ConversionId, balanceRateDate, confirmDifferentDailyRate, cancellationToken);
         if (transaction != null)
             await transaction.CommitAsync(cancellationToken);
         return result;
@@ -305,6 +255,8 @@ public sealed class CorrespondentSettlementService(
 
         if (item.Conversion.SourceMode != "Hawalas")
             throw new InvalidOperationException("نرخ این حواله از تبدیل کلی حساب ایجاد شده و جداگانه قابل تغییر نیست.");
+        await CorrespondentCommissionPeriodLock.AcquireAsync(context, item.Conversion.CorrespondentId, cancellationToken);
+        await EnsureConversionCanChangeAsync(item.Conversion, cancellationToken);
 
         var sourceAmount = Math.Abs(item.SourceTalabKar - item.SourceBadehKar);
         var previousRate = item.ExchangeRate;
@@ -339,6 +291,7 @@ public sealed class CorrespondentSettlementService(
             CreatedAt = DateTime.UtcNow
         });
         await context.SaveChangesAsync(cancellationToken);
+        await CaptureAsync(item.ConversionId, null, true, cancellationToken);
         await dbTransaction.CommitAsync(cancellationToken);
 
         return new HawalaSettlementRateResultDto
@@ -376,6 +329,7 @@ public sealed class CorrespondentSettlementService(
         var clearingId = await GetOrCreateClearingAccountIdAsync(cancellationToken);
         foreach (var item in items)
         {
+            await EnsureConversionCanChangeAsync(item.Conversion,cancellationToken);
             var previousRate = item.ExchangeRate;
             var previousTargetAmount = Math.Abs(item.TargetTalabKar - item.TargetBadehKar);
             var newRate = CorrespondentRateCalculator.ToSettlementRate(item.SourceCurrency.Code, item.SourceCurrency.QuotationPriority,
@@ -399,6 +353,7 @@ public sealed class CorrespondentSettlementService(
             });
         }
         await context.SaveChangesAsync(cancellationToken);
+        foreach(var id in items.Select(x=>x.ConversionId).Distinct()) await CaptureAsync(id,null,true,cancellationToken);
     }
 
     private void AddBalancedLedgerEntries(

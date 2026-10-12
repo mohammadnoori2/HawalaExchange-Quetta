@@ -13,7 +13,7 @@
 }
 <div class="table-responsive mb-4">
     <table class="table table-sm table-bordered align-middle">
-        <thead><tr><th>تاریخ</th><th>تعداد حواله</th><th>مجموع AFN</th><th>مجموع USD</th><th>مبنای USD</th><th>کمیشن USD</th></tr></thead>
+        <thead><tr><th>تاریخ</th><th>تعداد حواله</th><th>مجموع AFN</th><th>مجموع USD</th><th>سایر ارزها</th><th>مبنای USD</th><th>کمیشن USD</th></tr></thead>
         <tbody>
         @foreach (var day in days)
         {
@@ -22,16 +22,17 @@
                 <td dir="ltr">@day.Items.Count.ToString(CultureInfo.InvariantCulture)</td>
                 <td dir="ltr">@Money(Total(day.Items, "AFN")) AFN</td>
                 <td dir="ltr">@Money(Total(day.Items, "USD")) USD</td>
+                <td dir="ltr">@OtherCurrencies(day.Items)</td>
                 <td dir="ltr">@Money(day.Items.Sum(x => x.AfnEquivalent)) USD</td>
                 <td dir="ltr">@Money(day.Items.Sum(x => x.CommissionAfn)) USD</td>
             </tr>
             @if (selectedDay == day.Date)
             {
-                <tr><td colspan="6" class="p-3">
+                <tr><td colspan="7" class="p-3">
                     <h6>حواله‌های @DisplayDates.Date(day.Date)</h6>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover align-middle">
-                            <thead><tr><th>نمبر حواله</th><th>نمبر متفرقه</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>روز نرخ</th><th>نرخ USD/AFN</th><th>مبنای USD</th><th>کمیشن USD هر لک</th><th>سهم کمیشن USD</th><th>وضعیت</th></tr></thead>
+                            <thead><tr><th>نمبر حواله</th><th>نمبر متفرقه</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>روز نرخ</th><th>واحد ارز مبدا به ازای USD</th><th>مبنای USD</th><th>کمیشن USD هر لک</th><th>سهم کمیشن USD</th><th>وضعیت</th></tr></thead>
                             <tbody>
                             @foreach (var item in day.Items)
                             {
@@ -54,7 +55,7 @@
             }
         }
         </tbody>
-        <tfoot><tr><th>مجموع نهایی دوره</th><th dir="ltr">@Items.Count.ToString(CultureInfo.InvariantCulture)</th><th dir="ltr">@Money(Total(Items, "AFN")) AFN</th><th dir="ltr">@Money(Total(Items, "USD")) USD</th><th dir="ltr">@Money(Items.Sum(x => x.AfnEquivalent)) USD</th><th dir="ltr">@Money(TotalCommissionUsd) USD</th></tr></tfoot>
+        <tfoot><tr><th>مجموع نهایی دوره</th><th dir="ltr">@Items.Count.ToString(CultureInfo.InvariantCulture)</th><th dir="ltr">@Money(Total(Items, "AFN")) AFN</th><th dir="ltr">@Money(Total(Items, "USD")) USD</th><th dir="ltr">@OtherCurrencies(Items)</th><th dir="ltr">@Money(Items.Sum(x => x.AfnEquivalent)) USD</th><th dir="ltr">@Money(TotalCommissionUsd) USD</th></tr></tfoot>
     </table>
 </div>
 
@@ -75,5 +76,8 @@
     private static decimal Total(IEnumerable<CorrespondentCommissionItemDto> items, string currency) =>
         items.Where(x => string.Equals(x.CurrencyCode, currency, StringComparison.OrdinalIgnoreCase)).Sum(x => x.SourceAmount);
     private static string Money(decimal value) => AmountValueHelper.Format(value);
+    private static string OtherCurrencies(IEnumerable<CorrespondentCommissionItemDto> items) => string.Join(" | ", items
+        .Where(x => x.CurrencyCode is not ("AFN" or "USD")).GroupBy(x => x.CurrencyCode)
+        .OrderBy(g => g.Key).Select(g => $"{Money(g.Sum(x => x.SourceAmount))} {g.Key}"));
     private sealed record DayGroup(DateTime Date, List<CorrespondentCommissionItemDto> Items);
 }

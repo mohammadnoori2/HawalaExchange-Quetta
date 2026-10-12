@@ -209,6 +209,7 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
         // Export services (customer activities Excel/PDF)
         builder.Services.AddScoped<IExportService, ExportService>();
         builder.Services.AddScoped<IHawalaPaymentHistoryExportService, HawalaPaymentHistoryExportService>();
+        builder.Services.AddScoped<ICorrespondentSettlementHistoryExportService, CorrespondentSettlementHistoryExportService>();
         builder.Services.AddSingleton(typeof(WkHtmlToPdfDotNet.Contracts.IConverter),
             new WkHtmlToPdfDotNet.SynchronizedConverter(new WkHtmlToPdfDotNet.PdfTools()));
 

@@ -583,6 +583,7 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         context.CorrespondentDailyCommissionRates.Add(new CorrespondentDailyCommissionRate
         { CorrespondentId = fixture.SourceCorrespondent.Id, RateDate = day, UsdToAfnRate = 70m, CreatedBy = fixture.UserId });
         await context.SaveChangesAsync();
+        await RecordedSettlementTestData.SeedAsync(context,fixture.SourceCorrespondent.Id);
         await fixture.CreateCommissionService(context).PostAsync(new CorrespondentCommissionPreviewRequestDto
         {
             CommissionScope = "Incoming", HawalaType = "HawalaReceive", CorrespondentId = fixture.SourceCorrespondent.Id,
@@ -600,9 +601,15 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         Assert.Equal(16m, await context.CorrespondentCommissionBatches.Where(x => x.Status == "Posted").Select(x => x.TotalCommissionUsd).SingleAsync());
         Assert.All(await context.CorrespondentCommissionBatchItems.AsNoTracking().Where(x => x.IsActive).ToListAsync(), x => Assert.Equal(70m, x.SourceToAfnRate));
         Assert.Equal(2000m, await context.CorrespondentCommissionBatchItems.Where(x => x.HawalaId == hawala.Id && x.IsActive).Select(x => x.AfnEquivalent).SingleAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>fixture.CreateService(context).DeleteHawalaAsync(row.GeneratedSendHawalaId!.Value));
+        context.ChangeTracker.Clear();
+        foreach(var batch in await context.CorrespondentCommissionBatches.AsNoTracking().Where(x=>x.Status=="Posted").Select(x=>x.Id).ToListAsync())
+            await fixture.CreateCommissionService(context).ReverseAsync(batch,"Reverse before undoing settlement");
+        foreach(var conversion in await context.CorrespondentSettlementConversions.AsNoTracking().Where(x=>x.CorrespondentId==fixture.SourceCorrespondent.Id && x.Transaction.Status!="Cancel").Select(x=>x.Id).ToListAsync())
+            await fixture.CreateSettlementService(context).ReverseAsync(fixture.SourceCorrespondent.Id,conversion,"Undo settlement before deletion");
         await fixture.CreateService(context).DeleteHawalaAsync(row.GeneratedSendHawalaId!.Value);
         Assert.Equal(2, await context.Hawalas.CountAsync(x => (x.Id == hawala.Id || x.Id == row.GeneratedSendHawalaId) && x.Status == "Cancel"));
-        Assert.Equal(8m, await context.CorrespondentCommissionBatches.Where(x => x.Status == "Posted").Select(x => x.TotalCommissionUsd).SingleAsync());
+        Assert.False(await context.CorrespondentCommissionBatches.AnyAsync(x=>x.Status=="Posted"));
         await import.DeleteBatchAsync(request.BatchId);
         Assert.All(await context.LedgerEntries.GroupBy(x => new { x.AccountId, x.CurrencyId }).Select(x => x.Sum(e => e.TalabKar - e.BadehKar)).ToListAsync(), x => Assert.Equal(0m, x));
     }

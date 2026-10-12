@@ -14,105 +14,8 @@ public sealed class SettlementConversionPerformanceTests(
     SqlServerPerformanceFixture fixture,
     ITestOutputHelper output)
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Confirmed_daily_rate_edit_optionally_updates_only_different_conversions_and_balanced_ledger(bool apply)
-    {
-        var seeded = await SeedRateImpactAsync();
-        await using var context = fixture.CreateContext();
-        using var bypass = context.BypassSubscriptionEnforcement();
-        var rates = new HawalaExchange.Infrastructure.Services.CorrespondentDailyRateService(context);
-        var impact = await rates.GetImpactAsync(seeded.CorrespondentId, DateTime.Today, 66.5m);
-        var affected = Assert.Single(impact.Hawalas);
-        Assert.Equal(seeded.FirstNumber, affected.HawalaNumber);
-        Assert.Equal(67m, affected.PreviousRate);
-        Assert.Equal(100m, affected.NewTargetAmount);
-        await rates.SaveConfirmedAsync(impact, apply);
-        context.ChangeTracker.Clear();
-        var items = await context.CorrespondentSettlementConversionHawalaItems.Include(x => x.LedgerEntries)
-            .Where(x => x.ConversionId == seeded.ConversionId).ToListAsync();
-        Assert.Equal(apply ? 66.5m : 67m, items.Single(x => x.Id == affected.ItemId).ExchangeRate);
-        Assert.Equal(apply ? 100m : affected.PreviousTargetAmount, items.Single(x => x.Id == affected.ItemId).TargetTalabKar);
-        Assert.Equal(66.5m, items.Single(x => x.Id != affected.ItemId).ExchangeRate);
-        Assert.All(items, x => { AssertCurrencyBalanced(x.LedgerEntries, 1); AssertCurrencyBalanced(x.LedgerEntries, 2); });
-        Assert.Equal(66.5m, (await rates.GetAsync(seeded.CorrespondentId, DateTime.Today)).UsdToAfnRate);
-        Assert.Equal(apply ? 1 : 0, await context.AuditLogs.CountAsync(x => x.Action == "APPLY_DAILY_RATE_TO_HAWALA" && x.RecordId == affected.ItemId));
-    }
-
-    [Fact]
-    public async Task Stale_rate_impact_confirmation_is_rejected_without_changing_daily_rate()
-    {
-        var seeded = await SeedRateImpactAsync();
-        await using var context = fixture.CreateContext();
-        using var bypass = context.BypassSubscriptionEnforcement();
-        var rates = new HawalaExchange.Infrastructure.Services.CorrespondentDailyRateService(context);
-        var impact = await rates.GetImpactAsync(seeded.CorrespondentId, DateTime.Today, 66.5m);
-        await fixture.CreateSettlementService(context).UpdateHawalaRateAsync(new UpdateHawalaSettlementRateDto
-        { HawalaId = seeded.FirstId, SourceCurrencyId = 1, Rate = 68m });
-        await Assert.ThrowsAsync<InvalidOperationException>(() => rates.SaveConfirmedAsync(impact, true));
-        Assert.Equal(67m, (await rates.GetAsync(seeded.CorrespondentId, DateTime.Today)).UsdToAfnRate);
-    }
-
-    [Fact]
-    public async Task Closed_period_conversion_is_warned_and_cannot_be_changed_by_daily_rate_edit()
-    {
-        var seeded = await SeedRateImpactAsync();
-        await using var context = fixture.CreateContext();
-        using var bypass = context.BypassSubscriptionEnforcement();
-        context.CorrespondentAccountPeriods.Add(new CorrespondentAccountPeriod
-        {
-            CorrespondentId = seeded.CorrespondentId, PeriodNumber = 1,
-            PeriodFrom = DateTime.Today.ToUniversalTime(), PeriodTo = DateTime.UtcNow.AddMinutes(1),
-            ClosedAt = DateTime.UtcNow, ClosedBy = fixture.UserId
-        });
-        await context.SaveChangesAsync();
-        var rates = new HawalaExchange.Infrastructure.Services.CorrespondentDailyRateService(context);
-        var impact = await rates.GetImpactAsync(seeded.CorrespondentId, DateTime.Today, 66.5m);
-        Assert.True(Assert.Single(impact.Hawalas).IsClosed);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => rates.SaveConfirmedAsync(impact, true));
-        Assert.Equal(67m, (await rates.GetAsync(seeded.CorrespondentId, DateTime.Today)).UsdToAfnRate);
-    }
-
-    [Fact]
-    public async Task Failed_bulk_rate_application_rolls_back_daily_rate_and_conversions_and_allows_retry()
-    {
-        var seeded = await SeedRateImpactAsync();
-        await using var context = fixture.CreateContext();
-        using var bypass = context.BypassSubscriptionEnforcement();
-        var rates = new HawalaExchange.Infrastructure.Services.CorrespondentDailyRateService(context);
-        var impact = await rates.GetImpactAsync(seeded.CorrespondentId, DateTime.Today, 9999999m);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => rates.SaveConfirmedAsync(impact, true));
-        Assert.Equal(67m, (await rates.GetAsync(seeded.CorrespondentId, DateTime.Today)).UsdToAfnRate);
-        Assert.Equal(67m, await context.CorrespondentSettlementConversionHawalaItems
-            .Where(x => x.HawalaId == seeded.FirstId).Select(x => x.ExchangeRate).SingleAsync());
-        var retry = await rates.GetImpactAsync(seeded.CorrespondentId, DateTime.Today, 66.5m);
-        await rates.SaveConfirmedAsync(retry, true);
-        Assert.Empty((await rates.GetImpactAsync(seeded.CorrespondentId, DateTime.Today, 66.5m)).Hawalas);
-    }
-
-    private async Task<(long CorrespondentId, long ConversionId, long FirstId, long FirstNumber)> SeedRateImpactAsync()
-    {
-        await using var context = fixture.CreateContext();
-        using var bypass = context.BypassSubscriptionEnforcement();
-        var (correspondent, account) = await CreateCorrespondentAsync(context, "SET-IMPACT");
-        var rates = new HawalaExchange.Infrastructure.Services.CorrespondentDailyRateService(context);
-        await rates.SaveAsync(correspondent.Id, DateTime.Today, 67m);
-        var number = 97_200_000L + correspondent.Id * 10;
-        var first = NewHawala(number, correspondent.Id, 1, 6650m);
-        var second = NewHawala(number + 1, correspondent.Id, 1, 6650m);
-        context.Hawalas.AddRange(first, second);
-        await context.SaveChangesAsync();
-        context.LedgerEntries.AddRange(NewLedger(account.Id, 1, 6650m, 0, first.Id), NewLedger(account.Id, 1, 6650m, 0, second.Id));
-        await context.SaveChangesAsync();
-        var result = await fixture.CreateSettlementService(context).ConvertHawalasAsync(new ConvertHawalasToSettlementDto
-        {
-            CorrespondentId = correspondent.Id, HawalaIds = [first.Id, second.Id],
-            HawalaRates = [new() { HawalaId = first.Id, SourceCurrencyId = 1, Rate = 67m },
-                new() { HawalaId = second.Id, SourceCurrencyId = 1, Rate = 66.5m }]
-        });
-        return (correspondent.Id, result.ConversionId, first.Id, first.Number);
-    }
+    // Standalone daily-rate editing was removed. Generic conversion-rate edits,
+    // immutable snapshots and closed-period protection are covered by SettlementBasedCommissionTests.
 
     [Fact]
     public async Task Daily_rates_are_created_for_each_hawala_day_and_preview_exposes_the_same_days()
@@ -133,16 +36,13 @@ public sealed class SettlementConversionPerformanceTests(
         var preview = await service.GetHawalaPreviewAsync(correspondent.Id, [yesterday.Id, today.Id]);
         Assert.Equal(DateTime.Today.AddDays(-1), preview.Single(x => x.HawalaId == yesterday.Id).RateDate);
         Assert.Equal(DateTime.Today, preview.Single(x => x.HawalaId == today.Id).RateDate);
-        var result = await service.ConvertHawalasAsync(new ConvertHawalasToSettlementDto
+        foreach(var (row,rate) in new[]{(yesterday,66.5m),(today,67m)})
         {
-            CorrespondentId = correspondent.Id, HawalaIds = [yesterday.Id, today.Id],
-            HawalaRates = [new() { HawalaId = yesterday.Id, SourceCurrencyId = 1, Rate = 66.5m },
-                          new() { HawalaId = today.Id, SourceCurrencyId = 1, Rate = 67m }]
-        });
-        Assert.All(result.Items, x => Assert.Equal(100m, x.TargetAmount));
-        var daily = await context.CorrespondentDailyCommissionRates.AsNoTracking()
-            .Where(x => x.CorrespondentId == correspondent.Id).OrderBy(x => x.RateDate).ToListAsync();
-        Assert.Equal(new[] { 66.5m, 67m }, daily.Select(x => x.UsdToAfnRate));
+            var result=await service.ConvertHawalasAsync(new(){CorrespondentId=correspondent.Id,HawalaIds=[row.Id],HawalaRates=[new(){HawalaId=row.Id,SourceCurrencyId=1,Rate=rate}]});
+            Assert.All(result.Items,x=>Assert.Equal(100m,x.TargetAmount));
+        }
+        var daily=await service.GetRatesAsync(correspondent.Id);
+        Assert.Equal(new[]{66.5m,67m},daily.OrderBy(x=>x.RateDate).Select(x=>x.ExchangeRate));
     }
 
     [Fact]
@@ -182,6 +82,8 @@ public sealed class SettlementConversionPerformanceTests(
             CorrespondentId = correspondent.Id, Rates = [new() { SourceCurrencyId = 1, Rate = 66.5m }]
         }));
         Assert.False(await context.CorrespondentDailyCommissionRates.AnyAsync(x => x.CorrespondentId == correspondent.Id));
+        Assert.Empty(await fixture.CreateSettlementService(context).GetRatesAsync(correspondent.Id));
+        Assert.Empty(await fixture.CreateSettlementService(context).GetHistoryAsync(new(){CorrespondentId=correspondent.Id}));
     }
 
     [Fact]
@@ -201,9 +103,9 @@ public sealed class SettlementConversionPerformanceTests(
             CorrespondentId = correspondent.Id, RateDate = DateTime.Today.AddDays(-1),
             Rates = [new() { SourceCurrencyId = 1, Rate = 66.5m }]
         });
-        var rate = await context.CorrespondentDailyCommissionRates.SingleAsync(x => x.CorrespondentId == correspondent.Id);
+        var rate = Assert.Single(await fixture.CreateSettlementService(context).GetRatesAsync(correspondent.Id));
         Assert.Equal(DateTime.Today.AddDays(-1), rate.RateDate);
-        Assert.Equal(66.5m, rate.UsdToAfnRate);
+        Assert.Equal(66.5m, rate.ExchangeRate);
     }
 
     [Fact]

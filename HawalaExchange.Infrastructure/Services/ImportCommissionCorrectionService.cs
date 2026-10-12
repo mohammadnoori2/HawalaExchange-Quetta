@@ -60,10 +60,12 @@ internal sealed class ImportCommissionCorrectionService(ApplicationDbContext con
                     else owner = hawala.CorrespondentId ?? owner;
                     var outgoing = hawala.HawalaType == "HawalaSend";
                     var currencyId = outgoing ? hawala.ToCurrencyId : hawala.FromCurrencyId;
-                    if (currencies.GetValueOrDefault(currencyId) is not ("AFN" or "USD"))
+                    if (original.AccountingVersion<3 && currencies.GetValueOrDefault(currencyId) is not ("AFN" or "USD"))
                         throw new InvalidOperationException("اصلاح کمیشن فعلاً فقط برای AFN و USD امکان دارد.");
                     var rate = item.SourceToAfnRate;
                     if (currencies[currencyId] == "USD") rate = 1;
+                    else if (original.AccountingVersion>=3 && original.CommissionScope != "Destination" && currencyId!=item.SourceCurrencyId)
+                        throw new InvalidOperationException("برای تغییر ارز حواله دارای کمیشن، ابتدا کمیشن و تبدیل قبلی را برگشت دهید؛ نرخ تاریخی ارز جدید باید ثبت شود.");
                     else if (original.CommissionScope != "Destination" && (currencyId != item.SourceCurrencyId || rate <= 0 || (rate == 1 && currencies[item.SourceCurrencyId] == "USD")))
                     {
                         var date = item.ValuationDate ?? hawala.SourceHawala?.CreatedAt.ToLocalTime().Date ?? hawala.CreatedAt.ToLocalTime().Date;

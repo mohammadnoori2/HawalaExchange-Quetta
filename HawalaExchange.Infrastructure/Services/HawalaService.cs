@@ -687,6 +687,7 @@
                             _context.Hawalas.Remove(generatedHawala);
                     }
 
+                    if (isImported && (settlementReconversion!=null || generatedSettlementReconversion!=null)) await _context.SaveChangesAsync();
                     if (isImported) await importCorrection.ReverseHawalaLedgerAsync(importedIds);
                     else await DeleteHawalaLedgerEntriesAsync(hawala.Id);
                     await _context.SaveChangesAsync();
@@ -1176,6 +1177,9 @@
                     .SingleOrDefaultAsync(x => x.HawalaId == hawalaId);
                 if (link == null)
                     return null;
+                var settlementHistory = new HawalaExchange.Infrastructure.Services.CorrespondentSettlementService(_context);
+                await settlementHistory.EnsureConversionCanChangeAsync(link.Conversion);
+                await settlementHistory.MarkDetachedAsync(link.ConversionId, hawalaId);
 
                 if (link.Conversion.SourceMode != "Hawalas")
                 {
@@ -1256,6 +1260,7 @@
                 await _settlementService.ConvertHawalasAsync(new ConvertHawalasToSettlementDto
                 {
                     CorrespondentId = hawala.CorrespondentId.Value,
+                    ConfirmDifferentDailyRate = true,
                     HawalaIds = [hawala.Id],
                     HawalaRates = rates,
                     Note = $"تبدیل مجدد خودکار پس از ویرایش حواله شماره {hawala.Number}"

@@ -26,7 +26,7 @@ public sealed class HawalaPaymentHistoryExportService(IHawalaService hawalas, IC
         if (format == ExportFormat.Excel)
         {
             using var workbook = new XLWorkbook();
-            var summary = workbook.AddWorksheet("Summary"); summary.RightToLeft = true;
+            var summary = workbook.AddWorksheet("Summary"); summary.RightToLeft = false;
             summary.Cell(1, 1).Value = "اجرای گروهی"; summary.Cell(1, 2).Value = batch.Id;
             summary.Cell(2, 1).Value = "تاریخ اجرا"; summary.Cell(2, 2).Value = Date(batch.ExecutedAt);
             summary.Cell(3, 1).Value = "حساب پرداخت"; summary.Cell(3, 2).Value = batch.AccountName;
@@ -43,7 +43,7 @@ public sealed class HawalaPaymentHistoryExportService(IHawalaService hawalas, IC
             summary.Row(7).Style.Font.Bold = true;
             foreach (var group in batch.Items.GroupBy(x => x.CurrencyCode))
             {
-                var sheet = workbook.AddWorksheet($"Currency_{workbook.Worksheets.Count}"); sheet.RightToLeft = true;
+                var sheet = workbook.AddWorksheet($"Currency_{workbook.Worksheets.Count}"); sheet.RightToLeft = false;
                 var headings = new[] { "نمبر حواله", "نمبر متفرقه", "فرستنده", "گیرنده", "نمایندگی", "محل پرداخت", "مبلغ پرداخت", "ارز", "کمیشن عامل پرداخت", "ارز کمیشن", "تاریخ ثبت" };
                 for (var c = 0; c < headings.Length; c++) sheet.Cell(1, c + 1).Value = headings[c];
                 row = 2;

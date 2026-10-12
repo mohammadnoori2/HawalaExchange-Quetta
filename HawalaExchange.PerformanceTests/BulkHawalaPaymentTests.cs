@@ -303,6 +303,8 @@ public sealed class BulkHawalaPaymentTests(SqlServerPerformanceFixture fixture)
         var file = await exporter.ExportAsync(id, ExportFormat.Excel);
         using var stream = new MemoryStream(file.Content); using var book = new ClosedXML.Excel.XLWorkbook(stream);
         Assert.Equal(2, book.Worksheets.Count); Assert.Equal(500, book.Worksheet("Summary").Cell(8, 2).GetValue<decimal>());
+        Assert.All(book.Worksheets, sheet => Assert.False(sheet.RightToLeft));
+        Assert.Equal("نمبر حواله", book.Worksheet(2).Cell(1, 1).GetString());
         var detail = book.Worksheet(2); Assert.Equal(500, detail.Cell(2, 7).GetValue<decimal>()); Assert.Equal("AFN", detail.Cell(2, 8).GetString());
         Assert.Equal("=literal text", detail.Cell(2, 3).GetString()); Assert.False(detail.Cell(2, 3).HasFormula);
         Assert.Contains("1405/", detail.Cell(2, 11).GetString());

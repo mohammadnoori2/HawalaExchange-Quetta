@@ -165,6 +165,37 @@ public sealed class SelectedRecordsToolbarTests
         });
     }
 
+    [Fact]
+    public async Task Input_format_toggle_changes_copy_preview_and_preserves_message_format_when_unchecked()
+    {
+        var service = new Mock<ISelectedRecordsService>();
+        var row = Row(1, "HawalaReceive");
+        row.Number = "2172"; row.ReferenceNumber = "A44559"; row.PaymentLocationName = "Qonduz"; row.Amount = 21560m;
+        service.Setup(x => x.ReadAsync(It.IsAny<IReadOnlyCollection<long>>(), false, It.IsAny<CancellationToken>())).ReturnsAsync([row]);
+        using var services = Services(await DatesAsync(), service.Object);
+        await using var renderer = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
+        await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            Probe? component = null;
+            var root = await renderer.RenderComponentAsync<Probe>(ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                [nameof(Probe.ScopeId)] = "input-format", [nameof(Probe.VisibleIds)] = new long[] { 1 },
+                [nameof(Probe.SelectAllOnOpen)] = true,
+                [nameof(Probe.Capture)] = (Action<Probe>)(value => component = value)
+            }));
+            await (Task)typeof(SelectedRecordsToolbar).GetMethod("PreviewAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(component, null)!;
+            typeof(SelectedRecordsToolbar).GetField("matchInputFormat", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(component, true);
+            component!.Refresh();
+            var build = typeof(SelectedRecordsToolbar).GetMethod("BuildText", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            Assert.Equal("2172\tA44559\tSender\tReceiver\tQonduz\t21560\tAFN", (string)build.Invoke(component, null)!);
+            Assert.Contains("مطابق فایل ورودی", Html(root.ToHtmlString()));
+            Assert.Contains("dir=\"ltr\"", Html(root.ToHtmlString()));
+            typeof(SelectedRecordsToolbar).GetField("matchInputFormat", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(component, false);
+            Assert.Contains("نمبر حواله: 2172", (string)build.Invoke(component, null)!);
+            Assert.Contains("مجموع حواله", (string)build.Invoke(component, null)!);
+        });
+    }
+
     private static SelectedRecordDto Row(long id, string kind) => new()
     {
         Id = id, Number = id.ToString(), Kind = kind, SenderName = "Sender", ReceiverName = "Receiver",

@@ -79,29 +79,39 @@ public sealed class SelectedRecordsService(ApplicationDbContext context) : ISele
         var rows = await ReadAsync(ids, transactions, cancellationToken);
         if (transactions)
             return new("SelectedTransactions.xlsx", ExcelMimeType, CreateWorkbook(rows, true));
+        return ExportHawalas(rows, true, cancellationToken);
+    }
+
+    public async Task<SelectedRecordsFileDto> ExportInputFormatAsync(IReadOnlyCollection<long> ids,
+        CancellationToken cancellationToken = default)
+        => ExportHawalas(await ReadAsync(ids, false, cancellationToken), false, cancellationToken);
+
+    private static SelectedRecordsFileDto ExportHawalas(IReadOnlyList<SelectedRecordDto> rows, bool includeCommission,
+        CancellationToken cancellationToken)
+    {
         var groups = rows.GroupBy(x => (x.CorrespondentId, x.Kind)).ToList();
         string Name(IGrouping<(long? CorrespondentId, string Kind), SelectedRecordDto> group) =>
             $"Hawalas_{group.Key.CorrespondentId?.ToString(CultureInfo.InvariantCulture) ?? "none"}_{group.Key.Kind}.xlsx";
         if (groups.Count == 1)
-            return new(Name(groups[0]), ExcelMimeType, CreateWorkbook(groups[0].ToList(), false));
+            return new(Name(groups[0]), ExcelMimeType, CreateWorkbook(groups[0].ToList(), false, includeCommission));
         using var output = new MemoryStream();
         using (var archive = new ZipArchive(output, ZipArchiveMode.Create, true))
             foreach (var group in groups)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 using var stream = archive.CreateEntry(Name(group)).Open();
-                stream.Write(CreateWorkbook(group.ToList(), false));
+                stream.Write(CreateWorkbook(group.ToList(), false, includeCommission));
             }
         return new("SelectedHawalas.zip", "application/zip", output.ToArray());
     }
 
     private const string ExcelMimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    private static byte[] CreateWorkbook(IReadOnlyList<SelectedRecordDto> rows, bool transactions)
+    private static byte[] CreateWorkbook(IReadOnlyList<SelectedRecordDto> rows, bool transactions, bool includeCommission = true)
     {
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet(transactions ? "Transactions" : "Hawalas");
-        sheet.RightToLeft = true;
+        sheet.RightToLeft = transactions;
         var index = 1;
         if (transactions)
         {
@@ -148,16 +158,17 @@ public sealed class SelectedRecordsService(ApplicationDbContext context) : ISele
                 sheet.Cell(index, 5).Value = row.PaymentLocationName;
                 sheet.Cell(index, 6).Value = row.Amount;
                 sheet.Cell(index, 7).Value = row.CurrencyCode;
-                if (row.AgentCommission is > 0)
+                if (includeCommission && row.AgentCommission is > 0)
                 {
                     sheet.Cell(index, 8).Value = row.AgentCommission.Value;
                     sheet.Cell(index, 9).Value = row.CommissionCurrencyCode;
                 }
-                sheet.Range(index, 6, index, 8).Style.NumberFormat.Format = "[$-en-US]0";
+                sheet.Cell(index, 6).Style.NumberFormat.Format = "[$-en-US]0";
+                if (includeCommission) sheet.Cell(index, 8).Style.NumberFormat.Format = "[$-en-US]0";
             }
             index++;
         }
-        sheet.Columns(1, transactions ? 14 : 9).Width = 22;
+        sheet.Columns(1, transactions ? 14 : includeCommission ? 9 : 7).Width = 22;
         using var output = new MemoryStream();
         workbook.SaveAs(output);
         return output.ToArray();

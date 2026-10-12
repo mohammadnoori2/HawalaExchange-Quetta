@@ -8,4 +8,6 @@ public interface ISelectedRecordsService
         CancellationToken cancellationToken = default);
     Task<SelectedRecordsFileDto> ExportAsync(IReadOnlyCollection<long> ids, bool transactions = false,
         CancellationToken cancellationToken = default);
+    Task<SelectedRecordsFileDto> ExportInputFormatAsync(IReadOnlyCollection<long> ids,
+        CancellationToken cancellationToken = default);
 }

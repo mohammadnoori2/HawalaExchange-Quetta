@@ -24,6 +24,7 @@ public sealed class SelectedRecordsServiceTests(SqlServerPerformanceFixture fixt
         using var stream = new MemoryStream(file.Content);
         using var workbook = new XLWorkbook(stream);
         var sheet = workbook.Worksheet(1);
+        Assert.False(sheet.RightToLeft);
         Assert.Equal(1, sheet.LastRowUsed()!.RowNumber());
         Assert.Equal(first.Number.ToString(), sheet.Cell(1, 1).GetString());
         Assert.Equal("FIRST", sheet.Cell(1, 2).GetString());
@@ -62,6 +63,11 @@ public sealed class SelectedRecordsServiceTests(SqlServerPerformanceFixture fixt
         using var stream = new MemoryStream(file.Content);
         using var archive = new ZipArchive(stream);
         Assert.Equal(2, archive.Entries.Count);
+        foreach (var entry in archive.Entries)
+        {
+            using var exported = new XLWorkbook(entry.Open());
+            Assert.All(exported.Worksheets, sheet => Assert.False(sheet.RightToLeft));
+        }
         using var workbook = new XLWorkbook(archive.Entries.Single(x => x.Name.Contains("HawalaSend")).Open());
         Assert.Equal("101", workbook.Worksheet(1).Cell(1, 1).GetString());
         Assert.Equal("AFN", workbook.Worksheet(1).Cell(1, 7).GetString());
@@ -113,6 +119,32 @@ public sealed class SelectedRecordsServiceTests(SqlServerPerformanceFixture fixt
         Assert.Equal(6600m, sheet.Cell(2, 9).GetValue<decimal>());
         Assert.Equal(200m, sheet.Cell(3, 7).GetValue<decimal>());
         Assert.Equal(transaction.TransactionNo, sheet.Cell(3, 1).GetString());
+    }
+
+    [Fact]
+    public async Task Input_format_exports_seven_columns_without_headers_commission_or_internal_fields()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var row = NewHawala(98_600_030, "=literal sender", "00123");
+        context.Hawalas.Add(row);
+        await context.SaveChangesAsync();
+        var file = await new SelectedRecordsService(context).ExportInputFormatAsync([row.Id]);
+        using var workbook = new XLWorkbook(new MemoryStream(file.Content));
+        var sheet = workbook.Worksheet(1);
+        Assert.False(sheet.RightToLeft);
+        Assert.Equal(1, sheet.LastRowUsed()!.RowNumber());
+        Assert.Equal(7, sheet.LastColumnUsed()!.ColumnNumber());
+        Assert.Equal("98600030", sheet.Cell(1, 1).GetString());
+        Assert.Equal("00123", sheet.Cell(1, 2).GetString());
+        Assert.Equal("=literal sender", sheet.Cell(1, 3).GetString());
+        Assert.False(sheet.Cell(1, 3).HasFormula);
+        Assert.Equal("Receiver", sheet.Cell(1, 4).GetString());
+        Assert.Equal(fixture.RemoteLocation.Name, sheet.Cell(1, 5).GetString());
+        Assert.Equal(XLDataType.Number, sheet.Cell(1, 6).DataType);
+        Assert.Equal(1234.56m, sheet.Cell(1, 6).GetValue<decimal>());
+        Assert.Equal("USD", sheet.Cell(1, 7).GetString());
+        Assert.DoesNotContain("Secret", string.Join(" ", sheet.CellsUsed().Select(x => x.GetString())));
     }
 
     private Hawala NewHawala(long number, string sender, string reference) => new()

@@ -16,6 +16,8 @@
 <div class="border rounded p-2 my-2 bg-light" dir="rtl">
     <div class="d-flex flex-wrap align-items-center gap-2">
         <strong>@selected.Count.ToString(CultureInfo.InvariantCulture) ردیف انتخاب‌شده</strong>
+        @if (!Transactions)
+        { <label class="form-check d-flex align-items-center gap-2 mb-0"><input class="form-check-input m-0" type="checkbox" @bind="matchInputFormat" /> مطابق فایل ورودی (7 ستون)</label> }
         <button class="btn btn-sm btn-outline-secondary" disabled="@(busy || selected.Count == 0)" @onclick="Clear">لغو همه انتخاب‌ها</button>
         <button class="btn btn-sm btn-primary" disabled="@(busy || selected.Count == 0)" @onclick="PreviewAsync">کاپی / واتساپ / تلگرام / وایبر</button>
         <button class="btn btn-sm btn-success" disabled="@(busy || selected.Count == 0)" @onclick="ExportAsync">خروج اکسل انتخاب‌شده‌ها</button>
@@ -32,28 +34,36 @@
         <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
             <div class="modal-header"><h5 class="modal-title">پیش‌نمایش جزئیات انتخاب‌شده‌ها</h5><button class="btn-close" @onclick="() => showPreview = false"></button></div>
             <div class="modal-body">
-                <div class="d-flex flex-wrap gap-3 mb-2">
+                @if (!Transactions)
+                { <label class="form-check mb-3"><input class="form-check-input" type="checkbox" @bind="matchInputFormat" /> مطابق فایل ورودی (7 ستون)</label> }
+                <fieldset disabled="@(!Transactions && matchInputFormat)" class="d-flex flex-wrap gap-3 mb-2">
                     <label><input type="checkbox" @bind="includePhones" /> شماره تماس</label>
                     <label><input type="checkbox" @bind="includeIdentity" /> شماره تذکره</label>
                     <label><input type="checkbox" @bind="includeType" /> نوع حواله / معامله</label>
                     <label><input type="checkbox" @bind="includeCorrespondent" /> نمایندگی / شعبه</label>
                     <label><input type="checkbox" @bind="includeStatus" /> وضعیت</label>
                     <label><input type="checkbox" @bind="includeCommission" /> کمیشن</label>
-                </div>
-                <textarea class="form-control" rows="13" readonly dir="rtl" value="@BuildText()"></textarea>
+                </fieldset>
+                <textarea class="form-control" rows="13" readonly dir="@(!Transactions && matchInputFormat ? "ltr" : "rtl")" style="@(!Transactions && matchInputFormat ? "white-space:pre;overflow-wrap:normal;" : null)" value="@BuildText()"></textarea>
+                @if (!Transactions && matchInputFormat)
+                { <div class="form-text">نمبر حواله، نمبر متفرقه، فرستنده، گیرنده، محل پرداخت، مبلغ، ارز؛ بدون عنوان، کمیشن، تاریخ، یادداشت یا مجموع. با کاپی و چسباندن در اکسل، هر مقدار در ستون خود قرار می‌گیرد.</div> }
+                else
+                {
                 <div class="form-text">یادداشت موجود در متن نمایش داده می‌شود؛ موارد اضافی فقط با انتخاب چک‌باکس اضافه می‌شوند. ارسال نهایی و انتخاب گیرنده در واتساپ، تلگرام یا وایبر انجام می‌شود.</div>
+                }
                 <div class="form-text">وایبر باید نصب باشد؛ اجازه باز کردن برنامه را در مرورگر تأیید کنید، سپس گروه یا مخاطب و ارسال نهایی را در وایبر انتخاب کنید.</div>
                 @if (BuildText().Length > 200)
                 {
                     <div class="alert alert-warning py-2 mt-2">وایبر ممکن است فقط 200 کاراکتر اول را بگیرد. قبل از ارسال به گروه، کامل‌بودن جزئیات و مجموع را بررسی کنید؛ اگر متن ناقص بود، از کاپی جزئیات یا فایل متنی استفاده کنید.</div>
                 }
                 @if (BuildText().Length > 3500) { <div class="form-text text-warning">متن طولانی است؛ آن را کاپی کنید یا فایل متنی بگیرید و در برنامه ارسال کنید.</div> }
-                @if (!Transactions) { <div class="form-text">اکسل: 9 ستون بدون عنوان، مطابق قالب آپلود. هر نمایندگی و نوع حواله در فایل جدا؛ چند فایل داخل ZIP. فیلدهای ناقص باید قبل از آپلود تکمیل شوند.</div> }
+                @if (!Transactions) { <div class="form-text">اکسل چپ‌به‌راست: @(matchInputFormat ? "7 ستون اصلی" : "9 ستون با کمیشن اختیاری") بدون عنوان. هر نمایندگی و نوع حواله در فایل جدا؛ چند فایل داخل ZIP. فیلدهای ناقص باید قبل از آپلود تکمیل شوند.</div> }
                 @if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger mt-2">@error</div> }
                 @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert alert-success mt-2" role="status">@message</div> }
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline-primary" @onclick="CopyAsync">کاپی جزئیات</button>
+                @if (!Transactions) { <button class="btn btn-success" disabled="@busy" @onclick="ExportAsync">خروج اکسل انتخاب‌شده‌ها</button> }
                 @if (BuildText().Length <= 3500)
                 {
                     <a class="btn btn-success" href='@ShareUrl("whatsapp")' target="_blank" rel="noopener noreferrer">واتساپ</a>
@@ -82,6 +92,7 @@
     private string error = "", message = "";
     private bool busy, showPreview, disposed;
     private bool includePhones, includeIdentity, includeCommission, includeType, includeCorrespondent, includeStatus;
+    private bool matchInputFormat;
     private IJSObjectReference? module;
     private DotNetObjectReference<SelectedRecordsToolbar>? reference;
 
@@ -147,6 +158,7 @@
 
     private string BuildText()
     {
+        if (!Transactions && matchInputFormat) return HawalaInputTextFormatter.Format(records);
         var text = new StringBuilder();
         foreach (var row in records)
         {
@@ -200,7 +212,7 @@
     }) + Uri.EscapeDataString(BuildText());
     private async Task DownloadTextAsync()
     {
-        try { await module!.InvokeVoidAsync("download", "SelectedDetails.txt", "text/plain;charset=utf-8", Convert.ToBase64String(Encoding.UTF8.GetBytes(BuildText()))); }
+        try { await module!.InvokeVoidAsync("download", !Transactions && matchInputFormat ? "SelectedHawalas.tsv" : "SelectedDetails.txt", "text/plain;charset=utf-8", Convert.ToBase64String(Encoding.UTF8.GetBytes(BuildText()))); }
         catch { error = "دریافت فایل متنی انجام نشد؛ دوباره تلاش کنید."; }
     }
     private async Task ExportAsync()
@@ -208,7 +220,9 @@
         busy = true; error = message = "";
         try
         {
-            var file = await RecordsService.ExportAsync(selected.OrderBy(x => x).ToArray(), Transactions);
+            var file = !Transactions && matchInputFormat
+                ? await RecordsService.ExportInputFormatAsync(selected.OrderBy(x => x).ToArray())
+                : await RecordsService.ExportAsync(selected.OrderBy(x => x).ToArray(), Transactions);
             await module!.InvokeVoidAsync("download", file.FileName, file.ContentType, Convert.ToBase64String(file.Content));
             message = "خروجی انتخاب‌شده‌ها آماده شد.";
         }

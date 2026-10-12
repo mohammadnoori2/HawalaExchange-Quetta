@@ -4,6 +4,8 @@ namespace HawalaExchange.Application.Interfaces.Services
 {
     public interface IHawalaImportService
     {
+        Task SaveDraftAsync(ConfirmHawalaImportDto request, CancellationToken cancellationToken = default);
+        Task<HawalaImportDeletionPreviewDto> GetDeletionPreviewAsync(long batchId, CancellationToken cancellationToken = default);
         Task<HawalaImportPreviewDto> PrepareLocationsAsync(
             ConfirmHawalaImportDto request,
             IProgress<HawalaImportProgressDto>? progress = null,

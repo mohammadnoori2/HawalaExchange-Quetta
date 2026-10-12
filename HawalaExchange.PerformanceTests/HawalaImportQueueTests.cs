@@ -134,13 +134,30 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         var mapper = new MapperConfiguration(config => config.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
         var import = new HawalaImportService(context, fixture.CreateService(context),
             Mock.Of<IPaymentLocationService>(), Mock.Of<ICorrespondentService>(), new AuditLogService(context, mapper));
+        var locations = await context.Hawalas.Where(x => x.HawalaType == "HawalaSend").Select(x => x.PaymentLocationId!.Value).Distinct().ToListAsync();
+        var day = (await context.Hawalas.Select(x => x.CreatedAt).FirstAsync()).ToLocalTime().Date;
+        foreach (var scope in new[] { "Incoming", "Forwarding", "Destination" })
+            await fixture.CreateCommissionService(context).PostAsync(new CorrespondentCommissionPreviewRequestDto
+            {
+                CommissionScope = scope, HawalaType = scope == "Incoming" ? "HawalaReceive" : "HawalaSend",
+                CorrespondentId = scope == "Destination" ? fixture.DestinationCorrespondent.Id : fixture.SourceCorrespondent.Id,
+                PeriodFrom = day, PeriodTo = day, CommissionPerLakhAfn = 400m,
+                PaymentLocationRates = locations.Select(id => new PaymentLocationCommissionRateDto { PaymentLocationId = id, PerLakhRate = 400m }).ToList(),
+                LocationCurrencyRates = locations.Select(id => new LocationCurrencyCommissionRateDto { PaymentLocationId = id, CurrencyId = 2, PerLakhRate = 2000m }).ToList()
+            });
         var watch = Stopwatch.StartNew();
         await import.DeleteBatchAsync(request.BatchId);
         output.WriteLine($"Deleted rows=3700; hawalas={hawalaIds.Length}; deletion={watch.Elapsed.TotalSeconds:F3}s");
-        Assert.False(await context.HawalaImportBatches.AnyAsync(x => x.Id == request.BatchId));
-        Assert.False(await context.HawalaImportJobs.AnyAsync(x => x.BatchId == request.BatchId));
-        Assert.False(await context.Hawalas.AnyAsync(x => hawalaIds.Contains(x.Id)));
-        Assert.False(await context.LedgerEntries.AnyAsync(x => x.HawalaId.HasValue && hawalaIds.Contains(x.HawalaId.Value)));
+        Assert.Equal("Deleted", await context.HawalaImportBatches.Where(x => x.Id == request.BatchId).Select(x => x.Status).SingleAsync());
+        Assert.DoesNotContain(await import.GetHistoryAsync(), x => x.BatchId == request.BatchId);
+        Assert.Null(await import.GetDetailsAsync(request.BatchId));
+        Assert.Equal(hawalaIds.Length, await context.Hawalas.CountAsync(x => hawalaIds.Contains(x.Id) && x.Status == "Cancel"));
+        Assert.False(await context.CorrespondentCommissionBatchItems.AnyAsync(x => x.IsActive));
+        Assert.All(await context.LedgerEntries.Where(x => x.HawalaId.HasValue && hawalaIds.Contains(x.HawalaId.Value))
+            .GroupBy(x => new { x.AccountId, x.CurrencyId }).Select(x => x.Sum(e => e.TalabKar - e.BadehKar)).ToListAsync(), x => Assert.Equal(0m, x));
+        var entries = await context.LedgerEntries.CountAsync();
+        await import.DeleteBatchAsync(request.BatchId);
+        Assert.Equal(entries, await context.LedgerEntries.CountAsync());
     }
 
     [Fact]
@@ -255,6 +272,36 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
             await lease.Database.ExecuteSqlRawAsync("EXEC sys.sp_releaseapplock @Resource=N'HawalaImportWorker:v1', @LockOwner=N'Session';");
         }
         Assert.True(await queue.ProcessAsync(jobId, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Old_unposted_draft_survives_cleanup_and_new_upload_and_can_be_posted_later(bool prepared)
+    {
+        var request = await PreviewAsync(3);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var import = CreateImport(context);
+        if (prepared) await import.PrepareLocationsAsync(request);
+        await context.HawalaImportBatches.Where(x => x.Id == request.BatchId)
+            .ExecuteUpdateAsync(x => x.SetProperty(b => b.CreatedAt, DateTime.UtcNow.AddDays(-365)));
+        await context.Database.ExecuteSqlInterpolatedAsync($"EXEC dbo.usp_CleanupHawalaImportStaging_v1 @TenantId={1L}, @CreatedBefore={DateTime.UtcNow}");
+        await PreviewAsync(3);
+        context.ChangeTracker.Clear();
+        var restored = await import.GetPreviewAsync(request.BatchId);
+        Assert.NotNull(restored);
+        Assert.Equal(3, restored.Rows.Count);
+        Assert.Equal(prepared, restored.LocationsPrepared);
+        Assert.Contains(await import.GetHistoryAsync(), x => x.BatchId == request.BatchId && x.Status == "Preview");
+        Assert.False(await context.HawalaImportRows.AnyAsync(x => x.BatchId == request.BatchId && x.HawalaId != null));
+        await import.PrepareLocationsAsync(request);
+        await CreateQueue(context).EnqueueAsync(new ConfirmHawalaImportDto { BatchId = request.BatchId, UsePreparedLocations = true });
+        var jobId = await context.HawalaImportJobs.Where(x => x.BatchId == request.BatchId).Select(x => x.Id).SingleAsync();
+        Assert.True(await CreateQueue(context).ProcessAsync(jobId, CancellationToken.None));
+        Assert.Equal("Completed", await context.HawalaImportJobs.Where(x => x.Id == jobId).Select(x => x.Status).SingleAsync());
+        Assert.Equal(3, await context.HawalaImportRows.CountAsync(x => x.BatchId == request.BatchId && x.HawalaId != null));
+        Assert.True(await context.LedgerEntries.AnyAsync(x => x.HawalaId.HasValue && context.HawalaImportRows.Any(r => r.BatchId == request.BatchId && r.HawalaId == x.HawalaId)));
     }
 
     [Fact]
@@ -396,7 +443,171 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
     }
 
-    private async Task<ConfirmHawalaImportDto> PreviewAsync(int rows)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Deleting_one_file_preserves_other_files_commissions_and_daily_rounding(bool closePeriod)
+    {
+        var first = await PreviewAsync(3, 120m);
+        var second = await PreviewAsync(3, 120m, 10000);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var import = CreateImport(context);
+        await import.ConfirmAsync(first);
+        await import.ConfirmAsync(second);
+        context.ChangeTracker.Clear();
+        var locations = await context.Hawalas.Where(x => x.HawalaType == "HawalaSend")
+            .Select(x => x.PaymentLocationId!.Value).Distinct().ToListAsync();
+        var day = (await context.Hawalas.Select(x => x.CreatedAt).FirstAsync()).ToLocalTime().Date;
+        foreach (var scope in new[] { "Incoming", "Forwarding", "Destination" })
+        {
+            await fixture.CreateCommissionService(context).PostAsync(new CorrespondentCommissionPreviewRequestDto
+            {
+                CommissionScope = scope, HawalaType = scope == "Incoming" ? "HawalaReceive" : "HawalaSend",
+                CorrespondentId = scope == "Destination" ? fixture.DestinationCorrespondent.Id : fixture.SourceCorrespondent.Id,
+                PeriodFrom = day, PeriodTo = day, CommissionPerLakhAfn = 1000m,
+                PaymentLocationRates = locations.Select(id => new PaymentLocationCommissionRateDto { PaymentLocationId = id, PerLakhRate = 400m }).ToList(),
+                LocationCurrencyRates = locations.Select(id => new LocationCurrencyCommissionRateDto { PaymentLocationId = id, CurrencyId = 2, PerLakhRate = 2000m }).ToList()
+            });
+        }
+        context.ChangeTracker.Clear();
+        var originals = await context.CorrespondentCommissionBatches.AsNoTracking().ToListAsync();
+        Assert.Equal(2m, originals.Single(x => x.CommissionScope == "Forwarding").TotalCommissionUsd);
+        if (closePeriod)
+        {
+            await fixture.CreateCorrespondentService(context).ClosePeriodAsync(fixture.SourceCorrespondent.Id, new());
+            await fixture.CreateCorrespondentService(context).ClosePeriodAsync(fixture.DestinationCorrespondent.Id, new());
+        }
+        var closedBalances = System.Text.Json.JsonSerializer.Serialize(await context.CorrespondentAccountPeriodBalances.AsNoTracking().OrderBy(x => x.Id).ToListAsync());
+        var preview = await import.GetDeletionPreviewAsync(first.BatchId);
+        Assert.Equal(1m, preview!.Commissions.Single(x => x.Scope == "Forwarding").RemainingUsd);
+        await import.DeleteBatchAsync(first.BatchId);
+        var remaining = await context.CorrespondentCommissionBatches.AsNoTracking().Where(x => x.Status == "Posted").ToListAsync();
+        Assert.Equal(3, remaining.Count);
+        Assert.Equal(4m, remaining.Single(x => x.CommissionScope == "Incoming").TotalCommissionUsd);
+        Assert.Equal(1m, remaining.Single(x => x.CommissionScope == "Forwarding").TotalCommissionUsd);
+        Assert.Equal(5m, remaining.Single(x => x.CommissionScope == "Destination").TotalCommissionUsd);
+        Assert.Equal(3, await context.CorrespondentCommissionBatches.CountAsync(x => x.Status == "Reversed"));
+        Assert.Equal(3, await context.HawalaImportRows.CountAsync(x => x.BatchId == second.BatchId && x.Hawala.Status != "Cancel"));
+        Assert.All(await context.LedgerEntries.GroupBy(x => x.CurrencyId).Select(x => x.Sum(e => e.TalabKar - e.BadehKar)).ToListAsync(), x => Assert.Equal(0m, x));
+        await import.DeleteBatchAsync(second.BatchId);
+        Assert.Equal(closedBalances, System.Text.Json.JsonSerializer.Serialize(await context.CorrespondentAccountPeriodBalances.AsNoTracking().OrderBy(x => x.Id).ToListAsync()));
+        Assert.False(await context.CorrespondentCommissionBatchItems.AnyAsync(x => x.IsActive));
+        Assert.All(await context.LedgerEntries.GroupBy(x => new { x.AccountId, x.CurrencyId }).Select(x => x.Sum(e => e.TalabKar - e.BadehKar)).ToListAsync(), x => Assert.Equal(0m, x));
+        if (closePeriod)
+        {
+            foreach (var correspondent in new[] { fixture.SourceCorrespondent, fixture.DestinationCorrespondent })
+            {
+                var accountId = await context.Accounts.Where(x => x.CorrespondentId == correspondent.Id && !x.IsArchived).Select(x => x.Id).FirstAsync();
+                Assert.All(await fixture.CreateBalanceService(context).GetAccountBalanceAsync(accountId), x => Assert.Equal(0m, x.TotalIncludingCommission));
+                await fixture.CreateCorrespondentService(context).ClosePeriodAsync(correspondent.Id, new());
+                Assert.All(await fixture.CreateBalanceService(context).GetAccountBalanceAsync(accountId), x => Assert.Equal(0m, x.Balance));
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Editing_imported_amount_preserves_generated_identity_and_reposts_calculated_commission()
+    {
+        var request = await PreviewAsync(3, 100000m);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var import = CreateImport(context);
+        await import.ConfirmAsync(request);
+        context.ChangeTracker.Clear();
+        var row = await context.HawalaImportRows.AsNoTracking().FirstAsync(x => x.BatchId == request.BatchId && x.GeneratedSendHawalaId != null);
+        var hawala = await context.Hawalas.AsNoTracking().SingleAsync(x => x.Id == row.HawalaId);
+        var day = hawala.CreatedAt.ToLocalTime().Date;
+        await fixture.CreateCommissionService(context).PostAsync(new CorrespondentCommissionPreviewRequestDto
+        {
+            CommissionScope = "Incoming", HawalaType = "HawalaReceive", CorrespondentId = fixture.SourceCorrespondent.Id,
+            PeriodFrom = day, PeriodTo = day, CommissionPerLakhAfn = 400m
+        });
+        context.ChangeTracker.Clear();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.CreateService(context).UpdateHawalaAsync(hawala.Id, new UpdateHawalaDto
+        {
+            FromCurrencyId = 1, ToCurrencyId = 1, FromAmount = 200000m, ToAmount = 200000m,
+            PaymentLocationId = hawala.PaymentLocationId, SenderName = hawala.SenderName,
+            ReceiverName = hawala.ReceiverName, Status = hawala.Status, CorrespondentId = hawala.CorrespondentId
+        }));
+        context.ChangeTracker.Clear();
+        Assert.Equal(1, await context.CorrespondentCommissionBatches.CountAsync(x => x.Status == "Posted"));
+        Assert.Equal(100000m, await context.Hawalas.Where(x => x.Id == hawala.Id).Select(x => x.FromAmount).SingleAsync());
+        await fixture.CreateService(context).UpdateHawalaAsync(hawala.Id, new UpdateHawalaDto
+        {
+            FromAmount = 200000m, ToAmount = 200000m, PaymentLocationId = hawala.PaymentLocationId,
+            FromCurrencyId = hawala.FromCurrencyId, ToCurrencyId = hawala.ToCurrencyId,
+            SenderName = hawala.SenderName, ReceiverName = hawala.ReceiverName, Status = hawala.Status,
+            CorrespondentId = hawala.CorrespondentId, ReferenceNumber = hawala.ReferenceNumber
+        });
+        context.ChangeTracker.Clear();
+        Assert.Equal(1600m, await context.CorrespondentCommissionBatches.Where(x => x.Status == "Posted").Select(x => x.TotalCommissionUsd).SingleAsync());
+        Assert.Equal(row.GeneratedSendHawalaId, await context.HawalaImportRows.Where(x => x.Id == row.Id).Select(x => x.GeneratedSendHawalaId).SingleAsync());
+        Assert.Equal(200000m, await context.Hawalas.Where(x => x.Id == row.GeneratedSendHawalaId).Select(x => x.ToAmount).SingleAsync());
+        Assert.Equal(200000m, await context.HawalaImportRows.Where(x => x.Id == row.Id).Select(x => x.Amount).SingleAsync());
+        Assert.All(await context.LedgerEntries.GroupBy(x => x.CurrencyId).Select(x => x.Sum(e => e.TalabKar - e.BadehKar)).ToListAsync(), x => Assert.Equal(0m, x));
+        await import.DeleteBatchAsync(request.BatchId);
+        Assert.All(await context.LedgerEntries.GroupBy(x => new { x.AccountId, x.CurrencyId }).Select(x => x.Sum(e => e.TalabKar - e.BadehKar)).ToListAsync(), x => Assert.Equal(0m, x));
+    }
+
+    [Fact]
+    public async Task Saved_draft_commission_survives_reload_without_posting_financial_data()
+    {
+        var request = await PreviewAsync(3);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var import = CreateImport(context);
+        var prepared = await import.PrepareLocationsAsync(request);
+        var row = prepared.Rows.First(x => x.RequiresOutgoingHawala);
+        await import.SaveDraftAsync(new ConfirmHawalaImportDto { BatchId = request.BatchId,
+            Commissions = [new HawalaImportCommissionDto { RowId = row.Id, Amount = 23m, CurrencyId = 2 }] });
+        context.ChangeTracker.Clear();
+        var reloaded = await import.GetPreviewAsync(request.BatchId);
+        Assert.Equal(23m, reloaded!.Rows.Single(x => x.Id == row.Id).AgentCommissionAmount);
+        Assert.False(await context.Hawalas.AnyAsync());
+        Assert.False(await context.LedgerEntries.AnyAsync());
+    }
+
+    [Fact]
+    public async Task Editing_afn_import_keeps_the_commissions_original_exchange_rate()
+    {
+        var request = await PreviewAsync(3, 70000m, currency: "AFN");
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        var import = CreateImport(context);
+        await import.ConfirmAsync(request);
+        context.ChangeTracker.Clear();
+        var row = await context.HawalaImportRows.AsNoTracking().FirstAsync(x => x.BatchId == request.BatchId && x.GeneratedSendHawalaId != null);
+        var hawala = await context.Hawalas.AsNoTracking().SingleAsync(x => x.Id == row.HawalaId);
+        var day = hawala.CreatedAt.ToLocalTime().Date;
+        context.CorrespondentDailyCommissionRates.Add(new CorrespondentDailyCommissionRate
+        { CorrespondentId = fixture.SourceCorrespondent.Id, RateDate = day, UsdToAfnRate = 70m, CreatedBy = fixture.UserId });
+        await context.SaveChangesAsync();
+        await fixture.CreateCommissionService(context).PostAsync(new CorrespondentCommissionPreviewRequestDto
+        {
+            CommissionScope = "Incoming", HawalaType = "HawalaReceive", CorrespondentId = fixture.SourceCorrespondent.Id,
+            PeriodFrom = day, PeriodTo = day, CommissionPerLakhAfn = 400m
+        });
+        context.ChangeTracker.Clear();
+        await context.CorrespondentDailyCommissionRates.ExecuteUpdateAsync(x => x.SetProperty(r => r.UsdToAfnRate, 90m));
+        await fixture.CreateService(context).UpdateHawalaAsync(hawala.Id, new UpdateHawalaDto
+        {
+            FromAmount = 140000m, ToAmount = 140000m, PaymentLocationId = hawala.PaymentLocationId,
+            FromCurrencyId = 1, ToCurrencyId = 1, SenderName = hawala.SenderName,
+            ReceiverName = hawala.ReceiverName, Status = hawala.Status, CorrespondentId = hawala.CorrespondentId
+        });
+        context.ChangeTracker.Clear();
+        Assert.Equal(16m, await context.CorrespondentCommissionBatches.Where(x => x.Status == "Posted").Select(x => x.TotalCommissionUsd).SingleAsync());
+        Assert.All(await context.CorrespondentCommissionBatchItems.AsNoTracking().Where(x => x.IsActive).ToListAsync(), x => Assert.Equal(70m, x.SourceToAfnRate));
+        Assert.Equal(2000m, await context.CorrespondentCommissionBatchItems.Where(x => x.HawalaId == hawala.Id && x.IsActive).Select(x => x.AfnEquivalent).SingleAsync());
+        await fixture.CreateService(context).DeleteHawalaAsync(row.GeneratedSendHawalaId!.Value);
+        Assert.Equal(2, await context.Hawalas.CountAsync(x => (x.Id == hawala.Id || x.Id == row.GeneratedSendHawalaId) && x.Status == "Cancel"));
+        Assert.Equal(8m, await context.CorrespondentCommissionBatches.Where(x => x.Status == "Posted").Select(x => x.TotalCommissionUsd).SingleAsync());
+        await import.DeleteBatchAsync(request.BatchId);
+        Assert.All(await context.LedgerEntries.GroupBy(x => new { x.AccountId, x.CurrencyId }).Select(x => x.Sum(e => e.TalabKar - e.BadehKar)).ToListAsync(), x => Assert.Equal(0m, x));
+    }
+
+    private async Task<ConfirmHawalaImportDto> PreviewAsync(int rows, decimal amount = 100m, int numberOffset = 0, string currency = "USD")
     {
         await using var context = fixture.CreateContext();
         using var bypass = context.BypassSubscriptionEnforcement();
@@ -406,8 +617,8 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         var newNames = new[] { $"Queue New {key} A", $"Queue New {key} B" };
         for (var index = 0; index < rows; index++)
         {
-            object[] values = [98_000_000 + index, $"Q-{key}-{index}", "Sender", "Receiver",
-                index == 0 ? fixture.OwnLocation.Name : newNames[index % 2], 100, "USD"];
+            object[] values = [98_000_000 + numberOffset + index, $"Q-{key}-{index}", "Sender", "Receiver",
+                index == 0 ? fixture.OwnLocation.Name : newNames[index % 2], amount, currency];
             for (var column = 0; column < values.Length; column++)
                 sheet.Cell(index + 1, column + 1).Value = XLCellValue.FromObject(values[column]);
         }

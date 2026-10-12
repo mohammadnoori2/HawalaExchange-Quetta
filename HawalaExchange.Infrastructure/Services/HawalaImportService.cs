@@ -70,7 +70,6 @@ public sealed class HawalaImportService : IHawalaImportService
         if (memory.Length > MaximumFileSize)
             throw new InvalidOperationException("حجم فایل نباید بیشتر از 10 مگابایت باشد.");
 
-        await CleanupExpiredStagingAsync(cancellationToken);
         var fileHash = Convert.ToHexString(SHA256.HashData(memory.ToArray()));
         var alreadyImported = await _context.HawalaImportBatches
             .AsNoTracking()
@@ -171,6 +170,7 @@ public sealed class HawalaImportService : IHawalaImportService
     {
         await using var readContext = _contextFactory is null ? null : await _contextFactory.CreateDbContextAsync(cancellationToken);
         return await (readContext ?? _context).HawalaImportBatches.AsNoTracking()
+            .Where(x => x.Status != "Deleted")
             .OrderByDescending(x => x.CreatedAt)
             .Select(x => new HawalaImportHistoryDto
             {
@@ -204,7 +204,7 @@ public sealed class HawalaImportService : IHawalaImportService
             .Include(x => x.Rows).ThenInclude(x => x.DestinationCorrespondent)
             .Include(x => x.Rows).ThenInclude(x => x.Hawala)
             .Include(x => x.Rows).ThenInclude(x => x.GeneratedSendHawala)
-            .SingleOrDefaultAsync(x => x.Id == batchId, cancellationToken);
+            .SingleOrDefaultAsync(x => x.Id == batchId && x.Status != "Deleted", cancellationToken);
         if (batch is null) return null;
 
         var job = await _context.HawalaImportJobs.AsNoTracking().Where(x => x.BatchId == batchId)
@@ -274,6 +274,28 @@ public sealed class HawalaImportService : IHawalaImportService
         };
     }
 
+    public async Task<HawalaImportDeletionPreviewDto> GetDeletionPreviewAsync(long batchId, CancellationToken cancellationToken = default)
+    {
+        var details = await GetDetailsAsync(batchId, cancellationToken) ?? throw new InvalidOperationException("فایل یافت نشد.");
+        var ids = details.Groups.SelectMany(x => x.Hawalas).SelectMany(x => new[] { x.HawalaId, x.GeneratedSendHawalaId })
+            .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+        var currencies = await _context.Currencies.AsNoTracking().ToDictionaryAsync(x => x.Id, x => x.Code, cancellationToken);
+        var batchIds = await _context.CorrespondentCommissionBatchItems.AsNoTracking().Where(x => ids.Contains(x.HawalaId) && x.IsActive && x.Batch.Status == "Posted")
+            .Select(x => x.BatchId).Distinct().ToArrayAsync(cancellationToken);
+        var batches = await _context.CorrespondentCommissionBatches.AsNoTracking().AsSplitQuery().Include(x => x.Correspondent).Include(x => x.Items).ThenInclude(x => x.Hawala)
+            .Where(x => batchIds.Contains(x.Id)).ToListAsync(cancellationToken);
+        var preview = new HawalaImportDeletionPreviewDto { Totals = details.ReceivedTotals,
+            HasClosedPeriod = await _context.CorrespondentAccountPeriodHawalas.AnyAsync(x => ids.Contains(x.HawalaId), cancellationToken),
+            HasSettlementConversion = await _context.CorrespondentSettlementConversionHawalas.AnyAsync(x => ids.Contains(x.HawalaId), cancellationToken) };
+        foreach (var batch in batches)
+        {
+            var remaining = ImportCommissionCorrectionService.Totals(batch, batch.Items.Where(x => x.IsActive && !ids.Contains(x.HawalaId)).ToList(), currencies);
+            preview.Commissions.Add(new() { CorrespondentName = batch.Correspondent.Name, Scope = batch.CommissionScope,
+                PreviousAfn = batch.TotalCommissionAfn, PreviousUsd = batch.TotalCommissionUsd, RemainingAfn = remaining.Afn, RemainingUsd = remaining.Usd });
+        }
+        return preview;
+    }
+
     public async Task DeleteBatchAsync(
         long batchId,
         CancellationToken cancellationToken = default)
@@ -281,6 +303,11 @@ public sealed class HawalaImportService : IHawalaImportService
         if (await _context.HawalaImportJobs.AsNoTracking().AnyAsync(x => x.BatchId == batchId &&
                 (x.Status == "Queued" || x.Status == "Running"), cancellationToken))
             throw new InvalidOperationException("فایل در صف یا در حال ثبت است و قابل حذف نیست.");
+        if (await _context.HawalaImportBatches.AsNoTracking().AnyAsync(x => x.Id == batchId && (x.Status == "Posted" || x.Status == "Deleted"), cancellationToken))
+        {
+            await CancelPostedBatchAsync(batchId, cancellationToken);
+            return;
+        }
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(MaximumBatchDeleteDuration);
         var operationToken = timeoutSource.Token;
@@ -331,6 +358,43 @@ public sealed class HawalaImportService : IHawalaImportService
         CancellationToken cancellationToken = default)
         => await ConfirmCoreAsync(request, false, progress, cancellationToken);
 
+    private async Task CancelPostedBatchAsync(long batchId, CancellationToken cancellationToken)
+    {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(MaximumBatchDeleteDuration);
+        var token = budget.Token;
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
+        try
+        {
+            await _context.EnsureCurrentTenantWriteAccessAsync(token);
+            await _context.Database.ExecuteSqlInterpolatedAsync($"DECLARE @r int; EXEC @r=sp_getapplock @Resource={"HawalaImportPrepare:" + _context.CurrentTenantId},@LockMode=N'Exclusive',@LockOwner=N'Transaction',@LockTimeout=5000; IF @r<0 THROW 50001,N'عملیات دیگری در جریان است؛ دوباره تلاش کنید.',1;", token);
+            var batch = await _context.HawalaImportBatches.FromSqlInterpolated($"SELECT * FROM dbo.HawalaImportBatches WITH (UPDLOCK,HOLDLOCK) WHERE TenantId={_context.CurrentTenantId} AND Id={batchId}")
+                .SingleAsync(token);
+            if (batch.Status == "Deleted") { await transaction.CommitAsync(token); return; }
+            if (batch.Status != "Posted") throw new InvalidOperationException("وضعیت فایل تغییر کرده است؛ تاریخچه را تازه‌سازی کنید.");
+            var links = await _context.HawalaImportRows.AsNoTracking().Where(x => x.BatchId == batchId).Select(x => new { x.HawalaId, x.GeneratedSendHawalaId }).ToListAsync(token);
+            var ids = links.SelectMany(x => new[] { x.HawalaId, x.GeneratedSendHawalaId }).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+            if (await _context.CorrespondentSettlementConversionHawalas.AnyAsync(x => ids.Contains(x.HawalaId), token))
+                throw new InvalidOperationException("ابتدا تبدیل ارز توافقی مرتبط با حواله‌های فایل را برگشت دهید؛ سپس حذف را انجام دهید.");
+            var correction = new ImportCommissionCorrectionService(_context);
+            var originals = await correction.ReverseAsync(ids, token);
+            await correction.RepostAsync(originals, ids, true, token);
+            await correction.ReverseHawalaLedgerAsync(ids, token);
+            var user = _context.RequireCurrentUserId();
+            var now = DateTime.UtcNow;
+            await _context.Hawalas.Where(x => ids.Contains(x.Id) && x.Status != "Cancel").ExecuteUpdateAsync(x => x
+                .SetProperty(h => h.Status, "Cancel").SetProperty(h => h.CancelledBy, user).SetProperty(h => h.CancelledAt, now)
+                .SetProperty(h => h.CancelReason, "حذف آپلود گروهی از تاریخچه؛ حسابداری برگشت داده شد."), token);
+            batch.Status = "Deleted";
+            _context.AuditLogs.Add(new AuditLog { UserId = user, Action = "DELETE_IMPORT", TableName = "HawalaImportBatches", RecordId = batchId,
+                NewValue = $"حذف عملیاتی فایل {batch.FileName}، ابطال {ids.Length} حواله و اصلاح کمیشن‌های مرتبط؛ سوابق حسابداری حفظ شدند." });
+            await _context.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+        }
+        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        finally { _context.ChangeTracker.Clear(); }
+    }
+
     public async Task<HawalaImportPreviewDto> PrepareLocationsAsync(
         ConfirmHawalaImportDto request,
         IProgress<HawalaImportProgressDto>? progress = null,
@@ -339,6 +403,33 @@ public sealed class HawalaImportService : IHawalaImportService
         await ConfirmCoreAsync(request, false, progress, cancellationToken, prepareOnly: true);
         return await GetPreviewAsync(request.BatchId, cancellationToken)
             ?? throw new InvalidOperationException("پیش‌نمایش آماده‌شده پیدا نشد.");
+    }
+
+    public async Task SaveDraftAsync(ConfirmHawalaImportDto request, CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await _context.EnsureCurrentTenantWriteAccessAsync(cancellationToken);
+        var json = System.Text.Json.JsonSerializer.Serialize(request.Commissions.GroupBy(x => x.RowId).Select(x => x.Last()));
+        await _context.Database.ExecuteSqlInterpolatedAsync($"""
+            DECLARE @Tenant bigint={_context.CurrentTenantId}, @Batch bigint={request.BatchId}, @Json nvarchar(max)={json};
+            IF NOT EXISTS (SELECT 1 FROM dbo.HawalaImportBatches WITH (UPDLOCK,HOLDLOCK) WHERE TenantId=@Tenant AND Id=@Batch AND Status=N'Preview' AND LocationsPreparedAt IS NOT NULL)
+                THROW 50001,N'ابتدا محل‌های پرداخت را آماده کنید؛ فقط پیش‌نویس قابل ذخیره است.',1;
+            IF EXISTS (SELECT 1 FROM dbo.HawalaImportJobs WHERE TenantId=@Tenant AND BatchId=@Batch AND Status IN (N'Queued',N'Running'))
+                THROW 50002,N'فایل در صف ثبت است و قابل تغییر نیست.',1;
+            IF EXISTS (SELECT 1 FROM OPENJSON(@Json) WITH (RowId bigint,Amount decimal(18,4),CurrencyId bigint) v
+                LEFT JOIN dbo.HawalaImportRows r ON r.TenantId=@Tenant AND r.BatchId=@Batch AND r.Id=v.RowId
+                LEFT JOIN dbo.Currencies c ON c.TenantId=@Tenant AND c.Id=v.CurrencyId AND c.IsActive=1
+                WHERE r.Id IS NULL OR v.Amount<=0 OR (v.Amount IS NOT NULL AND c.Id IS NULL))
+                THROW 50003,N'ردیف، مبلغ یا ارز کمیشن پیش‌نویس معتبر نیست.',1;
+            UPDATE r SET AgentCommissionAmount=v.Amount,AgentCommissionCurrencyId=CASE WHEN v.Amount IS NULL THEN NULL ELSE v.CurrencyId END
+                FROM dbo.HawalaImportRows r JOIN OPENJSON(@Json) WITH (RowId bigint,Amount decimal(18,4),CurrencyId bigint) v ON r.Id=v.RowId
+                WHERE r.TenantId=@Tenant AND r.BatchId=@Batch;
+            """, cancellationToken);
+        _context.AuditLogs.Add(new AuditLog { UserId = _context.RequireCurrentUserId(), Action = "SAVE_IMPORT_DRAFT", TableName = "HawalaImportBatches", RecordId = request.BatchId,
+            NewValue = "کمیشن‌های پیش‌نویس برای ادامه ثبت در آینده ذخیره شدند؛ حسابداری ثبت نشد." });
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        _context.ChangeTracker.Clear();
     }
 
     internal Task<HawalaImportResultDto> ConfirmQueuedAsync(
@@ -1071,29 +1162,6 @@ public sealed class HawalaImportService : IHawalaImportService
             Value = mappings
         });
         await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    private async Task CleanupExpiredStagingAsync(CancellationToken cancellationToken)
-    {
-        var connection = (SqlConnection)_context.Database.GetDbConnection();
-        var shouldClose = connection.State != ConnectionState.Open;
-        if (shouldClose)
-            await connection.OpenAsync(cancellationToken);
-        try
-        {
-            await using var command = connection.CreateCommand();
-            command.CommandText = "[dbo].[usp_CleanupHawalaImportStaging_v1]";
-            command.CommandType = CommandType.StoredProcedure;
-            command.CommandTimeout = 30;
-            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
-            command.Parameters.Add("@CreatedBefore", SqlDbType.DateTime2).Value = DateTime.UtcNow.AddDays(-7);
-            await command.ExecuteScalarAsync(cancellationToken);
-        }
-        finally
-        {
-            if (shouldClose)
-                await connection.CloseAsync();
-        }
     }
 
     private static void AddColumns(DataTable table, params (string Name, Type Type)[] columns)

@@ -231,7 +231,12 @@
                 @if (!preview.LocationsPrepared)
                 { <button class="btn btn-primary" @onclick="PrepareLocationsAsync" disabled="@(!CanPrepareLocations)" title="@ConfirmDisabledReason">ذخیره محل‌ها و مسئول‌ها و ادامه</button> }
                 else
-                { <button class="btn btn-success" @onclick="ConfirmAsync" disabled="@(!CanConfirm)" title="@ConfirmDisabledReason"><i class="bi bi-check2-circle ms-1"></i>تأیید و ثبت حواله‌ها</button> }
+                {
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-outline-primary" @onclick="SaveDraftAsync" disabled="@(!CanConfirm)">ذخیره پیش‌نویس برای بعد</button>
+                        <button class="btn btn-success" @onclick="ConfirmAsync" disabled="@(!CanConfirm)" title="@ConfirmDisabledReason"><i class="bi bi-check2-circle ms-1"></i>تأیید و ثبت حواله‌ها</button>
+                    </div>
+                }
             </div>
             @if ((!preview.LocationsPrepared && !CanPrepareLocations) || (preview.LocationsPrepared && !CanConfirm)){<div class="alert alert-warning rounded-0 mb-0">@ConfirmDisabledReason</div>}
             <div class="table-responsive" style="max-height: 560px;"><table class="table table-sm table-hover align-middle mb-0">
@@ -285,6 +290,10 @@
                         <td>@item.UploadedBy</td><td><AppDateTime Value="@(item.ConfirmedAt ?? item.CreatedAt)" /></td>
                         <td><div class="btn-group btn-group-sm" role="group" aria-label="عملیات فایل آپلود">
                             <button class="btn btn-outline-primary" disabled="@(isHistoryBusy || item.Status is "Queued" or "Running")" @onclick="() => OpenHistoryDetailsAsync(item.BatchId)">جزئیات</button>
+                            @if (item.Status is "Preview" or "Failed")
+                            {
+                                <button class="btn btn-outline-success" disabled="@isHistoryBusy" @onclick="() => EditImportPreview(item.BatchId)">ادامه و ثبت حواله‌ها</button>
+                            }
                             @if (item.Status == "Failed")
                             {
                                 <button class="btn btn-outline-success" disabled="@isHistoryBusy" @onclick="() => RetryImportAsync(item.BatchId)">تلاش مجدد</button>
@@ -400,7 +409,7 @@
         <div class="modal d-block" tabindex="-1" role="dialog" aria-modal="true">
             <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
                 <div class="modal-header"><h5 class="modal-title">تأیید حذف حواله</h5><button type="button" class="btn-close" @onclick="CancelDeleteImportedHawala"></button></div>
-                <div class="modal-body">حواله شماره <strong>@deleteImportRow.HawalaNumber</strong> و حواله ارسالی خودکار و ثبت‌های حسابداری وابسته حذف شوند؟</div>
+                <div class="modal-body">حواله شماره <strong>@deleteImportRow.HawalaNumber</strong> و حواله ارسالی خودکار ابطال شوند؟ ثبت‌های حسابداری برگشت و کمیشن‌های مرتبط اصلاح می‌شوند؛ سابقه مالی و سهم سایر حواله‌ها حفظ می‌گردد.</div>
                 <div class="modal-footer"><button class="btn btn-secondary" disabled="@isHistoryBusy" @onclick="CancelDeleteImportedHawala">انصراف</button><button class="btn btn-danger" disabled="@isHistoryBusy" @onclick="DeleteImportedHawalaAsync">حذف</button></div>
             </div></div>
         </div>
@@ -414,9 +423,22 @@
                 <div class="modal-header"><h5 class="modal-title text-danger">حذف کامل آپلود گروهی</h5><button type="button" class="btn-close" @onclick="CancelDeleteBatch"></button></div>
                 <div class="modal-body">
                     <p>فایل <strong>@deleteBatch.FileName</strong> از تاریخچه حذف شود؟</p>
-                    <div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle ms-1"></i>تمام <strong>@deleteBatch.RowCount.ToString("N0")</strong> ردیف و همه حواله‌های دریافتی و ارسالی و ثبت‌های حسابداری وابسته نیز حذف می‌شوند. این عملیات قابل بازگشت نیست.</div>
+                    @if (deleteImpact is not null)
+                    {
+                        <div class="mb-2">مجموع حواله‌های دریافتی: @foreach (var total in deleteImpact.Totals) { <span class="badge bg-light text-dark mx-1" dir="ltr">@total.Amount.ToString("N0") @total.CurrencyCode</span> }</div>
+                        @if (deleteImpact.Commissions.Count > 0)
+                        {
+                            <div class="table-responsive"><table class="table table-sm"><thead><tr><th>نمایندگی / کمیشن</th><th>قبل</th><th>باقی‌مانده برای سایر فایل‌ها</th></tr></thead><tbody>
+                                @foreach (var item in deleteImpact.Commissions)
+                                { <tr><td>@item.CorrespondentName / @CommissionScopeLabel(item.Scope)</td><td dir="ltr">@item.PreviousAfn.ToString("N0") AFN / @item.PreviousUsd.ToString("N0") USD</td><td dir="ltr">@item.RemainingAfn.ToString("N0") AFN / @item.RemainingUsd.ToString("N0") USD</td></tr> }
+                            </tbody></table></div>
+                        }
+                        @if (deleteImpact.HasClosedPeriod) { <div class="alert alert-warning">حواله در دوره بسته‌شده وجود دارد؛ سوابق دوره حفظ و اصلاحیه در دوره باز ثبت می‌شود.</div> }
+                        @if (deleteImpact.HasSettlementConversion) { <div class="alert alert-warning">ابتدا تبدیل ارز توافقی مربوط به این حواله‌ها را برگشت دهید؛ سپس حذف را انجام دهید.</div> }
+                    }
+                    <div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle ms-1"></i>فایل و تمام <strong>@deleteBatch.RowCount.ToString("N0")</strong> ردیف از تاریخچه فعال خارج می‌شوند. حواله‌های ثبت‌شده ابطال، حسابداری برگشت و کمیشن‌های مرتبط اصلاح می‌شوند؛ سهم سایر فایل‌ها، محل‌های پرداخت و سوابق دوره بسته‌شده باقی می‌مانند.</div>
                 </div>
-                <div class="modal-footer"><button class="btn btn-secondary" disabled="@isHistoryBusy" @onclick="CancelDeleteBatch">انصراف</button><button class="btn btn-danger" disabled="@isHistoryBusy" @onclick="DeleteBatchAsync">حذف کامل فایل و حواله‌ها</button></div>
+                <div class="modal-footer"><button class="btn btn-secondary" disabled="@isHistoryBusy" @onclick="CancelDeleteBatch">انصراف</button><button class="btn btn-danger" disabled="@(isHistoryBusy || deleteImpact?.HasSettlementConversion == true)" @onclick="DeleteBatchAsync">حذف کامل فایل و حواله‌ها</button></div>
             </div></div>
         </div>
         <div class="modal-backdrop fade show"></div>
@@ -653,7 +675,15 @@
         }
     }
 
-    private void AskDeleteBatch(HawalaImportHistoryDto batch) => deleteBatch = batch;
+    private HawalaImportDeletionPreviewDto? deleteImpact;
+    private static string CommissionScopeLabel(string scope) => scope switch { "Incoming" => "دریافتی", "Forwarding" or "Origin" => "ارسالی به نمایندگی‌ها", "Destination" => "پرداختی", _ => "دوره‌ای" };
+    private async Task AskDeleteBatch(HawalaImportHistoryDto batch)
+    {
+        isHistoryBusy = true; importError = null; deleteImpact = null;
+        try { deleteImpact = await HawalaImportService.GetDeletionPreviewAsync(batch.BatchId); deleteBatch = batch; }
+        catch (Exception ex) { importError = BuildImportError(ex, "پیش‌نمایش اصلاح حسابداری حذف فایل", false); }
+        finally { isHistoryBusy = false; }
+    }
 
     private void CancelDeleteBatch() => deleteBatch = null;
 
@@ -831,6 +861,27 @@
             InitializePreviewState();
         }
         catch (Exception ex) { importError = BuildImportError(ex, progressMessage, false); }
+        finally { isBusy = false; }
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        if (preview is null || !CanConfirm) return;
+        isBusy = true; importError = null;
+        try
+        {
+            await HawalaImportService.SaveDraftAsync(new ConfirmHawalaImportDto
+            {
+                BatchId = preview.BatchId,
+                Commissions = preview.Rows.Where(IsOutgoing).Select(x => new HawalaImportCommissionDto
+                { RowId = x.Id, Amount = x.AgentCommissionAmount, CurrencyId = x.AgentCommissionCurrencyId }).ToList()
+            });
+            completedNotice = "پیش‌نویس ذخیره شد؛ هنوز حواله یا حسابداری ثبت نشده است. بعداً از تاریخچه گزینه ادامه و ثبت حواله‌ها را انتخاب کنید.";
+            progressMessage = completedNotice;
+            progressPercent = 100;
+            await LoadHistoryAsync();
+        }
+        catch (Exception ex) { importError = BuildImportError(ex, "ذخیره پیش‌نویس آپلود گروهی", false); }
         finally { isBusy = false; }
     }
 

@@ -527,7 +527,11 @@
                             <i class="bi bi-info-circle"></i>
                             <small>در حال ویرایش حواله با شناسه: <strong>@EditId</strong></small>
                         </div>
-                        @if (HasPeriodicCommissionAffectingChanges())
+                        @if (EditData?.IsBulkImported == true)
+                        {
+                            <div class="alert alert-warning">با ذخیره، حسابداری حواله و کمیشن‌های مرتبط اصلاح می‌شوند. نرخ‌های تاریخی، سهم سایر حواله‌ها و سوابق دوره بسته‌شده حفظ می‌شوند؛ اصلاحیه در دوره باز ثبت می‌شود.</div>
+                        }
+                        @if (EditData?.IsBulkImported != true && HasPeriodicCommissionAffectingChanges())
                         {
                             <div class="alert alert-warning">
                                 <div class="fw-bold mb-2">
@@ -1632,9 +1636,9 @@
                 ValidationErrors.Add("مبلغ مقصد باید بزرگتر از صفر باشد.");
         }
 
-        if (HasPeriodicCommissionAffectingChanges() && string.IsNullOrWhiteSpace(periodicCommissionHandling))
+        if (EditData?.IsBulkImported != true && HasPeriodicCommissionAffectingChanges() && string.IsNullOrWhiteSpace(periodicCommissionHandling))
             ValidationErrors.Add("برای کمیشن دوره‌ای، محاسبه مجدد یا حفظ کمیشن قبلی را انتخاب کنید.");
-        else if (HasPeriodicCommissionCorrespondentChange() &&
+        else if (EditData?.IsBulkImported != true && HasPeriodicCommissionCorrespondentChange() &&
                  periodicCommissionHandling == PeriodicCommissionRecalculate)
             ValidationErrors.Add("با تغییر نمایندگی فقط گزینه حفظ کمیشن قبلی مجاز است.");
 

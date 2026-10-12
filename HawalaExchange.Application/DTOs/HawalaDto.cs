@@ -80,6 +80,7 @@ namespace HawalaExchange.Application.DTOs
         public bool IsSystemGenerated { get; set; }
         public bool IsBulkImportGeneratedSend { get; set; }
         public bool HasPeriodicCommissionHistory { get; set; }
+        public bool IsBulkImported { get; set; }
         public decimal? PeriodicCommissionAfn { get; set; }
         public string PeriodicCommissionCurrencyCode =>
             HawalaType == "HawalaReceive" ? "USD" : ToCurrencyCode;
@@ -141,6 +142,7 @@ namespace HawalaExchange.Application.DTOs
         public long? GeneratedSendAgentCommissionCurrencyId { get; set; }
         public string? GeneratedSendReferenceNumber { get; set; }
         public bool HasPeriodicCommissionHistory { get; set; }
+        public bool IsBulkImported { get; set; }
     }
 
     public class UpdateHawalaDto

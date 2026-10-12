@@ -127,6 +127,24 @@ namespace HawalaExchange.Application.DTOs
         public string UploadedBy { get; set; } = string.Empty;
     }
 
+    public sealed class HawalaImportDeletionPreviewDto
+    {
+        public List<HawalaImportTotalDto> Totals { get; set; } = [];
+        public bool HasClosedPeriod { get; set; }
+        public bool HasSettlementConversion { get; set; }
+        public List<HawalaImportCommissionCorrectionDto> Commissions { get; set; } = [];
+    }
+
+    public sealed class HawalaImportCommissionCorrectionDto
+    {
+        public string CorrespondentName { get; set; } = string.Empty;
+        public string Scope { get; set; } = string.Empty;
+        public decimal PreviousAfn { get; set; }
+        public decimal PreviousUsd { get; set; }
+        public decimal RemainingAfn { get; set; }
+        public decimal RemainingUsd { get; set; }
+    }
+
     public sealed class HawalaImportDetailsDto : HawalaImportHistoryDto
     {
         public int ImportedCount { get; set; }

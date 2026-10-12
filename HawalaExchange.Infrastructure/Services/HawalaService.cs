@@ -275,6 +275,7 @@
 
                 var result = _mapper.Map<HawalaDto>(hawala);
                 result.FromAccountId = await ResolveExistingFromAccountIdAsync(hawala);
+                result.IsBulkImported = await _context.HawalaImportRows.AsNoTracking().AnyAsync(x => x.HawalaId == hawala.Id || x.GeneratedSendHawalaId == hawala.Id);
                 result.IsBulkImportGeneratedSend = hawala.IsSystemGenerated &&
                     await _context.HawalaImportRows.AsNoTracking()
                         .AnyAsync(x => x.GeneratedSendHawalaId == hawala.Id);
@@ -568,6 +569,7 @@
             public async Task<HawalaDto> UpdateHawalaAsync(long id, UpdateHawalaDto dto)
             {
                 using var transaction = await _context.Database.BeginTransactionAsync();
+                var correctingImport = false;
 
                 try
                 {
@@ -593,9 +595,24 @@
                     if (dto.Status is not null and not ("Pending" or "Paid"))
                         throw new InvalidOperationException("وضعیت حواله برای ویرایش معتبر نیست.");
 
+                    var isImported = await _context.HawalaImportRows.AnyAsync(x => x.HawalaId == hawala.Id);
+                    correctingImport = isImported;
+                    var importOldValue = isImported ? System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        hawala.Number, hawala.HawalaType, hawala.CorrespondentId, hawala.PaymentLocationId,
+                        hawala.FromCurrencyId, hawala.FromAmount, hawala.ToCurrencyId, hawala.ToAmount,
+                        hawala.ExchangeRate, hawala.CommissionAmount, hawala.CommissionCurrencyId,
+                        hawala.AgentCommissionAmount, hawala.AgentCommissionCurrencyId,
+                        hawala.SenderName, hawala.ReceiverName, hawala.ReferenceNumber, hawala.Notes,
+                        hawala.Status, hawala.PaidFromAccountId, hawala.CreatedAt
+                    }) : null;
+                    var importedIds = await _context.Hawalas.Where(x => x.Id == hawala.Id || x.SourceHawalaId == hawala.Id).Select(x => x.Id).ToArrayAsync();
+                    var importCorrection = new HawalaExchange.Infrastructure.Services.ImportCommissionCorrectionService(_context);
+                    var originalImportCommissions = isImported ? await importCorrection.ReverseAsync(importedIds) : [];
+
                     // Three-way commissions are immutable snapshots. The existing in-place
                     // recalculator handles only the legacy journal and must not rewrite them.
-                    if (await _context.CorrespondentCommissionBatchItems.AnyAsync(x =>
+                    if (!isImported && await _context.CorrespondentCommissionBatchItems.AnyAsync(x =>
                         x.IsActive && x.Batch.Status == "Posted" && x.Batch.AccountingVersion >= 2 &&
                         (x.HawalaId == hawala.Id || x.Hawala.SourceHawalaId == hawala.Id)))
                         throw new InvalidOperationException(
@@ -639,8 +656,8 @@
 
                     var generatedHawala = await _context.Hawalas
                         .FirstOrDefaultAsync(x => x.SourceHawalaId == hawala.Id);
-                    var preserveGeneratedIdentity = generatedHawala != null &&
-                        await _context.CorrespondentCommissionBatchItems.AnyAsync(x => x.HawalaId == generatedHawala.Id);
+                    var preserveGeneratedIdentity = generatedHawala != null && (isImported ||
+                        await _context.CorrespondentCommissionBatchItems.AnyAsync(x => x.HawalaId == generatedHawala.Id));
                     if (preserveGeneratedIdentity && await _context.CorrespondentCommissionBatchItems.AnyAsync(x =>
                         x.HawalaId == generatedHawala!.Id && x.IsActive && x.Batch.Status == "Posted"))
                         throw new InvalidOperationException("ابتدا کمیشن‌های مرتبط با حواله ارسالی را برگشت دهید؛ ارتباط تاریخچه با حواله باید حفظ شود.");
@@ -665,12 +682,13 @@
                                 importRow.GeneratedSendHawalaId = null;
                             await _context.SaveChangesAsync();
                         }
-                        await DeleteHawalaLedgerEntriesAsync(generatedHawala.Id);
+                        if (!isImported) await DeleteHawalaLedgerEntriesAsync(generatedHawala.Id);
                         if (!preserveGeneratedIdentity)
                             _context.Hawalas.Remove(generatedHawala);
                     }
 
-                    await DeleteHawalaLedgerEntriesAsync(hawala.Id);
+                    if (isImported) await importCorrection.ReverseHawalaLedgerAsync(importedIds);
+                    else await DeleteHawalaLedgerEntriesAsync(hawala.Id);
                     await _context.SaveChangesAsync();
 
                     ApplyUpdate(hawala, dto);
@@ -755,17 +773,24 @@
                             importRow.DestinationCorrespondentId = replacementGenerated?.CorrespondentId;
                             importRow.Amount = hawala.FromAmount;
                             importRow.CurrencyId = hawala.FromCurrencyId;
+                            importRow.CurrencyCode = await _context.Currencies.Where(x => x.Id == hawala.FromCurrencyId).Select(x => x.Code).SingleAsync();
+                            importRow.SenderName = hawala.SenderName;
+                            importRow.ReceiverName = hawala.ReceiverName;
+                            importRow.ReferenceNumber = hawala.ReferenceNumber;
+                            importRow.PaymentLocationText = await _context.PaymentLocations.Where(x => x.Id == hawala.PaymentLocationId).Select(x => x.Name).FirstOrDefaultAsync();
                             importRow.AgentCommissionAmount = replacementGenerated?.AgentCommissionAmount;
                             importRow.AgentCommissionCurrencyId = replacementGenerated?.AgentCommissionCurrencyId;
                         }
                         await _context.SaveChangesAsync();
                     }
 
+                    if (isImported) await importCorrection.RepostAsync(originalImportCommissions, importedIds, false);
+
                     await _auditLogService.LogAsync(
                         "UPDATE",
                         "Hawalas",
                         hawala.Id,
-                        null,
+                        importOldValue,
                         $"حواله با شناسه {hawala.Id} ویرایش شد و لیجر آن دوباره ساخته شد",
                         GetCurrentUserId());
 
@@ -782,6 +807,7 @@
                 catch
                 {
                     await transaction.RollbackAsync();
+                    if (correctingImport) _context.ChangeTracker.Clear();
                     throw;
                 }
             }
@@ -1382,6 +1408,24 @@
                     var deleteCandidateIds = generatedHawala == null
                         ? new[] { hawala.Id }
                         : new[] { hawala.Id, generatedHawala.Id };
+                    if (await _context.HawalaImportRows.AnyAsync(x => x.HawalaId == hawala.Id))
+                    {
+                        await _context.EnsureCurrentTenantWriteAccessAsync();
+                        await EnsureNotSettlementConvertedAsync(deleteCandidateIds);
+                        var correction = new HawalaExchange.Infrastructure.Services.ImportCommissionCorrectionService(_context);
+                        var originals = await correction.ReverseAsync(deleteCandidateIds);
+                        await correction.RepostAsync(originals, deleteCandidateIds, true);
+                        await correction.ReverseHawalaLedgerAsync(deleteCandidateIds);
+                        var now = DateTime.UtcNow;
+                        var user = GetCurrentUserId();
+                        await _context.Hawalas.Where(x => deleteCandidateIds.Contains(x.Id) && x.Status != "Cancel").ExecuteUpdateAsync(x => x
+                            .SetProperty(h => h.Status, "Cancel").SetProperty(h => h.CancelledBy, user).SetProperty(h => h.CancelledAt, now)
+                            .SetProperty(h => h.CancelReason, "حذف ردیف آپلود گروهی؛ حسابداری و کمیشن اصلاح شدند."));
+                        await _auditLogService.LogAsync("DELETE", "Hawalas", hawala.Id, null, "حذف عملیاتی ردیف آپلود و اصلاح کمیشن؛ سابقه حسابداری حفظ شد.", user);
+                        if (transaction != null) await transaction.CommitAsync();
+                        _context.ChangeTracker.Clear();
+                        return;
+                    }
                     if (await _context.CorrespondentCommissionBatchItems
                         .AnyAsync(x => deleteCandidateIds.Contains(x.HawalaId)))
                     {

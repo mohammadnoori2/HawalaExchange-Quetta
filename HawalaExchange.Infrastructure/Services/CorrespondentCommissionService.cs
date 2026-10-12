@@ -624,8 +624,9 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         var correspondentId = await context.CorrespondentCommissionBatches.AsNoTracking()
             .Where(x => x.Id == batchId).Select(x => (long?)x.CorrespondentId).SingleOrDefaultAsync(cancellationToken)
             ?? throw new KeyNotFoundException("محاسبه کمیشن یافت نشد.");
-        await using var dbTransaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
+        await using var dbTransaction = context.Database.CurrentTransaction == null
+            ? await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+            : null;
         await CorrespondentCommissionPeriodLock.AcquireAsync(context, correspondentId, cancellationToken);
         var batch = await context.CorrespondentCommissionBatches
             .Include(x => x.Correspondent).Include(x => x.Items)
@@ -636,7 +637,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
 
         var originalEntries = await context.LedgerEntries.AsNoTracking()
             .Where(x => x.TransactionId == batch.PostingTransactionId).ToListAsync(cancellationToken);
-        if (originalEntries.Count == 0)
+        if (originalEntries.Count == 0 && (batch.TotalCommissionAfn != 0 || batch.TotalCommissionUsd != 0))
             throw new InvalidOperationException("سند حسابداری اصلی یافت نشد.");
         var reversal = new Transaction
         {
@@ -675,7 +676,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             NewValue = $"محاسبه کمیشن برگشت داده شد: {reason.Trim()}", CreatedAt = DateTime.UtcNow
         });
         await context.SaveChangesAsync(cancellationToken);
-        await dbTransaction.CommitAsync(cancellationToken);
+        if (dbTransaction != null) await dbTransaction.CommitAsync(cancellationToken);
     }
 
     private async Task<CorrespondentCommissionPreviewDto> ExecutePreviewAsync(

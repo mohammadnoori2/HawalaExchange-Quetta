@@ -13,7 +13,7 @@ namespace HawalaExchange.Infrastructure.Services;
 public sealed class HawalaImportQueue(
     ApplicationDbContext context,
     IDbContextFactory<ApplicationDbContext> contextFactory,
-    IHawalaImportService importService,
+    IHawalaImportJobExecutor jobExecutor,
     ILogger<HawalaImportQueue>? logger = null) : IHawalaImportQueue
 {
     public async Task EnqueueAsync(ConfirmHawalaImportDto request, CancellationToken cancellationToken = default)
@@ -107,9 +107,7 @@ public sealed class HawalaImportQueue(
                 var request = JsonSerializer.Deserialize<ConfirmHawalaImportDto>(job.RequestJson)
                     ?? throw new InvalidOperationException("تنظیمات ثبت گروهی قابل خواندن نیست.");
                 if (request.BatchId != job.BatchId) throw new InvalidOperationException("شناسه فایل با درخواست ثبت مطابقت ندارد.");
-                if (importService is not HawalaImportService service)
-                    throw new InvalidOperationException("سرویس ثبت گروهی آماده نیست.");
-                await service.ConfirmQueuedAsync(request, new JobProgress(contextFactory, job.Id), cancellationToken);
+                await jobExecutor.ConfirmQueuedAsync(request, new JobProgress(contextFactory, job.Id), cancellationToken);
             }
             catch (Exception error)
             {
@@ -118,6 +116,7 @@ public sealed class HawalaImportQueue(
                 var shuttingDown = error is OperationCanceledException && cancellationToken.IsCancellationRequested;
                 if (!shuttingDown) logger?.LogError(error, "Hawala import failed. Tenant {TenantId}, batch {BatchId}, job {JobId}.", context.CurrentTenantId, job.BatchId, job.Id);
                 var message = shuttingDown ? "ثبت متوقف شد؛ پس از راه‌اندازی دوباره ادامه می‌یابد."
+                    : error is UnauthorizedAccessException ? "کاربر ثبت‌کننده صلاحیت ثبت گروهی حواله‌ها را ندارد؛ سطح دسترسی او بررسی شود."
                     : error is InvalidOperationException ? error.Message
                     : $"ثبت انجام نشد ({error.GetType().Name}{(error is SqlException sql ? $", SQL {sql.Number}" : "")}). دوباره تلاش کنید؛ در صورت تکرار با پشتیبانی تماس بگیرید.";
                 message = message[..Math.Min(message.Length, 2000)];

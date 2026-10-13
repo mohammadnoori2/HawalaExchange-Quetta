@@ -14,6 +14,7 @@ public static class PermissionOperationMap
         ["IBalanceService"]="Accounts",["IReportService"]="Reports",["IFinancialReportService"]="Reports",
         ["IAccountBadehkarLimitService"]="AccountLimits",["ICashBalanceAlertService"]="CashAlerts",
         ["IHawalaService"]="Hawalas",["IHawalaImportService"]="BulkImports",["IHawalaImportQueue"]="BulkImports",
+        ["IHawalaImportJobExecutor"]="BulkImports",
         ["ICapitalInvestmentService"]="Capital",["IPaymentLocationService"]="PaymentLocations",
         ["IPaymentLocationAssignmentService"]="PaymentLocations",["ICorrespondentDailyRateService"]="Settlement",
         ["IAccountMoneyOperationService"]="Deposits",["IMoneyExchangeOperationService"]="Exchanges",
@@ -34,6 +35,7 @@ public static class PermissionOperationMap
         Add("Export","ExportAsync ExportInputFormatAsync DownloadDocumentAsync ExportCustomerActivitiesAsync ExportCustomerActivitiesPreviewAsync");
         Actions["ReadAsync"]="Export";
         Actions["GetDeletionPreviewAsync"]="Delete";
+        Actions["ConfirmQueuedAsync"]="Create";
     }
     private static void Add(string action,string names) { foreach(var name in names.Split(' '))Actions.Add(name,action); }
     public static string Resolve(string service,string method,string? overrideModule=null)

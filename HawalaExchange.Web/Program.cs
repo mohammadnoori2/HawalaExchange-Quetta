@@ -184,7 +184,9 @@ public partial class Program
         builder.Services.AddScoped<IAccountBadehkarLimitService, AccountBadehkarLimitService>();
         builder.Services.AddScoped<ICashBalanceAlertService, CashBalanceAlertService>();
         builder.Services.AddScoped<IHawalaService, HawalaService>();
-        builder.Services.AddScoped<IHawalaImportService, HawalaImportService>();
+        builder.Services.AddScoped<HawalaImportService>();
+        builder.Services.AddScoped<IHawalaImportService>(sp=>sp.GetRequiredService<HawalaImportService>());
+        builder.Services.AddScoped<IHawalaImportJobExecutor>(sp=>sp.GetRequiredService<HawalaImportService>());
         builder.Services.AddScoped<HawalaImportQueue>();
         builder.Services.AddScoped<IHawalaImportQueue>(sp => sp.GetRequiredService<HawalaImportQueue>());
         builder.Services.AddHostedService<HawalaImportWorker>();

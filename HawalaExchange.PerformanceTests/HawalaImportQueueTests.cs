@@ -351,7 +351,7 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         services.AddScoped<ICurrentTenant>(provider => provider.GetRequiredService<CurrentTenant>());
         services.AddScoped<ApplicationDbContext>();
         services.AddScoped<IDbContextFactory<ApplicationDbContext>, TenantDbContextFactory>();
-        services.AddScoped<IHawalaImportService>(provider =>
+        services.AddScoped<HawalaImportService>(provider =>
         {
             var context = provider.GetRequiredService<ApplicationDbContext>();
             var factory = provider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
@@ -360,6 +360,10 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
                 new PaymentLocationService(context, factory, mapper, Mock.Of<IAuditLogService>()),
                 Mock.Of<ICorrespondentService>(), Mock.Of<IAuditLogService>(), factory);
         });
+        services.AddScoped<IHawalaImportService>(sp=>sp.GetRequiredService<HawalaImportService>());
+        services.AddScoped<IHawalaImportJobExecutor>(sp=>sp.GetRequiredService<HawalaImportService>());
+        services.AddSingleton(Mock.Of<IUserPermissionService>());
+        services.ProtectTenantServices();
         services.AddScoped<HawalaImportQueue>();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
         using var worker = new HawalaImportWorker(provider.GetRequiredService<IServiceScopeFactory>(), NullLogger<HawalaImportWorker>.Instance);
@@ -373,6 +377,68 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         finally { await worker.StopAsync(CancellationToken.None); }
         Assert.True(worker.ExecuteTask?.IsCompletedSuccessfully);
         Assert.Equal(fixture.UserId, await original.HawalaImportBatches.Where(x => x.Id == request.BatchId).Select(x => x.ConfirmedBy).SingleAsync());
+    }
+
+    [Theory]
+    [InlineData(417)]
+    [InlineData(3700)]
+    public async Task Prepared_import_posts_through_permission_wrapped_executor(int rows)
+    {
+        var request=await PreviewAsync(rows);
+        await using var context=fixture.CreateContext();
+        using var bypass=context.BypassSubscriptionEnforcement();
+        var import=CreateImport(context);
+        await import.PrepareLocationsAsync(request);
+        var final=new ConfirmHawalaImportDto {BatchId=request.BatchId,UsePreparedLocations=true};
+        var permissions=new Mock<IUserPermissionService>();
+        permissions.Setup(x=>x.RequireAsync("BulkImports.Create",It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        using var provider=ExecutorServices(import,permissions.Object);
+        var queue=new HawalaImportQueue(context,new Factory(fixture),provider.GetRequiredService<IHawalaImportJobExecutor>());
+        await queue.EnqueueAsync(final);
+        var id=await context.HawalaImportJobs.Where(x=>x.BatchId==request.BatchId).Select(x=>x.Id).SingleAsync();
+        Assert.True(await queue.ProcessAsync(id,CancellationToken.None));
+        context.ChangeTracker.Clear();
+        Assert.Equal("Completed",await context.HawalaImportJobs.Where(x=>x.Id==id).Select(x=>x.Status).SingleAsync());
+        Assert.Equal(rows,await context.HawalaImportRows.CountAsync(x=>x.BatchId==request.BatchId && x.HawalaId!=null));
+        permissions.Verify(x=>x.RequireAsync("BulkImports.Create",It.IsAny<CancellationToken>()),Times.Once);
+        Assert.False(await queue.ProcessAsync(id,CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Executor_denial_preserves_prepared_import_and_retry_posts_without_reupload()
+    {
+        var request=await PreviewAsync(3);
+        await using var context=fixture.CreateContext();
+        using var bypass=context.BypassSubscriptionEnforcement();
+        var import=CreateImport(context);
+        await import.PrepareLocationsAsync(request);
+        var permissions=new Mock<IUserPermissionService>();
+        permissions.Setup(x=>x.RequireAsync("BulkImports.Create",It.IsAny<CancellationToken>()))
+            .Returns(Task.FromException(new UnauthorizedAccessException()));
+        using var provider=ExecutorServices(import,permissions.Object);
+        var queue=new HawalaImportQueue(context,new Factory(fixture),provider.GetRequiredService<IHawalaImportJobExecutor>());
+        await queue.EnqueueAsync(new ConfirmHawalaImportDto {BatchId=request.BatchId,UsePreparedLocations=true});
+        var id=await context.HawalaImportJobs.Where(x=>x.BatchId==request.BatchId).Select(x=>x.Id).SingleAsync();
+        Assert.True(await queue.ProcessAsync(id,CancellationToken.None));
+        var failed=await context.HawalaImportJobs.AsNoTracking().SingleAsync(x=>x.Id==id);
+        Assert.Equal("Failed",failed.Status); Assert.Contains("صلاحیت",failed.ErrorMessage);
+        Assert.False(await context.HawalaImportRows.AnyAsync(x=>x.BatchId==request.BatchId && x.HawalaId!=null));
+        Assert.NotNull(await context.HawalaImportBatches.Where(x=>x.Id==request.BatchId).Select(x=>x.LocationsPreparedAt).SingleAsync());
+        permissions.Setup(x=>x.RequireAsync("BulkImports.Create",It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        await queue.RetryAsync(request.BatchId);
+        Assert.True(await queue.ProcessAsync(id,CancellationToken.None));
+        Assert.Equal("Completed",await context.HawalaImportJobs.Where(x=>x.Id==id).Select(x=>x.Status).SingleAsync());
+        Assert.Equal(3,await context.HawalaImportRows.CountAsync(x=>x.BatchId==request.BatchId && x.HawalaId!=null));
+    }
+
+    private ServiceProvider ExecutorServices(HawalaImportService import,IUserPermissionService permissions)
+    {
+        var services=new ServiceCollection();
+        services.AddSingleton(permissions);
+        services.AddSingleton<IDbContextFactory<ApplicationDbContext>>(new Factory(fixture));
+        services.AddSingleton<IHawalaImportJobExecutor>(import);
+        services.ProtectTenantServices();
+        return services.BuildServiceProvider();
     }
 
     [Fact]

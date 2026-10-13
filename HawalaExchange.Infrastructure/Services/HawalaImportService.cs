@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace HawalaExchange.Infrastructure.Services;
 
-public sealed class HawalaImportService : IHawalaImportService
+public sealed class HawalaImportService : IHawalaImportService, IHawalaImportJobExecutor
 {
     private const int MaximumRows = 10_000;
     private const long MaximumFileSize = 10 * 1024 * 1024;
@@ -435,7 +435,7 @@ public sealed class HawalaImportService : IHawalaImportService
         _context.ChangeTracker.Clear();
     }
 
-    internal Task<HawalaImportResultDto> ConfirmQueuedAsync(
+    Task<HawalaImportResultDto> IHawalaImportJobExecutor.ConfirmQueuedAsync(
         ConfirmHawalaImportDto request,
         IProgress<HawalaImportProgressDto>? progress,
         CancellationToken cancellationToken)

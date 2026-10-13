@@ -7,7 +7,7 @@
 @inject ICurrencyService CurrencyService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>سقف بدهکاری</PageTitle>
@@ -25,9 +25,9 @@
             </PageHeaderStats>
         </Stats>
         <Actions>
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> سقف جدید
-            </button>
+            </button></PermissionAction>
         </Actions>
     </AppPageHeader>
 
@@ -195,29 +195,29 @@
                                     <td><AppDateTime Value="@limit.CreatedAt" /></td>
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات سقف بدهکاری {limit.Id}")">
-                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(limit.Id)">
+                                            <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(limit.Id)">
                                                 <i class="bi bi-pencil text-primary"></i>
                                                 ویرایش
-                                            </button>
+                                            </button></PermissionAction>
                                             @if (limit.IsActive)
                                             {
-                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowDeactivateConfirm(limit.Id)">
+                                                <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowDeactivateConfirm(limit.Id)">
                                                     <i class="bi bi-slash-circle"></i>
                                                     غیرفعال‌سازی
-                                                </button>
+                                                </button></PermissionAction>
                                             }
                                             else
                                             {
-                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowActivateConfirm(limit.Id)">
+                                                <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowActivateConfirm(limit.Id)">
                                                     <i class="bi bi-check-circle text-success"></i>
                                                     فعال‌سازی
-                                                </button>
+                                                </button></PermissionAction>
                                             }
                                             <div class="operation-menu-divider"></div>
-                                            <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(limit.Id)">
+                                            <PermissionAction Actions="Delete"><button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(limit.Id)">
                                                 <i class="bi bi-trash"></i>
                                                 حذف
-                                            </button>
+                                            </button></PermissionAction>
                                         </AppActionMenu>
                                     </td>
                                 </tr>
@@ -343,7 +343,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveLimit()" disabled="@isLoading">
+                    <PermissionAction Actions="Create,Edit"><button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveLimit()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -353,7 +353,7 @@
                             <i class="bi bi-save"></i>
                         }
                         @(isEditMode ? "به‌روزرسانی" : "ایجاد")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -410,9 +410,9 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseDeleteModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmDelete()">
+                    <PermissionAction Actions="Delete"><button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmDelete()">
                         <i class="bi bi-check-circle"></i> تأیید حذف
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

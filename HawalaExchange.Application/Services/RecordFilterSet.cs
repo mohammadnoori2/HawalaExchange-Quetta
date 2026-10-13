@@ -69,7 +69,9 @@ public sealed class RecordFilterSet
     private static class Catalog<T>
     {
         public static readonly IReadOnlyList<RecordFilterField> Fields = typeof(T).GetProperties().Where(x => x.GetIndexParameters().Length == 0 && Labels.ContainsKey(x.Name))
-            .Select(x => new RecordFilterField(x.Name, Labels[x.Name], Nullable.GetUnderlyingType(x.PropertyType) ?? x.PropertyType, x))
+            .Select(x => new RecordFilterField(x.Name,
+                x.Name == "Number" ? "نمبر مسلسل" : x.Name == "ReferenceNumber" && typeof(T).Name.Contains("Hawala", StringComparison.Ordinal) ? "نمبر حواله" : Labels[x.Name],
+                Nullable.GetUnderlyingType(x.PropertyType) ?? x.PropertyType, x))
             .Where(x => x.Type == typeof(string) || x.IsBoolean || x.IsDate || x.IsNumber).ToArray();
     }
     private static readonly Dictionary<string, string> Labels = new()

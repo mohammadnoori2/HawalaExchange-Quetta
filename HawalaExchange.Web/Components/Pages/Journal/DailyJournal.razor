@@ -5,7 +5,7 @@
 @using Microsoft.AspNetCore.Authorization
 @inject IJournalService JournalService
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>روزنامچه</PageTitle>
@@ -164,11 +164,11 @@
                                 </div>
                             </div>
                             <div class="col-md-3">
-                                <button class="btn-modern btn-primary-modern w-100"
+                                <PermissionAction Actions="Edit"><button class="btn-modern btn-primary-modern w-100"
                                         disabled="@(isCashLoading || isLoading || SelectedCashDate > DateTime.Today)"
                                         @onclick="SaveDailyCommissionRate">
                                     <i class="bi bi-currency-dollar"></i> ذخیره نرخ پایان روز
-                                </button>
+                                </button></PermissionAction>
                             </div>
                         </div>
                     </div>
@@ -259,20 +259,20 @@
                 </div>
 
                 <div class="cash-day-actions">
-                    <button class="btn-modern btn-primary-modern"
+                    <PermissionAction Actions="Edit"><button class="btn-modern btn-primary-modern"
                             @onclick="SaveCashOpeningBalances"
                             disabled="@(isCashLoading || isLoading)">
                         <i class="bi bi-save"></i>
                         ذخیره تغییرات موجودی آغاز
-                    </button>
-                    <button class="btn-modern btn-success-modern"
+                    </button></PermissionAction>
+                    <PermissionAction Actions="Close"><button class="btn-modern btn-success-modern"
                             @onclick="CloseCashDay"
                             disabled="@(isCashLoading || isLoading || SelectedCashDate > DateTime.Today)">
                         <i class="bi bi-calendar2-check"></i>
                         @(IsCashDayClosed
                             ? "به‌روزرسانی پایان روز و انتقال به فردا"
                             : "بستن روز و انتقال موجودی پایان به فردا")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             }
         </div>

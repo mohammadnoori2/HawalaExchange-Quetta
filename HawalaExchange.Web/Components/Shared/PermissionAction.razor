@@ -1,0 +1,19 @@
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+@using HawalaExchange.Application.Security
+@inject NavigationManager Navigation
+<PermissionView Any="@Keys">@ChildContent</PermissionView>
+@code {
+    [Parameter,EditorRequired] public string Actions { get; set; }="View";
+    [Parameter] public string? Module { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private string Keys
+    {
+        get
+        {
+            var owner=PermissionCatalog.PagePermission(Navigation.ToBaseRelativePath(Navigation.Uri))?.Split('.')[0];
+            var module=Module=="OwnerReports" ? owner switch {"Customers"=>"CustomerReports","Correspondents"=>"CorrespondentReports",_=>"AccountReports"} : Module ?? owner;
+            return module is null ? "Denied.View":string.Join(',',Actions.Split(',').Select(x=>module+"."+x));
+        }
+    }
+}

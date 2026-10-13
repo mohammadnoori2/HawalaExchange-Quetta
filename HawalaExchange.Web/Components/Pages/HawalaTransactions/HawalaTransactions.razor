@@ -18,7 +18,7 @@
 @inject IFileService FileService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 @implements IDisposable
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(isLoading || destructiveActionLoading)" />
@@ -41,9 +41,9 @@
             <PageHeaderStat Label="پرداخت" Value="@paidCount" Icon="bi-check-circle" Tone="neutral" />
         </PageHeaderStats>
         <div class="page-actions">
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> حواله جدید
-            </button>
+            </button></PermissionAction>
         </div>
     </div>
 
@@ -159,13 +159,13 @@
                         <tr>
                             <RecordSelectionHeader /><th style="width:50px;">#</th>
                             <th style="width:80px;" class="sortable-header" @onclick="@(() => SortBy("Number"))">
-                                نمبر
+                                نمبر مسلسل
                                 @if (sortColumn == "Number")
                                 {
                                     <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
                                 }
                             </th>
-                            <th>نمبر رفرنس</th>
+                            <th>نمبر حواله</th>
                             <th class="sortable-header" @onclick="@(() => SortBy("HawalaType"))">
                                 نوع
                                 @if (sortColumn == "HawalaType")
@@ -287,9 +287,9 @@
                                                     <span>@AmountValueHelper.Format(rateInfo.ExchangeRate, 8) @rateInfo.SourceCurrencyCode</span>
                                                     @if (hawala.CanEditSettlementRate)
                                                     {
-                                                        <button type="button" class="btn btn-link btn-sm p-0" title="تغییر نرخ" @onclick="() => OpenSettlementRateEdit(hawala, rateInfo)">
+                                                        <PermissionAction Actions="Create" Module="Settlement"><button type="button" class="btn btn-link btn-sm p-0" title="تغییر نرخ" @onclick="() => OpenSettlementRateEdit(hawala, rateInfo)">
                                                             <i class="bi bi-pencil-square"></i>
-                                                        </button>
+                                                        </button></PermissionAction>
                                                     }
                                                 </div>
                                             }
@@ -383,33 +383,33 @@
                         بستن
                     </button>
 
-                    <button type="button"
+                    <PermissionAction Actions="Export"><button type="button"
                             class="btn-modern btn-secondary-modern"
                             @onclick="() => CopyHawalaInfo(receiptHawala.Id)">
                         <i class="bi bi-clipboard"></i>
                         کاپی
-                    </button>
+                    </button></PermissionAction>
 
-                    <button type="button"
+                    <PermissionAction Actions="Export"><button type="button"
                             class="btn-modern btn-success-modern"
                             @onclick="() => ShareHawalaWhatsApp(receiptHawala.Id)">
                         <i class="bi bi-whatsapp"></i>
                         واتساپ
-                    </button>
+                    </button></PermissionAction>
 
-                    <button type="button"
+                    <PermissionAction Actions="Export"><button type="button"
                             class="btn-modern btn-primary-modern"
                             @onclick="() => ShareHawalaTelegram(receiptHawala.Id)">
                         <i class="bi bi-telegram"></i>
                         تلگرام
-                    </button>
+                    </button></PermissionAction>
 
-                    <button type="button"
+                    <PermissionAction Actions="Export"><button type="button"
                             class="btn-modern btn-primary-modern"
                             @onclick="PrintReceipt">
                         <i class="bi bi-printer"></i>
                         چاپ
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -534,7 +534,7 @@
                                 <strong>این حواله توسط سیستم و در نتیجه حواله دریافتی زیر به‌صورت خودکار ایجاد شده است.</strong>
                             </div>
                             <div class="row g-2">
-                                <div class="col-md-3"><small class="d-block text-muted">نمبر حواله دریافتی</small><strong>@selectedSourceHawala.Number</strong></div>
+                                <div class="col-md-3"><small class="d-block text-muted">نمبر مسلسل دریافتی</small><strong>@selectedSourceHawala.Number</strong></div>
                                 <div class="col-md-3"><small class="d-block text-muted">نمایندگی اصلی</small><RecordDetailsLink Kind="Correspondent" Id="selectedSourceHawala.CorrespondentId" Text="@selectedSourceHawala.CorrespondentName" Class="fw-bold" /></div>
                                 <div class="col-md-3"><small class="d-block text-muted">مبلغ</small><strong>@MoneyFormatHelper.Format(selectedSourceHawala.FromAmount) @selectedSourceHawala.FromCurrencyCode</strong></div>
                                 <div class="col-md-3"><small class="d-block text-muted">محل پرداخت</small><strong>@GetPaymentLocation(selectedSourceHawala)</strong></div>
@@ -557,7 +557,7 @@
                         </div>
                         <div class="col-md-4">
                             <div class="info-card">
-                                <span class="info-label">شماره (نمبر)</span>
+                                <span class="info-label">نمبر مسلسل</span>
                                 <span class="info-value fw-bold">@selectedHawala.Number</span>
                             </div>
                         </div>
@@ -657,7 +657,7 @@
                         </div>
                         <div class="col-md-4">
                             <div class="info-card">
-                                <span class="info-label">نمبر متفرقه</span>
+                                <span class="info-label">نمبر حواله</span>
                                 <span class="info-value">@(selectedHawala.ReferenceNumber ?? "-")</span>
                             </div>
                         </div>
@@ -792,9 +792,9 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseDeleteModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-danger-modern" disabled="@destructiveActionLoading" @onclick="() => ConfirmDelete()">
+                    <PermissionAction Actions="Delete"><button type="button" class="btn-modern btn-danger-modern" disabled="@destructiveActionLoading" @onclick="() => ConfirmDelete()">
                         <i class="bi bi-check-circle"></i> تأیید حذف
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

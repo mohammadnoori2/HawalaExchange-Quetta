@@ -44,15 +44,15 @@
                         {
                             @if (PageMode && ShowFinancialActions && !ActionArchived)
                             {
-                                <button type="button" class="btn btn-sm btn-primary" @onclick="OpenCreateExchange">
+                                <PermissionView Permission="Exchanges.Create"><button type="button" class="btn btn-sm btn-primary" @onclick="OpenCreateExchange">
                                     تبادله اسعار
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateTransfer">
+                                </button></PermissionView>
+                                <PermissionView Permission="Transfers.Create"><button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateTransfer">
                                     انتقال بین حساب
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
+                                </button></PermissionView>
+                                <PermissionView Permission="Deposits.Create"><button type="button" class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
                                     رسید / برد
-                                </button>
+                                </button></PermissionView>
                             }
                             @if (!ActionArchived && OnEditRequested.HasDelegate)
                             {
@@ -231,15 +231,15 @@
                             @if (!PageMode)
                             {
                                 <div class="account-operation-actions d-flex flex-wrap gap-2 mb-2">
-                                    <button class="btn btn-sm btn-primary" @onclick="OpenCreateExchange">
+                                    <PermissionView Permission="Exchanges.Create"><button class="btn btn-sm btn-primary" @onclick="OpenCreateExchange">
                                         <i class="bi bi-currency-exchange"></i> تبادله اسعار
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateTransfer">
+                                    </button></PermissionView>
+                                    <PermissionView Permission="Transfers.Create"><button class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateTransfer">
                                         <i class="bi bi-arrow-left-right"></i> انتقال بین حساب
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
+                                    </button></PermissionView>
+                                    <PermissionView Permission="Deposits.Create"><button class="btn btn-sm btn-outline-secondary" @onclick="OpenCreateAccountOperation">
                                         <i class="bi bi-cash-stack"></i> رسید / برد
-                                    </button>
+                                    </button></PermissionView>
                                 </div>
                             }
 
@@ -327,16 +327,16 @@
                                                 @if (CanModifyOperation(operation))
                                                 {
                                                     <div class="action-group">
-                                                        <button class="action-btn action-btn-edit"
+                                                        <PermissionView Permission="@(OperationModule(operation)+".Edit")"><button class="action-btn action-btn-edit"
                                                                 title="ویرایش"
                                                                 @onclick="() => EditOperationAsync(operation)">
                                                             <i class="bi bi-pencil"></i>
-                                                        </button>
-                                                        <button class="action-btn action-btn-delete"
+                                                        </button></PermissionView>
+                                                        <PermissionView Permission="@(OperationModule(operation)+".Delete")"><button class="action-btn action-btn-delete"
                                                                 title="حذف"
                                                                 @onclick="() => AskDeleteOperation(operation)">
                                                             <i class="bi bi-trash"></i>
-                                                        </button>
+                                                        </button></PermissionView>
                                                     </div>
                                                 }
                                             </div>
@@ -959,6 +959,8 @@
     private static bool CanModifyOperation(JournalOperationDto operation) =>
         operation.SourceId.HasValue &&
         operation.SourceType is "تبدیل پول" or "انتقال" or "واریز / برداشت / پرداخت";
+    private static string OperationModule(JournalOperationDto operation)=>operation.SourceType switch
+    { "تبدیل پول"=>"Exchanges","انتقال"=>"Transfers","واریز / برداشت / پرداخت"=>"Deposits",_=>"Denied" };
 
     private static string GetOperationBadge(JournalOperationDto operation)
     {

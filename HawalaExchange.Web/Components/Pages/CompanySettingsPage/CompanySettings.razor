@@ -11,7 +11,7 @@
 @inject IFileService FileService
 
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper" dir="rtl">
@@ -252,7 +252,7 @@
                         بازنشانی
                     </button>
 
-                    <button type="button"
+                    <PermissionAction Actions="Create,Edit"><button type="button"
                             class="btn-modern btn-primary-modern"
                             @onclick="Save"
                             disabled="@isSaving">
@@ -266,7 +266,7 @@
                         }
 
                         ذخیره تنظیمات
-                    </button>
+                    </button></PermissionAction>
                 </div>
             }
         </div>

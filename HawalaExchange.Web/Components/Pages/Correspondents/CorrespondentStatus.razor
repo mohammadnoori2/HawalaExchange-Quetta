@@ -3,7 +3,7 @@
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Web.Components.Shared.Modals
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
 @inject NavigationManager NavigationManager

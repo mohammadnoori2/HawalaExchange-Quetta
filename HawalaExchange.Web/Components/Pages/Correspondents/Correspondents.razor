@@ -10,7 +10,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت نمایندگی‌ها</PageTitle>
@@ -31,9 +31,9 @@
             <ArchiveViewToggle @bind-ShowArchived="showArchived"
                                ArchivedCount="@correspondents.Count(c => c.IsArchived)"
                                @bind-ShowArchived:after="ArchiveViewChanged" />
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> نماینده جدید
-            </button>
+            </button></PermissionAction>
         </Actions>
     </AppPageHeader>
 
@@ -163,22 +163,22 @@
                                             </button>
                                             @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
                                             {
-                                                 <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenCommissionPage(correspondent.Id)">
+                                                 <PermissionAction Actions="View" Module="IncomingCommission"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenCommissionPage(correspondent.Id)">
                                                      <i class="bi bi-calculator text-success"></i>
                                                      کمیشن حواله‌های دریافتی
-                                                 </button>
-                                                 <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenOutgoingCommissionPage(correspondent.Id)">
+                                                 </button></PermissionAction>
+                                                 <PermissionAction Actions="View" Module="DestinationCommission"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenOutgoingCommissionPage(correspondent.Id)">
                                                      <i class="bi bi-calculator-fill text-warning"></i>
                                                      کمیشن حواله‌های ارسالی
-                                                 </button>
+                                                 </button></PermissionAction>
                                             }
                                             @if (correspondent.IsArchived)
                                             {
                                                 <div class="operation-menu-divider"></div>
-                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(correspondent.Id)">
+                                                <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(correspondent.Id)">
                                                     <i class="bi bi-arrow-counterclockwise text-success"></i>
                                                     خروج از بایگانی
-                                                </button>
+                                                </button></PermissionAction>
                                             }
                                         </AppActionMenu>
                                     </td>
@@ -433,7 +433,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveCorrespondent()" disabled="@isLoading">
+                    <PermissionAction Actions="Create,Edit"><button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveCorrespondent()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -443,7 +443,7 @@
                             <i class="bi bi-save"></i>
                         }
                         @(isEditMode ? "به‌روزرسانی" : "ایجاد")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -486,7 +486,7 @@
                                 <div class="col-md-3">
                                     <label class="form-label fw-bold">نوع محدوده</label>
                                     <select class="form-select" @bind="rangeFilter.RangeType">
-                                        <option value="Number">بر اساس شماره حواله</option>
+                                        <option value="Number">بر اساس نمبر مسلسل</option>
                                         <option value="Date">بر اساس تاریخ حواله</option>
                                     </select>
                                 </div>
@@ -535,7 +535,7 @@
                     {
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="mb-0">تعداد حواله‌ها: <span class="badge bg-primary">@rangeResult.Hawalas.Count</span></h6>
-                            <button type="button"
+                            <PermissionAction Actions="Export"><button type="button"
                                     class="btn-modern btn-danger-modern"
                                     @onclick="ExportRangePdf"
                                     disabled="@(rangePdfLoading || rangeResult.Hawalas.Count == 0)">
@@ -548,7 +548,7 @@
                                     <i class="bi bi-file-earmark-pdf"></i>
                                 }
                                 خروجی PDF
-                            </button>
+                            </button></PermissionAction>
                         </div>
 
                         <div id="correspondentRangeReport">
@@ -567,7 +567,7 @@
                                     <thead>
                                         <tr>
                                             <th>#</th>
-                                            <th>شماره حواله</th>
+                                            <th>نمبر مسلسل</th>
                                             <th>تاریخ</th>
                                             <th>نام کامل فرستنده</th>
                                             <th>نام کامل گیرنده</th>

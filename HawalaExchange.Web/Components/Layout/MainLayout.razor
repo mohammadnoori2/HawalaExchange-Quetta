@@ -15,10 +15,10 @@
     <main class="app-main">
         <SubscriptionStatusBanner />
         <AuthorizeView Policy="TenantAccess">
-            <CashBalanceAlertBanner />
+            <PermissionView Permission="CashAlerts.View"><CashBalanceAlertBanner /></PermissionView>
         </AuthorizeView>
         <article class="content app-content px-0">
-            @Body
+            <PermissionPageGuard>@Body</PermissionPageGuard>
         </article>
     </main>
 </div>

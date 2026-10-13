@@ -7,7 +7,7 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper">
@@ -155,12 +155,12 @@
                                             <button class="action-btn action-btn-view" @onclick="() => ViewDocument(doc.Id)" title="مشاهده">
                                                 <i class="bi bi-eye"></i>
                                             </button>
-                                            <button class="action-btn action-btn-print" @onclick="() => DownloadDocument(doc.Id)" title="دانلود">
+                                            <PermissionAction Actions="Export"><button class="action-btn action-btn-print" @onclick="() => DownloadDocument(doc.Id)" title="دانلود">
                                                 <i class="bi bi-download"></i>
-                                            </button>
-                                            <button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(doc.Id)" title="حذف">
+                                            </button></PermissionAction>
+                                            <PermissionAction Actions="Delete"><button class="action-btn action-btn-delete" @onclick="() => ShowDeleteConfirm(doc.Id)" title="حذف">
                                                 <i class="bi bi-trash"></i>
-                                            </button>
+                                            </button></PermissionAction>
                                         </div>
                                     </td>
                                 </tr>
@@ -322,9 +322,9 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseDeleteModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmDelete()">
+                    <PermissionAction Actions="Delete"><button type="button" class="btn-modern btn-danger-modern" @onclick="() => ConfirmDelete()">
                         <i class="bi bi-check-circle"></i> تأیید حذف
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

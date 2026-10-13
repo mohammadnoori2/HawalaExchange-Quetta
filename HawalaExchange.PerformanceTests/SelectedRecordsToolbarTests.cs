@@ -119,7 +119,7 @@ public sealed class SelectedRecordsToolbarTests
             var build = typeof(SelectedRecordsToolbar).GetMethod("BuildText", BindingFlags.Instance | BindingFlags.NonPublic)!;
             var expected = string.Join(Environment.NewLine, new[]
             {
-                "نمبر حواله: 2172", "نمبر متفرقه: A44559", "فرستنده: Abdollah Nazari", "گیرنده: Abdul Jamil",
+                "نمبر مسلسل: 2172", "نمبر حواله: A44559", "فرستنده: Abdollah Nazari", "گیرنده: Abdul Jamil",
                 "محل پرداخت: Qonduz", "مبلغ: 21,560 AFN", "تاریخ: 1405/07/14", "────────────", "تعداد: 1", "مجموع حواله : 21,560 AFN", ""
             });
             Assert.Equal(expected, (string)build.Invoke(component, null)!);
@@ -191,7 +191,7 @@ public sealed class SelectedRecordsToolbarTests
             Assert.Contains("مطابق فایل ورودی", Html(root.ToHtmlString()));
             Assert.Contains("dir=\"ltr\"", Html(root.ToHtmlString()));
             typeof(SelectedRecordsToolbar).GetField("matchInputFormat", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(component, false);
-            Assert.Contains("نمبر حواله: 2172", (string)build.Invoke(component, null)!);
+            Assert.Contains("نمبر مسلسل: 2172", (string)build.Invoke(component, null)!);
             Assert.Contains("مجموع حواله", (string)build.Invoke(component, null)!);
         });
     }
@@ -210,6 +210,7 @@ public sealed class SelectedRecordsToolbarTests
     }
     private static ServiceProvider Services(AppDateDisplay display, ISelectedRecordsService service) =>
         new ServiceCollection().AddLogging().AddSingleton(display).AddSingleton(service)
+            .AddSingleton(Mock.Of<IUserPermissionService>(p=>p.Can(It.IsAny<string>()) == true))
             .AddSingleton(Mock.Of<IJSRuntime>()).BuildServiceProvider();
     public sealed class Probe : SelectedRecordsToolbar
     {

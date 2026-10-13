@@ -4,7 +4,7 @@
 @using HawalaExchange.Application.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.JSInterop
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
 @inject IHawalaService HawalaService
@@ -65,7 +65,7 @@
                     <div class="col-lg-2 col-md-4">
                         <label class="form-label">نوع محدوده</label>
                         <select class="form-select form-select-sm" @bind="rangeFilter.RangeType">
-                            <option value="Number">بر اساس نمبر حواله</option>
+                            <option value="Number">بر اساس نمبر مسلسل</option>
                             <option value="Date">بر اساس تاریخ حواله</option>
                         </select>
                     </div>
@@ -102,12 +102,12 @@
                 {
                     <div class="d-flex justify-content-between align-items-center mt-3 mb-2">
                         <span class="small fw-semibold">تعداد حواله‌ها: @rangeResult.Hawalas.Count</span>
-                        <button type="button"
+                        <PermissionAction Actions="Export"><button type="button"
                                 class="btn btn-sm btn-outline-danger"
                                 @onclick="ExportRangePdf"
                                 disabled="@(rangePdfLoading || rangeResult.Hawalas.Count == 0)">
                             @(rangePdfLoading ? "در حال ایجاد..." : "خروجی PDF")
-                        </button>
+                        </button></PermissionAction>
                     </div>
 
                     <div id="correspondentRangeReport">
@@ -127,7 +127,7 @@
                                 <thead>
                                     <tr>
                                         <RecordSelectionHeader /><th>#</th>
-                                        <th>نمبر حواله</th>
+                                        <th>نمبر مسلسل</th>
                                         <th>تاریخ</th>
                                         <th>فرستنده</th>
                                         <th>گیرنده</th>

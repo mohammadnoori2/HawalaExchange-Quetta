@@ -1,0 +1,23 @@
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+@implements IDisposable
+@using HawalaExchange.Application.Interfaces.Services
+@inject IUserPermissionService Permissions
+@if (ready && (string.IsNullOrEmpty(Permission) || Permissions.Can(Permission)) && (string.IsNullOrEmpty(Any) || Any.Split(',').Any(Permissions.Can)))
+{
+    @ChildContent
+}
+@code {
+    [Parameter] public string? Permission { get; set; }
+    [Parameter] public string? Any { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private bool ready;
+    protected override async Task OnInitializedAsync()
+    {
+        Permissions.Changed+=Update;
+        await Permissions.RefreshAsync();
+        Permissions.StartWatching(); ready=true;
+    }
+    private void Update()=>_=InvokeAsync(StateHasChanged);
+    public void Dispose()=>Permissions.Changed-=Update;
+}

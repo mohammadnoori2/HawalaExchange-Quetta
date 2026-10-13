@@ -3,7 +3,7 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 @rendermode InteractiveServer
 @inject ICorrespondentSettlementService Settlements
 @inject ICorrespondentSettlementHistoryExportService Exporter
@@ -60,7 +60,7 @@ else
             {
                 <h6>@DisplayDates.Date(day.Key)</h6>
                 <div class="d-flex flex-wrap gap-2 mb-2">@foreach(var group in day.GroupBy(x=>x.SourceCurrencyCode)){<span class="badge bg-light text-dark border" dir="ltr">@Money(group.Sum(x=>x.SourceAmount)) @group.Key → @Money(group.Sum(x=>x.TargetAmount)) @details.TargetCurrencyCode</span>}</div>
-                <div class="table-responsive"><GlobalDataGrid class="table table-sm"><thead><tr><th>حواله</th><th>متفرقه</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>اصل/مانده قبل تبدیل</th><th>نرخ</th><th>مبلغ تبدیل حسابداری</th><th>اصل حواله به ارز توافقی</th><th>مبنای USD کمیشن</th></tr></thead><tbody>
+                <div class="table-responsive"><GlobalDataGrid class="table table-sm"><thead><tr><th>نمبر مسلسل</th><th>نمبر حواله</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>اصل/مانده قبل تبدیل</th><th>نرخ</th><th>مبلغ تبدیل حسابداری</th><th>اصل حواله به ارز توافقی</th><th>مبنای USD کمیشن</th></tr></thead><tbody>
                     @foreach(var row in day){<tr><td>@row.HawalaNumber</td><td>@row.ReferenceNumber</td><td>@row.SenderName</td><td>@row.ReceiverName</td><td><RecordDetailsLink Kind="PaymentLocation" Id="row.PaymentLocationId" Text="@row.PaymentLocationName" /></td><td dir="ltr">@Money(row.SourceAmount) @row.SourceCurrencyCode</td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) @details.TargetCurrencyCode</td><td dir="ltr">@(row.PrincipalTargetAmount.HasValue?Money(row.PrincipalTargetAmount.Value):"—")</td><td dir="ltr">@(row.UsdAmount.HasValue?Money(row.UsdAmount.Value):"—")</td></tr>}
                 </tbody></GlobalDataGrid></div>
             }
@@ -82,7 +82,7 @@ else
             }
             @if(!string.IsNullOrWhiteSpace(error)){<div class="alert alert-danger mt-2">@error</div>}
         </div>
-        <div class="modal-footer"><button class="btn btn-success" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Excel)">خروج اکسل</button><button class="btn btn-danger" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Pdf)">خروج PDF</button>@if(details.Status is "Active" or "Adjusted"){<button class="btn btn-outline-danger" disabled="@(busy || string.IsNullOrWhiteSpace(reverseReason))" @onclick="ReverseAsync">برگشت تبدیل</button>}<button class="btn btn-secondary" disabled="@busy" @onclick="()=>details=null">بستن</button></div>
+        <div class="modal-footer"><PermissionAction Actions="Export"><button class="btn btn-success" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Excel)">خروج اکسل</button></PermissionAction><PermissionAction Actions="Export"><button class="btn btn-danger" disabled="@busy" @onclick="()=>ExportAsync(ExportFormat.Pdf)">خروج PDF</button></PermissionAction>@if(details.Status is "Active" or "Adjusted"){<PermissionAction Actions="Reverse"><button class="btn btn-outline-danger" disabled="@(busy || string.IsNullOrWhiteSpace(reverseReason))" @onclick="ReverseAsync">برگشت تبدیل</button></PermissionAction>}<button class="btn btn-secondary" disabled="@busy" @onclick="()=>details=null">بستن</button></div>
     </div></div></div>
 }
 

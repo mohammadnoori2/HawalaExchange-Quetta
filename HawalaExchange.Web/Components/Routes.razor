@@ -3,7 +3,10 @@
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
             <NotAuthorized>
-                <RedirectToLogin />
+                <AuthorizeView Context="deniedUser">
+                    <Authorized><div class="alert alert-danger">شما صلاحیت مشاهده این بخش را ندارید.</div></Authorized>
+                    <NotAuthorized><RedirectToLogin /></NotAuthorized>
+                </AuthorizeView>
             </NotAuthorized>
         </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />

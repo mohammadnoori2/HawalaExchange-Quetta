@@ -9,7 +9,7 @@
 @inject ICorrespondentService CorrespondentService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper">
     <!-- هدر صفحه -->
@@ -28,9 +28,9 @@
             <PageHeaderStat Label="لغو" Value="@(transactions?.Count(t => t.Status == "Cancel") ?? 0)" Icon="bi-x-circle" Tone="danger" />
         </PageHeaderStats>
         <div class="page-actions">
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> تراکنش جدید
-            </button>
+            </button></PermissionAction>
         </div>
     </div>
 

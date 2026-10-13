@@ -5,14 +5,14 @@
                 <i class="bi bi-bar-chart-line text-info"></i>
                 وضعیت نمایندگی
             </button>
-            <button type="button" class="operation-menu-item" role="menuitem" @onclick="ViewRangeAsync">
+            <PermissionView Permission="CorrespondentReports.View"><button type="button" class="operation-menu-item" role="menuitem" @onclick="ViewRangeAsync">
                 <i class="bi bi-calendar-range text-primary"></i>
                 محدوده حواله‌ها
-            </button>
+            </button></PermissionView>
 
-            <button type="button" class="operation-menu-item" role="menuitem" @onclick="OnRecordActions">
+            <PermissionView Permission="Hawalas.Export"><button type="button" class="operation-menu-item" role="menuitem" @onclick="OnRecordActions">
                 <i class="bi bi-copy text-primary"></i> کاپی و خروجی حواله‌ها
-            </button>
+            </button></PermissionView>
 
             @if (CanUseFinancialActions)
             {
@@ -20,45 +20,45 @@
 
                 @if (HasSettlementCurrency)
                 {
-                    <button type="button" class="operation-menu-item" role="menuitem" @onclick="ConvertBalanceAsync">
+                    <PermissionView Permission="Settlement.Create"><button type="button" class="operation-menu-item" role="menuitem" @onclick="ConvertBalanceAsync">
                         <i class="bi bi-arrow-repeat text-success"></i>
                         تبدیل مانده به @SettlementCurrencyCode
-                    </button>
+                    </button></PermissionView>
                 }
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="ExchangeAsync">
+                <PermissionView Permission="Exchanges.Create"><button type="button" class="operation-menu-item" role="menuitem" @onclick="ExchangeAsync">
                     <i class="bi bi-currency-exchange text-primary"></i>
                     تبادله اسعار
-                </button>
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="AedDealAsync">
+                </button></PermissionView>
+                <PermissionView Permission="AedDeals.View"><button type="button" class="operation-menu-item" role="menuitem" @onclick="AedDealAsync">
                     <i class="bi bi-cash-coin text-success"></i>
                     معاملات درهم
-                </button>
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="TransferAsync">
+                </button></PermissionView>
+                <PermissionView Permission="Transfers.Create"><button type="button" class="operation-menu-item" role="menuitem" @onclick="TransferAsync">
                     <i class="bi bi-arrow-left-right text-warning"></i>
                     انتقال بین حساب
-                </button>
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="ReceiptOrWithdrawalAsync">
+                </button></PermissionView>
+                <PermissionView Permission="Deposits.Create"><button type="button" class="operation-menu-item" role="menuitem" @onclick="ReceiptOrWithdrawalAsync">
                     <i class="bi bi-cash-stack text-success"></i>
                     رسید / برد
-                </button>
+                </button></PermissionView>
             }
 
             <div class="operation-menu-divider"></div>
 
             @if (!IsArchived)
             {
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="EditAsync">
+                <PermissionView Permission="Correspondents.Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="EditAsync">
                     <i class="bi bi-pencil text-primary"></i>
                     ویرایش نمایندگی
-                </button>
+                </button></PermissionView>
             }
-            <button type="button"
+            <PermissionView Permission="Correspondents.Edit"><button type="button"
                     class="operation-menu-item @(IsArchived ? null : "operation-menu-danger")"
                     role="menuitem"
                     @onclick="ArchiveAsync">
                 <i class="bi @(IsArchived ? "bi-archive-fill text-success" : "bi-archive")"></i>
                 @(IsArchived ? "خروج از بایگانی" : "بایگانی نمایندگی")
-            </button>
+            </button></PermissionView>
 
             <div class="operation-menu-divider"></div>
 

@@ -29,6 +29,7 @@ namespace HawalaExchange.Web.Controllers
             {
                 return BadRequest(new { error = ex.Message });
             }
+            catch (UnauthorizedAccessException) { return Forbid(); }
         }
     }
 }

@@ -1,0 +1,31 @@
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+@using HawalaExchange.Application.Security
+@using HawalaExchange.Application.Interfaces.Services
+@inject IUserPermissionService Permissions
+<div class="table-responsive mt-3">
+    <table class="table table-bordered table-sm text-center align-middle">
+        <thead><tr><th>بخش</th>@foreach(var action in Actions){<th>@PermissionCatalog.ActionName(action)</th>}</tr></thead>
+        <tbody>@foreach(var module in PermissionCatalog.Modules)
+        {
+            <tr><th>@module.Name</th>@foreach(var action in Actions)
+            {
+                var key=$"{module.Key}.{action}";
+                <td>@if(module.Actions.Contains(action))
+                {<input type="checkbox" aria-label="@(module.Name+" - "+PermissionCatalog.ActionName(action))" checked="@Value.Contains(key)" disabled="@(Disabled || !Permissions.Can(key))" @onchange="e=>Toggle(module,key,e.Value is true)" />}</td>
+            }</tr>
+        }</tbody>
+    </table>
+</div>
+@code {
+    [Parameter] public HashSet<string> Value { get; set; }=[];
+    [Parameter] public bool Disabled { get; set; }
+    private static readonly string[] Actions=["View","Create","Edit","Delete","Export","Execute","Calculate","Reverse","Close","ManagePermissions"];
+    private void Toggle(PermissionModule module,string key,bool selected)
+    {
+        if(Disabled || !Permissions.Can(key))return;
+        if(selected) { Value.Add(key); Value.Add(module.Key+".View"); }
+        else if(key==module.Key+".View")Value.RemoveWhere(x=>x.StartsWith(module.Key+".",StringComparison.Ordinal));
+        else Value.Remove(key);
+    }
+}

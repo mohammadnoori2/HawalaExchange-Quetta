@@ -152,6 +152,12 @@ public partial class Program
         // ============================================================
         // 7. Register Business Services
         // ============================================================
+        builder.Services.AddSingleton<UserPermissionChangeBus>();
+        builder.Services.AddScoped<UserPermissionService>();
+        builder.Services.AddScoped<HawalaExchange.Application.Interfaces.Services.IUserPermissionService>(sp=>sp.GetRequiredService<UserPermissionService>());
+        builder.Services.AddScoped<TenantUserAdministrationService>();
+        builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,TenantPermissionAuthorizationHandler>();
+        builder.Services.AddAuthorization(options=>options.AddPolicy("TenantBusiness",policy=>policy.RequireAuthenticatedUser().AddRequirements(new TenantPermissionRequirement())));
         builder.Services.AddScoped<IBranchService, BranchService>();
         builder.Services.AddScoped<ICustomerService, CustomerService>();
         builder.Services.AddScoped<ICorrespondentService, CorrespondentService>();
@@ -220,6 +226,7 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
             builder.Configuration.GetSection(SmtpEmailOptions.SectionName));
         builder.Services.AddSingleton<IEmailSender<ApplicationUser>, SmtpIdentityEmailSender>();
 
+        builder.Services.ProtectTenantServices();
         var app = builder.Build();
 
         // ============================================================

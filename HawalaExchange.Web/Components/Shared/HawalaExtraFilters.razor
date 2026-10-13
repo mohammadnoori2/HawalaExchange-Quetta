@@ -17,9 +17,9 @@
         }
         <div class="compact-filter-field"><label class="form-label">فرستنده</label><input class="form-control" @bind="Filter.Sender" @bind:after="Notify" /></div>
         <div class="compact-filter-field"><label class="form-label">گیرنده</label><input class="form-control" @bind="Filter.Receiver" @bind:after="Notify" /></div>
-        <div class="compact-filter-field"><label class="form-label">نمبر متفرقه</label><input class="form-control" @bind="Filter.Reference" @bind:after="Notify" /></div>
-        <div class="compact-filter-field"><label class="form-label">از نمبر حواله</label><input class="form-control" type="number" lang="en" @bind="Filter.MinNumber" @bind:after="Notify" /></div>
-        <div class="compact-filter-field"><label class="form-label">تا نمبر حواله</label><input class="form-control" type="number" lang="en" @bind="Filter.MaxNumber" @bind:after="Notify" /></div>
+        <div class="compact-filter-field"><label class="form-label">نمبر حواله</label><input class="form-control" @bind="Filter.Reference" @bind:after="Notify" /></div>
+        <div class="compact-filter-field"><label class="form-label">از نمبر مسلسل</label><input class="form-control" type="number" lang="en" @bind="Filter.MinNumber" @bind:after="Notify" /></div>
+        <div class="compact-filter-field"><label class="form-label">تا نمبر مسلسل</label><input class="form-control" type="number" lang="en" @bind="Filter.MaxNumber" @bind:after="Notify" /></div>
         <div class="compact-filter-field"><label class="form-label">نوع ثبت</label><select class="form-select" @bind="Filter.Registration" @bind:after="Notify"><option value="">همه</option><option value="Bulk">آپلود گروهی</option><option value="Manual">دستی</option></select></div>
         <div class="compact-filter-field"><label class="form-label">کمیشن ثبت‌شده</label><select class="form-select" @bind="Filter.Commission" @bind:after="Notify"><option value="">همه</option><option value="With">دارای کمیشن</option><option value="Without">بدون کمیشن</option></select></div>
     @if (error != "") { <div class="alert alert-danger mt-2">@error</div> }

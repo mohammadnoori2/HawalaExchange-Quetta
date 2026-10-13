@@ -9,7 +9,7 @@
 @inject ICompanySettingService CompanySettingService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper">
@@ -29,9 +29,9 @@
             <PageHeaderStat Label="حواله" Value="@(transfers?.Count(t => t.TransferMethod == "Hawala") ?? 0)" Icon="bi-globe" Tone="warning" />
         </PageHeaderStats>
         <div class="page-actions">
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> انتقال جدید
-            </button>
+            </button></PermissionAction>
         </div>
     </div>
 
@@ -338,7 +338,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveTransfer()" disabled="@isLoading">
+                    <PermissionAction Actions="Create,Edit"><button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveTransfer()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -348,7 +348,7 @@
                             <i class="bi bi-save"></i>
                         }
                         ایجاد
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

@@ -43,7 +43,7 @@
                 {
                     <h6>@group.Key · تعداد: @group.Count() · مجموع اصل حواله: <span dir="ltr">@MoneyFormatHelper.Format(group.Sum(x => x.Amount)) @group.Key</span></h6>
                     <div class="table-responsive"><table class="table table-striped text-center">
-                        <thead><tr><th>نمبر</th><th>متفرقه</th><th>فرستنده</th><th>گیرنده</th><th>نمایندگی</th><th>محل پرداخت</th><th>مبلغ پرداخت</th><th>کمیشن عامل پرداخت</th><th>تاریخ ثبت</th></tr></thead>
+                        <thead><tr><th>نمبر مسلسل</th><th>نمبر حواله</th><th>فرستنده</th><th>گیرنده</th><th>نمایندگی</th><th>محل پرداخت</th><th>مبلغ پرداخت</th><th>کمیشن عامل پرداخت</th><th>تاریخ ثبت</th></tr></thead>
                         <tbody>@foreach (var item in group)
                         { <tr><td>@item.Number</td><td>@item.ReferenceNumber</td><td>@item.SenderName</td><td>@item.ReceiverName</td><td>@item.CorrespondentName</td><td>@item.PaymentLocation</td><td dir="ltr">@MoneyFormatHelper.Format(item.Amount) @item.CurrencyCode</td><td dir="ltr">@MoneyFormatHelper.Format(item.AgentCommission) @item.CommissionCurrencyCode</td><td><AppDateTime Value="item.RegisteredAt" /></td></tr> }</tbody>
                     </table></div>

@@ -179,7 +179,7 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
         var report = await GetAsync(filter, cancellationToken);
         using var workbook = new XLWorkbook();
         var sheet = workbook.AddWorksheet("Commission details"); sheet.RightToLeft = true;
-        var headers = new[] { "نمبر حواله", "نمبر متفرقه", "تاریخ میلادی", "نوع حواله", "نمایندگی کمیشن", "فرستنده اصلی", "مقصد", "فرستنده", "گیرنده", "محل پرداخت", "مبلغ", "ارز", "وضعیت حواله", "نوع ثبت", "نوع کمیشن", "وضعیت کمیشن", "برآورد", "کمیشن", "ارز کمیشن", "مبنای USD", "نرخ روز", "کمیشن هر لک", "روز نرخ میلادی", "محاسبه", "توضیح" };
+        var headers = new[] { "نمبر مسلسل", "نمبر حواله", "تاریخ میلادی", "نوع حواله", "نمایندگی کمیشن", "فرستنده اصلی", "مقصد", "فرستنده", "گیرنده", "محل پرداخت", "مبلغ", "ارز", "وضعیت حواله", "نوع ثبت", "نوع کمیشن", "وضعیت کمیشن", "برآورد", "کمیشن", "ارز کمیشن", "مبنای USD", "نرخ روز", "کمیشن هر لک", "روز نرخ میلادی", "محاسبه", "توضیح" };
         for (var i = 0; i < headers.Length; i++) sheet.Cell(1, i + 1).Value = headers[i];
         var index = 2;
         foreach (var row in report.Rows)

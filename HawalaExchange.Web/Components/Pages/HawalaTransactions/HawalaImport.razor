@@ -240,7 +240,7 @@
             </div>
             @if ((!preview.LocationsPrepared && !CanPrepareLocations) || (preview.LocationsPrepared && !CanConfirm)){<div class="alert alert-warning rounded-0 mb-0">@ConfirmDisabledReason</div>}
             <div class="table-responsive" style="max-height: 560px;"><table class="table table-sm table-hover align-middle mb-0">
-                <thead class="table-light sticky-top"><tr><th>ردیف</th><th>شماره / رفرنس</th><th>فرستنده / گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>نوع ثبت</th><th>کمیشن عامل پرداخت</th><th>ارز کمیشن</th><th>بررسی</th></tr></thead>
+                <thead class="table-light sticky-top"><tr><th>ردیف</th><th>نمبر مسلسل / نمبر حواله</th><th>فرستنده / گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>نوع ثبت</th><th>کمیشن عامل پرداخت</th><th>ارز کمیشن</th><th>بررسی</th></tr></thead>
                 <tbody><Virtualize Items="@preview.Rows" Context="row" ItemSize="58" SpacerElement="tr">
                     <tr class="@(row.IsValid ? string.Empty : "table-danger")">
                         <td>@row.ExcelRowNumber</td><td><strong>@row.HawalaNumber</strong><br/><small>@row.ReferenceNumber</small></td><td>@row.SenderName<br/><small>@row.ReceiverName</small></td>
@@ -366,7 +366,7 @@
                     {
                         <label class="form-check m-2"><input class="form-check-input" type="checkbox" @bind="shareOriginalImportHawalas" /> انتخاب حواله دریافتی مبدأ به جای حواله ارسالی مقصد</label>
                     }
-                    <SelectedRecordsToolbar ScopeId="import-record-selection" VisibleIds="@ImportSelectionIds"
+                    <SelectedRecordsToolbar ScopeId="import-record-selection" VisibleIds="@ImportSelectionIds" ExportPermission="BulkImports.Export"
                         ResetKey="@($"{selectedHistory?.BatchId}:{selectedHistoryGroup.CorrespondentId}:{selectedHistoryGroup.IsOwnOffice}:{shareOriginalImportHawalas}")" SelectAllOnOpen="@selectAllImportGroup" />
                     <div class="table-responsive" style="max-height: 58vh;"><table id="import-record-selection" class="table table-hover align-middle mb-0">
                         <thead class="table-light sticky-top"><tr><RecordSelectionHeader /><th>ردیف</th><th>شماره و رفرنس</th><th>فرستنده و گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>نوع ثبت</th><th>وضعیت</th><th>عملیات</th></tr></thead>

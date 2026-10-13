@@ -4,7 +4,7 @@
 @using HawalaExchange.Web.Components.Shared.Modals
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 @rendermode InteractiveServer
 @inject ICustomerService CustomerService
 @inject IAccountService AccountService
@@ -138,9 +138,9 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-light border" @onclick="CloseEdit">انصراف</button>
-                    <button class="btn btn-primary" disabled="@isSaving" @onclick="SaveEdit">
+                    <PermissionAction Actions="Edit"><button class="btn btn-primary" disabled="@isSaving" @onclick="SaveEdit">
                         @(isSaving ? "در حال ذخیره..." : "ذخیره تغییرات")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -161,11 +161,11 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-light border" @onclick="CloseArchiveConfirmation">انصراف</button>
-                    <button class="btn @(customer.IsArchived ? "btn-success" : "btn-danger")"
+                    <PermissionAction Actions="Edit"><button class="btn @(customer.IsArchived ? "btn-success" : "btn-danger")"
                             disabled="@isSaving"
                             @onclick="ToggleArchive">
                         @(customer.IsArchived ? "خروج از بایگانی" : "بایگانی")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

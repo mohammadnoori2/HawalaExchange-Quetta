@@ -22,9 +22,9 @@
         <div class="d-flex gap-2">
             @if (CanCreate && HawalaType == "HawalaReceive")
             {
-                <button type="button" class="btn btn-sm btn-outline-success" @onclick="OpenBulkImport">
+                <PermissionView Permission="BulkImports.Create"><button type="button" class="btn btn-sm btn-outline-success" @onclick="OpenBulkImport">
                     <i class="bi bi-file-earmark-spreadsheet ms-1"></i>آپلود گروهی
-                </button>
+                </button></PermissionView>
             }
             @if (totalCount > 0 || selectedSettlementIds.Count > 0)
             {
@@ -46,15 +46,15 @@
             }
             @if (selectedSettlementIds.Count > 0)
             {
-                <button type="button" class="btn btn-sm btn-success" disabled="@settlementSelectionLoading" @onclick="OpenSettlement">
+                <PermissionView Permission="Settlement.Create"><button type="button" class="btn btn-sm btn-success" disabled="@settlementSelectionLoading" @onclick="OpenSettlement">
                     تبدیل @selectedSettlementIds.Count حواله به ارز توافقی
-                </button>
+                </button></PermissionView>
             }
             @if (CanCreate)
             {
-                <button type="button" class="btn btn-sm btn-primary" @onclick="OpenCreate">
+                <PermissionView Permission="Hawalas.Create"><button type="button" class="btn btn-sm btn-primary" @onclick="OpenCreate">
                     ثبت @SingularTitle
-                </button>
+                </button></PermissionView>
             }
         </div>
     </header>
@@ -113,7 +113,7 @@
             <thead>
                 <tr>
                     <RecordSelectionHeader />
-                    <th>نمبر</th>
+                    <th>نمبر مسلسل</th>
                     <th>فرستنده</th>
                     <th>گیرنده</th>
                     <th style="min-width:130px">محل پرداخت</th>
@@ -155,7 +155,7 @@
                                     }
                                     else if (CanCreate && hawala.Status != "Cancel")
                                     {
-                                        <button type="button" class="btn btn-sm btn-outline-warning" @onclick="() => OpenAddCommissionAsync(hawala)">افزودن کمیشن</button>
+                                        <PermissionView Permission="Hawalas.Edit"><button type="button" class="btn btn-sm btn-outline-warning" @onclick="() => OpenAddCommissionAsync(hawala)">افزودن کمیشن</button></PermissionView>
                                     }
                                     else
                                     {
@@ -183,9 +183,9 @@
                                             <span>@AmountValueHelper.Format(rateInfo.ExchangeRate, 8) @rateInfo.SourceCurrencyCode</span>
                                             @if (hawala.CanEditSettlementRate)
                                             {
-                                                <button type="button" class="btn btn-link btn-sm p-0" title="تغییر نرخ" @onclick="() => OpenRateEdit(hawala, rateInfo)">
+                                                <PermissionView Permission="Settlement.Edit"><button type="button" class="btn btn-link btn-sm p-0" title="تغییر نرخ" @onclick="() => OpenRateEdit(hawala, rateInfo)">
                                                     <i class="bi bi-pencil-square"></i>
-                                                </button>
+                                                </button></PermissionView>
                                             }
                                         </div>
                                     }
@@ -288,14 +288,14 @@
                         <div><span>کارمزد حواله</span><strong dir="ltr">@(selectedHawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.CommissionAmount.Value) : "—") @selectedHawala.CommissionCurrencyCode</strong></div>
                         <div><span>کارمزد نمایندگی</span><strong dir="ltr">@(selectedHawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.AgentCommissionAmount.Value) : "—") @selectedHawala.AgentCommissionCurrencyCode</strong></div>
                         <div><span>محل پرداخت</span><strong>@GetPaymentLocation(selectedHawala)</strong></div>
-                        <div><span>نمبر متفرقه</span><strong>@(selectedHawala.ReferenceNumber ?? "—")</strong></div>
+                        <div><span>نمبر حواله</span><strong>@(selectedHawala.ReferenceNumber ?? "—")</strong></div>
                         <div><span>یادداشت</span><strong>@(selectedHawala.Notes ?? "—")</strong></div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-light border" @onclick="CloseDetail">بستن</button>
-                    <button class="btn btn-outline-secondary" @onclick="() => CopyHawalaInfoAsync(selectedHawala.Id)">کاپی معلومات</button>
-                    <button class="btn btn-primary" @onclick="() => OpenReceiptAsync(selectedHawala.Id)">رسید حواله</button>
+                    <PermissionView Permission="Hawalas.Export"><button class="btn btn-outline-secondary" @onclick="() => CopyHawalaInfoAsync(selectedHawala.Id)">کاپی معلومات</button></PermissionView>
+                    <PermissionView Permission="Hawalas.Export"><button class="btn btn-primary" @onclick="() => OpenReceiptAsync(selectedHawala.Id)">رسید حواله</button></PermissionView>
                 </div>
             </div>
         </div>
@@ -318,10 +318,10 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-light border" @onclick="CloseReceipt">بستن</button>
-                    <button class="btn btn-outline-secondary" @onclick="() => CopyHawalaInfoAsync(receiptHawala.Id)">کاپی</button>
-                    <button class="btn btn-outline-success" @onclick="() => ShareWhatsAppAsync(receiptHawala.Id)">واتساپ</button>
-                    <button class="btn btn-outline-primary" @onclick="() => ShareTelegramAsync(receiptHawala.Id)">تلگرام</button>
-                    <button class="btn btn-primary" @onclick="PrintReceiptAsync">چاپ</button>
+                    <PermissionView Permission="Hawalas.Export"><button class="btn btn-outline-secondary" @onclick="() => CopyHawalaInfoAsync(receiptHawala.Id)">کاپی</button></PermissionView>
+                    <PermissionView Permission="Hawalas.Export"><button class="btn btn-outline-success" @onclick="() => ShareWhatsAppAsync(receiptHawala.Id)">واتساپ</button></PermissionView>
+                    <PermissionView Permission="Hawalas.Export"><button class="btn btn-outline-primary" @onclick="() => ShareTelegramAsync(receiptHawala.Id)">تلگرام</button></PermissionView>
+                    <PermissionView Permission="Hawalas.Export"><button class="btn btn-primary" @onclick="PrintReceiptAsync">چاپ</button></PermissionView>
                 </div>
             </div>
         </div>
@@ -352,7 +352,7 @@
                 <div class="modal-footer">
                     <HawalaExecutionReceiptPrint Hawala="payHawala" Payment="payDetails" ButtonClass="btn btn-light border" />
                     <button class="btn btn-light border" @onclick="ClosePay">انصراف</button>
-                    <button class="btn btn-success" disabled="@actionLoading" @onclick="ConfirmPayAsync">تأیید و اجرا</button>
+                    <PermissionView Permission="HawalaExecution.Execute"><button class="btn btn-success" disabled="@actionLoading" @onclick="ConfirmPayAsync">تأیید و اجرا</button></PermissionView>
                 </div>
             </div>
         </div>

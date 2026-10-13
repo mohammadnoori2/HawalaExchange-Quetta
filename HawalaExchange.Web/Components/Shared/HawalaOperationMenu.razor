@@ -4,24 +4,24 @@
     <AppActionMenu Title="سایر عملیات"
                    AriaLabel="@($"سایر عملیات حواله {Hawala.Number}")"
                    DefaultQuickActions="@defaultQuickActions">
-        <button type="button" class="operation-menu-item" role="menuitem" data-action-key="copy" @onclick="CopyAsync">
+        <PermissionView Permission="Hawalas.Export"><button type="button" class="operation-menu-item" role="menuitem" data-action-key="copy" @onclick="CopyAsync">
             <i class="bi bi-clipboard text-secondary"></i>
             کاپی معلومات
-        </button>
+        </button></PermissionView>
 
         @if (ShowEdit && Hawala.Status != "Cancel")
         {
-            <button type="button" class="operation-menu-item" role="menuitem" data-action-key="edit" @onclick="EditAsync">
+            <PermissionView Permission="Hawalas.Edit"><button type="button" class="operation-menu-item" role="menuitem" data-action-key="edit" @onclick="EditAsync">
                 <i class="bi bi-pencil text-warning"></i>
                 ویرایش
-            </button>
+            </button></PermissionView>
         }
         @if (ShowDelete && !Hawala.HasPeriodicCommissionHistory)
         {
-            <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" data-action-key="delete" @onclick="DeleteAsync">
+            <PermissionView Permission="Hawalas.Delete"><button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" data-action-key="delete" @onclick="DeleteAsync">
                 <i class="bi bi-trash"></i>
                 حذف
-            </button>
+            </button></PermissionView>
         }
         else if (ShowDelete && Hawala.HasPeriodicCommissionHistory)
         {
@@ -37,35 +37,35 @@
             مشاهده
         </button>
 
-        <button type="button" class="operation-menu-item" role="menuitem" data-action-key="receipt" @onclick="ReceiptAsync">
+        <PermissionView Permission="Hawalas.Export"><button type="button" class="operation-menu-item" role="menuitem" data-action-key="receipt" @onclick="ReceiptAsync">
             <i class="bi bi-receipt text-primary"></i>
             رسید حواله
-        </button>
+        </button></PermissionView>
 
-        <button type="button" class="operation-menu-item" role="menuitem" data-action-key="whatsapp" @onclick="WhatsAppAsync">
+        <PermissionView Permission="Hawalas.Export"><button type="button" class="operation-menu-item" role="menuitem" data-action-key="whatsapp" @onclick="WhatsAppAsync">
             <i class="bi bi-whatsapp text-success"></i>
             ارسال واتساپ
-        </button>
+        </button></PermissionView>
 
-        <button type="button" class="operation-menu-item" role="menuitem" data-action-key="telegram" @onclick="TelegramAsync">
+        <PermissionView Permission="Hawalas.Export"><button type="button" class="operation-menu-item" role="menuitem" data-action-key="telegram" @onclick="TelegramAsync">
             <i class="bi bi-telegram text-primary"></i>
             ارسال تلگرام
-        </button>
+        </button></PermissionView>
 
         @if (ShowPay && Hawala.Status == "Pending" && Hawala.HawalaType == "HawalaReceive")
         {
-            <button type="button" class="operation-menu-item" role="menuitem" data-action-key="pay" @onclick="PayAsync">
+            <PermissionView Permission="HawalaExecution.Execute"><button type="button" class="operation-menu-item" role="menuitem" data-action-key="pay" @onclick="PayAsync">
                 <i class="bi bi-check-circle text-success"></i>
                 @PayButtonText
-            </button>
+            </button></PermissionView>
         }
 
         @if (ShowCancel && Hawala.Status != "Cancel")
         {
-            <button type="button" class="operation-menu-item" role="menuitem" data-action-key="cancel" @onclick="CancelAsync">
+            <PermissionView Permission="Hawalas.Delete"><button type="button" class="operation-menu-item" role="menuitem" data-action-key="cancel" @onclick="CancelAsync">
                 <i class="bi bi-x-circle text-danger"></i>
                 لغو حواله
-            </button>
+            </button></PermissionView>
         }
     </AppActionMenu>
 </div>

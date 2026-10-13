@@ -18,7 +18,7 @@
 @inject NavigationManager NavigationManager
 
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(bulkBusy || isLoading)" />
 <div class="page-wrapper" dir="rtl">
@@ -70,7 +70,7 @@
         <SearchContent>
             <input type="text"
                    class="form-control"
-                   placeholder="نمبر، مبلغ، فرستنده، گیرنده، نمبر متفرقه..."
+                   placeholder="نمبر، مبلغ، فرستنده، گیرنده، نمبر حواله..."
                    @bind="searchTerm"
                    @bind:event="oninput"
                    @bind:after="OnFilterChangedAsync" />
@@ -129,11 +129,11 @@
         </div>
 
         <div class="table-card-body">
-            <SelectedRecordsToolbar @ref="pendingSelectionToolbar" ScopeId="pending-record-selection" VisibleIds="@pagedHawalas.Select(x => x.Id)" SelectionChanged="OnPendingSelectionChanged" />
+            <SelectedRecordsToolbar @ref="pendingSelectionToolbar" ScopeId="pending-record-selection" VisibleIds="@pagedHawalas.Select(x => x.Id)" SelectionChanged="OnPendingSelectionChanged" ExportPermission="HawalaExecution.Export" />
             <div class="d-flex gap-2 align-items-center mb-2">
-                <button type="button" class="btn-modern btn-primary-modern" disabled="@(bulkBusy || isLoading || selectedPendingIds.Count == 0)" @onclick="OpenBulkPay">
+                <PermissionAction Actions="Execute" Module="HawalaExecution"><button type="button" class="btn-modern btn-primary-modern" disabled="@(bulkBusy || isLoading || selectedPendingIds.Count == 0)" @onclick="OpenBulkPay">
                     <i class="bi bi-check2-all"></i> اجرای گروهی (@selectedPendingIds.Count)
-                </button>
+                </button></PermissionAction>
                 <small class="text-muted">حداکثر 1000 حواله در هر اجرا؛ انتخاب‌ها بین صفحات حفظ می‌شوند.</small>
             </div>
             <div class="table-scroll-wrapper">
@@ -141,8 +141,8 @@
                     <thead>
                         <tr>
                             <RecordSelectionHeader /><th style="width:50px;">#</th>
-                            <th>نمبر</th>
-                            <th>نمبر رفرنس</th>
+                            <th>نمبر مسلسل</th>
+                            <th>نمبر حواله</th>
                             <th>فرستنده</th>
                             <th>گیرنده</th>
                             <th>نماینده</th>
@@ -289,7 +289,7 @@
                     </table></div>
                     @if (bulkPreview.IsCorrespondent) { <div class="alert alert-info">برای هر حواله، حوالهٔ ارسالی مرتبط به نمایندگی انتخاب‌شده با شماره‌گذاری فعلی ساخته می‌شود.</div> }
                     <div class="table-responsive"><table class="table table-striped text-center">
-                        <thead><tr><th>نمبر حواله</th><th>گیرنده</th><th>مبلغ پرداخت</th><th>بررسی</th></tr></thead>
+                        <thead><tr><th>نمبر مسلسل</th><th>گیرنده</th><th>مبلغ پرداخت</th><th>بررسی</th></tr></thead>
                         <tbody>@foreach (var item in bulkPreview.Items)
                         {
                             <tr><td>@item.Number</td><td>@item.ReceiverName</td><td dir="ltr">@MoneyFormatHelper.Format(item.Amount) @item.CurrencyCode</td><td class="@(item.Error == null ? "text-success" : "text-danger")">@(item.Error ?? "آماده اجرا")</td></tr>
@@ -330,7 +330,7 @@
                     <div class="alert alert-info mb-3">
                         <div class="row g-2">
                             <div class="col-md-4">
-                                <span class="d-block small text-muted">نمبر حواله</span>
+                                <span class="d-block small text-muted">نمبر مسلسل</span>
                                 <strong>@payHawalaNumber</strong>
                             </div>
                             <div class="col-md-4">
@@ -378,7 +378,7 @@
                         انصراف
                     </button>
 
-                    <button class="btn-modern btn-primary-modern"
+                    <PermissionAction Actions="Execute" Module="HawalaExecution"><button class="btn-modern btn-primary-modern"
                             @onclick="ConfirmPay"
                             disabled="@isLoading">
                         @if (isLoading)
@@ -391,7 +391,7 @@
                         }
 
                         تأیید پرداخت
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -421,14 +421,14 @@
                     <div class="row g-3">
                         <div class="col-md-4">
                             <div class="info-card">
-                                <span class="info-label">نمبر</span>
+                                <span class="info-label">نمبر مسلسل</span>
                                 <span class="info-value fw-bold">@selectedHawala.Number</span>
                             </div>
                         </div>
 
                         <div class="col-md-4">
                             <div class="info-card">
-                                <span class="info-label">نمبر رفرنس</span>
+                                <span class="info-label">نمبر حواله</span>
                                 <span class="info-value" dir="ltr">@(selectedHawala.ReferenceNumber ?? "-")</span>
                             </div>
                         </div>
@@ -547,25 +547,25 @@
                         بستن
                     </button>
 
-                    <button class="btn-modern btn-secondary-modern" @onclick="() => CopyHawalaInfo(receiptHawala.Id)">
+                    <PermissionAction Actions="Export"><button class="btn-modern btn-secondary-modern" @onclick="() => CopyHawalaInfo(receiptHawala.Id)">
                         <i class="bi bi-clipboard"></i>
                         کاپی
-                    </button>
+                    </button></PermissionAction>
 
-                    <button class="btn-modern btn-success-modern" @onclick="() => ShareHawalaWhatsApp(receiptHawala.Id)">
+                    <PermissionAction Actions="Export"><button class="btn-modern btn-success-modern" @onclick="() => ShareHawalaWhatsApp(receiptHawala.Id)">
                         <i class="bi bi-whatsapp"></i>
                         واتساپ
-                    </button>
+                    </button></PermissionAction>
 
-                    <button class="btn-modern btn-primary-modern" @onclick="() => ShareHawalaTelegram(receiptHawala.Id)">
+                    <PermissionAction Actions="Export"><button class="btn-modern btn-primary-modern" @onclick="() => ShareHawalaTelegram(receiptHawala.Id)">
                         <i class="bi bi-telegram"></i>
                         تلگرام
-                    </button>
+                    </button></PermissionAction>
 
-                    <button class="btn-modern btn-primary-modern" @onclick="PrintReceipt">
+                    <PermissionAction Actions="Export"><button class="btn-modern btn-primary-modern" @onclick="PrintReceipt">
                         <i class="bi bi-printer"></i>
                         چاپ
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -657,9 +657,9 @@
                         انصراف
                     </button>
 
-                    <button class="btn-modern btn-danger-modern" @onclick="ConfirmDelete">
+                    <PermissionAction Actions="Delete"><button class="btn-modern btn-danger-modern" @onclick="ConfirmDelete">
                         تأیید حذف
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

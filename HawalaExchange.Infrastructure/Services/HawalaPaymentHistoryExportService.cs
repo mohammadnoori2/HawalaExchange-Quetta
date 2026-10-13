@@ -44,7 +44,7 @@ public sealed class HawalaPaymentHistoryExportService(IHawalaService hawalas, IC
             foreach (var group in batch.Items.GroupBy(x => x.CurrencyCode))
             {
                 var sheet = workbook.AddWorksheet($"Currency_{workbook.Worksheets.Count}"); sheet.RightToLeft = false;
-                var headings = new[] { "نمبر حواله", "نمبر متفرقه", "فرستنده", "گیرنده", "نمایندگی", "محل پرداخت", "مبلغ پرداخت", "ارز", "کمیشن عامل پرداخت", "ارز کمیشن", "تاریخ ثبت" };
+                var headings = new[] { "نمبر مسلسل", "نمبر حواله", "فرستنده", "گیرنده", "نمایندگی", "محل پرداخت", "مبلغ پرداخت", "ارز", "کمیشن عامل پرداخت", "ارز کمیشن", "تاریخ ثبت" };
                 for (var c = 0; c < headings.Length; c++) sheet.Cell(1, c + 1).Value = headings[c];
                 row = 2;
                 foreach (var item in group)

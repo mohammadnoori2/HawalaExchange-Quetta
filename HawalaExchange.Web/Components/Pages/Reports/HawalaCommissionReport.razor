@@ -6,7 +6,7 @@
 @using HawalaExchange.Application.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.JSInterop
-@attribute [Authorize(Roles = "Admin")]
+@attribute [Authorize(Policy = "TenantBusiness")]
 @rendermode InteractiveServer
 @inject IHawalaCommissionReportService ReportService
 @inject ICorrespondentService CorrespondentService
@@ -22,7 +22,7 @@
     <div class="alert alert-info py-2">بازه مربوط به روز ثبت حواله است. کمیشن ثبت‌شده با نرخ ذخیره‌شده خوانده می‌شود؛ برگشت‌ها در خالص ثبت‌شده شامل نیستند. کسرهای ثبت‌شده با علامت منفی نمایش داده می‌شوند. مبالغ دریافتی و ارسالی و همچنین ارزها جدا جمع می‌شوند.</div>
     @if (error != "") { <div class="alert alert-danger" role="alert">@error</div> }
     <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش حواله‌ها" HasActiveFilters="@(ReportFilterCount > 0 || !string.IsNullOrWhiteSpace(filter.Search))" ActiveFilterCount="@ReportFilterCount" Reset="ResetReportFilters">
-        <SearchContent><input class="form-control" placeholder="نمبر حواله، نمبر متفرقه، فرستنده یا گیرنده" @bind="filter.Search" @bind:event="oninput" /></SearchContent>
+        <SearchContent><input class="form-control" placeholder="نمبر مسلسل، نمبر حواله، فرستنده یا گیرنده" @bind="filter.Search" @bind:event="oninput" /></SearchContent>
         <QuickFilters><select class="form-select compact-quick-filter" @bind="filter.HawalaType"><option value="">همه</option><option value="HawalaReceive">دریافتی</option><option value="HawalaSend">ارسالی</option></select>
 <select class="form-select compact-quick-filter" @bind="filter.CommissionType"><option value="">همه</option>@foreach (var type in new[] { "Incoming", "Destination", "Forwarding", "Direct", "None" }) { <option value="@type">@HawalaReportLabels.Type(type)</option> }</select></QuickFilters>
         <AdvancedFilters>
@@ -59,7 +59,7 @@
             { <tr><td><RecordDetailsLink Kind="PaymentLocation" Id="rate.LocationId" Text="@locations.First(x => x.Id == rate.LocationId).Name" /></td><td><NullableMoneyInput class="form-control" @bind-Value="rate.ForwardingRate" /></td><td><NullableMoneyInput class="form-control" @bind-Value="rate.DestinationAfnRate" /></td><td><NullableMoneyInput class="form-control" @bind-Value="rate.DestinationUsdRate" /></td></tr> }
             </tbody></table></div></details>
         }
-        <div class="d-flex gap-2 mt-3"><button class="btn btn-primary" disabled="@busy" @onclick="LoadReport">@(busy ? "در حال پردازش..." : "نمایش گزارش")</button><button class="btn btn-success" disabled="@(busy || report == null)" @onclick="Export">اکسل با فیلتر گزارش فعلی</button></div>
+        <div class="d-flex gap-2 mt-3"><button class="btn btn-primary" disabled="@busy" @onclick="LoadReport">@(busy ? "در حال پردازش..." : "نمایش گزارش")</button><PermissionAction Actions="Export"><button class="btn btn-success" disabled="@(busy || report == null)" @onclick="Export">اکسل با فیلتر گزارش فعلی</button></PermissionAction></div>
     </div></div>
     @if (report != null)
     {
@@ -87,7 +87,7 @@
         </tbody></table></div>
         <h6>جزئیات حواله‌ها و کمیشن</h6>
         <small class="text-muted">یک حواله ممکن است چند نوع کمیشن یا سند داشته باشد؛ تعداد ردیف‌های کمیشن برابر تعداد حواله‌ها نیست. کمیشن برگشت‌شده فقط برای پیگیری نمایش داده می‌شود.</small>
-        <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>نمبر / متفرقه</th><th>تاریخ</th><th>نوع حواله / ثبت</th><th>نمایندگی کمیشن</th><th>فرستنده اصلی / مقصد</th><th>فرستنده / گیرنده</th><th>محل</th><th>مبلغ / وضعیت حواله</th><th>نوع کمیشن</th><th>وضعیت کمیشن</th><th>روز نرخ / نرخ</th><th>مبنای USD</th><th>نرخ هر لک</th><th>کمیشن</th><th>سند / توضیح</th></tr></thead><tbody>
+        <div class="table-responsive"><table class="table table-sm table-striped align-middle"><thead><tr><th>نمبر مسلسل / نمبر حواله</th><th>تاریخ</th><th>نوع حواله / ثبت</th><th>نمایندگی کمیشن</th><th>فرستنده اصلی / مقصد</th><th>فرستنده / گیرنده</th><th>محل</th><th>مبلغ / وضعیت حواله</th><th>نوع کمیشن</th><th>وضعیت کمیشن</th><th>روز نرخ / نرخ</th><th>مبنای USD</th><th>نرخ هر لک</th><th>کمیشن</th><th>سند / توضیح</th></tr></thead><tbody>
         @foreach (var row in report.Rows.Skip((page - 1) * PageSize).Take(PageSize))
         {
             <tr class="@(row.IsEstimate ? "table-warning" : row.CommissionStatus == "Reversed" ? "table-secondary" : "")"><td>@row.Number.ToString(CultureInfo.InvariantCulture)<br />@row.Reference</td><td>@DisplayDates.Date(row.Date.ToLocalTime())</td><td>@(row.HawalaType == "HawalaReceive" ? "دریافتی" : "ارسالی")<br />@(row.BulkImport ? "گروهی" : "دستی")</td><td><RecordDetailsLink Kind="Correspondent" Id="row.CorrespondentId" Text="@row.Correspondent" /></td><td><RecordDetailsLink Kind="Correspondent" Id="row.SourceCorrespondentId" Text="@row.Source" /><br /><RecordDetailsLink Kind="Correspondent" Id="row.DestinationCorrespondentId" Text="@row.Destination" /></td><td>@row.Sender<br />@row.Receiver</td><td><RecordDetailsLink Kind="PaymentLocation" Id="row.LocationId" Text="@row.Location" /></td><td dir="ltr">@Money(row.Amount) @row.Currency<br />@AppDisplayText.Status(row.Status, row.HawalaType)</td><td>@HawalaReportLabels.Type(row.CommissionType)</td><td>@HawalaReportLabels.State(row.CommissionStatus)</td><td>@DisplayDates.Date(row.RateDate)<br /><span dir="ltr">@(row.ExchangeRate.HasValue ? AmountValueHelper.Format(row.ExchangeRate.Value, 8) : "—")</span></td><td dir="ltr">@Money(row.BasisUsd)</td><td dir="ltr">@Money(row.PerLakhRate)</td><td dir="ltr">@Money(row.Commission) @row.CommissionCurrency</td><td>@row.BatchId?.ToString(CultureInfo.InvariantCulture)<br />@row.Note</td></tr>

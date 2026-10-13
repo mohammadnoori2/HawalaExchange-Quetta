@@ -6,7 +6,7 @@
 @using HawalaExchange.Web.Components.Shared
 @using HawalaExchange.Web.Helpers
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 @inject ICapitalInvestmentService CapitalInvestmentService
 @inject ICurrencyService CurrencyService
@@ -27,13 +27,13 @@
         </div>
 
         <div class="page-actions">
-            <button class="btn-modern btn-danger-modern btn-rounded" @onclick="OpenWithdrawalModal" disabled="@isLoading">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-danger-modern btn-rounded" @onclick="OpenWithdrawalModal" disabled="@isLoading">
                 <i class="bi bi-box-arrow-up"></i> برداشت مالک
-            </button>
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
+            </button></PermissionAction>
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
                 <i class="bi bi-plus-circle"></i>
                 ثبت سرمایه جدید
-            </button>
+            </button></PermissionAction>
         </div>
     </div>
 
@@ -177,18 +177,18 @@
                                         <AppActionMenu AriaLabel="@($"عملیات ثبت سرمایه {item.Id}")">
                                             @if (!item.IsWithdrawal)
                                             {
-                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => EditInvestment(item.Id)">
+                                            <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => EditInvestment(item.Id)">
                                                 <i class="bi bi-pencil text-primary"></i>
                                                 ویرایش
-                                            </button>
+                                            </button></PermissionAction>
                                             <div class="operation-menu-divider"></div>
                                             }
                                             @if (!item.CancelledAt.HasValue)
                                             {
-                                            <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => AskDelete(item.Id)">
+                                            <PermissionAction Actions="Delete"><button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => AskDelete(item.Id)">
                                                 <i class="bi bi-trash"></i>
                                                 @(item.IsWithdrawal ? "لغو برداشت (ثبت معکوس)" : "حذف")
-                                            </button>
+                                            </button></PermissionAction>
                                             }
                                         </AppActionMenu>
                                     </td>
@@ -373,7 +373,7 @@
                         انصراف
                     </button>
 
-                    <button type="button"
+                    <PermissionAction Actions="Create,Edit"><button type="button"
                             class="btn-modern btn-primary-modern"
                             @onclick="Save"
                             disabled="@isLoading">
@@ -387,7 +387,7 @@
                         }
 
                         @(model.IsWithdrawal ? "ثبت برداشت مالک" : isEditMode ? "ویرایش سرمایه" : "ثبت سرمایه")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -433,7 +433,7 @@
                         انصراف
                     </button>
 
-                    <button type="button"
+                    <PermissionAction Actions="Delete"><button type="button"
                             class="btn-modern btn-danger-modern"
                             @onclick="ConfirmDelete"
                             disabled="@isLoading">
@@ -447,7 +447,7 @@
                         }
 
                         @(DeletingWithdrawal ? "لغو برداشت" : "حذف")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

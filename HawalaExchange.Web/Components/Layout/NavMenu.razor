@@ -40,38 +40,38 @@
                 <Authorized Context="tenantAuth">
             <!-- داشبورد -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="" Match="NavLinkMatch.All">
+                <PermissionView Permission="Dashboard.View"><NavLink class="nav-link-custom" href="" Match="NavLinkMatch.All">
                     <span class="bi bi-grid-1x2-fill" aria-hidden="true"></span> داشبورد
-                </NavLink>
+                </NavLink></PermissionView>
             </div>
 
             <div class="nav-divider"></div>
 
             <!-- حساب‌ها -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/accounts">
+                <PermissionView Permission="Accounts.View"><NavLink class="nav-link-custom" href="/accounts">
                     <span class="bi bi-wallet2"></span> حساب‌ها
-                </NavLink>
+                </NavLink></PermissionView>
             </div>
 
             <!-- مشتری‌ها -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/customers">
+                <PermissionView Permission="Customers.View"><NavLink class="nav-link-custom" href="/customers">
                     <span class="bi bi-people"></span> مشتری‌ها
-                </NavLink>
+                </NavLink></PermissionView>
             </div>
 
             <!-- نمایندگان -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/correspondents">
+                <PermissionView Permission="Correspondents.View"><NavLink class="nav-link-custom" href="/correspondents">
                     <span class="bi bi-building"></span> نمایندگی‌ها
-                </NavLink>
+                </NavLink></PermissionView>
             </div>
 
             <!-- ========================================= -->
             <!-- 💱 حواله‌ها - منوی تودرتو -->
             <!-- ========================================= -->
-            <details class="nav-item nav-menu-group px-3" open="@IsSectionActive("hawala")">
+            <PermissionView Any="Hawalas.View,HawalaExecution.View"><details class="nav-item nav-menu-group px-3" open="@IsSectionActive("hawala")">
                 <summary class="nav-link-custom nav-link-toggle">
                     <span class="bi bi-arrow-left-right"></span> حواله‌ها
                     <span class="toggle-icon">
@@ -79,55 +79,55 @@
                     </span>
                 </summary>
                 <div class="sub-menu">
-                    <NavLink class="nav-link-custom sub-link" href="/hawala-transactions">
+                    <PermissionView Permission="Hawalas.View"><NavLink class="nav-link-custom sub-link" href="/hawala-transactions">
                         <span class="bi bi-pencil-square"></span> ثبت و لیست حواله‌ها
-                    </NavLink>
-                    <NavLink class="nav-link-custom sub-link" href="/hawala-receive">
+                    </NavLink></PermissionView>
+                    <PermissionView Permission="Hawalas.View"><NavLink class="nav-link-custom sub-link" href="/hawala-receive">
                         <span class="bi bi-download"></span> حواله‌های دریافتی
-                    </NavLink>
-                    <NavLink class="nav-link-custom sub-link" href="/hawala-pending">
+                    </NavLink></PermissionView>
+                    <PermissionView Permission="HawalaExecution.View"><NavLink class="nav-link-custom sub-link" href="/hawala-pending">
                         <span class="bi bi-clock-history"></span> حواله‌های اجرا نشده
-                    </NavLink>
+                    </NavLink></PermissionView>
                 </div>
-            </details>
+            </details></PermissionView>
 
             <!-- تبدیل پول -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="money-exchange">
+                <PermissionView Permission="Exchanges.View"><NavLink class="nav-link-custom" href="money-exchange">
                     <i class="bi bi-currency-exchange"></i>
                     تبادله اسعار
-                </NavLink>
+                </NavLink></PermissionView>
             </div>
 
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="aed-transactions">
+                <PermissionView Permission="AedDeals.View"><NavLink class="nav-link-custom" href="aed-transactions">
                     <i class="bi bi-cash-coin"></i>
                     معاملات درهم
-                </NavLink>
+                </NavLink></PermissionView>
             </div>
 
             <!-- رسید و برد -->
-            <AuthorizeView Roles="Admin">
+
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link-custom" href="/deposit-withdraw">
+                    <PermissionView Permission="Deposits.View"><NavLink class="nav-link-custom" href="/deposit-withdraw">
                         <span class="bi bi-arrow-left-right"></span> رسید / برد
-                    </NavLink>
+                    </NavLink></PermissionView>
                 </div>
-            </AuthorizeView>
+
 
             <!-- انتقال‌ها -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="/transfers">
+                <PermissionView Permission="Transfers.View"><NavLink class="nav-link-custom" href="/transfers">
                     <span class="bi bi-send"></span> انتقال‌ها
-                </NavLink>
+                </NavLink></PermissionView>
             </div>
 
             <!-- روزنامچه -->
             <div class="nav-item px-3">
-                <NavLink class="nav-link-custom" href="daily-journal">
+                <PermissionView Permission="Journal.View"><NavLink class="nav-link-custom" href="daily-journal">
                     <i class="bi bi-journal-text"></i>
                     روزنامچه
-                </NavLink>
+                </NavLink></PermissionView>
             </div>
 
             <div class="nav-divider"></div>
@@ -135,7 +135,7 @@
             <!-- ========================================= -->
             <!-- 📊 حسابداری - منوی تودرتو -->
             <!-- ========================================= -->
-            <details class="nav-item nav-menu-group px-3" open="@IsSectionActive("accounting")">
+            <PermissionView Any="Ledger.View,Capital.View,Expenses.View"><details class="nav-item nav-menu-group px-3" open="@IsSectionActive("accounting")">
                 <summary class="nav-link-custom nav-link-toggle">
                     <span class="bi bi-journal"></span> حسابداری
                     <span class="toggle-icon">
@@ -143,24 +143,24 @@
                     </span>
                 </summary>
                 <div class="sub-menu">
-                    <NavLink class="nav-link-custom sub-link" href="/ledger">
+                    <PermissionView Permission="Ledger.View"><NavLink class="nav-link-custom sub-link" href="/ledger">
                         <span class="bi bi-wallet2"></span> دفتر کل
-                    </NavLink>
-                    <NavLink class="nav-link-custom sub-link" href="/capital-investment">
+                    </NavLink></PermissionView>
+                    <PermissionView Permission="Capital.View"><NavLink class="nav-link-custom sub-link" href="/capital-investment">
                         <span class="bi bi-cash-stack"></span> سرمایه و برداشت مالک
-                    </NavLink>
-                    <NavLink class="nav-link-custom sub-link" href="/expenses">
+                    </NavLink></PermissionView>
+                    <PermissionView Permission="Expenses.View"><NavLink class="nav-link-custom sub-link" href="/expenses">
                         <span class="bi bi-receipt-cutoff"></span> مصارف
-                    </NavLink>
+                    </NavLink></PermissionView>
                 </div>
-            </details>
+            </details></PermissionView>
 
             <div class="nav-divider"></div>
 
             <!-- ========================================= -->
             <!-- ⚙️ تنظیمات سیستم - منوی تودرتو -->
             <!-- ========================================= -->
-            <details class="nav-item nav-menu-group px-3" open="@IsSectionActive("settings")">
+            <PermissionView Any="Branches.View,PaymentLocations.View,Users.View,Currencies.View,Rates.View,AccountLimits.View,CashAlerts.View,Settings.View"><details class="nav-item nav-menu-group px-3" open="@IsSectionActive("settings")">
                 <summary class="nav-link-custom nav-link-toggle">
                     <span class="bi bi-gear"></span> تنظیمات سیستم
                     <span class="toggle-icon">
@@ -182,43 +182,43 @@
                             <span class="bi bi-person-gear"></span> مدیران پلتفرم
                         </NavLink>
                     </AuthorizeView>
-                    <NavLink class="nav-link-custom sub-link" href="/branches">
+                    <PermissionView Permission="Branches.View"><NavLink class="nav-link-custom sub-link" href="/branches">
                         <span class="bi bi-shop"></span> شعبه‌ها
-                    </NavLink>
-                    <NavLink class="nav-link-custom sub-link" href="/payment-locations">
+                    </NavLink></PermissionView>
+                    <PermissionView Permission="PaymentLocations.View"><NavLink class="nav-link-custom sub-link" href="/payment-locations">
                         <span class="bi bi-geo-alt"></span> محل‌های پرداخت
-                    </NavLink>
-                    <AuthorizeView Roles="Admin,Manager">
-                        <NavLink class="nav-link-custom sub-link" href="/users">
+                    </NavLink></PermissionView>
+
+                        <PermissionView Permission="Users.View"><NavLink class="nav-link-custom sub-link" href="/users">
                             <span class="bi bi-person-badge"></span> کاربران
-                        </NavLink>
-                    </AuthorizeView>
-                    <NavLink class="nav-link-custom sub-link" href="/currencies">
+                        </NavLink></PermissionView>
+
+                    <PermissionView Permission="Currencies.View"><NavLink class="nav-link-custom sub-link" href="/currencies">
                         <span class="bi bi-currency-dollar"></span> اسعار
-                    </NavLink>
-                    <NavLink class="nav-link-custom sub-link" href="/exchangerates">
+                    </NavLink></PermissionView>
+                    <PermissionView Permission="Rates.View"><NavLink class="nav-link-custom sub-link" href="/exchangerates">
                         <span class="bi bi-currency-exchange"></span> نرخ تبادله
-                    </NavLink>
-                    <NavLink class="nav-link-custom sub-link" href="/account-limits">
+                    </NavLink></PermissionView>
+                    <PermissionView Permission="AccountLimits.View"><NavLink class="nav-link-custom sub-link" href="/account-limits">
                         <span class="bi bi-lock"></span> سقف بدهکاری
-                    </NavLink>
-                    <AuthorizeView Roles="Admin,Manager">
-                        <NavLink class="nav-link-custom sub-link" href="/cash-balance-alerts">
+                    </NavLink></PermissionView>
+
+                        <PermissionView Permission="CashAlerts.View"><NavLink class="nav-link-custom sub-link" href="/cash-balance-alerts">
                             <span class="bi bi-bell"></span> هشدار موجودی صندوق
-                        </NavLink>
-                    </AuthorizeView>
-                    <NavLink class="nav-link-custom sub-link" href="company-settings">
+                        </NavLink></PermissionView>
+
+                    <PermissionView Permission="Settings.View"><NavLink class="nav-link-custom sub-link" href="company-settings">
                         <i class="bi bi-building"></i>
                         تنظیمات شرکت
-                    </NavLink>
+                    </NavLink></PermissionView>
                 </div>
-            </details>
+            </details></PermissionView>
 
             <div class="nav-divider"></div>
 
             <!-- گزارش‌ها -->
-            <AuthorizeView Roles="Admin">
-                <details class="nav-item nav-menu-group px-3" open="@IsSectionActive("reports")">
+
+                <PermissionView Any="Reports.View,BalanceSheet.View,HawalaReports.View,ProfitLoss.View"><details class="nav-item nav-menu-group px-3" open="@IsSectionActive("reports")">
                     <summary class="nav-link-custom nav-link-toggle">
                         <span class="bi bi-pie-chart"></span> گزارش‌ها
                         <span class="toggle-icon">
@@ -226,39 +226,39 @@
                         </span>
                     </summary>
                     <div class="sub-menu">
-                        <NavLink class="nav-link-custom sub-link" href="/reports">
+                        <PermissionView Permission="Reports.View"><NavLink class="nav-link-custom sub-link" href="/reports">
                             <span class="bi bi-bar-chart"></span> گزارش‌های عمومی
-                        </NavLink>
-                        <NavLink class="nav-link-custom sub-link" href="/reports/balance-sheet">
+                        </NavLink></PermissionView>
+                        <PermissionView Permission="BalanceSheet.View"><NavLink class="nav-link-custom sub-link" href="/reports/balance-sheet">
                             <span class="bi bi-bank2"></span> بیلانس شیت
-                        </NavLink>
-                        <NavLink class="nav-link-custom sub-link" href="/reports/hawalas">
+                        </NavLink></PermissionView>
+                        <PermissionView Permission="HawalaReports.View"><NavLink class="nav-link-custom sub-link" href="/reports/hawalas">
                             <span class="bi bi-file-earmark-bar-graph"></span> حواله‌ها و کمیشن
-                        </NavLink>
-                        <NavLink class="nav-link-custom sub-link" href="/reports/profit-loss">
+                        </NavLink></PermissionView>
+                        <PermissionView Permission="ProfitLoss.View"><NavLink class="nav-link-custom sub-link" href="/reports/profit-loss">
                             <span class="bi bi-graph-up-arrow"></span> سود و زیان
-                        </NavLink>
+                        </NavLink></PermissionView>
                     </div>
-                </details>
-            </AuthorizeView>
+                </details></PermissionView>
+
 
             <!-- اسناد -->
-            <AuthorizeView Roles="Admin">
+
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link-custom" href="/documents">
+                    <PermissionView Permission="Documents.View"><NavLink class="nav-link-custom" href="/documents">
                         <span class="bi bi-file-text"></span> اسناد
-                    </NavLink>
+                    </NavLink></PermissionView>
                 </div>
-            </AuthorizeView>
+
 
             <!-- لاگ‌های سیستم -->
-            <AuthorizeView Roles="Admin">
+
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link-custom" href="/auditlogs">
+                    <PermissionView Permission="AuditLogs.View"><NavLink class="nav-link-custom" href="/auditlogs">
                         <span class="bi bi-clock-history"></span> لاگ‌های سیستم
-                    </NavLink>
+                    </NavLink></PermissionView>
                 </div>
-            </AuthorizeView>
+
 
                 </Authorized>
             </AuthorizeView>

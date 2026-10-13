@@ -140,17 +140,17 @@
                                         <option value="Paid">پرداخت شده</option>
                                     </select>
                                 </div>
-                                <!-- نمبر متفرقه -->
+                                <!-- نمبر حواله -->
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
-                                        نمبر متفرقه
+                                        نمبر حواله
                                     </label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.ReferenceNumber" placeholder="نمبر متفرقه" />
+                                    <input type="text" class="form-control" @bind="CurrentHawala.ReferenceNumber" placeholder="نمبر حواله" />
                                 </div>
                                 <!-- فیلد شماره (نمبر) -->
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
-                                        <i class="bi bi-hash text-muted me-1"></i> نمبر حواله <span class="text-danger">*</span>
+                                        <i class="bi bi-hash text-muted me-1"></i> نمبر مسلسل <span class="text-danger">*</span>
                                     </label>
                                     @if (IsEditMode)
                                     {
@@ -502,14 +502,14 @@
                                         <div class="col-md-4 mb-3">
                                             <label class="form-label fw-bold">
                                                 <i class="bi bi-hash text-muted me-1"></i>
-                                                نمبر حواله ارسالی نمایندگی <span class="text-danger">*</span>
+                                                نمبر مسلسل ارسالی نمایندگی <span class="text-danger">*</span>
                                             </label>
                                             <input type="number" lang="en"
                                                    min="1"
                                                    class="form-control"
                                                    @bind="CurrentHawala.GeneratedSendHawalaNumber"
                                                    readonly="@(!IsEditMode)"
-                                                   placeholder="نمبر حواله ارسالی" />
+                                                   placeholder="نمبر مسلسل ارسالی" />
                                             <small class="text-muted">
                                                 نمبر پیشنهادی ادامه حواله‌های ارسالی نمایندگی مقصد است؛ در ثبت جدید، نمبر نهایی هنگام ذخیره تعیین می‌شود.
                                             </small>
@@ -603,7 +603,7 @@
                         </div>
                         <div>
                             <h5 class="modal-title text-white fw-bold">حواله با موفقیت ثبت شد</h5>
-                            <span class="text-white-50 small">شماره حواله: @CreatedHawala.Number</span>
+                            <span class="text-white-50 small">نمبر مسلسل: @CreatedHawala.Number</span>
                         </div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" @onclick="CloseSuccessModal"></button>
@@ -726,7 +726,7 @@
                                 </span>
                             </div>
                             <div class="col-md-4">
-                                <span class="text-muted d-block small">نمبر متفرقه</span>
+                                <span class="text-muted d-block small">نمبر حواله</span>
                                 <span class="fw-semibold">@(CreatedHawala.ReferenceNumber ?? "-")</span>
                             </div>
                         </div>
@@ -1313,7 +1313,7 @@
                     </div>
                     <div class='receipt-title-box'>
                         <h5>رسید حواله</h5>
-                        <div>نمبر حواله: <strong>{hawala.Number}</strong></div>
+                        <div>نمبر مسلسل: <strong>{hawala.Number}</strong></div>
                         {(string.IsNullOrWhiteSpace(hawala.ReferenceNumber) ? "" : $"<div><strong>{hawala.ReferenceNumber}</strong></div>")}
                         <div dir='ltr'>{currentDate}</div>
                     </div>
@@ -1491,7 +1491,7 @@
             return;
         }
 
-        // ذخیره شماره حواله
+        // ذخیره نمبر مسلسل
         var number = CreatedHawala.Number;
 
         // بستن مودال موفقیت (داده‌ها باقی می‌مانند)
@@ -1609,10 +1609,10 @@
             (!CurrentHawala.GeneratedSendHawalaNumber.HasValue ||
              CurrentHawala.GeneratedSendHawalaNumber.Value <= 0))
         {
-            ValidationErrors.Add("نمبر حواله ارسالی نمایندگی الزامی است.");
+            ValidationErrors.Add("نمبر مسلسل ارسالی نمایندگی الزامی است.");
         }
         if (CurrentHawala.Number <= 0)
-            ValidationErrors.Add("نمبر حواله الزامی است");
+            ValidationErrors.Add("نمبر مسلسل الزامی است");
         if (CurrentHawala.PaymentLocationId.HasValue &&
             !PaymentLocationsList.Any(x => x.Id == CurrentHawala.PaymentLocationId.Value))
         {
@@ -2121,7 +2121,7 @@
         }
         catch (Exception ex)
         {
-            ValidationErrors.Add($"خطا در دریافت نمبر حواله ارسالی نمایندگی: {ex.Message}");
+            ValidationErrors.Add($"خطا در دریافت نمبر مسلسل ارسالی نمایندگی: {ex.Message}");
         }
     }
 

@@ -5,7 +5,7 @@
 @inject IBranchService BranchService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت شعبه‌ها</PageTitle>
@@ -26,9 +26,9 @@
             <ArchiveViewToggle @bind-ShowArchived="showArchived"
                                ArchivedCount="@branches.Count(b => b.IsArchived)"
                                @bind-ShowArchived:after="ArchiveViewChanged" />
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> شعبه جدید
-            </button>
+            </button></PermissionAction>
         </Actions>
     </AppPageHeader>
 
@@ -148,30 +148,30 @@
                                         <AppActionMenu AriaLabel="@($"عملیات شعبه {branch.Name}")">
                                             @if (!branch.IsArchived)
                                             {
-                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(branch.Id)">
+                                                <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(branch.Id)">
                                                     <i class="bi bi-pencil text-primary"></i>
                                                     ویرایش
-                                                </button>
+                                                </button></PermissionAction>
                                                 <div class="operation-menu-divider"></div>
-                                                <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowArchiveConfirm(branch.Id)">
+                                                <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowArchiveConfirm(branch.Id)">
                                                     <i class="bi bi-archive"></i>
                                                     بایگانی
-                                                </button>
+                                                </button></PermissionAction>
                                             }
                                             else
                                             {
-                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(branch.Id)">
+                                                <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(branch.Id)">
                                                     <i class="bi bi-arrow-counterclockwise text-success"></i>
                                                     خروج از بایگانی
-                                                </button>
+                                                </button></PermissionAction>
                                             }
                                             @if (branch.CanDelete)
                                             {
                                                 <div class="operation-menu-divider"></div>
-                                                <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(branch.Id)">
+                                                <PermissionAction Actions="Delete"><button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(branch.Id)">
                                                     <i class="bi bi-trash"></i>
                                                     حذف دائمی
-                                                </button>
+                                                </button></PermissionAction>
                                             }
                                         </AppActionMenu>
                                     </td>
@@ -298,7 +298,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveBranch()" disabled="@isLoading">
+                    <PermissionAction Actions="Create,Edit"><button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveBranch()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -308,7 +308,7 @@
                             <i class="bi bi-save"></i>
                         }
                         @(isEditMode ? "به‌روزرسانی" : "ایجاد")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

@@ -14,7 +14,7 @@
 @inject NavigationManager NavigationManager
 
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper" dir="rtl">
@@ -34,10 +34,10 @@
             <PageHeaderStat Label="فروش" Value="@(MoneyFormatHelper.Format(filteredExchanges.Sum(x => x.FromAmount)))" Icon="bi-arrow-up-circle" Tone="warning" />
         </PageHeaderStats>
         <div class="page-actions">
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
                 <i class="bi bi-plus-circle"></i>
                 تبدیل جدید
-            </button>
+            </button></PermissionAction>
         </div>
     </div>
 
@@ -274,15 +274,15 @@
                                                 <i class="bi bi-eye text-primary"></i>
                                                 مشاهده
                                             </button>
-                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(item.Id)">
+                                            <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(item.Id)">
                                                 <i class="bi bi-pencil text-primary"></i>
                                                 ویرایش
-                                            </button>
+                                            </button></PermissionAction>
                                             <div class="operation-menu-divider"></div>
-                                            <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(item.Id)">
+                                            <PermissionAction Actions="Delete"><button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(item.Id)">
                                                 <i class="bi bi-trash"></i>
                                                 حذف
-                                            </button>
+                                            </button></PermissionAction>
                                         </AppActionMenu>
                                     </td>
                                 </tr>
@@ -496,7 +496,7 @@
                         انصراف
                     </button>
 
-                    <button type="button"
+                    <PermissionAction Actions="Delete"><button type="button"
                             class="btn-modern btn-danger-modern"
                             @onclick="ConfirmDelete"
                             disabled="@isLoading">
@@ -510,7 +510,7 @@
                         }
 
                         تأیید حذف
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

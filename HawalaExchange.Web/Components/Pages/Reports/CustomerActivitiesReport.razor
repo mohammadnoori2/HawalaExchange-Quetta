@@ -1,7 +1,7 @@
 @page "/reports/customer-activities"
 @page "/reports/correspondent-activities"
 @page "/reports/account-activities"
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Authorization
 @using HawalaExchange.Application.DTOs
@@ -68,12 +68,12 @@
                     </AdvancedFilters>
                 </CompactFilterBar>
                     <button class="btn-modern btn-primary-modern" disabled="@busy" @onclick="LoadPreviewAsync"><i class="bi bi-eye"></i> @(busy ? "در حال آماده‌سازی..." : "نمایش گزارش")</button>
-                    <button class="btn-modern btn-primary-modern" disabled="@(busy || preview == null)" @onclick="ExportExcel">
+                    <PermissionAction Actions="Export"><button class="btn-modern btn-primary-modern" disabled="@(busy || preview == null)" @onclick="ExportExcel">
                         <i class="bi bi-file-earmark-excel"></i> دانلود اکسل
-                    </button>
-                    <button class="btn-modern btn-light-modern" disabled="@(busy || preview == null)" @onclick="ExportPdf">
+                    </button></PermissionAction>
+                    <PermissionAction Actions="Export"><button class="btn-modern btn-light-modern" disabled="@(busy || preview == null)" @onclick="ExportPdf">
                         <i class="bi bi-file-earmark-pdf"></i> دانلود PDF
-                    </button>
+                    </button></PermissionAction>
                     @if (!string.IsNullOrEmpty(error))
                     {
                         <span class="text-danger">@error</span>

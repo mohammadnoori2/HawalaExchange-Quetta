@@ -9,7 +9,7 @@
 @inject ICorrespondentService CorrespondentService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper reports-page">

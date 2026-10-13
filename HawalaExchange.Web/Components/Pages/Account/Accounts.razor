@@ -11,7 +11,7 @@
 @inject ILedgerService LedgerService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت حساب‌ها</PageTitle>
@@ -32,9 +32,9 @@
             <ArchiveViewToggle @bind-ShowArchived="showArchived"
                                ArchivedCount="@accounts.Count(a => a.IsArchived)"
                                @bind-ShowArchived:after="ArchiveViewChanged" />
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> حساب جدید
-            </button>
+            </button></PermissionAction>
         </Actions>
     </AppPageHeader>
 
@@ -195,10 +195,10 @@
                                             @if (account.IsArchived)
                                             {
                                                 <div class="operation-menu-divider"></div>
-                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(account.Id)">
+                                                <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowUnarchiveConfirm(account.Id)">
                                                     <i class="bi bi-arrow-counterclockwise text-success"></i>
                                                     خروج از بایگانی
-                                                </button>
+                                                </button></PermissionAction>
                                             }
                                         </AppActionMenu>
                                     </td>
@@ -476,7 +476,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveAccount()" disabled="@isLoading">
+                    <PermissionAction Actions="Create,Edit"><button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveAccount()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -486,7 +486,7 @@
                             <i class="bi bi-save"></i>
                         }
                         @(isEditMode ? "به‌روزرسانی" : "ایجاد")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

@@ -1,0 +1,25 @@
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+@implements IDisposable
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Security
+@inject IUserPermissionService Permissions
+@inject NavigationManager Navigation
+@if (ready)
+{
+    @if (Allowed) { @ChildContent }
+    else { <div class="alert alert-danger" role="alert">شما صلاحیت مشاهده این بخش را ندارید.</div> }
+}
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private bool ready;
+    private bool Allowed => PermissionCatalog.PagePermission(Navigation.ToBaseRelativePath(Navigation.Uri)) is not string key || Permissions.Can(key);
+    protected override async Task OnInitializedAsync()
+    {
+        Permissions.Changed+=Update; Navigation.LocationChanged+=LocationChanged;
+        await Permissions.RefreshAsync(); Permissions.StartWatching(); ready=true;
+    }
+    private void Update()=>_=InvokeAsync(StateHasChanged);
+    private void LocationChanged(object? sender,Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)=>Update();
+    public void Dispose() { Permissions.Changed-=Update; Navigation.LocationChanged-=LocationChanged; }
+}

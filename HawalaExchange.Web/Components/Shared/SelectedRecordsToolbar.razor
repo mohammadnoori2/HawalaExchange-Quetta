@@ -11,6 +11,7 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
+<PermissionView Permission="@(ExportPermission ?? (Transactions ? "Transactions.Export":"Hawalas.Export"))">
 @if (ShowActions)
 {
 <div class="border rounded p-2 my-2 bg-light" dir="rtl">
@@ -46,7 +47,7 @@
                 </fieldset>
                 <textarea class="form-control" rows="13" readonly dir="@(!Transactions && matchInputFormat ? "ltr" : "rtl")" style="@(!Transactions && matchInputFormat ? "white-space:pre;overflow-wrap:normal;" : null)" value="@BuildText()"></textarea>
                 @if (!Transactions && matchInputFormat)
-                { <div class="form-text">نمبر حواله، نمبر متفرقه، فرستنده، گیرنده، محل پرداخت، مبلغ، ارز؛ بدون عنوان، کمیشن، تاریخ، یادداشت یا مجموع. با کاپی و چسباندن در اکسل، هر مقدار در ستون خود قرار می‌گیرد.</div> }
+                { <div class="form-text">نمبر مسلسل، نمبر حواله، فرستنده، گیرنده، محل پرداخت، مبلغ، ارز؛ بدون عنوان، کمیشن، تاریخ، یادداشت یا مجموع. با کاپی و چسباندن در اکسل، هر مقدار در ستون خود قرار می‌گیرد.</div> }
                 else
                 {
                 <div class="form-text">یادداشت موجود در متن نمایش داده می‌شود؛ موارد اضافی فقط با انتخاب چک‌باکس اضافه می‌شوند. ارسال نهایی و انتخاب گیرنده در واتساپ، تلگرام یا وایبر انجام می‌شود.</div>
@@ -76,11 +77,13 @@
     </div>
 }
 
+</PermissionView>
 @code {
     [Parameter, EditorRequired] public string ScopeId { get; set; } = "";
     [Parameter] public IEnumerable<long> VisibleIds { get; set; } = [];
     [Parameter] public string ResetKey { get; set; } = "";
     [Parameter] public bool Transactions { get; set; }
+    [Parameter] public string? ExportPermission { get; set; }
     [Parameter] public bool SelectAllOnOpen { get; set; }
     [Parameter] public bool ShowActions { get; set; } = true;
     [Parameter] public EventCallback<IReadOnlyList<long>> SelectionChanged { get; set; }
@@ -162,8 +165,8 @@
         var text = new StringBuilder();
         foreach (var row in records)
         {
-            text.AppendLine($"{(Transactions ? "نمبر معامله" : "نمبر حواله")}: {row.Number}");
-            if (!Transactions) text.AppendLine($"نمبر متفرقه: {row.ReferenceNumber}");
+            text.AppendLine($"{(Transactions ? "نمبر معامله" : "نمبر مسلسل")}: {row.Number}");
+            if (!Transactions) text.AppendLine($"نمبر حواله: {row.ReferenceNumber}");
             text.AppendLine($"{(Transactions ? "مشتری" : "فرستنده")}: {row.SenderName}");
             if (!Transactions)
             {

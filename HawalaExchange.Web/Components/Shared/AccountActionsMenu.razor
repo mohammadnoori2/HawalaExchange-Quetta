@@ -12,47 +12,47 @@
                 }
                 @if (ShowReports)
                 {
-                    <button type="button" class="operation-menu-item" role="menuitem" @onclick="ReportsAsync">
+                    <PermissionAction Actions="View" Module="OwnerReports"><button type="button" class="operation-menu-item" role="menuitem" @onclick="ReportsAsync">
                         <i class="bi bi-clipboard-data text-info"></i>
                         گزارشات
-                    </button>
+                    </button></PermissionAction>
                 }
                 <div class="operation-menu-divider"></div>
             }
 
             @if (CanUseFinancialActions)
             {
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="ExchangeAsync">
+                <PermissionView Permission="Exchanges.Create"><button type="button" class="operation-menu-item" role="menuitem" @onclick="ExchangeAsync">
                     <i class="bi bi-currency-exchange text-primary"></i>
                     تبادله اسعار
-                </button>
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="TransferAsync">
+                </button></PermissionView>
+                <PermissionView Permission="Transfers.Create"><button type="button" class="operation-menu-item" role="menuitem" @onclick="TransferAsync">
                     <i class="bi bi-arrow-left-right text-warning"></i>
                     انتقال بین حساب
-                </button>
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="ReceiptOrWithdrawalAsync">
+                </button></PermissionView>
+                <PermissionView Permission="Deposits.Create"><button type="button" class="operation-menu-item" role="menuitem" @onclick="ReceiptOrWithdrawalAsync">
                     <i class="bi bi-cash-stack text-success"></i>
                     رسید / برد
-                </button>
+                </button></PermissionView>
                 <div class="operation-menu-divider"></div>
             }
 
             @if (!IsArchived && CanEdit)
             {
-                <button type="button" class="operation-menu-item" role="menuitem" @onclick="EditAsync">
+                <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="EditAsync">
                     <i class="bi bi-pencil text-primary"></i>
                     ویرایش حساب
-                </button>
+                </button></PermissionAction>
             }
             @if (CanArchive)
             {
-                <button type="button"
+                <PermissionAction Actions="Edit"><button type="button"
                         class="operation-menu-item @(IsArchived ? null : "operation-menu-danger")"
                         role="menuitem"
                         @onclick="ArchiveAsync">
                     <i class="bi @(IsArchived ? "bi-archive-fill text-success" : "bi-archive")"></i>
                     @(IsArchived ? "خروج از بایگانی" : "بایگانی حساب")
-                </button>
+                </button></PermissionAction>
             }
 
             <div class="operation-menu-divider"></div>

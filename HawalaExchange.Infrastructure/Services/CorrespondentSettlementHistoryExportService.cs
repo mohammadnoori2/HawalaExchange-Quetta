@@ -21,7 +21,7 @@ public sealed class CorrespondentSettlementHistoryExportService(ICorrespondentSe
         static string R(decimal value)=>value.ToString("0.########",CultureInfo.InvariantCulture);
         static string E(string? value)=>WebUtility.HtmlEncode(value??"");
         var name=$"Correspondent_{correspondentId}_Settlement_{conversionId}";
-        var headers=new[]{"روز حواله","نمبر حواله","متفرقه","فرستنده","گیرنده","محل پرداخت","مبلغ قبل تبدیل","ارز مبدأ","نرخ","مبلغ تبدیل حسابداری","ارز توافقی","اصل حواله به ارز توافقی","مبنای USD کمیشن"};
+        var headers=new[]{"روز حواله","نمبر مسلسل","نمبر حواله","فرستنده","گیرنده","محل پرداخت","مبلغ قبل تبدیل","ارز مبدأ","نرخ","مبلغ تبدیل حسابداری","ارز توافقی","اصل حواله به ارز توافقی","مبنای USD کمیشن"};
         if(format==ExportFormat.Excel)
         {
             using var book=new XLWorkbook();var summary=book.AddWorksheet("Summary");summary.RightToLeft=false;
@@ -77,7 +77,7 @@ public sealed class CorrespondentSettlementHistoryExportService(ICorrespondentSe
             {
                 html.Append($"<h3>{E(Date(day.Key))}</h3><p>");
                 foreach(var g in day.GroupBy(x=>x.SourceCurrencyCode))html.Append($"{N(g.Sum(x=>x.SourceAmount))} {E(g.Key)} → {N(g.Sum(x=>x.TargetAmount))} {E(data.TargetCurrencyCode)} ؛ ");
-                html.Append("</p><table><thead><tr><th>نمبر</th><th>متفرقه</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>مبلغ اصلی</th><th>نرخ</th><th>مبلغ تبدیل</th><th>اصل به ارز توافقی</th><th>مبنای USD</th></tr></thead><tbody>");
+                html.Append("</p><table><thead><tr><th>نمبر مسلسل</th><th>نمبر حواله</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>مبلغ اصلی</th><th>نرخ</th><th>مبلغ تبدیل</th><th>اصل به ارز توافقی</th><th>مبنای USD</th></tr></thead><tbody>");
                 foreach(var row in day)html.Append($"<tr><td>{row.HawalaNumber}</td><td>{E(row.ReferenceNumber)}</td><td>{E(row.SenderName)}</td><td>{E(row.ReceiverName)}</td><td>{E(row.PaymentLocationName)}</td><td class='n'>{N(row.SourceAmount)} {E(row.SourceCurrencyCode)}</td><td class='n'>{R(row.ExchangeRate)}</td><td class='n'>{N(row.TargetAmount)} {E(data.TargetCurrencyCode)}</td><td class='n'>{(row.PrincipalTargetAmount.HasValue?N(row.PrincipalTargetAmount.Value):"—")}</td><td class='n'>{(row.UsdAmount.HasValue?N(row.UsdAmount.Value):"—")}</td></tr>");
                 html.Append("</tbody></table>");
             }

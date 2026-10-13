@@ -6,7 +6,7 @@
 @inject IAccountService AccountService
 @inject ICurrencyService CurrencyService
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = "Admin,Manager")]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>هشدار موجودی صندوق</PageTitle>
@@ -23,9 +23,9 @@
             </PageHeaderStats>
         </Stats>
         <Actions>
-            <button type="button" class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreate">
+            <PermissionAction Actions="Create"><button type="button" class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreate">
                 <i class="bi bi-plus-circle"></i> تنظیم جدید
-            </button>
+            </button></PermissionAction>
         </Actions>
     </AppPageHeader>
 
@@ -120,9 +120,9 @@
                                     <td><AppDateTime Value="@item.UpdatedAt" /></td>
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات هشدار {item.AccountName} {item.CurrencyCode}")">
-                                            <button type="button" class="operation-menu-item" @onclick="() => OpenEdit(item)">
+                                            <PermissionAction Actions="Edit"><PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" @onclick="() => OpenEdit(item)">
                                                 <i class="bi bi-pencil text-primary"></i> ویرایش
-                                            </button>
+                                            </button></PermissionAction></PermissionAction>
                                             <button type="button" class="operation-menu-item" @onclick="() => ToggleActive(item)">
                                                 <i class="bi @(item.IsActive ? "bi-pause-circle" : "bi-play-circle")"></i>
                                                 @(item.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")
@@ -233,9 +233,9 @@
                 </div>
                 <div class="modal-footer cash-alert-modal-footer">
                     <button type="button" class="btn btn-light cash-alert-footer-button" @onclick="CloseModal">انصراف</button>
-                    <button type="button" class="btn btn-primary cash-alert-footer-button" disabled="@isSaving" @onclick="Save">
+                    <PermissionAction Actions="Create,Edit"><button type="button" class="btn btn-primary cash-alert-footer-button" disabled="@isSaving" @onclick="Save">
                         @(isSaving ? "در حال ذخیره..." : "ذخیره")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

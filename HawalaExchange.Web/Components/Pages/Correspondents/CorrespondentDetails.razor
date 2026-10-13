@@ -4,7 +4,7 @@
 @using HawalaExchange.Application.Services
 @using HawalaExchange.Web.Components.Shared.Modals
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 @rendermode InteractiveServer
 @inject ICorrespondentService CorrespondentService
 @inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
@@ -59,7 +59,7 @@
                         <i class="bi bi-currency-exchange me-1"></i> مشاهده نرخ‌های نمایندگی
                     </button>
                 }
-                <button class="btn btn-outline-primary" @onclick="OpenSettlementHistory"><i class="bi bi-clock-history me-1"></i> تاریخچه تبدیل به ارز توافقی</button>
+                <PermissionAction Actions="Create" Module="Settlement"><button class="btn btn-outline-primary" @onclick="OpenSettlementHistory"><i class="bi bi-clock-history me-1"></i> تاریخچه تبدیل به ارز توافقی</button></PermissionAction>
                 <button class="btn btn-outline-primary" @onclick="OpenPeriods">
                     <i class="bi bi-calendar-check me-1"></i> بستن دوره
                 </button>
@@ -68,15 +68,15 @@
                 </button>
                 @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
                 {
-                    <button class="btn btn-success" @onclick="OpenCommissionPage">
+                    <PermissionAction Actions="View" Module="IncomingCommission"><button class="btn btn-success" @onclick="OpenCommissionPage">
                         <i class="bi bi-calculator me-1"></i> کمیشن دریافتی
-                    </button>
+                    </button></PermissionAction>
                 }
                 @if (!correspondent.IsArchived)
                 {
-                    <button class="btn btn-warning" @onclick="OpenOutgoingCommissionPage">
+                    <PermissionAction Actions="View" Module="DestinationCommission"><button class="btn btn-warning" @onclick="OpenOutgoingCommissionPage">
                         <i class="bi bi-calculator-fill me-1"></i> کمیشن پرداختی به نمایندگی‌ها
-                    </button>
+                    </button></PermissionAction>
                         <button class="btn btn-primary" @onclick="OpenOriginCommissionPage">
                             <i class="bi bi-cash-coin me-1"></i> کمیشن ارسالی به نمایندگی‌ها
                         </button>
@@ -117,6 +117,7 @@
                 </button>
             </div>
 
+            <PermissionView Permission="Hawalas.View">
             @if (activeHawalaType == "HawalaSend")
             {
                 <CorrespondentHawalaPanel @ref="refreshHawalaPanel" @key="@($"send-{CorrespondentId}-{hawalaPanelVersion}")"
@@ -137,6 +138,7 @@
                                           SingularTitle="حواله دریافتی"
                                           CanCreate="@(!correspondent.IsArchived)" />
             }
+            </PermissionView>
         </div>
     }
 </div>
@@ -254,11 +256,11 @@
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-light border" @onclick="CloseArchiveConfirmation">انصراف</button>
-                    <button class="btn @(correspondent.IsArchived ? "btn-success" : "btn-danger")"
+                    <PermissionAction Actions="Edit"><button class="btn @(correspondent.IsArchived ? "btn-success" : "btn-danger")"
                             disabled="@isSaving"
                             @onclick="ToggleArchiveAsync">
                         @(correspondent.IsArchived ? "خروج از بایگانی" : "بایگانی")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

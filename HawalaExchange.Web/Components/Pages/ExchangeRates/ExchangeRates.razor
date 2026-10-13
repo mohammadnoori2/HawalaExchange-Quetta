@@ -6,7 +6,7 @@
 @inject ICurrencyService CurrencyService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت نرخ‌های ارز</PageTitle>
@@ -23,9 +23,9 @@
             </PageHeaderStats>
         </Stats>
         <Actions>
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> نرخ جدید
-            </button>
+            </button></PermissionAction>
         </Actions>
     </AppPageHeader>
 
@@ -184,15 +184,15 @@
                                     <td>@rate.CreatedByName</td>
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات نرخ {rate.FromCurrencyCode} به {rate.ToCurrencyCode}")">
-                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(rate.Id)">
+                                            <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(rate.Id)">
                                                 <i class="bi bi-pencil text-primary"></i>
                                                 ویرایش
-                                            </button>
+                                            </button></PermissionAction>
                                             <div class="operation-menu-divider"></div>
-                                            <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(rate.Id)">
+                                            <PermissionAction Actions="Delete"><button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeleteConfirm(rate.Id)">
                                                 <i class="bi bi-trash"></i>
                                                 حذف
-                                            </button>
+                                            </button></PermissionAction>
                                         </AppActionMenu>
                                     </td>
                                 </tr>
@@ -352,7 +352,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseModal()">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveRate()" disabled="@isLoading">
+                    <PermissionAction Actions="Create,Edit"><button type="button" class="btn-modern btn-primary-modern" @onclick="() => SaveRate()" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -362,7 +362,7 @@
                             <i class="bi bi-save"></i>
                         }
                         @(isEditMode ? "به‌روزرسانی" : "ایجاد")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>

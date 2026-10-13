@@ -1,5 +1,8 @@
 @page "/users"
-@attribute [Authorize(Roles = "Admin,Manager")]
+@attribute [Authorize(Policy = "TenantBusiness")]
+@using HawalaExchange.Application.Security
+@inject IUserPermissionService Permissions
+@inject HawalaExchange.Infrastructure.Services.TenantUserAdministrationService UserAdministration
 
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Application.Interfaces
@@ -34,9 +37,9 @@
             </PageHeaderStats>
         </Stats>
         <Actions>
-            <button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
+            <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="OpenCreateModal">
                 <i class="bi bi-plus-circle"></i> کاربر جدید
-            </button>
+            </button></PermissionAction>
         </Actions>
     </AppPageHeader>
 
@@ -210,28 +213,28 @@
                                                 <i class="bi bi-eye text-primary"></i>
                                                 مشاهده
                                             </button>
-                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(user.Id)">
+                                            <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenEditModal(user.Id)">
                                                 <i class="bi bi-pencil text-primary"></i>
                                                 ویرایش
-                                            </button>
-                                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowResetPasswordModal(user.Id)">
+                                            </button></PermissionAction>
+                                            <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowResetPasswordModal(user.Id)">
                                                 <i class="bi bi-key text-warning"></i>
                                                 بازنشانی رمز
-                                            </button>
+                                            </button></PermissionAction>
                                             <div class="operation-menu-divider"></div>
                                             @if (user.IsActive)
                                             {
-                                                <button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeactivateConfirm(user.Id)">
+                                                <PermissionAction Actions="Delete"><button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" @onclick="() => ShowDeactivateConfirm(user.Id)">
                                                     <i class="bi bi-slash-circle"></i>
                                                     غیرفعال‌سازی
-                                                </button>
+                                                </button></PermissionAction>
                                             }
                                             else
                                             {
-                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowActivateConfirm(user.Id)">
+                                                <PermissionAction Actions="Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ShowActivateConfirm(user.Id)">
                                                     <i class="bi bi-check-circle text-success"></i>
                                                     فعال‌سازی
-                                                </button>
+                                                </button></PermissionAction>
                                             }
                                         </AppActionMenu>
                                     </td>
@@ -369,7 +372,7 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">نقش <span class="text-danger">*</span></label>
-                                    <select class="form-select" @bind="currentUser.Role">
+                                    <select class="form-select" @bind="currentUser.Role" disabled="@(isEditMode && !Permissions.Can("Users.ManagePermissions"))">
                                         <option value="">انتخاب نقش</option>
                                         <option value="Admin">مدیر</option>
                                         <option value="Manager">سرپرست</option>
@@ -381,6 +384,8 @@
                         </div>
                     </div>
 
+                    <button type="button" class="btn btn-outline-secondary" disabled="@(isEditMode && !Permissions.Can("Users.ManagePermissions"))" @onclick="ApplyRolePermissions">اعمال الگوی نقش به صلاحیت‌ها</button>
+                    <UserPermissionEditor Value="selectedPermissions" Disabled="@(isEditMode && !Permissions.Can("Users.ManagePermissions"))" />
                     @if (isEditMode)
                     {
                         <div class="alert alert-info">
@@ -393,7 +398,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="CloseModal">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-primary-modern" @onclick="SaveUser" disabled="@isLoading">
+                    <PermissionAction Actions="Create,Edit"><button type="button" class="btn-modern btn-primary-modern" @onclick="SaveUser" disabled="@isLoading">
                         @if (isLoading)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -403,7 +408,7 @@
                             <i class="bi bi-save"></i>
                         }
                         @(isEditMode ? "به‌روزرسانی" : "ایجاد")
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -504,7 +509,7 @@
                     <button type="button" class="btn-modern btn-light-modern" @onclick="CloseResetPasswordModal">
                         <i class="bi bi-x-circle"></i> انصراف
                     </button>
-                    <button type="button" class="btn-modern btn-primary-modern" @onclick="ConfirmResetPassword" disabled="@isResetPasswordSubmitting">
+                    <PermissionAction Actions="Edit"><button type="button" class="btn-modern btn-primary-modern" @onclick="ConfirmResetPassword" disabled="@isResetPasswordSubmitting">
                         @if (isResetPasswordSubmitting)
                         {
                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -514,7 +519,7 @@
                             <i class="bi bi-check-circle"></i>
                         }
                         بازنشانی
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -697,6 +702,7 @@
     {
         try
         {
+            await Permissions.RequireAsync("Users.View");
             isLoading = true;
             StateHasChanged();
 
@@ -856,6 +862,8 @@
 
     private void OpenCreateModal()
     {
+        if(!Permissions.Can("Users.Create"))return;
+        ApplyRolePermissions("Cashier");
         currentUser = new CreateUserDto { BranchId = 0, Role = "Cashier" };
         userNameDisplay = null;
         isEditMode = false;
@@ -865,6 +873,11 @@
         showModal = true;
         StateHasChanged();
     }
+
+    private HashSet<string> selectedPermissions=[];
+    private void ApplyRolePermissions()=>ApplyRolePermissions(currentUser.Role);
+    private void ApplyRolePermissions(string role)
+    { selectedPermissions=PermissionCatalog.Defaults([role]).Where(Permissions.Can).ToHashSet(StringComparer.Ordinal); }
 
     private async Task OpenEditModal(long id)
     {
@@ -877,6 +890,7 @@
             if (user != null)
             {
                 var userRoles = await UserManager.GetRolesAsync(user);
+                selectedPermissions=await Permissions.GetForUserAsync(id);
                 userNameDisplay = user.LocalUserName;
                 currentUser = new CreateUserDto
                 {
@@ -1075,8 +1089,8 @@
             }
 
             // بازنشانی رمز عبور
-            var token = await UserManager.GeneratePasswordResetTokenAsync(user);
-            var result = await UserManager.ResetPasswordAsync(user, token, resetPasswordNewPassword);
+            await UserAdministration.ResetPasswordAsync(resetPasswordUserId,resetPasswordNewPassword);
+            var result = IdentityResult.Success;
 
             if (result.Succeeded)
             {
@@ -1179,63 +1193,10 @@
                 }
             }
 
-            if (isEditMode)
-            {
-                var user = await UserManager.FindByIdAsync(editId.ToString());
-                if (user == null)
-                {
-                    validationErrors.Add("کاربر یافت نشد");
-                    return;
-                }
-
-                user.FullName = currentUser.FullName;
-                user.BranchId = currentUser.BranchId!.Value;
-                user.Email = currentUser.Email.Trim();
-
-                var currentRoles = await UserManager.GetRolesAsync(user);
-                await UserManager.RemoveFromRolesAsync(user, currentRoles);
-                await UserManager.AddToRoleAsync(user, currentUser.Role);
-
-                var result = await UserManager.UpdateAsync(user);
-                if (result.Succeeded)
-                {
-                    successMessage = "✅ کاربر با موفقیت ویرایش شد";
-                    showModal = false;
-                    await LoadUsers();
-                }
-                else
-                {
-                    validationErrors.AddRange(result.Errors.Select(e => e.Description));
-                }
-            }
-            else
-            {
-                await SubscriptionAccess.EnsureUserCapacityAsync(CurrentTenant.TenantId);
-                var user = new ApplicationUser
-                {
-                    TenantId = CurrentTenant.TenantId,
-                    LocalUserName = currentUser.UserName.Trim(),
-                    UserName = $"{CurrentTenant.TenantId}:{currentUser.UserName.Trim()}",
-                    Email = currentUser.Email.Trim(),
-                    FullName = currentUser.FullName,
-                    BranchId = currentUser.BranchId!.Value,
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                var result = await UserManager.CreateAsync(user, currentUser.Password);
-                if (result.Succeeded)
-                {
-                    await UserManager.AddToRoleAsync(user, currentUser.Role);
-                    successMessage = "✅ کاربر با موفقیت ایجاد شد";
-                    showModal = false;
-                    await LoadUsers();
-                }
-                else
-                {
-                    validationErrors.AddRange(result.Errors.Select(e => e.Description));
-                }
-            }
+            await UserAdministration.SaveAsync(isEditMode ? editId : null,currentUser,selectedPermissions);
+            successMessage = "کاربر و صلاحیت‌ها با موفقیت ذخیره شد";
+            showModal = false;
+            await LoadUsers();
         }
         catch (Exception ex)
         {
@@ -1277,23 +1238,11 @@
                 return;
             }
 
-            if (confirmActionType == "deactivate")
-                user.IsActive = false;
-            else if (confirmActionType == "activate")
-                user.IsActive = true;
-
-            var result = await UserManager.UpdateAsync(user);
-            if (result.Succeeded)
-            {
-                var actionText = confirmActionType == "deactivate" ? "غیرفعال" : "فعال";
-                successMessage = $"✅ کاربر با موفقیت {actionText} شد";
-                showConfirmModal = false;
-                await LoadUsers();
-            }
-            else
-            {
-                validationErrors.AddRange(result.Errors.Select(e => e.Description));
-            }
+            await UserAdministration.SetActiveAsync(confirmId,confirmActionType == "activate");
+            var actionText = confirmActionType == "deactivate" ? "غیرفعال" : "فعال";
+            successMessage = $"✅ کاربر با موفقیت {actionText} شد";
+            showConfirmModal = false;
+            await LoadUsers();
         }
         catch (Exception ex)
         {

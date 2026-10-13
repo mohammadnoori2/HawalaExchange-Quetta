@@ -480,7 +480,7 @@ namespace HawalaExchange.Application.Services
                 .ToListAsync();
             var hawalaStats = await _context.Hawalas.AsNoTracking()
                 .Where(x => x.CorrespondentId == id && x.CreatedAt <= periodTo &&
-                            (last == null ? x.CreatedAt >= periodFrom : x.CreatedAt > periodFrom))
+                            !_context.CorrespondentAccountPeriodHawalas.Any(closed => closed.HawalaId == x.Id))
                 .GroupBy(_ => 1)
                 .Select(group => new
                 {
@@ -564,10 +564,10 @@ namespace HawalaExchange.Application.Services
                     BadehKar = net < 0 ? -net : 0
                 };
             }));
-            var hawalaQuery = _context.Hawalas.Where(x => x.CorrespondentId == id && x.CreatedAt <= periodTo);
-            hawalaQuery = last == null
-                ? hawalaQuery.Where(x => x.CreatedAt >= periodFrom)
-                : hawalaQuery.Where(x => x.CreatedAt > periodFrom);
+            // A newly registered bulk import can have an old hawala date. Capture
+            // every not-yet-closed record instead of leaving backdated imports open forever.
+            var hawalaQuery = _context.Hawalas.Where(x => x.CorrespondentId == id && x.CreatedAt <= periodTo &&
+                !_context.CorrespondentAccountPeriodHawalas.Any(closed => closed.HawalaId == x.Id));
             var hawalaIds = await hawalaQuery.Select(x => x.Id).ToListAsync();
             _context.CorrespondentAccountPeriodHawalas.AddRange(hawalaIds.Select(x =>
                 new CorrespondentAccountPeriodHawala { PeriodId = period.Id, HawalaId = x }));

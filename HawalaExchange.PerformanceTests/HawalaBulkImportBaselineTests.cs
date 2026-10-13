@@ -52,8 +52,10 @@ public sealed class HawalaBulkImportBaselineTests(
         Assert.Equal(3, await fixture.CreateService(context).GetNextNumberAsync(second.CorrespondentId!.Value, "HawalaSend"));
     }
 
-    [Fact]
-    public async Task Concurrent_forwarding_allocates_distinct_consecutive_destination_numbers()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Concurrent_forwarding_allocates_distinct_consecutive_destination_numbers(bool closedCredit)
     {
         long accountId;
         long destinationId;
@@ -63,6 +65,11 @@ public sealed class HawalaBulkImportBaselineTests(
             var account = await NewNumberingDestinationAsync(seed);
             accountId = account.Id;
             destinationId = account.CorrespondentId!.Value;
+            if(closedCredit)
+            {
+                AddAdjustment(seed,account.Id,2,100);await seed.SaveChangesAsync();
+                await fixture.CreateCorrespondentService(seed).ClosePeriodAsync(destinationId,new());
+            }
         }
         async Task Create(long number)
         {
@@ -73,10 +80,76 @@ public sealed class HawalaBulkImportBaselineTests(
             item.GeneratedSendHawalaNumber = null;
             await fixture.CreateService(context).CreateHawalaAsync(item);
         }
-        await Task.WhenAll(Create(96_400_001), Create(96_400_002));
+        var offset=closedCredit?10L:0L;
+        await Task.WhenAll(Create(96_400_001+offset), Create(96_400_002+offset));
         await using var verify = fixture.CreateContext();
-        Assert.Equal(new long[] { 1, 2 }, await verify.Hawalas.Where(x => x.CorrespondentId == destinationId && x.HawalaType == "HawalaSend")
+        Assert.Equal(closedCredit?new long[]{2,3}:new long[]{1,2}, await verify.Hawalas.Where(x => x.CorrespondentId == destinationId && x.HawalaType == "HawalaSend")
             .OrderBy(x => x.Number).Select(x => x.Number).ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(1, 100, 0, 2L)]
+    [InlineData(2, 0, 100, 2L)]
+    [InlineData(3, -500, 100, 2L)]
+    [InlineData(4, -500, 0, 1L)]
+    [InlineData(5, 0, 0, 1L)]
+    public async Task Closed_destination_reserves_serial_one_if_any_currency_is_credit_and_backdated_imports_continue(
+        int scenario, int usdNet, int afnNet, long firstSerial)
+    {
+        await using var context=fixture.CreateContext();using var bypass=context.BypassSubscriptionEnforcement();
+        var account=await NewNumberingDestinationAsync(context);var owner=account.CorrespondentId!.Value;
+        var initial=BuildItems(2,96_500_000+scenario*100,forceRemote:true);
+        foreach(var item in initial){item.FromAccountId=account.Id;item.GeneratedSendHawalaNumber=null;}
+        var service=fixture.CreateService(context);await service.CreateHawalasAsync(initial);
+        var oldRows=await context.Hawalas.Where(x=>x.CorrespondentId==owner&&x.HawalaType=="HawalaSend").ToListAsync();
+        var net=await context.LedgerEntries.Where(x=>x.AccountId==account.Id&&x.CurrencyId==2).SumAsync(x=>x.TalabKar-x.BadehKar);
+        AddAdjustment(context,account.Id,2,usdNet-net);AddAdjustment(context,account.Id,1,afnNet);
+        await context.SaveChangesAsync();
+        await fixture.CreateCorrespondentService(context).ClosePeriodAsync(owner,new());
+        Assert.Equal(firstSerial,await service.GetNextNumberAsync(owner,"HawalaSend"));
+        if(firstSerial==2)
+        {
+            var invalid=BuildItems(1,96_500_030+scenario*100,forceRemote:true).Single();invalid.FromAccountId=account.Id;invalid.GeneratedSendHawalaNumber=1;
+            var failure=await Assert.ThrowsAsync<InvalidOperationException>(()=>service.CreateHawalasAsync([invalid]));
+            Assert.Contains("محفوظ",failure.Message);context.ChangeTracker.Clear();
+        }
+        var added=BuildItems(2,96_500_010+scenario*100,forceRemote:true);
+        foreach(var item in added){item.FromAccountId=account.Id;item.GeneratedSendHawalaNumber=null;}
+        await service.CreateHawalasAsync(added);
+        var oldIds=oldRows.Select(x=>x.Id).ToArray();
+        Assert.Equal(new[]{firstSerial,firstSerial+1},await context.Hawalas.Where(x=>x.CorrespondentId==owner&&x.HawalaType=="HawalaSend"&&!oldIds.Contains(x.Id)).OrderBy(x=>x.Number).Select(x=>x.Number).ToArrayAsync());
+        Assert.Equal(new long[]{1,2},await context.Hawalas.Where(x=>oldIds.Contains(x.Id)).OrderBy(x=>x.Number).Select(x=>x.Number).ToArrayAsync());
+        await context.Hawalas.Where(x=>x.CorrespondentId==owner&&x.HawalaType=="HawalaSend"&&!oldIds.Contains(x.Id))
+            .ExecuteUpdateAsync(x=>x.SetProperty(h=>h.CreatedAt,DateTime.UtcNow.AddDays(-1)));
+        Assert.Equal(firstSerial+2,await service.GetNextNumberAsync(owner,"HawalaSend"));
+        var next=BuildItems(1,96_500_020+scenario*100,forceRemote:true).Single();next.FromAccountId=account.Id;next.GeneratedSendHawalaNumber=null;
+        await service.CreateHawalaAsync(next);
+        Assert.Equal(firstSerial+3,await service.GetNextNumberAsync(owner,"HawalaSend"));
+        var preview=await fixture.CreateCorrespondentService(context).GetPeriodClosePreviewAsync(owner);
+        Assert.Equal(3,preview.HawalaCount);
+        var closed=await fixture.CreateCorrespondentService(context).ClosePeriodAsync(owner,new());
+        Assert.Equal(3,closed.HawalaCount);
+        Assert.Equal(closed.Balances.Any(x=>x.TalabKar>x.BadehKar)?2L:1L,await service.GetNextNumberAsync(owner,"HawalaSend"));
+    }
+
+    [Fact]
+    public async Task Only_latest_closed_balance_controls_the_reserved_serial()
+    {
+        await using var context=fixture.CreateContext();using var bypass=context.BypassSubscriptionEnforcement();
+        var account=await NewNumberingDestinationAsync(context);var owner=account.CorrespondentId!.Value;
+        AddAdjustment(context,account.Id,2,100);await context.SaveChangesAsync();
+        await fixture.CreateCorrespondentService(context).ClosePeriodAsync(owner,new());
+        Assert.Equal(2,await fixture.CreateService(context).GetNextNumberAsync(owner,"HawalaSend"));
+        AddAdjustment(context,account.Id,2,-200);await context.SaveChangesAsync();
+        await fixture.CreateCorrespondentService(context).ClosePeriodAsync(owner,new());
+        Assert.Equal(1,await fixture.CreateService(context).GetNextNumberAsync(owner,"HawalaSend"));
+    }
+
+    private void AddAdjustment(HawalaExchange.Infrastructure.Data.ApplicationDbContext context,long accountId,long currencyId,decimal change)
+    {
+        if(change==0)return;
+        context.LedgerEntries.AddRange(new LedgerEntry{AccountId=accountId,CurrencyId=currencyId,TalabKar=Math.Max(change,0),BadehKar=Math.Max(-change,0)},
+            new LedgerEntry{AccountId=fixture.SourceAccount.Id,CurrencyId=currencyId,TalabKar=Math.Max(-change,0),BadehKar=Math.Max(change,0)});
     }
 
     private static async Task<Account> NewNumberingDestinationAsync(HawalaExchange.Infrastructure.Data.ApplicationDbContext context)

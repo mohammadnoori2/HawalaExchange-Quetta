@@ -8,7 +8,7 @@
 @inject ICorrespondentService CorrespondentService
 @inject ICorrespondentCommissionService CommissionService
 @inject NavigationManager Navigation
-@attribute [Authorize]
+@attribute [Authorize(Policy = "TenantBusiness")]
 @rendermode InteractiveServer
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(busy || calculating || loadingPage)" />
@@ -79,12 +79,12 @@
                     }
                 </div>
                 <div class="mt-3">
-                    <button class="btn-modern btn-primary-modern" disabled="@(busy || calculating)" @onclick="LoadPreview">
+                    <PermissionAction Actions="Calculate"><button class="btn-modern btn-primary-modern" disabled="@(busy || calculating)" @onclick="LoadPreview">
                         @if (calculating)
                         { <span class="spinner-border spinner-border-sm ms-1" aria-hidden="true"></span><span>در حال محاسبه...</span> }
                         else
                         { <i class="bi bi-search"></i><span>@(preview is not null && (isOutgoing || isOrigin) ? "بازمحاسبه با نرخ‌های واردشده" : "نمایش حواله‌های محاسبه‌نشده")</span> }
-                    </button>
+                    </button></PermissionAction>
                 </div>
             </div>
         </div>
@@ -196,7 +196,7 @@
                 <div class="table-card mb-4">
                     <div class="table-card-body"><div class="table-scroll-wrapper">
                         <GlobalDataGrid class="table-modern table-striped-modern">
-                            <thead><tr><th>نمبر</th><th>تاریخ</th>@if (isOutgoing || isOrigin){<th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th>@if (!isOutgoing){<th>روز تبدیل</th><th>معادل 1 USD به ارز اصلی</th><th>مبنای USD</th>}<th>@(isOutgoing ? "کمیشن به ارز اصلی" : "سهم کمیشن USD")</th></tr></thead>
+                            <thead><tr><th>نمبر مسلسل</th><th>تاریخ</th>@if (isOutgoing || isOrigin){<th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th>@if (!isOutgoing){<th>روز تبدیل</th><th>معادل 1 USD به ارز اصلی</th><th>مبنای USD</th>}<th>@(isOutgoing ? "کمیشن به ارز اصلی" : "سهم کمیشن USD")</th></tr></thead>
                             <tbody>
                             @foreach (var item in preview.Items)
                             {
@@ -227,9 +227,9 @@
                     <span>@(isOutgoing
                         ? $"پس از تأیید، مقصد {string.Join(" / ",preview.Items.GroupBy(x=>x.CurrencyCode).Select(g=>$"{g.Sum(x=>x.CommissionAfn).ToWholeMoney()} {g.Key}"))} طلبکار و هزینه شرکت ثبت می‌شود؛ فرستنده بدهکار نمی‌شود."
                         : $"پس از تأیید، نمایندگی فرستنده {preview.TotalCommissionUsd.ToWholeMoney()} USD بدهکار و درآمد کمیشن ثبت می‌شود.")</span>
-                    <button class="btn-modern btn-success-modern" disabled="@busy" @onclick="PostBatch">
+                    <PermissionAction Actions="Calculate"><button class="btn-modern btn-success-modern" disabled="@busy" @onclick="PostBatch">
                         <i class="bi bi-check2-circle"></i> تأیید و ثبت حسابداری
-                    </button>
+                    </button></PermissionAction>
                 </div>
             }
         }
@@ -259,7 +259,7 @@
                                         <i class="bi bi-eye"></i> جزئیات
                                     </button>
                                     @if (batch.Status == "Posted")
-                                    {<button class="btn btn-sm btn-outline-danger" @onclick="() => SelectReverse(batch.Id)">برگشت</button>}
+                                    {<PermissionAction Actions="Reverse"><button class="btn btn-sm btn-outline-danger" @onclick="() => SelectReverse(batch.Id)">برگشت</button></PermissionAction>}
                                 </div></td></tr>
                             @if (isOrigin && batch.LocationSummaries.Count > 0)
                             {
@@ -387,7 +387,7 @@
                 {
                 <h6 class="fw-bold mb-3">جزئیات تمام حواله‌ها</h6>
                 <div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle">
-                    <thead><tr><th>نمبر</th><th>تاریخ</th>@if (detailsOutgoing || detailsOrigin){<th>منبع حواله</th><th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th>@if (!detailsOutgoing || legacyOutgoing){<th>روز نرخ</th><th>نرخ روز</th>}<th>@(detailsOutgoing ? "کمیشن" : "مبنای USD")</th>@if (!detailsOutgoing || legacyOutgoing){<th>@(legacyOutgoing ? "معادل USD در ثبت قبلی" : "سهم کمیشن USD")</th>}<th>وضعیت</th></tr></thead>
+                    <thead><tr><th>نمبر مسلسل</th><th>تاریخ</th>@if (detailsOutgoing || detailsOrigin){<th>منبع حواله</th><th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th>@if (!detailsOutgoing || legacyOutgoing){<th>روز نرخ</th><th>نرخ روز</th>}<th>@(detailsOutgoing ? "کمیشن" : "مبنای USD")</th>@if (!detailsOutgoing || legacyOutgoing){<th>@(legacyOutgoing ? "معادل USD در ثبت قبلی" : "سهم کمیشن USD")</th>}<th>وضعیت</th></tr></thead>
                     <tbody>@foreach (var item in selectedDetails.Items)
                     {
                         <tr class="@(!item.IsActive ? "table-secondary" : null)">
@@ -436,7 +436,7 @@
         <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
             <div class="modal-header"><h5 class="modal-title">برگشت محاسبه کمیشن</h5></div>
             <div class="modal-body"><label class="form-label">دلیل برگشت</label><textarea class="form-control" @bind="reverseReason"></textarea></div>
-            <div class="modal-footer"><button class="btn btn-light" @onclick="CancelReverse">انصراف</button><button class="btn btn-danger" disabled="@busy" @onclick="ReverseBatch">تأیید برگشت</button></div>
+            <div class="modal-footer"><button class="btn btn-light" @onclick="CancelReverse">انصراف</button><PermissionAction Actions="Reverse"><button class="btn btn-danger" disabled="@busy" @onclick="ReverseBatch">تأیید برگشت</button></PermissionAction></div>
         </div></div>
     </div>
 }

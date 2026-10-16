@@ -13,7 +13,7 @@
 <div class="page-wrapper">
     <div class="page-header">
         <div>
-            <h5 class="page-title"><i class="bi bi-receipt-cutoff"></i> مالی و فاکتورهای SaaS</h5>
+            <h1 class="page-title">فاکتورها و پرداخت‌ها</h1>
             <span class="page-subtitle">درآمد دوره‌ای، مطالبات، فاکتورها و پرداخت‌های اشتراک</span>
         </div>
         <button class="btn-modern btn-primary-modern" @onclick="OpenCreate"><i class="bi bi-plus-circle"></i> فاکتور جدید</button>
@@ -31,8 +31,8 @@
         {
             <div class="mb-2 fw-bold text-muted">گزارش به واحد @summary.CurrencyCode</div>
             <PageHeaderStats AriaLabel="@($"آمار مالی {summary.CurrencyCode}")">
-                <PageHeaderStat Label="MRR" Value="@Money(summary.Mrr, summary.CurrencyCode)" Icon="bi-graph-up-arrow" />
-                <PageHeaderStat Label="ARR" Value="@Money(summary.Arr, summary.CurrencyCode)" Icon="bi-calendar2-check" Tone="info" />
+                <PageHeaderStat Label="درآمد تکرارشونده ماهانه" Value="@Money(summary.Mrr, summary.CurrencyCode)" Icon="bi-graph-up-arrow" />
+                <PageHeaderStat Label="درآمد سالانه برآوردی" Value="@Money(summary.Arr, summary.CurrencyCode)" Icon="bi-calendar2-check" Tone="info" />
                 <PageHeaderStat Label="وصولی ماه" Value="@Money(summary.CollectedThisMonth, summary.CurrencyCode)" Icon="bi-cash-stack" Tone="success" />
                 <PageHeaderStat Label="مطالبات باز" Value="@Money(summary.Outstanding, summary.CurrencyCode)" Icon="bi-wallet2" Tone="warning" />
                 <PageHeaderStat Label="فاکتور ماه" Value="@Money(summary.BilledThisMonth, summary.CurrencyCode)" Icon="bi-receipt" />

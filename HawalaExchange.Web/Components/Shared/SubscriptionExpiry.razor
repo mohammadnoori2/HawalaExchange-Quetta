@@ -1,0 +1,25 @@
+@using HawalaExchange.Application.Helpers
+
+@if(EndAt.HasValue && EndAt != DateTime.MinValue)
+{
+    <time datetime="@IsoEnd"
+          title="@ExactDate" aria-label="@($"{Label}؛ {ExactDate}")">@Label</time>
+}
+else
+{
+    <span class="text-muted">@Label</span>
+}
+
+@code {
+    [Parameter] public DateTime? EndAt { get; set; }
+    private string Label => SubscriptionExpiryText.Format(EndAt, DateTime.UtcNow);
+    private string IsoEnd => (EndAt!.Value.Kind == DateTimeKind.Local ? EndAt.Value.ToUniversalTime() : DateTime.SpecifyKind(EndAt.Value, DateTimeKind.Utc)).ToString("O", System.Globalization.CultureInfo.InvariantCulture);
+    private string ExactDate
+    {
+        get
+        {
+            var local = SubscriptionExpiryText.LocalDateTime(EndAt!.Value);
+            return $"تاریخ دقیق پایان: {DisplayDates.Date(local)} {local.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture)} به وقت کابل";
+        }
+    }
+}

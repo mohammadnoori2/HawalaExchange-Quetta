@@ -1,0 +1,19 @@
+@inherits LayoutComponentBase
+@layout MainLayout
+@inject NavigationManager Navigation
+
+<div class="platform-workspace" dir="rtl">
+    <a class="platform-skip-link" href="@(Navigation.Uri.Split('#')[0] + "#platform-content")">رفتن به محتوای صفحه</a>
+    <header class="platform-topbar no-print">
+        <a class="platform-home" href="/platform">
+            <span class="platform-brand-mark" aria-hidden="true"><i class="bi bi-buildings"></i></span>
+            <span><strong>مدیریت پلتفرم</strong><small>Kabul Code Lab</small></span>
+        </a>
+        <AuthorizeView Context="platformIdentity">
+            <span class="platform-identity"><i class="bi bi-person-circle" aria-hidden="true"></i><span>@platformIdentity.User.Identity?.Name</span></span>
+        </AuthorizeView>
+    </header>
+    <div id="platform-content" class="platform-content" tabindex="-1">
+        @Body
+    </div>
+</div>

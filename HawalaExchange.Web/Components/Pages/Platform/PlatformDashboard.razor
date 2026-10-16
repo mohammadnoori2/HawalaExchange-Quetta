@@ -7,60 +7,64 @@
 @inject ISaasAdministrationService SaasService
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
-<PageTitle>مدیریت مرکزی SaaS</PageTitle>
+<PageTitle>نمای کلی پلتفرم</PageTitle>
 
 <div class="page-wrapper">
     <div class="page-header">
         <div>
-            <h5 class="page-title"><i class="bi bi-grid-1x2"></i> مدیریت مرکزی SaaS</h5>
-            <span class="page-subtitle">نمای کلی صرافی‌ها، اشتراک‌ها و درآمد سیستم</span>
+            <h1 class="page-title">نمای کلی پلتفرم</h1>
+            <span class="page-subtitle">وضعیت صرافی‌ها را ببینید و کار بعدی را از همین‌جا شروع کنید.</span>
         </div>
-        <PageHeaderStats AriaLabel="آمار مدیریت مرکزی">
-            <PageHeaderStat Label="صرافی‌ها" Value="@dashboard.TotalTenants" Icon="bi-buildings" />
-            <PageHeaderStat Label="فعال" Value="@dashboard.ActiveTenants" Icon="bi-check-circle" Tone="success" />
-            <PageHeaderStat Label="آزمایشی" Value="@dashboard.TrialTenants" Icon="bi-hourglass-split" Tone="info" />
-            <PageHeaderStat Label="نزدیک انقضا" Value="@dashboard.ExpiringSoonTenants" Icon="bi-clock-history" Tone="warning" />
-            <PageHeaderStat Label="منقضی" Value="@dashboard.ExpiredTenants" Icon="bi-x-circle" Tone="danger" />
-            <PageHeaderStat Label="تعلیق" Value="@dashboard.SuspendedTenants" Icon="bi-pause-circle" Tone="neutral" />
-            <PageHeaderStat Label="کاربران" Value="@dashboard.TotalUsers" Icon="bi-people" />
-            <PageHeaderStat Label="درآمد ماه" Value="@dashboard.CollectedRevenueThisMonth.ToWholeMoney()" Icon="bi-cash-stack" Tone="success" />
-        </PageHeaderStats>
         <div class="page-actions">
-            <AuthorizeView Policy="PlatformImpersonate"><a class="btn-modern btn-light-modern" href="/platform/tenant-management">جستجوی سراسری و مدیریت اختصاصی صرافی‌ها</a></AuthorizeView>
-            <a class="btn-modern btn-light-modern" href="/platform/plans"><i class="bi bi-box-seam"></i> پلن‌ها</a>
-            <a class="btn-modern btn-primary-modern" href="/tenants"><i class="bi bi-plus-circle"></i> مدیریت صرافی‌ها</a>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" />
+            <AuthorizeView Policy="PlatformWrite"><a class="btn-modern btn-primary-modern" href="/tenants"><i class="bi bi-buildings" aria-hidden="true"></i> مدیریت صرافی‌ها</a></AuthorizeView>
         </div>
     </div>
 
     @if (isLoading)
     {
-        <div class="modern-card p-5 text-center">در حال بارگذاری داشبورد...</div>
+        <div class="modern-card p-5 text-center" role="status"><span class="spinner-border spinner-border-sm ms-2" aria-hidden="true"></span>در حال دریافت وضعیت صرافی‌ها...</div>
     }
     else if (!string.IsNullOrWhiteSpace(errorMessage))
     {
-        <div class="alert alert-danger">@errorMessage</div>
+        <div class="alert alert-danger" role="alert">@errorMessage <span>برای تلاش دوباره، بروزرسانی را بزنید.</span></div>
     }
     else
     {
+        <section class="platform-metrics" aria-label="آمار کلی پلتفرم">
+            <div class="platform-metric"><i class="bi bi-buildings" aria-hidden="true"></i><div><span>تمام صرافی‌ها</span><strong>@Number(dashboard.TotalTenants)</strong><small>ثبت‌شده در پلتفرم</small></div></div>
+            <div class="platform-metric"><i class="bi bi-check-circle" aria-hidden="true"></i><div><span>اشتراک‌های فعال</span><strong>@Number(dashboard.ActiveTenants)</strong><small>صرافی‌های دارای اشتراک فعال</small></div></div>
+            <div class="platform-metric"><i class="bi bi-clock-history" aria-hidden="true"></i><div><span>نیازمند پیگیری تمدید</span><strong>@Number(dashboard.ExpiringSoonTenants)</strong><small>تعداد اشتراک‌های در آستانه پایان</small></div></div>
+            <div class="platform-metric"><i class="bi bi-people" aria-hidden="true"></i><div><span>کاربران صرافی‌ها</span><strong>@Number(dashboard.TotalUsers)</strong><small>مجموع کاربران ثبت‌شده</small></div></div>
+        </section>
+        <div class="platform-status-strip" aria-label="سایر وضعیت‌های اشتراک">
+            <span>آزمایشی <strong>@Number(dashboard.TrialTenants)</strong></span>
+            <span>منقضی <strong class="text-danger">@Number(dashboard.ExpiredTenants)</strong></span>
+            <span>تعلیق‌شده <strong>@Number(dashboard.SuspendedTenants)</strong></span>
+        </div>
+        <nav class="platform-shortcuts" aria-label="دسترسی سریع مدیریت">
+            <AuthorizeView Policy="PlatformImpersonate"><a class="platform-shortcut" href="/platform/tenant-management"><i class="bi bi-search" aria-hidden="true"></i><span><strong>پیداکردن صرافی یا کاربر</strong><small>جستجو، صلاحیت‌ها و پشتیبانی کاربران</small></span></a></AuthorizeView>
+            <AuthorizeView Policy="PlatformBilling"><a class="platform-shortcut" href="/platform/billing"><i class="bi bi-receipt" aria-hidden="true"></i><span><strong>فاکتورها و پرداخت‌ها</strong><small>درآمد و مطالبات به تفکیک ارز</small></span></a></AuthorizeView>
+            <a class="platform-shortcut" href="/platform/reports"><i class="bi bi-bar-chart-line" aria-hidden="true"></i><span><strong>گزارش‌های مدیریتی</strong><small>رشد پلتفرم و وضعیت اشتراک‌ها</small></span></a>
+        </nav>
         <div class="modern-card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">آخرین صرافی‌های ثبت‌شده</h6>
-                <a href="/tenants">مشاهده همه</a>
+                <h2 class="h6 mb-0">آخرین صرافی‌های ثبت‌شده</h2>
+                <AuthorizeView Policy="PlatformWrite"><a href="/tenants">مشاهده همه صرافی‌ها <i class="bi bi-arrow-left" aria-hidden="true"></i></a></AuthorizeView>
             </div>
             <div class="table-responsive">
                 <GlobalDataGrid class="table modern-table mb-0">
-                    <thead><tr><th>صرافی</th><th>پلن</th><th>اشتراک</th><th>پایان</th><th>کاربران</th><th>شعبه‌ها</th></tr></thead>
+                    <thead><tr><th>صرافی</th><th>پلن</th><th>وضعیت و اعتبار اشتراک</th><th>کاربران</th><th>شعبه‌ها</th></tr></thead>
                     <tbody>
+                        @if(dashboard.RecentTenants.Count == 0){<tr><td colspan="5" class="platform-empty">هنوز صرافی‌ای ثبت نشده است.</td></tr>}
                         @foreach (var tenant in dashboard.RecentTenants)
                         {
                             <tr>
-                                <td class="fw-bold">@tenant.Name</td>
+                                <td class="fw-bold"><AuthorizeView Policy="PlatformImpersonate"><Authorized><a href="@($"/platform/tenant-management/{tenant.Id}")">@tenant.Name</a></Authorized><NotAuthorized>@tenant.Name</NotAuthorized></AuthorizeView></td>
                                 <td>@(tenant.PlanName ?? "بدون پلن")</td>
-                                <td><span class="badge-modern @GetStatusBadge(tenant.SubscriptionStatus)">@GetStatusText(tenant.SubscriptionStatus)</span></td>
-                                <td>@(DisplayDates.Date(tenant.SubscriptionEndAt, "-"))</td>
-                                <td>@tenant.UserCount</td>
-                                <td>@tenant.BranchCount</td>
+                                <td data-sort-value="@tenant.SubscriptionEndAt?.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture)"><span class="badge-modern @GetStatusBadge(tenant.SubscriptionStatus)">@GetStatusText(tenant.SubscriptionStatus)</span><div><SubscriptionExpiry EndAt="tenant.SubscriptionEndAt" /></div></td>
+                                <td>@Number(tenant.UserCount)</td>
+                                <td>@Number(tenant.BranchCount)</td>
                             </tr>
                         }
                     </tbody>
@@ -74,7 +78,10 @@
     private async Task RefreshPageDataAsync()
     {
         dashboard = await SaasService.GetDashboardReadOnlyAsync();
+        errorMessage = null;
+        isLoading = false;
     }
+    private static string Number(int value) => value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
     private SaasDashboardDto dashboard = new();
     private bool isLoading = true;
     private string? errorMessage;
@@ -90,7 +97,7 @@
     {
         SubscriptionStatus.Trial => "آزمایشی",
         SubscriptionStatus.Active => "فعال",
-        SubscriptionStatus.ExpiringSoon => "نزدیک انقضا",
+        SubscriptionStatus.ExpiringSoon => "فعال",
         SubscriptionStatus.Expired => "منقضی",
         SubscriptionStatus.Suspended => "تعلیق",
         SubscriptionStatus.Cancelled => "لغوشده",

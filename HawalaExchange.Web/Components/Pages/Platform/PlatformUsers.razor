@@ -13,8 +13,8 @@
 <div class="page-wrapper">
     <div class="page-header">
         <div>
-            <h5 class="page-title"><i class="bi bi-person-gear"></i> مدیران پلتفرم</h5>
-            <span class="page-subtitle">حساب‌های مستقل تیم مالک SaaS</span>
+            <h1 class="page-title">مدیران پلتفرم</h1>
+            <span class="page-subtitle">حساب‌های تیم مدیریت مرکزی؛ مستقل از کاربران صرافی‌ها</span>
         </div>
         <button class="btn-modern btn-primary-modern" @onclick="OpenCreate"><i class="bi bi-person-plus"></i> مدیر جدید</button>
     </div>
@@ -49,16 +49,16 @@
 {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
         <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">مدیر جدید پلتفرم</h5><button class="btn-close" @onclick="CloseCreate"></button></div>
+            <div class="modal-header"><h5 class="modal-title">مدیر جدید پلتفرم</h5><button class="btn-close" aria-label="بستن فرم مدیر جدید" disabled="@saving" @onclick="CloseCreate"></button></div>
             <EditForm EditContext="editContext" FormName="create-platform-user">
                 <DataAnnotationsValidator />
                 <div class="modal-body">
                     <ValidationSummary class="text-danger" />
-                    <div class="mb-3"><label class="form-label">نام کامل</label><InputText class="form-control" @bind-Value="model.FullName" /></div>
-                    <div class="mb-3"><label class="form-label">نام کاربری</label><InputText class="form-control" @bind-Value="model.UserName" /></div>
-                    <div class="mb-3"><label class="form-label">ایمیل</label><InputText class="form-control" @bind-Value="model.Email" /></div>
-                    <div class="mb-3"><label class="form-label">رمز عبور</label><InputText type="password" class="form-control" @bind-Value="model.Password" /></div>
-                    <div class="mb-3"><label class="form-label">نقش</label><InputSelect class="form-select" @bind-Value="model.Role">@foreach (var role in PlatformRoles.All){<option value="@role">@RoleLabel(role)</option>}</InputSelect></div>
+                    <div class="mb-3"><label for="platform-user-name" class="form-label">نام کامل</label><InputText id="platform-user-name" class="form-control" @bind-Value="model.FullName" /></div>
+                    <div class="mb-3"><label for="platform-user-login" class="form-label">نام کاربری</label><InputText id="platform-user-login" class="form-control" @bind-Value="model.UserName" /></div>
+                    <div class="mb-3"><label for="platform-user-email" class="form-label">ایمیل</label><InputText id="platform-user-email" type="email" dir="ltr" class="form-control" @bind-Value="model.Email" /></div>
+                    <div class="mb-3"><label for="platform-user-password" class="form-label">رمز عبور</label><InputText id="platform-user-password" type="password" autocomplete="new-password" class="form-control" @bind-Value="model.Password" /></div>
+                    <div class="mb-3"><label for="platform-user-role" class="form-label">نقش</label><InputSelect id="platform-user-role" class="form-select" @bind-Value="model.Role">@foreach (var role in PlatformRoles.All){<option value="@role">@RoleLabel(role)</option>}</InputSelect></div>
                 </div>
                 <div class="modal-footer"><button type="button" class="btn-modern btn-light-modern" @onclick="CloseCreate">انصراف</button><button type="button" class="btn-modern btn-primary-modern" disabled="@saving" @onclick="CreateAsync">ذخیره</button></div>
             </EditForm>

@@ -12,7 +12,7 @@
 <div class="page-wrapper">
     <div class="page-header">
         <div>
-            <h5 class="page-title"><i class="bi bi-box-seam"></i> پلن‌های اشتراک</h5>
+            <h1 class="page-title">پلن‌های اشتراک</h1>
             <span class="page-subtitle">قیمت، ظرفیت و قابلیت‌های هر پلن را مدیریت کنید</span>
         </div>
         <button class="btn-modern btn-primary-modern" @onclick="OpenCreate"><i class="bi bi-plus-circle"></i> پلن جدید</button>
@@ -65,7 +65,7 @@
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)">
         <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">@(editingId == 0 ? "ایجاد پلن" : "ویرایش پلن")</h5><button type="button" class="btn-close" @onclick="CloseModal"></button></div>
+                <div class="modal-header"><h5 class="modal-title">@(editingId == 0 ? "ایجاد پلن" : "ویرایش پلن")</h5><button type="button" class="btn-close" aria-label="بستن فرم پلن" disabled="@isSaving" @onclick="CloseModal"></button></div>
                 <EditForm EditContext="editContext" FormName="save-subscription-plan">
                     <DataAnnotationsValidator />
                     <div class="modal-body">

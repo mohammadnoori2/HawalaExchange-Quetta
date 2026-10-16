@@ -1,6 +1,13 @@
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject HawalaExchange.Web.Services.UiConnectionState Connection
+@inject ILogger<AppActionMenu> Logger
+@inject Microsoft.Extensions.Options.IOptions<Microsoft.AspNetCore.Components.Server.CircuitOptions> CircuitOptions
 
 <div class="configurable-action-menu" @onclick:stopPropagation="true"
      data-action-preference-key="@effectivePreferenceKey"
@@ -97,6 +104,10 @@
     private bool positionAfterRender;
     private bool refreshQuickActionsAfterRender = true;
     private bool isConfiguring;
+    private bool disposed;
+    private bool preparing;
+    private bool prepareAfterCurrent;
+    private readonly CancellationTokenSource lifetime = new();
     private List<ActionMenuOption> availableActions = new();
     private HashSet<string> selectedActionKeys = new(StringComparer.Ordinal);
     private DotNetObjectReference<AppActionMenu>? dotNetReference;
@@ -124,8 +135,57 @@
         }
     }
 
+    protected override void OnInitialized() => Connection.Changed += ConnectionChanged;
+
+    private void ConnectionChanged()
+    {
+        if (disposed) return;
+        _ = InvokeAsync(() =>
+        {
+            if (disposed) return;
+            refreshQuickActionsAfterRender = true;
+            positionAfterRender = isOpen;
+            if (Connection.IsConnected)
+            {
+                if (preparing) prepareAfterCurrent = true;
+                else StateHasChanged();
+            }
+        });
+    }
+
+    private async Task<(bool Success, T? Value)> TryInvokeAsync<T>(string identifier, params object?[] arguments)
+    {
+        if (disposed || !Connection.IsConnected) return (false, default);
+        var connectionToken = Connection.ConnectionToken;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, connectionToken);
+        // Supplying our own token bypasses JSRuntime's implicit timeout, so retain the configured limit explicitly.
+        cancellation.CancelAfter(CircuitOptions.Value.JSInteropDefaultCallTimeout);
+        try
+        {
+            var value = await JS.InvokeAsync<T>(identifier, cancellation.Token, arguments);
+            return (!disposed && !cancellation.IsCancellationRequested, value);
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed) refreshQuickActionsAfterRender = true;
+            return (false, default);
+        }
+        catch (OperationCanceledException)
+        {
+            if (!disposed)
+            {
+                refreshQuickActionsAfterRender = true;
+                if (!lifetime.IsCancellationRequested && !connectionToken.IsCancellationRequested)
+                    Logger.LogWarning("Browser UI call {Identifier} timed out; menu will retry on reconnect or next interaction.", identifier);
+            }
+            return (false, default);
+        }
+        // Other JS exceptions are intentionally not swallowed: broken scripts must remain observable.
+    }
+
     private async Task ToggleAsync()
     {
+        if (disposed) return;
         if (isOpen)
         {
             await CloseMenuAsync();
@@ -139,28 +199,44 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender || refreshQuickActionsAfterRender)
+        if (disposed || !Connection.IsConnected || preparing) return;
+        preparing = true;
+        try
         {
-            refreshQuickActionsAfterRender = false;
-            await JS.InvokeVoidAsync(
-                "hawalaTools.syncOperationMenuQuickActions",
-                menuId,
-                quickHostId,
-                effectivePreferenceKey,
-                DefaultQuickActions);
+            if (firstRender || refreshQuickActionsAfterRender)
+            {
+                var sync = await TryInvokeAsync<object>(
+                    "hawalaTools.syncOperationMenuQuickActions",
+                    menuId,
+                    quickHostId,
+                    effectivePreferenceKey,
+                    DefaultQuickActions);
+                if (!sync.Success) return;
+                refreshQuickActionsAfterRender = false;
+            }
+
+            if (!isOpen || !positionAfterRender)
+                return;
+
+            dotNetReference ??= DotNetObjectReference.Create(this);
+            var opened = await TryInvokeAsync<object>("hawalaTools.openOperationMenu", buttonId, menuId, dotNetReference);
+            if (opened.Success) positionAfterRender = false;
         }
-
-        if (!isOpen || !positionAfterRender)
-            return;
-
-        positionAfterRender = false;
-        dotNetReference ??= DotNetObjectReference.Create(this);
-        await JS.InvokeVoidAsync("hawalaTools.openOperationMenu", buttonId, menuId, dotNetReference);
+        finally
+        {
+            preparing = false;
+            if (prepareAfterCurrent && !disposed && Connection.IsConnected)
+            {
+                prepareAfterCurrent = false;
+                StateHasChanged();
+            }
+        }
     }
 
     [JSInvokable]
-    public Task CloseFromJs() => InvokeAsync(() =>
+    public Task CloseFromJs() => disposed ? Task.CompletedTask : InvokeAsync(() =>
     {
+        if (disposed) return;
         isOpen = false;
         isConfiguring = false;
         positionAfterRender = false;
@@ -169,22 +245,25 @@
 
     private async Task CloseMenuAsync()
     {
-        if (!isOpen)
+        if (disposed || !isOpen)
             return;
 
         isOpen = false;
         isConfiguring = false;
         positionAfterRender = false;
-        await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", menuId);
+        await TryInvokeAsync<object>("hawalaTools.closeOperationMenu", menuId);
     }
 
     private async Task OpenSettingsAsync()
     {
-        var options = await JS.InvokeAsync<List<ActionMenuOption>>(
+        var result = await TryInvokeAsync<List<ActionMenuOption>>(
             "hawalaTools.getOperationMenuOptions",
             menuId,
             effectivePreferenceKey,
             DefaultQuickActions);
+
+        if (!result.Success) return;
+        var options = result.Value ?? [];
 
         availableActions = options;
         selectedActionKeys = options
@@ -205,10 +284,11 @@
 
     private async Task SaveSettingsAsync()
     {
-        await JS.InvokeVoidAsync(
+        var saved = await TryInvokeAsync<object>(
             "hawalaTools.saveOperationMenuPreferences",
             effectivePreferenceKey,
             selectedActionKeys.ToArray());
+        if (!saved.Success) return;
         isConfiguring = false;
         refreshQuickActionsAfterRender = true;
         positionAfterRender = true;
@@ -216,25 +296,39 @@
 
     private Task CancelSettingsAsync()
     {
+        if (disposed) return Task.CompletedTask;
         isConfiguring = false;
+        refreshQuickActionsAfterRender = true;
         positionAfterRender = true;
         return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (dotNetReference is null)
-            return;
+        if (disposed) return;
+        disposed = true;
+        Connection.Changed -= ConnectionChanged;
+        lifetime.Cancel();
 
         try
         {
-            await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", menuId);
+            if (dotNetReference is not null && Connection.IsConnected)
+            {
+                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await JS.InvokeVoidAsync("hawalaTools.closeOperationMenu", cleanup.Token, menuId);
+            }
         }
         catch (JSDisconnectedException)
         {
         }
-
-        dotNetReference.Dispose();
+        catch (OperationCanceledException) { }
+        catch (JSException error) { Logger.LogError(error, "Could not clean up browser operation menu."); }
+        finally
+        {
+            dotNetReference?.Dispose();
+            dotNetReference = null;
+            lifetime.Dispose();
+        }
     }
 
     private sealed class ActionMenuOption

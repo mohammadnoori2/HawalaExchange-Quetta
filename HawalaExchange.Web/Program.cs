@@ -255,6 +255,8 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
             app.UseHsts();
         }
 
+        // Must wrap authentication as session validation opens a cancellable SQL connection.
+        app.UseMiddleware<AbortedRequestMiddleware>();
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
         app.UseRequestLocalization();
         app.UseHttpsRedirection();

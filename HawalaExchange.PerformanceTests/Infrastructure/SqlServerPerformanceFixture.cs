@@ -43,6 +43,9 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
     internal async Task InitializeDatabaseAsync(string? targetMigration)
     {
         EnsureSafeDatabaseName();
+        var template=Environment.GetEnvironmentVariable("HAWALA_TEST_TEMPLATE_BACKUP");
+        // Historical migration tests intentionally start at an older schema; never downgrade real copied data.
+        if(targetMigration is null && !string.IsNullOrWhiteSpace(template))await RestoreTemplateAsync(template);
         await using var context = CreateContext();
         await context.GetService<IMigrator>().MigrateAsync(targetMigration);
 
@@ -126,6 +129,39 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
             .EnableDetailedErrors()
             .Options;
         return new ApplicationDbContext(options, currentTenant);
+    }
+
+    private async Task RestoreTemplateAsync(string backup)
+    {
+        EnsureSafeDatabaseName();
+        var builder=new SqlConnectionStringBuilder(connectionString){InitialCatalog="master"};
+        if(builder.DataSource is not ("." or "localhost" or "(local)"))throw new InvalidOperationException("Copied-data tests are restricted to the local SQL instance.");
+        if(!Path.IsPathFullyQualified(backup) || !File.Exists(backup) || !backup.EndsWith(".bak",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("A local verified backup is required.");
+        await using var sql=new SqlConnection(builder.ConnectionString);await sql.OpenAsync();
+        static string Literal(string value)=>"N'"+value.Replace("'","''")+"'";
+        await using var exists=sql.CreateCommand();exists.CommandText="SELECT COUNT(*) FROM sys.databases WHERE name=@name";exists.Parameters.AddWithValue("@name",DatabaseName);
+        if(Convert.ToInt32(await exists.ExecuteScalarAsync())!=0)throw new InvalidOperationException("Test database already exists; refusing to overwrite it.");
+        await using var paths=sql.CreateCommand();paths.CommandText="SELECT CONVERT(nvarchar(4000),SERVERPROPERTY('InstanceDefaultDataPath')),CONVERT(nvarchar(4000),SERVERPROPERTY('InstanceDefaultLogPath'))";
+        string dataPath,logPath;
+        await using(var reader=await paths.ExecuteReaderAsync()){await reader.ReadAsync();dataPath=reader.GetString(0);logPath=reader.GetString(1);}
+        await using var files=sql.CreateCommand();files.CommandText="RESTORE FILELISTONLY FROM DISK=@backup";files.Parameters.AddWithValue("@backup",backup);
+        var moves=new List<string>();
+        await using(var reader=await files.ExecuteReaderAsync())
+        {
+            while(await reader.ReadAsync())
+            {
+                var type=(string)reader["Type"];if(type is not ("D" or "L"))throw new InvalidOperationException("Unsupported restore file type.");
+                var id=Convert.ToInt32(reader["FileId"]);var extension=type=="L"?".ldf":id==1?".mdf":".ndf";
+                var destination=Path.Combine(type=="L"?logPath:dataPath,$"{DatabaseName}_{id}{extension}");
+                if(File.Exists(destination))throw new InvalidOperationException("Test restore file already exists.");
+                moves.Add($"MOVE {Literal((string)reader["LogicalName"])} TO {Literal(destination)}");
+            }
+        }
+        await using var restore=sql.CreateCommand();restore.CommandTimeout=600;
+        restore.CommandText=$"RESTORE DATABASE [{DatabaseName}] FROM DISK=@backup WITH {string.Join(',',moves)},CHECKSUM,RECOVERY";restore.Parameters.AddWithValue("@backup",backup);
+        await restore.ExecuteNonQueryAsync();
+        await using var broker=sql.CreateCommand();broker.CommandText=$"ALTER DATABASE [{DatabaseName}] SET DISABLE_BROKER WITH NO_WAIT";await broker.ExecuteNonQueryAsync();
     }
 
     public HawalaService CreateService(ApplicationDbContext context)

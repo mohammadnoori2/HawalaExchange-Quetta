@@ -64,7 +64,9 @@ public sealed class SettlementBasedCommissionTests : IAsyncLifetime
     {
         await using var context=fixture.CreateContext();using var bypass=context.BypassSubscriptionEnforcement();
         var pkr=await context.Currencies.SingleAsync(x=>x.Code=="PKR");var day=DateTime.Today.AddDays(-1);
-        context.CompanySettings.Add(new CompanySetting{CompanyName="Test",OwnPaymentLocationId=fixture.OwnLocation.Id});await context.SaveChangesAsync();
+        var settings=await context.CompanySettings.FirstOrDefaultAsync();
+        if(settings is null){settings=new CompanySetting{CompanyName="Test"};context.CompanySettings.Add(settings);}
+        settings.OwnPaymentLocationId=fixture.OwnLocation.Id;await context.SaveChangesAsync();
         var parent=await Seed(context,pkr.Id,60000m,day,20);
         await fixture.CreateSettlementService(context).ConvertHawalasAsync(new(){CorrespondentId=fixture.SourceCorrespondent.Id,HawalaIds=[parent.Id],HawalaRates=[new(){HawalaId=parent.Id,SourceCurrencyId=pkr.Id,Rate=228}]});
         var sent=new Hawala{Number=89_000_021,HawalaType="HawalaSend",CorrespondentId=fixture.DestinationCorrespondent.Id,SourceHawalaId=parent.Id,IsSystemGenerated=true,

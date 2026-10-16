@@ -28,8 +28,9 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         await fixture.InitializeAsync();
         await using var context = fixture.CreateContext();
         using var bypass = context.BypassSubscriptionEnforcement();
-        var settings = new CompanySetting { CompanyName = "Queue Test", OwnPaymentLocationId = fixture.OwnLocation.Id };
-        context.CompanySettings.Add(settings);
+        var settings = await context.CompanySettings.FirstOrDefaultAsync();
+        if(settings is null){settings=new CompanySetting{CompanyName="Queue Test"};context.CompanySettings.Add(settings);}
+        settings.OwnPaymentLocationId=fixture.OwnLocation.Id;
         await context.SaveChangesAsync();
         var name = fixture.DatabaseName;
         Assert.StartsWith("HawalaExchangeQuettaPerformanceTests_", name);

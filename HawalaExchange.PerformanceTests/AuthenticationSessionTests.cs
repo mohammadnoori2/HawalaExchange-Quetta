@@ -19,6 +19,15 @@ namespace HawalaExchange.PerformanceTests;
 [Collection(SqlServerPerformanceCollection.Name)]
 public sealed class AuthenticationSessionTests(SqlServerPerformanceFixture fixture)
 {
+    [Fact]
+    public async Task Force_logout_rejects_a_recent_cookie_without_waiting_for_the_stamp_renewal_interval()
+    {
+        var user=await CreateUser();using var provider=Services();await using var scope=provider.CreateAsyncScope();
+        var principal=await scope.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>().CreateUserPrincipalAsync(user);
+        await using var db=fixture.CreateContext();
+        await db.Users.IgnoreQueryFilters().Where(x=>x.Id==user.Id).ExecuteUpdateAsync(x=>x.SetProperty(u=>u.SecurityStamp,"forced-signout"));
+        var result=await Authenticate(provider,user,1,principal);Assert.False(result.Principal.Identity?.IsAuthenticated??false);
+    }
     [Theory]
     [InlineData(false, 31)]
     [InlineData(true, 31)]

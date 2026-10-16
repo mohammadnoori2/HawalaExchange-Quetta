@@ -1,0 +1,13 @@
+@inherits ComponentBase
+@using HawalaExchange.Web.Services
+@using System.Security.Claims
+<AuthorizeView Context="impersonationAuth">
+    @if (ImpersonationIdentity.IsActive(impersonationAuth.User))
+    {
+        <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 m-2" role="status" dir="rtl">
+            <span><strong>ورود به‌جای کاربر فعال است</strong> — مدیر: @impersonationAuth.User.FindFirstValue(ImpersonationIdentity.ActorNameClaim)؛ کاربر: @impersonationAuth.User.FindFirstValue("local_user_name"). عملیات مطابق صلاحیت این کاربر و واقعی است.</span>
+            <form method="post" action="/impersonation/stop" data-enhance="false"><AntiforgeryToken /><button type="submit" class="btn btn-dark btn-sm">پایان و بازگشت به مدیریت SaaS</button></form>
+            <a href="/impersonation/return" class="small">صفحه تأیید بازگشت (اگر نشست کاربر تغییر کرده است)</a>
+        </div>
+    }
+</AuthorizeView>

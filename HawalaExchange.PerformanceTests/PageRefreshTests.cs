@@ -74,7 +74,13 @@ public sealed class PageRefreshTests(SqlServerPerformanceFixture fixture)
         var pages = files.Where(path => Path.GetFileName(path) != "Counter.razor").Select(File.ReadAllText)
             .Where(text => text.StartsWith("@page ") && text.Contains("@rendermode InteractiveServer")).ToList();
         Assert.True(pages.Count >= 48);
-        Assert.All(pages, text => { Assert.Contains("<PageRefreshButton Refresh=\"RefreshPageDataAsync\"", text); Assert.Contains("private async Task RefreshPageDataAsync()", text); });
+        Assert.All(pages, text =>
+        {
+            // The contract is an explicit data callback, not a particular method name.
+            var callback=System.Text.RegularExpressions.Regex.Match(text,"<PageRefreshButton\\s+Refresh=\"(?<name>[A-Za-z][A-Za-z0-9_]*)\"");
+            Assert.True(callback.Success,"An explicit refresh callback is required.");
+            Assert.Contains($"Task {callback.Groups["name"].Value}()",text);
+        });
     }
     private static string SourceRoot([System.Runtime.CompilerServices.CallerFilePath] string source = "") => Directory.GetParent(Path.GetDirectoryName(source)!)!.FullName;
 }

@@ -1,0 +1,196 @@
+@page "/platform/tenant-management"
+@page "/platform/tenant-management/{TenantId:long}"
+@inherits ComponentBase
+@attribute [Authorize(Policy="PlatformImpersonate")]
+@using System.Text.Json
+@using HawalaExchange.Web.Services
+@using HawalaExchange.Infrastructure.Services
+@using HawalaExchange.Application.Security
+@using HawalaExchange.Domain.Entities
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Authorization
+@inject PlatformTenantManagement Management
+@inject NavigationManager Navigation
+@inject ILogger<TenantManagement> Logger
+@rendermode InteractiveServer
+
+<PageTitle>مدیریت اختصاصی صرافی‌ها</PageTitle>
+<PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@busy" />
+<div class="page-wrapper" dir="rtl">
+    <div class="page-header"><h5 class="page-title">مدیریت اختصاصی صرافی‌ها</h5><a class="btn btn-outline-secondary" href="/tenants">صرافی‌ها و تمدید اشتراک</a></div>
+    @if(!string.IsNullOrEmpty(message)){<div role="alert" class="alert @(error?"alert-danger":"alert-success")">@message</div>}
+    <fieldset disabled="@busy">
+        <div class="modern-card p-3 mb-3">
+            <div class="d-flex flex-wrap gap-2"><input class="form-control" style="max-width:440px" @bind="search" placeholder="نام صرافی یا کاربر، کد صرافی، ایمیل یا تماس..." aria-label="جستجوی سراسری" /><button class="btn btn-primary" @onclick="Search">جستجو</button></div>
+            @if(TenantId==0 || searching)
+            {
+                <p class="small text-muted mt-2">حداکثر 100 نتیجه؛ کد صرافی همان شناسه آن است.</p>
+                <div class="table-responsive"><table class="table text-center align-middle"><thead><tr><th>کد</th><th>صرافی</th><th>ایمیل</th><th>تماس</th><th>کاربران فعال</th><th>آخرین فعالیت</th><th></th></tr></thead><tbody>
+                @foreach(var item in results){<tr><td>@item.Id</td><td>@item.Name</td><td>@item.Email</td><td>@item.Phone</td><td>@item.Users</td><td>@Date(item.LastActivityAt)</td><td><a class="btn btn-sm btn-outline-primary" href="@($"/platform/tenant-management/{item.Id}")">مدیریت</a></td></tr>}
+                </tbody></table></div>
+            }
+        </div>
+        @if(overview is not null)
+        {
+            <div class="modern-card p-3 mb-3"><h5>@overview.Tenant.Name <small class="text-muted">— کد @TenantId</small></h5>
+                <div class="d-flex flex-wrap gap-4"><span>کاربران: @overview.Users.Count (فعال: @overview.Users.Count(x=>x.Active))</span><span>آخرین فعالیت: @Date(overview.Tenant.LastActivityAt)</span><span>اشتراک: @(overview.Subscriptions.FirstOrDefault()?.Status??"ثبت نشده")</span><span>پایان: @Date(overview.Subscriptions.FirstOrDefault()?.EndAt)</span></div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                @foreach(var tab in Tabs){<button class="btn @(section==tab.Key?"btn-primary":"btn-outline-primary")" @onclick="()=>section=tab.Key">@tab.Value</button>}
+            </div>
+            @if(section=="users")
+            {
+                <div class="modern-card p-3"><button class="btn btn-primary mb-3" @onclick="()=>Edit(null)">افزودن کاربر</button>
+                    <p class="text-muted small">حذف امن به معنی غیرفعال‌سازی است؛ اسناد مالی و نام ثبت‌کننده باقی می‌ماند. تغییر رمز و صلاحیت، نشست‌های قبلی کاربر را نامعتبر می‌کند.</p>
+                    <div class="table-responsive"><table class="table text-center align-middle"><thead><tr><th>نام / نام کاربری</th><th>ایمیل / تماس</th><th>نقش / وضعیت</th><th>آخرین ورود</th><th>عملیات</th></tr></thead><tbody>
+                    @foreach(var u in overview.Users)
+                    {
+                        <tr><td>@u.Name<br/><small dir="ltr">@u.UserName</small></td><td>@u.Email<br/>@u.Phone</td><td>@u.Role / @(u.Active?"فعال":"غیرفعال") @if(u.LockedUntil>DateTimeOffset.UtcNow){<span class="badge bg-warning text-dark">قفل ورود</span>}</td><td>@Date(u.LastLoginAt)</td>
+                        <td><div class="d-flex flex-wrap gap-1 justify-content-center">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="()=>Edit(u)">مشخصات و صلاحیت‌ها</button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick='()=>ConfirmUser(u,"SignOut","پایان تمام نشست‌ها")'>پایان نشست‌ها</button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick='()=>ConfirmUser(u,"Unlock","بازکردن قفل ورود")'>بازکردن قفل</button>
+                            <button class="btn btn-sm btn-outline-warning" @onclick="()=>Password(u)">رمز جدید</button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="()=>Copy(u)">کپی صلاحیت‌ها</button>
+                            <button class="btn btn-sm btn-outline-warning" @onclick='()=>ConfirmUser(u,"ResetPermissions","بازگرداندن صلاحیت‌های پیش‌فرض نقش")'>پیش‌فرض نقش</button>
+                            <button class="btn btn-sm btn-outline-warning" @onclick='()=>ConfirmUser(u,"PromoteAdmin","تعیین ادمین جدید با تمام صلاحیت‌های صرافی؛ ادمین قبلی باقی می‌ماند")'>تعیین ادمین</button>
+                            <button class="btn btn-sm @(u.Active?"btn-outline-danger":"btn-outline-success")" @onclick='()=>ConfirmUser(u,u.Active?"Disable":"Enable",u.Active?"حذف امن / غیرفعال‌سازی کاربر":"فعال‌سازی کاربر")'>@(u.Active?"غیرفعال / حذف امن":"فعال‌سازی")</button>
+                        </div></td></tr>
+                    }
+                    </tbody></table></div>
+                </div>
+            }
+            @if(section=="controls")
+            {
+                <div class="modern-card p-3">
+                    <h6>قفل عملیات و قابلیت‌ها</h6><p class="text-muted">تنظیمات فقط روی همین صرافی اعمال می‌شوند. تغییر سقف، کاربران فعلی را خودکار غیرفعال نمی‌کند؛ ایجاد یا فعال‌سازی بعدی محدود می‌شود. سقف پلن نیز پابرجاست.</p>
+                    <label class="d-block mb-3"><input type="checkbox" @bind="overview.Controls.ReadOnly" /> قفل موقت عملیات (فقط مشاهده و خروجی مجاز)</label>
+                    <label class="form-label">سقف اختصاصی کاربران فعال؛ خالی = سقف پلن</label><input type="number" min="1" class="form-control mb-3" style="max-width:220px" @bind="overview.Controls.MaxUsers" />
+                    @foreach(var feature in TenantOperationalAccess.Features){<label class="d-block mb-2"><input type="checkbox" checked="@(!disabled.Contains(feature.Key))" @onchange="e=>ToggleFeature(feature.Key,e.Value is true)" /> @feature.Value</label>}
+                    <button class="btn btn-warning mt-3" @onclick="SaveControls">بررسی و ذخیره تنظیمات</button>
+                </div>
+            }
+            @if(section=="settings" && settings is not null)
+            {
+                <div class="modern-card p-3">
+                    <div class="row g-3">
+                        <div class="col-md-6"><label>نام صرافی در گزارش‌ها</label><input class="form-control" maxlength="200" @bind="settings.CompanyName" /></div>
+                        <div class="col-md-6"><label>شماره تماس</label><input class="form-control" maxlength="50" @bind="settings.PhoneNumber" /></div>
+                        <div class="col-md-6"><label>شماره واتساپ</label><input class="form-control" maxlength="50" @bind="settings.WhatsAppNumber" /></div>
+                        <div class="col-md-6"><label>نام کاربری تلگرام</label><input class="form-control" maxlength="100" @bind="settings.TelegramUserName" /></div>
+                        <div class="col-md-6"><label>تقویم</label><select class="form-select" @bind="settings.UsePersianCalendar"><option value="true">شمسی</option><option value="false">میلادی</option></select></div>
+                        <div class="col-md-6"><label>ارز اصلی محاسبه مفاد</label><select class="form-select" @bind="settings.DefaultProfitCurrencyId"><option value="">انتخاب نشده</option>@foreach(var c in overview.Currencies){<option value="@c.Id">@c.Name</option>}</select></div>
+                        <div class="col-12"><label>آدرس</label><input class="form-control" maxlength="500" @bind="settings.Address" /></div>
+                        <div class="col-12"><label>متن پایین گزارش</label><textarea class="form-control" maxlength="1000" @bind="settings.FooterNote"></textarea></div>
+                    </div>
+                    <button class="btn btn-warning mt-3" @onclick="SaveSettings">بررسی و ذخیره تنظیمات شرکت</button>
+                    <hr/><label>منطقه زمانی صرافی (نمایش تاریخ و ساعت رویدادها)</label><input class="form-control" style="max-width:300px" @bind="overview.Controls.TimeZoneId" dir="ltr" placeholder="Asia/Kabul" /><small class="text-muted">تاریخ مبنای اسناد مالی موجود تغییر نمی‌کند. نشست‌های باز تنظیم تقویم و منطقه زمانی را پس از بارگذاری مجدد صفحه می‌گیرند.</small><br/>
+                    <button class="btn btn-outline-warning mt-2" @onclick="SaveControls">ذخیره منطقه زمانی</button>
+                    <hr/><h6>لوگوی صرافی</h6>
+                    @if(!string.IsNullOrWhiteSpace(settings.LogoPath)){<img src="@settings.LogoPath" alt="لوگوی صرافی" style="max-width:180px;max-height:100px" class="mb-3" />}
+                    <p class="small">تصویر PNG یا JPEG؛ حداکثر 2 MB. لوگوی قبلی از فایل‌های سرور حذف نمی‌شود.</p><InputFile OnChange="UploadLogo" accept="image/png,image/jpeg" />
+                </div>
+            }
+            @if(section=="jobs")
+            {
+                <div class="modern-card p-3"><h6>آخرین 50 عملیات ثبت گروهی</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th>فایل / شناسه</th><th>وضعیت</th><th>پیشرفت</th><th>پیام / دلیل خطا</th><th>تلاش</th><th></th></tr></thead><tbody>
+                    @foreach(var j in overview.Jobs){<tr><td>@j.FileName / @j.BatchId</td><td>@j.Status</td><td>@j.Progress%</td><td>@j.Message<br/><span class="text-danger">@j.Error</span></td><td>@j.Attempts</td><td>@if(j.Status=="Failed"){<button class="btn btn-sm btn-warning" @onclick="()=>Retry(j)">تلاش مجدد</button>}</td></tr>}
+                </tbody></table></div><p class="small text-muted">تلاش مجدد فقط برای فایل ناموفق و ثبت‌نشده است؛ درخواست جدید یا حواله تکراری ایجاد نمی‌کند و صلاحیت ثبت‌کننده دوباره بررسی می‌شود.</p></div>
+            }
+            @if(section=="subscription")
+            {
+                <div class="modern-card p-3"><h6>تاریخچه اشتراک‌ها (آخرین 50)</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th>پلن</th><th>وضعیت</th><th>شروع</th><th>پایان</th><th>پایان مهلت</th><th>قیمت توافقی</th><th>یادداشت / دلیل تعلیق</th></tr></thead><tbody>
+                    @foreach(var s in overview.Subscriptions){<tr><td>@s.Plan</td><td>@s.Status</td><td>@Date(s.StartAt)</td><td>@Date(s.EndAt)</td><td>@Date(s.GraceEnd)</td><td>@s.Price.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @s.Currency</td><td>@s.Note<br/>@s.SuspensionReason</td></tr>}
+                </tbody></table></div><a class="btn btn-outline-primary" href="/tenants">تمدید، مهلت پرداخت و تعلیق اشتراک</a></div>
+                <div class="modern-card p-3 mt-3"><h6>فاکتورها و پرداخت‌ها (آخرین 50)</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th>فاکتور</th><th>وضعیت</th><th>مجموع</th><th>تخفیف</th><th>پرداخت‌شده</th><th>سررسید</th><th></th></tr></thead><tbody>
+                    @foreach(var i in overview.Invoices){<tr><td>@i.Number</td><td>@i.Status</td><td>@i.Total.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @i.Currency</td><td>@i.Discount.ToString("N0",System.Globalization.CultureInfo.InvariantCulture)</td><td>@i.Paid.ToString("N0",System.Globalization.CultureInfo.InvariantCulture)</td><td>@Date(i.DueAt)</td><td><a href="@($"/platform/invoices/{i.Id}")">جزئیات پرداخت‌ها</a></td></tr>}
+                </tbody></table></div><a href="/platform/billing" class="btn btn-outline-primary">مدیریت مالی، فاکتور و تخفیف</a></div>
+                <div class="modern-card p-3 mt-3"><h6>تاریخچه پرداخت‌های اشتراک (آخرین 50؛ شامل پرداخت‌های بدون فاکتور)</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th>شناسه</th><th>وضعیت</th><th>مبلغ</th><th>تاریخ پرداخت</th><th>روش</th><th>مرجع</th></tr></thead><tbody>
+                    @foreach(var p in overview.Payments){<tr><td>@p.Id</td><td>@p.Status</td><td>@p.Amount.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @p.Currency</td><td>@Date(p.PaidAt)</td><td>@p.Method</td><td>@p.Reference</td></tr>}
+                </tbody></table></div></div>
+            }
+            @if(section=="health")
+            {
+                <div class="modern-card p-3"><button class="btn btn-primary" @onclick="Health">بررسی سلامت سرور</button><p class="mt-3">@health</p><p class="small text-muted">دیتابیس بین صرافی‌ها مشترک است. تاریخ بک‌آپ در صورت اجازه میزبان خوانده می‌شود؛ «نامشخص» به معنی نبود بک‌آپ نیست. این بررسی، قابل‌بازیابی‌بودن بک‌آپ را تأیید نمی‌کند.</p></div>
+            }
+        }
+    </fieldset>
+</div>
+
+@if(editUser is not null)
+{
+    <div class="modal show d-block" style="background:rgba(0,0,0,.5)" tabindex="-1" dir="rtl"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h5>مشخصات و صلاحیت‌های کاربر — @overview?.Tenant.Name</h5><button class="btn-close" disabled="@busy" @onclick="()=>editUser=null"></button></div>
+        <EditForm Model="editUser" OnValidSubmit="SaveUser"><DataAnnotationsValidator/><div class="modal-body"><ValidationSummary/>
+            @if(error && !string.IsNullOrWhiteSpace(message)){<div role="alert" class="alert alert-danger">@message</div>}
+            <div class="row g-3"><div class="col-md-4"><label>نام کامل</label><InputText class="form-control" @bind-Value="editUser.Name" /></div><div class="col-md-4"><label>نام کاربری</label><InputText class="form-control" disabled="@(editUser.Id.HasValue)" @bind-Value="editUser.UserName" /></div><div class="col-md-4"><label>ایمیل</label><InputText class="form-control" @bind-Value="editUser.Email" /></div>
+            <div class="col-md-4"><label>شماره تماس</label><InputText class="form-control" @bind-Value="editUser.Phone" /></div><div class="col-md-4"><label>شعبه</label><InputSelect class="form-select" @bind-Value="editUser.BranchId">@foreach(var b in overview!.Branches){<option value="@b.Id">@b.Name</option>}</InputSelect></div>
+            <div class="col-md-4"><label>نقش</label><select class="form-select" value="@editUser.Role" @onchange="RoleChanged">@foreach(var role in Roles){<option value="@role">@role</option>}</select></div>
+            @if(!editUser.Id.HasValue){<div class="col-md-6"><label>رمز عبور اولیه</label><InputText type="password" autocomplete="new-password" class="form-control" @bind-Value="editUser.Password" /></div>}</div>
+            <p class="small mt-3">صلاحیت‌ها فقط برای همین صرافی هستند؛ هیچ نقش پلتفرمی قابل واگذاری نیست. کپی صلاحیت، نقش کاربر را تغییر نمی‌دهد.</p>
+            @foreach(var m in PermissionCatalog.Modules){<div class="border-bottom py-2"><strong class="d-inline-block" style="min-width:220px">@m.Name</strong>@foreach(var a in m.Actions){var key=$"{m.Key}.{a}";<label class="ms-3"><input type="checkbox" checked="@editUser.Permissions.Contains(key)" @onchange="e=>TogglePermission(m.Key,key,e.Value is true)" /> @PermissionCatalog.ActionName(a)</label>}</div>}
+        </div><div class="modal-footer"><button type="button" class="btn btn-light" @onclick="()=>editUser=null">انصراف</button><button type="submit" class="btn btn-warning" disabled="@busy">بررسی و ذخیره</button></div></EditForm>
+    </div></div></div>
+}
+@if(dialogUser is not null)
+{
+    <div class="modal show d-block" style="background:rgba(0,0,0,.5)" dir="rtl"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>@(passwordDialog?"تعیین رمز جدید":"کپی صلاحیت‌ها") — @dialogUser.Name</h5></div><div class="modal-body">
+        @if(passwordDialog){<input type="password" autocomplete="new-password" class="form-control" @bind="newPassword" placeholder="رمز جدید" />}else{<label>کاربر مبدا از همین صرافی</label><select class="form-select" @bind="copySource"><option value="0">انتخاب کنید</option>@foreach(var u in overview!.Users.Where(x=>x.Id!=dialogUser.Id)){<option value="@u.Id">@u.Name (@u.UserName)</option>}</select>}
+    </div><div class="modal-footer"><button class="btn btn-light" @onclick="()=>dialogUser=null">انصراف</button><button class="btn btn-warning" @onclick="SubmitDialog">ادامه</button></div></div></div></div>
+}
+@if(pending is not null)
+{
+    <div class="modal show d-block" style="background:rgba(0,0,0,.65);z-index:1080" dir="rtl"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5>تأیید عملیات حساس</h5></div><div class="modal-body"><p>صرافی: @overview?.Tenant.Name (کد @TenantId)</p><p>@confirmation</p><label><input type="checkbox" @bind="acknowledged" /> صرافی و عملیات بالا را بررسی و تأیید می‌کنم.</label></div><div class="modal-footer"><button disabled="@busy" class="btn btn-light" @onclick="CancelConfirm">انصراف</button><button disabled="@(!acknowledged||busy)" class="btn btn-danger" @onclick="ExecuteConfirmed">تأیید نهایی</button></div></div></div></div>
+}
+
+@code{
+    [Parameter] public long TenantId {get;set;}
+    private PlatformTenantOverview? overview;
+    private CompanySetting? settings;
+    private IReadOnlyList<PlatformTenantSearch> results=[];
+    private string search="",message="",section="users",confirmation="",newPassword="",health="";
+    private bool busy,error,searching,acknowledged,passwordDialog;
+    private HashSet<string> disabled=[];
+    private PlatformUserEdit? editUser;
+    private PlatformTenantUser? dialogUser;
+    private long copySource,loadedTenant;
+    private Func<Task>? pending;
+    private static readonly string[] Roles=["Admin","Manager","Cashier","Supervisor"];
+    private static readonly Dictionary<string,string> Tabs=new(){["users"]="کاربران و صلاحیت‌ها",["controls"]="قفل و قابلیت‌ها",["settings"]="تنظیمات و لوگو",["jobs"]="عملیات پس‌زمینه",["subscription"]="اشتراک و پرداخت‌ها",["health"]="سلامت سیستم"};
+    protected override async Task OnParametersSetAsync(){if(loadedTenant!=TenantId||overview is null){CancelConfirm();editUser=null;dialogUser=null;overview=null;await Refresh();loadedTenant=TenantId;}}
+    private string Date(DateTime? value)
+    {
+        if(!value.HasValue)return "—";
+        var zone=TimeZoneInfo.FindSystemTimeZoneById(overview?.Controls.TimeZoneId??"Asia/Kabul");
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value,DateTimeKind.Utc),zone).ToString("yyyy/MM/dd HH:mm",System.Globalization.CultureInfo.InvariantCulture);
+    }
+    private async Task Run(Func<Task> action)
+    {
+        if(busy)return;busy=true;error=false;message="";
+        try{await action();}catch(Exception ex){error=true;Logger.LogWarning(ex,"Platform tenant management operation failed for tenant {TenantId}",TenantId);message=ex is InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.DataAnnotations.ValidationException?ex.Message:"عملیات کامل نشد؛ دوباره تلاش کنید یا لاگ سرور را بررسی کنید.";}finally{busy=false;}
+    }
+    private Task Refresh()=>Run(async()=>{if(TenantId>0)await Load();else results=await Management.SearchAsync(search);});
+    private async Task RefreshPageDataAsync(){CancelConfirm();editUser=null;dialogUser=null;await Refresh();}
+    private async Task Load(){overview=await Management.GetAsync(TenantId);settings=overview.Settings??new CompanySetting{CompanyName=overview.Tenant.Name};disabled=TenantOperationalAccess.Disabled(overview.Controls);}
+    private Task Search()=>Run(async()=>{results=await Management.SearchAsync(search);searching=true;});
+    private void Confirm(string text,Func<Task> action){confirmation=text;acknowledged=false;pending=action;}
+    private void CancelConfirm(){pending=null;acknowledged=false;}
+    private async Task ExecuteConfirmed(){if(!acknowledged||pending is null||busy)return;var action=pending;CancelConfirm();await Run(async()=>{await action();await Load();editUser=null;dialogUser=null;newPassword="";message="عملیات با موفقیت انجام شد.";});}
+    private void ConfirmUser(PlatformTenantUser u,string action,string title){var tenant=TenantId;Confirm($"{title} — {u.Name} ({u.UserName})",()=>Management.UserActionAsync(tenant,u.Id,action));}
+    private void Edit(PlatformTenantUser? u){editUser=u is null?new PlatformUserEdit{BranchId=overview!.Branches.FirstOrDefault()?.Id??0}:new PlatformUserEdit{Id=u.Id,Name=u.Name,UserName=u.UserName,Email=u.Email??"",Phone=u.Phone,BranchId=u.BranchId,Role=u.Role,ConcurrencyStamp=u.ConcurrencyStamp,Permissions=new(u.Permissions)};}
+    private void RoleChanged(ChangeEventArgs e){if(editUser is null)return;editUser.Role=e.Value?.ToString()??"Cashier";if(!editUser.Id.HasValue)editUser.Permissions=PermissionCatalog.Defaults([editUser.Role]);}
+    private void TogglePermission(string module,string key,bool selected){if(editUser is null)return;if(selected){editUser.Permissions.Add(key);editUser.Permissions.Add(module+".View");}else if(key==module+".View")editUser.Permissions.RemoveWhere(x=>x.StartsWith(module+"."));else editUser.Permissions.Remove(key);}
+    private Task SaveUser(){var edit=editUser!;var tenant=TenantId;Confirm($"ذخیره مشخصات و صلاحیت‌های {edit.Name} ({edit.UserName}) با نقش {edit.Role}",()=>Management.SaveUserAsync(tenant,edit));return Task.CompletedTask;}
+    private void Password(PlatformTenantUser u){dialogUser=u;passwordDialog=true;newPassword="";}
+    private void Copy(PlatformTenantUser u){dialogUser=u;passwordDialog=false;copySource=0;}
+    private void SubmitDialog(){var u=dialogUser!;var tenant=TenantId;var password=newPassword;var source=copySource;if(!passwordDialog&&source==0)return;Confirm(passwordDialog?$"تعیین رمز جدید و پایان نشست‌های {u.Name}":$"جایگزینی تمام صلاحیت‌های {u.Name} با صلاحیت‌های {overview!.Users.Single(x=>x.Id==source).Name}",()=>Management.UserActionAsync(tenant,u.Id,passwordDialog?"ResetPassword":"CopyPermissions",password,source));}
+    private void ToggleFeature(string key,bool enabled){if(enabled)disabled.Remove(key);else disabled.Add(key);}
+    private void SaveControls(){var tenant=TenantId;var c=overview!.Controls;var copy=new TenantControlSettings{ReadOnly=c.ReadOnly,MaxUsers=c.MaxUsers,TimeZoneId=c.TimeZoneId,DisabledFeaturesJson=JsonSerializer.Serialize(disabled)};Confirm("ذخیره قفل عملیات، سقف کاربران، قابلیت‌ها و منطقه زمانی",()=>Management.SaveControlsAsync(tenant,copy));}
+    private void SaveSettings(){var tenant=TenantId;var value=settings!;Confirm("ذخیره تنظیمات شرکت؛ تغییر ارز اصلی می‌تواند روی محاسبات بعدی اثر داشته باشد.",()=>Management.SaveSettingsAsync(tenant,value));}
+    private void Retry(PlatformImportJob job){var tenant=TenantId;Confirm($"تلاش مجدد ثبت فایل {job.FileName} (شناسه {job.BatchId})",()=>Management.RetryImportAsync(tenant,job.Id));}
+    private Task Health()=>Run(async()=>{var result=await Management.HealthAsync();health=$"اتصال دیتابیس: {(result.Connected?"برقرار":"ناموفق")} | نسخه: {result.Version} | {result.Backup}";});
+    private async Task UploadLogo(InputFileChangeEventArgs e)
+    {
+        await Run(async()=>{using var stream=new MemoryStream();await e.File.OpenReadStream(2097152).CopyToAsync(stream);var bytes=stream.ToArray();var tenant=TenantId;Confirm($"جایگزینی لوگوی صرافی با فایل {e.File.Name}",()=>Management.SaveLogoAsync(tenant,bytes));});
+    }
+}

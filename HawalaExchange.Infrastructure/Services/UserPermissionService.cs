@@ -38,6 +38,14 @@ public sealed class UserPermissionService(IDbContextFactory<ApplicationDbContext
             if(!force && DateTime.UtcNow-checkedAt<TimeSpan.FromSeconds(5))return;
             await using var db=await factory.CreateDbContextAsync(cancellationToken);
             var next=tenant.UserId>0 && tenant.TenantId>0 ? await ReadAsync(db,tenant.UserId,cancellationToken):[];
+            if(tenant.TenantId>0)
+                next=TenantOperationalAccess.Apply(next,await TenantOperationalAccess.ReadAsync(db,tenant.TenantId,cancellationToken));
+            if(tenant.TenantId>0 && !await db.Tenants.AsNoTracking().AnyAsync(x=>x.Id==tenant.TenantId && x.IsActive && !x.IsArchived,cancellationToken))next=[];
+            if(tenant.SessionSecurityStamp is string stamp && !await db.Users.AsNoTracking()
+                .AnyAsync(x=>x.Id==tenant.UserId && x.IsActive && x.SecurityStamp==stamp,cancellationToken))next=[];
+            if (tenant.ImpersonationSessionId is Guid session &&
+                (tenant.OriginalActorUserId is not long actor || !await ImpersonationSessionAccess.IsValidAsync(db,session,actor,tenant.UserId,tenant.TenantId,cancellationToken)))
+                next=[];
             var changed=!current.SetEquals(next);
             current=next; checkedAt=DateTime.UtcNow;
             if(changed)Changed?.Invoke();

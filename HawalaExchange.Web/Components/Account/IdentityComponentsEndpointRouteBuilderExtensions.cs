@@ -43,9 +43,18 @@ namespace Microsoft.AspNetCore.Routing
 
             accountGroup.MapPost("/Logout", async (
                 ClaimsPrincipal user,
+                HttpContext context,
+                [FromServices] HawalaExchange.Web.Services.ImpersonationSessionStore impersonation,
                 [FromServices] SignInManager<ApplicationUser> signInManager,
                 [FromForm] string returnUrl) =>
             {
+                var original=await context.AuthenticateAsync(HawalaExchange.Web.Services.ImpersonationIdentity.ReturnScheme);
+                if(original.Succeeded && original.Principal is not null)
+                {
+                    try { await impersonation.EndAsync(original.Principal,"LoggedOut",context.RequestAborted); }
+                    catch(UnauthorizedAccessException) { }
+                }
+                await context.SignOutAsync(HawalaExchange.Web.Services.ImpersonationIdentity.ReturnScheme);
                 await signInManager.SignOutAsync();
                 return TypedResults.LocalRedirect($"~/{returnUrl}");
             });

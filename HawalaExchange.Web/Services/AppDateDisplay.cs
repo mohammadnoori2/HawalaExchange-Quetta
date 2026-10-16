@@ -33,10 +33,13 @@ public sealed class AppDateDisplay(DbContextOptions<ApplicationDbContext> option
     private async Task LoadAsync(long tenantId)
     {
         SetCalendar(true);
+        SetTimeZone(null);
         if (tenantId <= 0) return;
         await using var context = new ApplicationDbContext(options, currentTenant);
         var preference = await context.CompanySettings.AsNoTracking()
             .Where(x => x.TenantId == tenantId).Select(x => (bool?)x.UsePersianCalendar).FirstOrDefaultAsync();
         SetCalendar(preference ?? true);
+        var zone=await context.Database.SqlQuery<string>($"SELECT TimeZoneId AS [Value] FROM dbo.TenantOperationalControls WHERE TenantId={tenantId}").SingleOrDefaultAsync();
+        if(zone is not null)SetTimeZone(zone);
     }
 }

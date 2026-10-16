@@ -20,6 +20,7 @@ public sealed class SubscriptionAccessService(IDbContextFactory<ApplicationDbCon
         CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
+        var controls=await TenantOperationalAccess.ReadAsync(context,tenantId,cancellationToken);
         var subscription = await context.TenantSubscriptions
             .AsNoTracking()
             .Include(x => x.Plan)
@@ -52,6 +53,12 @@ public sealed class SubscriptionAccessService(IDbContextFactory<ApplicationDbCon
 
         if (subscription.EndAt >= now)
         {
+            if(controls.ReadOnly)
+            {
+                result.AccessLevel=SubscriptionAccessLevel.ReadOnly;
+                result.Message="عملیات صرافی موقتاً توسط مدیریت قفل شده است؛ مشاهده اطلاعات مجاز است.";
+                return result;
+            }
             result.AccessLevel = SubscriptionAccessLevel.Full;
             result.Message = subscription.Status == SubscriptionStatus.ExpiringSoon
                 ? $"اشتراک تا {subscription.EndAt:yyyy/MM/dd} اعتبار دارد و نزدیک انقضا است."
@@ -87,6 +94,7 @@ public sealed class SubscriptionAccessService(IDbContextFactory<ApplicationDbCon
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var plan = await GetWritablePlanAsync(context, tenantId, cancellationToken);
+        await TenantOperationalAccess.EnsureUserCapacityAsync(context,tenantId,cancellationToken);
         if (plan.MaxUsers <= 0) return;
         var count = await context.Users.IgnoreQueryFilters()
             .CountAsync(x => x.TenantId == tenantId && !x.IsPlatformUser && x.IsActive, cancellationToken);

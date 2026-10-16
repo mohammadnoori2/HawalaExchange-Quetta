@@ -406,6 +406,11 @@ namespace HawalaExchange.Infrastructure.Data
 
         public override int SaveChanges(bool acceptAllChangesOnSuccess)
         {
+            if(_currentTenant.SessionSecurityStamp is string stamp && !Users.IgnoreQueryFilters().AsNoTracking()
+                .Any(x=>x.Id==_currentTenant.UserId && x.IsActive && x.SecurityStamp==stamp))
+                throw new UnauthorizedAccessException("نشست شما پایان یافته است؛ دوباره وارد شوید.");
+            if (HasImpersonatedChanges()) EnsureImpersonationWriteAccessAsync().GetAwaiter().GetResult();
+            TagImpersonatedAuditLogs();
             var cashAlertTargets = CaptureCashBalanceAlertTargets();
             AssignAndValidateTenantIds();
             ValidateSubscriptionWriteAccess();
@@ -436,6 +441,11 @@ namespace HawalaExchange.Infrastructure.Data
             bool acceptAllChangesOnSuccess,
             CancellationToken cancellationToken = default)
         {
+            if(_currentTenant.SessionSecurityStamp is string stamp && !await Users.IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(x=>x.Id==_currentTenant.UserId && x.IsActive && x.SecurityStamp==stamp,cancellationToken))
+                throw new UnauthorizedAccessException("نشست شما پایان یافته است؛ دوباره وارد شوید.");
+            if (HasImpersonatedChanges()) await EnsureImpersonationWriteAccessAsync(cancellationToken);
+            TagImpersonatedAuditLogs();
             var cashAlertTargets = CaptureCashBalanceAlertTargets();
             AssignAndValidateTenantIds();
             await ValidateSubscriptionWriteAccessAsync(cancellationToken);
@@ -460,6 +470,25 @@ namespace HawalaExchange.Infrastructure.Data
                 if (transaction != null) await transaction.RollbackAsync(cancellationToken);
                 throw;
             }
+        }
+
+        private bool HasImpersonatedChanges() => _currentTenant.ImpersonationSessionId.HasValue && ChangeTracker.Entries()
+            .Any(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted && x.Entity is not PlatformAuditLog);
+
+        private void TagImpersonatedAuditLogs()
+        {
+            if (_currentTenant.ImpersonationSessionId is not Guid id) return;
+            foreach (var entry in ChangeTracker.Entries<AuditLog>().Where(x => x.State == EntityState.Added))
+                entry.Entity.NewValue = MergeAuditJson(entry.Entity.NewValue,new Dictionary<string,object?>
+                { ["__ImpersonationSessionId"]=id,["__OriginalPlatformActorUserId"]=_currentTenant.OriginalActorUserId },true);
+        }
+
+        private async Task EnsureImpersonationWriteAccessAsync(CancellationToken ct=default)
+        {
+            if (_currentTenant.ImpersonationSessionId is not Guid id) return;
+            if (_currentTenant.OriginalActorUserId is not long actor || !await HawalaExchange.Infrastructure.Services.ImpersonationSessionAccess
+                .IsValidAsync(this,id,actor,CurrentUserId,CurrentTenantId,ct).ConfigureAwait(false))
+                throw new UnauthorizedAccessException("نشست ورود به‌جای کاربر منقضی یا بسته شده است.");
         }
 
         private HashSet<(long AccountId, long CurrencyId)> CaptureCashBalanceAlertTargets()
@@ -888,6 +917,11 @@ namespace HawalaExchange.Infrastructure.Data
 
             var oldValues = FlattenAuditValues(entries, oldValues: true);
             var newValues = FlattenAuditValues(entries, oldValues: false);
+            if (_currentTenant.ImpersonationSessionId is Guid impersonation)
+            {
+                newValues["__ImpersonationSessionId"] = impersonation;
+                newValues["__OriginalPlatformActorUserId"] = _currentTenant.OriginalActorUserId;
+            }
             auditLog.OldValue = MergeAuditJson(auditLog.OldValue, oldValues, overwrite: false);
             auditLog.NewValue = MergeAuditJson(auditLog.NewValue, newValues, overwrite: true);
         }
@@ -1240,6 +1274,10 @@ namespace HawalaExchange.Infrastructure.Data
             var tenantIds = PendingTenantWriteIds();
             foreach (var tenantId in tenantIds)
             {
+                if(!Tenants.AsNoTracking().Any(x=>x.Id==tenantId && x.IsActive && !x.IsArchived))
+                    throw new InvalidOperationException("صرافی غیرفعال یا آرشیف شده است.");
+                var locked=Database.SqlQuery<bool>($"SELECT ReadOnly AS [Value] FROM dbo.TenantOperationalControls WHERE TenantId={tenantId}").FirstOrDefault();
+                if(locked)throw new InvalidOperationException("عملیات صرافی موقتاً قفل شده است.");
                 var subscription = TenantSubscriptions.AsNoTracking()
                     .Where(x => x.TenantId == tenantId)
                     .OrderByDescending(x => x.StartAt).ThenByDescending(x => x.Id)
@@ -1259,6 +1297,7 @@ namespace HawalaExchange.Infrastructure.Data
 
         public async Task EnsureCurrentTenantWriteAccessAsync(CancellationToken cancellationToken = default)
         {
+            await EnsureImpersonationWriteAccessAsync(cancellationToken);
             if (CurrentTenantId <= 0) throw new InvalidOperationException("صرافی جاری تشخیص داده نشد.");
             if (subscriptionEnforcementBypassDepth == 0)
                 await ValidateTenantSubscriptionAsync(CurrentTenantId, cancellationToken);
@@ -1266,6 +1305,7 @@ namespace HawalaExchange.Infrastructure.Data
 
         private async Task ValidateTenantSubscriptionAsync(long tenantId, CancellationToken cancellationToken)
         {
+            await HawalaExchange.Infrastructure.Services.TenantOperationalAccess.EnsureWritableAsync(this,tenantId,cancellationToken);
             var subscription = await TenantSubscriptions.AsNoTracking()
                 .Where(x => x.TenantId == tenantId)
                 .OrderByDescending(x => x.StartAt).ThenByDescending(x => x.Id)
@@ -1277,11 +1317,13 @@ namespace HawalaExchange.Infrastructure.Data
         private long[] PendingTenantWriteIds() => ChangeTracker.Entries()
             .Where(x => x.Entity is ITenantEntity &&
                         x.Entity is not ApplicationUser { IsPlatformUser: true } &&
+                        x.Entity is not AuditLog &&
                         x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .Select(x => ((ITenantEntity)x.Entity).TenantId)
             .Where(x => x > 0)
             .Distinct()
             .ToArray();
+
 
         private static void EnsureSubscriptionAllowsWrite(
             SubscriptionStatus? status,

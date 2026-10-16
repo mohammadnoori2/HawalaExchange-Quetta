@@ -11,7 +11,8 @@ namespace HawalaExchange.Web.Services;
 public sealed class TenantSessionValidator(
     ApplicationDbContext context,
     IOptions<IdentityOptions> options,
-    ILogger<TenantSessionValidator> logger)
+    ILogger<TenantSessionValidator> logger,
+    ImpersonationSessionStore? impersonation = null)
 {
     public async Task<ApplicationUser?> ValidateAsync(ClaimsPrincipal? principal, CancellationToken cancellationToken = default)
     {
@@ -40,6 +41,8 @@ public sealed class TenantSessionValidator(
         var stamp = principal.FindFirstValue(options.Value.ClaimsIdentity.SecurityStampClaimType);
         if (string.IsNullOrEmpty(stamp) || !string.Equals(stamp, user.SecurityStamp, StringComparison.Ordinal))
             return Reject("Security stamp missing or changed", userId);
+        if (ImpersonationIdentity.IsActive(principal) && (impersonation is null || !await impersonation.ValidateAsync(principal,cancellationToken)))
+            return Reject("Impersonation session expired or revoked",userId);
         return user;
     }
 

@@ -242,6 +242,10 @@
             using var tenantScope = user is { IsPlatformUser: false }
                 ? DbContext.UseTenantScope(user.TenantId)
                 : null;
+            // This scope performs Identity authentication only (lockout counters / last login).
+            // A read-only tenant must still be able to sign in and view its existing records.
+            // Subscription sign-in access was checked above; no business writes occur here.
+            using var authenticationMaintenance = DbContext.BypassSubscriptionEnforcement();
 
             var result = user is null
                 ? SignInResult.Failed

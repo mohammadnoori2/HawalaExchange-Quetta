@@ -36,7 +36,7 @@ public sealed class CurrentTenant : ICurrentTenant
                         .GetAuthenticationStateAsync()
                         .GetAwaiter()
                         .GetResult();
-                    value = state.User.FindFirstValue(TenantIdClaim);
+                    value = state?.User.FindFirstValue(TenantIdClaim);
                     if (long.TryParse(value, out parsed) && parsed > 0)
                         tenantId = parsed;
                 }
@@ -51,6 +51,18 @@ public sealed class CurrentTenant : ICurrentTenant
     }
 
     public bool HasTenant => TenantId > 0;
+    private ClaimsPrincipal? CurrentPrincipal
+    {
+        get
+        {
+            if (httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated == true) return httpContextAccessor.HttpContext.User;
+            try { return authenticationStateProvider.GetAuthenticationStateAsync().GetAwaiter().GetResult()?.User; }
+            catch (InvalidOperationException) { return null; }
+        }
+    }
+    public Guid? ImpersonationSessionId => Guid.TryParse(CurrentPrincipal?.FindFirstValue(ImpersonationIdentity.SessionClaim),out var id)?id:null;
+    public long? OriginalActorUserId => long.TryParse(CurrentPrincipal?.FindFirstValue(ImpersonationIdentity.ActorClaim),out var id)?id:null;
+    public string? SessionSecurityStamp => CurrentPrincipal?.FindFirstValue("AspNet.Identity.SecurityStamp");
 
     public long UserId
     {
@@ -68,7 +80,7 @@ public sealed class CurrentTenant : ICurrentTenant
                         .GetAuthenticationStateAsync()
                         .GetAwaiter()
                         .GetResult();
-                    value = state.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    value = state?.User.FindFirstValue(ClaimTypes.NameIdentifier);
                     if (long.TryParse(value, out parsed) && parsed > 0)
                         userId = parsed;
                 }

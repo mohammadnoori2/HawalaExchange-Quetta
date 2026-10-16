@@ -40,6 +40,8 @@ public sealed class TenantUserAdministrationService(ApplicationDbContext db,User
         try
         {
         await permissions.LockAsync(db,default);
+        var hadAdmin=await HasActiveAdminRoleAsync(db);
+        if(!id.HasValue)await TenantOperationalAccess.EnsureUserCapacityAsync(db,db.CurrentTenantId);
         var latest=id.HasValue ? await UserPermissionService.ReadAsync(db,id.Value,default,true):null;
         var mustGrant=latest is null || !latest.SetEquals(keys);
         await permissions.RequireWithinTransactionAsync(db,id.HasValue?"Users.Edit":"Users.Create",mustGrant?keys:null,default,requireManage:id.HasValue);
@@ -65,6 +67,7 @@ public sealed class TenantUserAdministrationService(ApplicationDbContext db,User
             Check(await users.CreateAsync(user,dto.Password)); Check(await users.AddToRoleAsync(user,dto.Role));
             await permissions.SaveWithinTransactionAsync(db,user.Id,keys,default);
         }
+        if(hadAdmin)await EnsureActiveAdminRoleAsync(db);
         await tx.CommitAsync(); permissions.Notify(user.Id);
         }
         catch { await tx.RollbackAsync(); db.ChangeTracker.Clear(); throw; }
@@ -77,11 +80,14 @@ public sealed class TenantUserAdministrationService(ApplicationDbContext db,User
         try
         {
         await permissions.LockAsync(db,default);
+        var hadAdmin=await HasActiveAdminRoleAsync(db);
         await permissions.RequireWithinTransactionAsync(db,active?"Users.Edit":"Users.Delete",null,default);
         await EnsureTargetAuthorityWithinAsync(id);
         var user=await db.Users.SingleOrDefaultAsync(x=>x.Id==id && !x.IsPlatformUser) ?? throw new InvalidOperationException("کاربر یافت نشد.");
         if(!active)await permissions.EnsureAdministratorAsync(db,id,null,default);
+        if(active && !user.IsActive)await TenantOperationalAccess.EnsureUserCapacityAsync(db,db.CurrentTenantId);
         user.IsActive=active; Check(await users.UpdateAsync(user));
+        if(hadAdmin)await EnsureActiveAdminRoleAsync(db);
         await tx.CommitAsync(); permissions.Notify(id);
         }
         catch { await tx.RollbackAsync(); db.ChangeTracker.Clear(); throw; }
@@ -102,4 +108,12 @@ public sealed class TenantUserAdministrationService(ApplicationDbContext db,User
         }
         catch { await tx.RollbackAsync(); db.ChangeTracker.Clear(); throw; }
     }
+    private static async Task EnsureActiveAdminRoleAsync(ApplicationDbContext db)
+    {
+        if(!await HasActiveAdminRoleAsync(db))
+            throw new InvalidOperationException("حداقل یک ادمین فعال باید باقی بماند؛ ابتدا ادمین جایگزین تعیین کنید.");
+    }
+    private static Task<bool> HasActiveAdminRoleAsync(ApplicationDbContext db) =>
+        (from u in db.Users join ur in db.UserRoles on u.Id equals ur.UserId join r in db.Roles on ur.RoleId equals r.Id
+         where u.IsActive && r.Name=="Admin" select u.Id).AnyAsync();
 }

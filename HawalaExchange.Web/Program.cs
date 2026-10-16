@@ -98,6 +98,7 @@ public partial class Program
             options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
             options.ExpireTimeSpan = TimeSpan.FromDays(30);
             options.SlidingExpiration = true;
+            options.Events.OnSigningIn = ImpersonationIdentity.SigningInAsync;
             options.LoginPath = "/Account/Login";
             options.AccessDeniedPath = "/Account/AccessDenied";
         });
@@ -110,6 +111,7 @@ public partial class Program
 
         builder.Services.AddAuthorization(options =>
         {
+            options.AddPolicy("PlatformImpersonate",policy=>policy.RequireAuthenticatedUser().RequireClaim("platform_user","true").RequireRole(PlatformRoles.Privileged));
             options.AddPolicy("PlatformAccess", policy => policy
                 .RequireClaim("platform_user", "true")
                 .RequireRole(PlatformRoles.All));
@@ -133,6 +135,17 @@ public partial class Program
         builder.Services.AddScoped<CircuitHandler, TenantCircuitHandler>();
         builder.Services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, TenantUserClaimsPrincipalFactory>();
         builder.Services.AddScoped<TenantSessionValidator>();
+        builder.Services.AddScoped<ImpersonationSessionStore>();
+        builder.Services.AddScoped<PlatformTenantManagement>();
+        builder.Services.AddAuthentication().AddCookie(ImpersonationIdentity.ReturnScheme,options=>
+        {
+            options.Cookie.Name=".HawalaExchange.ImpersonationReturn";
+            options.Cookie.HttpOnly=true;
+            options.Cookie.SameSite=SameSiteMode.Strict;
+            options.Cookie.SecurePolicy=CookieSecurePolicy.SameAsRequest;
+            options.ExpireTimeSpan=TimeSpan.FromMinutes(30);
+            options.SlidingExpiration=false;
+        });
         builder.Services.AddScoped<ISecurityStampValidator, TenantCookieSecurityStampValidator>();
 
         // ============================================================

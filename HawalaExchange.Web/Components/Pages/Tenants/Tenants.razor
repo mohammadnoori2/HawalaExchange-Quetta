@@ -10,6 +10,8 @@
 @inject ISaasAdministrationService SaasService
 @inject ICurrentTenant CurrentTenant
 @inject IJSRuntime JS
+@inject HawalaExchange.Web.Services.ImpersonationSessionStore Impersonation
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Authentication
 @rendermode InteractiveServer
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
@@ -98,6 +100,12 @@
                                         <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEdit(tenant)">
                                             <i class="bi bi-pencil-square"></i> مدیریت
                                         </button>
+                                        <AuthorizeView Policy="PlatformImpersonate" Context="impersonatePermission">
+                                            <a class="btn btn-sm btn-outline-primary" href="@($"/platform/tenant-management/{tenant.Id}")">کاربران، صلاحیت‌ها و تنظیمات</a>
+                                            <button class="btn btn-sm btn-outline-warning" disabled="@(!tenant.IsActive)" @onclick="()=>OpenImpersonation(tenant)">
+                                                <i class="bi bi-person-bounding-box"></i> ورود به‌جای کاربر
+                                            </button>
+                                        </AuthorizeView>
                                         <button class="btn btn-sm btn-outline-danger" @onclick="() => ToggleTenantArchiveAsync(tenant)">
                                             <i class="bi bi-archive"></i> بایگانی
                                         </button>
@@ -308,7 +316,43 @@
     </div>
 }
 
+@if (showImpersonation)
+{
+    <div class="modal show d-block" tabindex="-1" dir="rtl" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header"><h5>ورود به‌جای کاربر — @impersonationTenantName</h5><button type="button" class="btn-close" @onclick="()=>showImpersonation=false"></button></div>
+            <form method="post" action="/impersonation/start" data-enhance="false">
+                <AntiforgeryToken />
+                <input type="hidden" name="tenantId" value="@impersonationTenantId" />
+                <div class="modal-body">
+                    <div class="alert alert-warning">تا 30 دقیقه، مطابق صلاحیت‌های کاربر انتخاب‌شده عمل می‌کنید. عملیات مالی واقعی است و ورود شما ثبت می‌شود. این تغییر ورود، روی تب‌های دیگر همین مرورگر نیز اثر می‌گذارد.</div>
+                    <label class="form-label">کاربر فعال</label>
+                    <select class="form-select mb-3" name="userId" required><option value="">انتخاب کاربر</option>
+                        @foreach(var user in impersonationTargets){<option value="@user.Id">@user.Name (@user.UserName)</option>}
+                    </select>
+                    <label class="form-label">دلیل ورود برای پشتیبانی</label>
+                    <textarea name="reason" class="form-control" required minlength="3" maxlength="500" rows="3"></textarea>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-light" @onclick="()=>showImpersonation=false">انصراف</button><button type="submit" class="btn btn-warning" disabled="@(impersonationTargets.Count==0)">تأیید و ورود</button></div>
+            </form>
+        </div></div>
+    </div>
+}
+
 @code {
+    private bool showImpersonation;
+    private long impersonationTenantId;
+    private string impersonationTenantName="";
+    private IReadOnlyList<HawalaExchange.Web.Services.ImpersonationTarget> impersonationTargets=[];
+    private async Task OpenImpersonation(TenantDto tenant)
+    {
+        try
+        {
+            impersonationTargets=await Impersonation.GetTargetsAsync((await Authentication.GetAuthenticationStateAsync()).User,tenant.Id);
+            impersonationTenantId=tenant.Id; impersonationTenantName=tenant.Name; showImpersonation=true;
+        }
+        catch(Exception error) { message=error.Message; isError=true; }
+    }
     private async Task RefreshPageDataAsync()
     {
         await LoadAsync();
@@ -500,6 +544,7 @@
 
         try
         {
+            if(!await JS.InvokeAsync<bool>("confirm",$"ذخیره تغییرات صرافی «{updateModel.Name}» (کد {editingTenantId})، اطلاعات مدیر و اشتراک را تأیید می‌کنید؟ وضعیت صرافی: {(updateModel.IsActive?"فعال":"غیرفعال")}{(!string.IsNullOrWhiteSpace(updateModel.NewAdminPassword)?" — رمز مدیر نیز تغییر می‌کند و نشست‌های قبلی نامعتبر می‌شوند.":"")}"))return;
             isSaving = true;
             var updated = await TenantService.UpdateAsync(editingTenantId, updateModel);
             await SaasService.ChangeSubscriptionAsync(editingTenantId, subscriptionModel);

@@ -278,3 +278,121 @@ html:has(.platform-workspace) { font-size: 16px; }
 .platform-workspace .platform-card-heading > button { order: -1; }
 .platform-workspace .page-header:has(> button.btn-primary-modern) { flex-wrap: wrap; }
 .platform-workspace .page-header > button.btn-primary-modern { order: -1; }
+
+/* One component contract for Bootstrap, legacy controls and shared components.
+   Keep this platform-scoped: the exchange/accounting UI is not being restyled. */
+.platform-workspace {
+    --platform-field-font-size: .875rem;
+    --platform-field-radius: .5rem;
+    --platform-field-border: #91a6b5;
+    --platform-field-padding: .5rem .75rem;
+    --platform-field-gap: .75rem;
+}
+.platform-workspace :is(.form-control,.form-control-modern,.form-select,.select-page-size,.tenant-money-currency,.tenant-money-amount) {
+    box-sizing: border-box;
+    border: .0625rem solid var(--platform-field-border) !important;
+    border-radius: var(--platform-field-radius) !important;
+    background-color: var(--surface);
+    color: var(--app-ink);
+    font-size: var(--platform-field-font-size) !important;
+    font-weight: 400;
+    line-height: 1.5 !important;
+    padding: var(--platform-field-padding);
+    margin-block: 0;
+    box-shadow: none;
+}
+.platform-workspace :is(input.form-control,input.form-control-modern,select.form-control,.form-select,.select-page-size,.tenant-money-currency,.tenant-money-amount) {
+    height: var(--ui-control-height) !important;
+    min-height: var(--ui-control-height) !important;
+    max-height: var(--ui-control-height) !important;
+    padding-block: .25rem !important;
+}
+.platform-workspace :is(.form-select,select.form-control,.select-page-size,.tenant-money-currency) {
+    padding-inline-start: .75rem;
+    padding-inline-end: 2rem;
+}
+.platform-workspace textarea.form-control { min-height: calc(var(--ui-control-height) * 2); resize: vertical; }
+.platform-workspace :is(.form-control,.form-control-modern,.form-select,.select-page-size):focus {
+    border-color: var(--app-primary) !important;
+    box-shadow: 0 0 0 .1875rem var(--app-primary-soft);
+}
+.platform-workspace :is(.form-control,.form-control-modern,.form-select):disabled { background-color: var(--surface-muted); color: var(--app-muted); cursor: not-allowed; }
+.platform-workspace :is(.form-control,.form-control-modern,.form-select).invalid { border-color: var(--app-danger) !important; }
+.platform-workspace .validation-message { color: var(--app-danger); font-size: .8125rem; line-height: 1.7; margin-top: .25rem; }
+.platform-workspace :is(label,.form-label) { font-weight: 500; }
+.platform-workspace .form-label { display: block; margin-bottom: .375rem !important; }
+.platform-workspace .form-switch input[type="checkbox"] { width: 2rem; }
+
+/* Filter rows share height, baseline, corner shape and spacing everywhere. */
+.platform-workspace .compact-filter-bar { --filter-control-height: var(--ui-control-height); }
+.platform-workspace .compact-filter-main { gap: var(--platform-field-gap); align-items: flex-end; }
+.platform-workspace .compact-filter-search { flex: 0 1 22rem; width: 22rem; min-width: 12rem; max-width: 100%; }
+.platform-workspace .compact-filter-search > i { right: .75rem; font-size: 1rem; }
+.platform-workspace .compact-filter-search :is(.form-control,.form-control-modern) { padding-inline-start: 2.5rem !important; padding-inline-end: .75rem !important; padding-right: 2.5rem !important; }
+.platform-workspace .compact-filter-main .compact-quick-filter { flex: 0 1 13rem; width: 13rem; min-width: 0; }
+.platform-workspace .compact-filter-main > :is(button,.btn,.btn-modern) {
+    height: var(--ui-control-height) !important;
+    min-height: var(--ui-control-height) !important;
+    max-height: var(--ui-control-height) !important;
+    border-radius: var(--platform-field-radius) !important;
+    font-size: var(--platform-field-font-size) !important;
+    line-height: 1.5 !important;
+    padding-block: .25rem !important;
+}
+.platform-workspace .compact-reset-filter { width: var(--ui-control-height); min-width: var(--ui-control-height); border-color: var(--app-border); background: var(--surface); color: var(--app-muted); }
+.platform-workspace .compact-reset-filter:hover { background: var(--platform-danger-soft); color: var(--app-danger); border-color: var(--app-danger); }
+.platform-workspace .compact-advanced-filters .form-label { font-size: .8125rem !important; margin-bottom: .375rem !important; }
+
+/* Date and monetary compound fields participate in the same sizing contract. */
+.platform-workspace :is(.persian-date-picker-wrapper,.date-picker-control),
+.platform-workspace .persian-date-picker-wrapper .date-picker-control .date-picker-input {
+    box-sizing: border-box;
+    height: var(--ui-control-height) !important;
+    min-height: var(--ui-control-height) !important;
+    max-height: var(--ui-control-height) !important;
+}
+.platform-workspace .persian-date-picker-wrapper .date-picker-control .date-picker-input {
+    border-radius: var(--platform-field-radius) !important;
+    padding-block: .25rem !important;
+    padding-inline-start: .75rem !important;
+    padding-inline-end: calc(var(--ui-control-height) + .25rem) !important;
+    line-height: 1.5 !important;
+}
+.platform-workspace .persian-date-picker-wrapper .date-picker-control.has-clear .date-picker-input { padding-inline-end: calc(var(--ui-control-height) * 2) !important; }
+.platform-workspace .date-picker-icon { width: calc(var(--ui-control-height) - .5rem); height: calc(var(--ui-control-height) - .5rem); border-radius: .375rem; font-size: 1rem; }
+.platform-workspace .date-picker-calendar { inset-inline-end: .25rem; }
+.platform-workspace .date-picker-clear { inset-inline-end: var(--ui-control-height); }
+.platform-workspace .tenant-money-field { border-color: var(--platform-field-border); border-radius: var(--platform-field-radius); }
+.platform-workspace .tenant-money-field :is(.tenant-money-currency,.tenant-money-amount) { border: 0 !important; border-radius: 0 !important; }
+.platform-workspace .tenant-money-field .tenant-money-currency { border-inline-end: .0625rem solid var(--app-border) !important; }
+
+/* Repeated action/status styles use the same semantic palette and shape. */
+.platform-workspace :is(.btn,.btn-modern,.platform-action-disclosure > summary,.page-link) { border-radius: var(--platform-field-radius) !important; }
+.platform-workspace :is(.btn-success,.btn-outline-success) { background: var(--platform-success-soft) !important; border-color: var(--app-success) !important; color: var(--app-success) !important; }
+.platform-workspace :is(.btn-success,.btn-outline-success):hover { background: var(--app-success) !important; color: #fff !important; }
+.platform-workspace .badge { border-radius: .375rem; font-size: .75rem; font-weight: 500; line-height: 1.7; padding: .25rem .625rem; }
+.platform-workspace .alert-success { color: var(--app-success); background: var(--platform-success-soft); border-color: var(--app-success); }
+.platform-workspace .alert-danger { color: var(--app-danger); background: var(--platform-danger-soft); border-color: var(--app-danger); }
+.platform-workspace .alert-warning { color: var(--app-warning); background: var(--platform-warning-soft); border-color: var(--app-warning); }
+.platform-workspace .alert-info { color: var(--app-primary); background: var(--app-primary-soft); border-color: var(--app-primary-border); }
+.platform-workspace .modal-title { color: var(--app-ink); font-size: 1.0625rem; font-weight: 600; line-height: 1.7; }
+.platform-workspace .list-footer-controls { gap: var(--platform-field-gap) !important; }
+.platform-workspace .select-page-size { min-width: 5rem; }
+.platform-workspace .page-link { min-width: var(--ui-control-height); min-height: var(--ui-control-height); color: var(--app-primary); border-color: var(--app-border); background: var(--surface); }
+.platform-workspace .page-item.active .page-link { color: #fff; background: var(--app-primary); border-color: var(--app-primary); }
+.platform-workspace .platform-section-nav button[aria-current="step"] { background: var(--app-primary-soft); color: var(--app-primary); border-color: var(--app-primary-border); font-weight: 600; }
+.platform-workspace .platform-action-disclosure > summary { min-height: var(--ui-control-height-sm); border-radius: var(--platform-field-radius); line-height: 1.6; }
+.platform-workspace .btn-sm { min-height: var(--ui-control-height-sm); }
+.platform-workspace .persian-calendar-modal { border-color: var(--app-border); border-radius: .75rem; box-shadow: var(--shadow-card) !important; }
+.platform-workspace .calendar-day { color: var(--app-ink); background: var(--surface-muted); border-radius: var(--platform-field-radius); }
+.platform-workspace .calendar-day:hover { background: var(--app-primary-soft); }
+.platform-workspace .calendar-day.selected { color: #fff; background: var(--app-primary); }
+.platform-workspace .calendar-day.today { border-color: var(--app-primary); }
+@media screen and (min-width: 769px) {
+    .platform-workspace { --ui-control-height-sm: 2.125rem; }
+}
+@media (max-width: 768px) {
+    .platform-workspace { --platform-field-font-size: 1rem; --ui-control-height-sm: 2.75rem; }
+    .platform-workspace .compact-filter-search { flex: 1 1 100%; width: 100%; min-width: 0; }
+    .platform-workspace .compact-filter-main .compact-quick-filter { flex: 1 1 10rem; width: auto; }
+}

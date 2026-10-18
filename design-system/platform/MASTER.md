@@ -71,6 +71,21 @@ renumbers only platform positional cells; accounting table behavior is unchanged
 Keep Vazirmatn, current density and palette. Use keyboard-accessible native controls
 and keep related actions close to the information they affect (short mouse travel).
 
+## Shared component appearance contract
+
+All platform filter bars and forms, including embedded management/billing and
+dialogs, use the same field height (`--ui-control-height`), border token,
+`.5rem` corner radius and font/line-height. Legacy `.form-control-modern`, Bootstrap
+inputs/selects, date-picker wrappers/inputs, amount/currency compound controls,
+filter-reset controls and page-size selectors are included. Height cannot depend
+on whether a field has a value. Textareas intentionally remain multi-line.
+Search widths may differ from selects; height, baseline, radius, palette and
+typography must not. Primary/secondary/success/warning/danger roles share tokens
+across buttons, status badges and alerts. Mobile fields remain 44px high and use
+16px text; desktop retains the explicitly requested compact sizing.
+Computed browser styles, not only source-string tests, must confirm these values
+on the directory, billing, reports, audit, automation and representative dialogs.
+
 ## Accessibility and verification
 
 Visible focus, semantic buttons/labels, status/error announcements, no color-only

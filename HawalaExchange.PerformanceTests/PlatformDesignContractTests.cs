@@ -3,6 +3,21 @@ namespace HawalaExchange.PerformanceTests;
 public sealed class PlatformDesignContractTests
 {
     [Fact]
+    public void Repeated_controls_share_one_platform_sizing_and_shape_contract()
+    {
+        var css = File.ReadAllText(Path.Combine(Root(), "HawalaExchange.Web", "wwwroot", "styles", "pages", "Platform", "PlatformWorkspace.css"));
+        var contract = css[css.IndexOf("/* One component contract")..];
+        foreach(var component in new[]{".form-control-modern", ".form-select", ".select-page-size", ".date-picker-input", ".tenant-money-amount", ".compact-reset-filter"})
+            Assert.Contains(component,contract);
+        Assert.Contains("height: var(--ui-control-height) !important;",contract);
+        Assert.Contains("--filter-control-height: var(--ui-control-height);",contract);
+        Assert.Contains("border-radius: var(--platform-field-radius) !important;",contract);
+        Assert.Contains("font-size: var(--platform-field-font-size) !important;",contract);
+        Assert.Contains("--platform-field-font-size: 1rem",contract);
+        Assert.Contains("textarea.form-control { min-height:",contract);
+        Assert.Contains(".invalid { border-color: var(--app-danger) !important; }",contract);
+    }
+    [Fact]
     public void Eighty_percent_density_is_desktop_only_and_uses_relative_units()
     {
         var css = File.ReadAllText(Path.Combine(Root(), "HawalaExchange.Web", "wwwroot", "styles", "pages", "Platform", "PlatformWorkspace.css"));

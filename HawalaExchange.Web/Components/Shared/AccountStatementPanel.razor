@@ -100,5 +100,5 @@
     private async Task<IJSObjectReference> Module() => module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/record-selection.js");
     private async Task Copy() { try { await (await Module()).InvokeVoidAsync("copy", BuildText()); error = ""; } catch { error = "کاپی مجاز نیست؛ از پیش‌نمایش دستی کاپی کنید یا فایل بگیرید."; } }
     private async Task Download() { try { await (await Module()).InvokeVoidAsync("download", "AccountStatement.txt", "text/plain;charset=utf-8", Convert.ToBase64String(Encoding.UTF8.GetBytes(BuildText()))); error = ""; } catch { error = "دریافت فایل انجام نشد."; } }
-    public async ValueTask DisposeAsync() { version++; if (module != null) try { await module.DisposeAsync(); } catch (JSDisconnectedException) { } }
+    public async ValueTask DisposeAsync() { version++; if (module != null) try { await module.TryDisposeBrowserModuleAsync(); } catch (JSDisconnectedException) { } }
 }

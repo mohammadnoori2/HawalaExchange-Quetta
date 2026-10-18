@@ -11,13 +11,13 @@
     [Parameter] public string? Permission { get; set; }
     [Parameter] public string? Any { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
-    private bool ready;
+    private bool ready, disposed;
     protected override async Task OnInitializedAsync()
     {
         Permissions.Changed+=Update;
         await Permissions.RefreshAsync();
         Permissions.StartWatching(); ready=true;
     }
-    private void Update()=>_=InvokeAsync(StateHasChanged);
-    public void Dispose()=>Permissions.Changed-=Update;
+    private void Update(){if(!disposed)_=InvokeAsync(()=>{if(!disposed)StateHasChanged();});}
+    public void Dispose(){disposed=true;Permissions.Changed-=Update;}
 }

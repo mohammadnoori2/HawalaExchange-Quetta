@@ -1,4 +1,7 @@
 using HawalaExchange.Application.Interfaces.Services;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace HawalaExchange.Web.Services;
 
@@ -6,7 +9,7 @@ public sealed class SaasAutomationWorker(IServiceScopeFactory scopeFactory, ILog
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
+        if (!await WaitAsync(TimeSpan.FromMinutes(2), stoppingToken)) return;
         while (!stoppingToken.IsCancellationRequested)
         {
             var delay = TimeSpan.FromHours(6);
@@ -20,7 +23,13 @@ public sealed class SaasAutomationWorker(IServiceScopeFactory scopeFactory, ILog
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception ex) { logger.LogError(ex, "The SaaS automation cycle failed."); }
-            await Task.Delay(delay, stoppingToken);
+            if (!await WaitAsync(delay, stoppingToken)) break;
         }
+    }
+
+    internal static async Task<bool> WaitAsync(TimeSpan delay, CancellationToken stoppingToken)
+    {
+        try { await Task.Delay(delay, stoppingToken); return true; }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return false; }
     }
 }

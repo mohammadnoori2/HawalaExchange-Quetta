@@ -1,4 +1,6 @@
 @using System.Text.RegularExpressions
+@using Microsoft.JSInterop
+@namespace HawalaExchange.Web.Components.Shared
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 
@@ -57,7 +59,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || preferenceLoaded || !PersistPreference)
+        if (preferenceLoaded || !PersistPreference)
         {
             return;
         }
@@ -79,8 +81,11 @@
         }
         catch (JSDisconnectedException)
         {
+            preferenceLoaded=false;
             // The browser connection ended while leaving the page.
         }
+        catch (OperationCanceledException) { preferenceLoaded=false; }
+        catch (JSException) { /* Optional browser preferences are unavailable. */ }
         catch (InvalidOperationException)
         {
             // JavaScript is not available during static server rendering.
@@ -103,7 +108,10 @@
 
         if (persist && PersistPreference)
         {
-            await JS.InvokeVoidAsync("localStorage.setItem", GetStorageKey(), nextValue.ToString());
+            try { await JS.InvokeVoidAsync("localStorage.setItem", GetStorageKey(), nextValue.ToString()); }
+            catch (JSDisconnectedException) { }
+            catch (OperationCanceledException) { }
+            catch (JSException) { /* A failed preference write must not block paging. */ }
         }
 
         await ValueChanged.InvokeAsync(nextValue);

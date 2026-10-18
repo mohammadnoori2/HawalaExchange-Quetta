@@ -92,7 +92,7 @@
     {
         if (!openMenuAfterRender || !isOpen || Disabled) return;
         openMenuAfterRender = false;
-        await JS.InvokeVoidAsync("hawalaTools.openFloatingDropdown", dropdownElement, menuElement);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.openFloatingDropdown", dropdownElement, menuElement);
     }
 
     private void Open()
@@ -106,7 +106,7 @@
     {
         searchText = string.Empty;
         isOpen = false;
-        await JS.InvokeVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
     }
 
     private async Task HandleInputAsync(ChangeEventArgs args)
@@ -136,7 +136,7 @@
         lastObservedValue = option.Value;
         searchText = string.Empty;
         isOpen = false;
-        await JS.InvokeVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
         await ValueChanged.InvokeAsync(option.Value);
     }
 

@@ -12,14 +12,14 @@
 }
 @code {
     [Parameter] public RenderFragment? ChildContent { get; set; }
-    private bool ready;
+    private bool ready, disposed;
     private bool Allowed => PermissionCatalog.PagePermission(Navigation.ToBaseRelativePath(Navigation.Uri)) is not string key || Permissions.Can(key);
     protected override async Task OnInitializedAsync()
     {
         Permissions.Changed+=Update; Navigation.LocationChanged+=LocationChanged;
         await Permissions.RefreshAsync(); Permissions.StartWatching(); ready=true;
     }
-    private void Update()=>_=InvokeAsync(StateHasChanged);
+    private void Update(){if(!disposed)_=InvokeAsync(()=>{if(!disposed)StateHasChanged();});}
     private void LocationChanged(object? sender,Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)=>Update();
-    public void Dispose() { Permissions.Changed-=Update; Navigation.LocationChanged-=LocationChanged; }
+    public void Dispose() { disposed=true;Permissions.Changed-=Update; Navigation.LocationChanged-=LocationChanged; }
 }

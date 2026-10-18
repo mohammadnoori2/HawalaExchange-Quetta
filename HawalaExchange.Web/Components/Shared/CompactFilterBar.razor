@@ -82,28 +82,43 @@
     private bool showAdvancedFilters;
     private ElementReference filterElement;
     private IJSObjectReference? module;
+    private bool disposed, initializing, initialized;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || AdvancedFilters is null) return;
+        if (disposed || initializing || initialized || AdvancedFilters is null) return;
+        initializing = true;
         try
         {
-            module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/compact-filter-bar.js");
+            if(module is null)
+            {
+                var imported = await JS.InvokeAsync<IJSObjectReference>("import", "./js/compact-filter-bar.js");
+                if(disposed){await imported.TryDisposeBrowserModuleAsync();return;}
+                module=imported;
+            }
             await module.InvokeVoidAsync("initialize", filterElement);
+            initialized=true;
         }
         catch (JSDisconnectedException) { }
+        catch (OperationCanceledException) { }
         catch (InvalidOperationException) { }
+        finally { initializing=false; }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (module is null) return;
+        if(disposed)return;
+        disposed=true;
+        var current=module;module=null;
+        if (current is null) return;
         try
         {
-            await module.InvokeVoidAsync("dispose", filterElement);
-            await module.DisposeAsync();
+            using var cleanup=new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await current.InvokeVoidAsync("dispose", cleanup.Token, filterElement);
         }
         catch (JSDisconnectedException) { }
+        catch (OperationCanceledException) { }
+        finally { await current.TryDisposeBrowserModuleAsync(); }
     }
 
     protected override void OnInitialized()

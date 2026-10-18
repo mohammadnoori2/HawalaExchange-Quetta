@@ -76,7 +76,7 @@
     private async Task SortChanged(ChangeEventArgs e){filter.SortBy=e.Value?.ToString()??"name";await FilterChangedAsync();}private async Task SortDirectionChanged(ChangeEventArgs e){filter.SortDescending=bool.TryParse(e.Value?.ToString(),out var x)&&x;await FilterChangedAsync();}
     private async Task ResetReportFilters(){var pageSize=filter.PageSize;filter=new(){PageSize=pageSize};await LoadAsync();}
     private async Task GoToPageAsync(int page){var target=Math.Clamp(page,1,TotalPages);if(target==filter.Page)return;filter.Page=target;await LoadAsync();}
-    private async Task PrintAsync(){var oldPage=filter.Page;var oldSize=filter.PageSize;try{filter.Page=1;filter.PageSize=1000;await LoadAsync();await JS.InvokeAsync<bool>("hawalaTools.printPdfElement","saas-management-report","saas-management-report");}finally{filter.Page=oldPage;filter.PageSize=oldSize;await LoadAsync();}}
+    private async Task PrintAsync(){var oldPage=filter.Page;var oldSize=filter.PageSize;try{filter.Page=1;filter.PageSize=1000;await LoadAsync();await JS.TryInvokeUiBooleanAsync("hawalaTools.printPdfElement","saas-management-report","saas-management-report");}finally{filter.Page=oldPage;filter.PageSize=oldSize;await LoadAsync();}}
     private static string StatusText(SubscriptionStatus? s)=>s switch{SubscriptionStatus.Trial=>"آزمایشی",SubscriptionStatus.Active=>"فعال",SubscriptionStatus.ExpiringSoon=>"فعال",SubscriptionStatus.Expired=>"منقضی",SubscriptionStatus.Suspended=>"تعلیق",SubscriptionStatus.Cancelled=>"لغوشده",_=>"بدون اشتراک"};
     private static string StatusFilterText(SubscriptionStatus s)=>s==SubscriptionStatus.ExpiringSoon?"نیازمند پیگیری تمدید":StatusText(s);
 }

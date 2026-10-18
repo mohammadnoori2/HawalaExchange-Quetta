@@ -98,6 +98,7 @@
     private bool matchInputFormat;
     private IJSObjectReference? module;
     private DotNetObjectReference<SelectedRecordsToolbar>? reference;
+    private bool initializing;
 
     protected override void OnParametersSet()
     {
@@ -113,18 +114,27 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if(disposed||initializing)return;
+        initializing=true;
         try
         {
-            module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/record-selection.js");
+            if(module is null)
+            {
+                var imported=await JS.InvokeAsync<IJSObjectReference>("import", "./js/record-selection.js");
+                if(disposed){await imported.TryDisposeBrowserModuleAsync();return;}
+                module=imported;
+            }
             reference ??= DotNetObjectReference.Create(this);
             await module.InvokeVoidAsync("mount", ScopeId, reference, selected.ToArray(), visible, ResetKey);
         }
         catch (JSDisconnectedException) { }
+        catch (OperationCanceledException) { }
         catch (InvalidOperationException) { }
+        finally { initializing=false; }
     }
 
     [JSInvokable]
-    public Task UpdateVisibleSelection(long[] added, long[] removed, string resetKey) => InvokeAsync(async () =>
+    public Task UpdateVisibleSelection(long[] added, long[] removed, string resetKey) => disposed ? Task.CompletedTask : InvokeAsync(async () =>
     {
         if (disposed || resetKey != ResetKey) return;
         selected.ExceptWith(removed.Where(seen.Contains));
@@ -234,12 +244,23 @@
     }
     public async ValueTask DisposeAsync()
     {
+        if(disposed)return;
         disposed = true;
-        if (module != null)
+        var current=module;module=null;
+        try
         {
-            try { await module.InvokeVoidAsync("unmount", ScopeId); await module.DisposeAsync(); }
-            catch (JSDisconnectedException) { }
+            if(current is not null)
+            {
+                using var cleanup=new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await current.InvokeVoidAsync("unmount",cleanup.Token, ScopeId);
+            }
         }
-        reference?.Dispose();
+        catch (JSDisconnectedException) { }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            reference?.Dispose();reference=null;
+            if(current is not null)await current.TryDisposeBrowserModuleAsync();
+        }
     }
 }

@@ -125,7 +125,7 @@
     {
         searchText = string.Empty;
         isOpen = false;
-        await JS.InvokeVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -134,7 +134,7 @@
             return;
 
         openMenuAfterRender = false;
-        await JS.InvokeVoidAsync("hawalaTools.openFloatingDropdown", dropdownElement, menuElement);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.openFloatingDropdown", dropdownElement, menuElement);
     }
 
     protected override void OnParametersSet()
@@ -189,7 +189,7 @@
         lastObservedValue = account.Id;
         searchText = string.Empty;
         isOpen = false;
-        await JS.InvokeVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
         await ValueChanged.InvokeAsync(account.Id);
         await OnSelected.InvokeAsync(account);
     }
@@ -200,7 +200,7 @@
         lastObservedValue = 0;
         searchText = string.Empty;
         isOpen = false;
-        await JS.InvokeVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
         await ValueChanged.InvokeAsync(0);
     }
 

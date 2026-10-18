@@ -1041,7 +1041,7 @@
             var text = HawalaShareHelper.BuildText(CreatedHawalaDetails);
             var url = "https://wa.me/?text=" + Uri.EscapeDataString(text);
 
-            await JS.InvokeVoidAsync("hawalaTools.openShareUrl", url);
+            await JS.TryInvokeUiVoidAsync("hawalaTools.openShareUrl", url);
         }
         catch (Exception ex)
         {
@@ -1067,7 +1067,7 @@
                 "?url=" + Uri.EscapeDataString(receiptUrl) +
                 "&text=" + Uri.EscapeDataString(text);
 
-            await JS.InvokeVoidAsync("hawalaTools.openTelegramApp", telegramAppUrl);
+            await JS.TryInvokeUiVoidAsync("hawalaTools.openTelegramApp", telegramAppUrl);
         }
         catch (Exception ex)
         {
@@ -1081,17 +1081,17 @@
     {
         if (CreatedHawala == null)
         {
-            await JS.InvokeVoidAsync("alert", "هیچ حواله‌ای برای چاپ وجود ندارد");
+            await JS.TryInvokeUiVoidAsync("alert", "هیچ حواله‌ای برای چاپ وجود ندارد");
             return;
         }
 
         try
         {
-            await JS.InvokeVoidAsync("hawalaTools.printElement", CreatedReceiptWithHeaderId, 80);
+            await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", CreatedReceiptWithHeaderId, 80);
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"خطا در چاپ: {ex.Message}");
+            await JS.TryInvokeUiVoidAsync("alert", $"خطا در چاپ: {ex.Message}");
         }
     }
 
@@ -1099,17 +1099,17 @@
     {
         if (CreatedHawala == null)
         {
-            await JS.InvokeVoidAsync("alert", "هیچ حواله‌ای برای چاپ وجود ندارد");
+            await JS.TryInvokeUiVoidAsync("alert", "هیچ حواله‌ای برای چاپ وجود ندارد");
             return;
         }
 
         try
         {
-            await JS.InvokeVoidAsync("hawalaTools.printElement", CreatedReceiptWithoutHeaderId, 80);
+            await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", CreatedReceiptWithoutHeaderId, 80);
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"خطا در چاپ: {ex.Message}");
+            await JS.TryInvokeUiVoidAsync("alert", $"خطا در چاپ: {ex.Message}");
         }
     }
 
@@ -1404,7 +1404,7 @@
     {
         if (CreatedHawala == null)
         {
-            await JS.InvokeVoidAsync("alert", "هیچ حواله‌ای برای تکرار وجود ندارد");
+            await JS.TryInvokeUiVoidAsync("alert", "هیچ حواله‌ای برای تکرار وجود ندارد");
             return;
         }
 
@@ -1480,7 +1480,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"خطا در تکرار عملیات: {ex.Message}");
+            await JS.TryInvokeUiVoidAsync("alert", $"خطا در تکرار عملیات: {ex.Message}");
         }
     }
 

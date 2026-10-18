@@ -142,7 +142,7 @@
         }
     }
 
-    private async Task PrintAsync() => await JSRuntime.InvokeVoidAsync("window.print");
+    private async Task PrintAsync() => await JSRuntime.TryInvokeUiVoidAsync("window.print");
 
     private static string FormatAmount(decimal amount) =>
         amount < 0

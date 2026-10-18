@@ -152,5 +152,5 @@
     private string GroupLabel(string label) => applied?.GroupBy == "Day" && DateTime.TryParseExact(label, "yyyy/MM/dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? DisplayDates.Date(date) : label;
     private static string Money(decimal value) => AmountValueHelper.Format(value);
     private static string Money(decimal? value) => value.HasValue ? Money(value.Value) : "—";
-    public async ValueTask DisposeAsync() { if (module != null) try { await module.DisposeAsync(); } catch (JSDisconnectedException) { } }
+    public async ValueTask DisposeAsync() { if (module != null) try { await module.TryDisposeBrowserModuleAsync(); } catch (JSDisconnectedException) { } }
 }

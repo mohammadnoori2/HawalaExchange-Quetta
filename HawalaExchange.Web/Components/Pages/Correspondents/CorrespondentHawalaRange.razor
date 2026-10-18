@@ -332,7 +332,7 @@
             var safeCode = string.Concat(correspondent.Code
                 .Where(character => char.IsLetterOrDigit(character) || character is '-' or '_'));
             var fileName = $"hawala-range-{safeCode}-{DateTime.Now:yyyyMMdd-HHmmss}";
-            var exported = await JS.InvokeAsync<bool>("hawalaTools.printPdfElement", "correspondentRangeReport", fileName);
+            var exported = await JS.TryInvokeUiBooleanAsync("hawalaTools.printPdfElement", "correspondentRangeReport", fileName);
             if (!exported)
                 rangeError = "پنجره خروجی باز نشد. لطفاً اجازه باز شدن پنجره جدید را در مرورگر فعال کنید.";
         }

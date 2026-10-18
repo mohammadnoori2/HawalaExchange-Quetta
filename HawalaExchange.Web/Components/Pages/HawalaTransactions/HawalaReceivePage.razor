@@ -1106,7 +1106,7 @@
 
     private async Task PrintReceipt()
     {
-        await JS.InvokeVoidAsync("hawalaTools.printReceipt");
+        await JS.TryInvokeUiVoidAsync("hawalaTools.printReceipt");
     }
 
     private async Task CopyHawalaInfo(long hawalaId)
@@ -1126,7 +1126,7 @@
 
             var text = HawalaShareHelper.BuildText(hawala, DisplayDates);
 
-            var copied = await JS.InvokeAsync<bool>("hawalaTools.copyToClipboard", text);
+            var copied = await JS.TryInvokeUiBooleanAsync("hawalaTools.copyToClipboard", text);
 
             successMessage = copied
                 ? "معلومات حواله کاپی شد."
@@ -1154,7 +1154,7 @@
 
             var url = "https://wa.me/?text=" + Uri.EscapeDataString(text);
 
-            await JS.InvokeVoidAsync("hawalaTools.openShareUrl", url);
+            await JS.TryInvokeUiVoidAsync("hawalaTools.openShareUrl", url);
         }
         catch (Exception ex)
         {
@@ -1183,7 +1183,7 @@
                 "?url=" + Uri.EscapeDataString(receiptUrl) +
                 "&text=" + Uri.EscapeDataString(text);
 
-            await JS.InvokeVoidAsync("hawalaTools.openTelegramApp", telegramAppUrl);
+            await JS.TryInvokeUiVoidAsync("hawalaTools.openTelegramApp", telegramAppUrl);
         }
         catch (Exception ex)
         {

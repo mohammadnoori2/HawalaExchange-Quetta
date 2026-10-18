@@ -1136,7 +1136,7 @@
             var safeCode = string.Concat(selectedRangeCorrespondent.Code
                 .Where(character => char.IsLetterOrDigit(character) || character is '-' or '_'));
             var fileName = $"hawala-range-{safeCode}-{DateTime.Now:yyyyMMdd-HHmmss}";
-            var exported = await JS.InvokeAsync<bool>(
+            var exported = await JS.TryInvokeUiBooleanAsync(
                 "hawalaTools.printPdfElement",
                 "correspondentRangeReport",
                 fileName);

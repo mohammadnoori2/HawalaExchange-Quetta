@@ -489,7 +489,7 @@
     private async Task ToggleTenantArchiveAsync(TenantDto tenant)
     {
         var action = tenant.IsArchived ? "از بایگانی خارج" : "بایگانی";
-        if (!await JS.InvokeAsync<bool>("confirm", $"آیا صرافی «{tenant.Name}» {action} شود؟"))
+        if (!await JS.ConfirmOrCancelAsync($"آیا صرافی «{tenant.Name}» {action} شود؟"))
             return;
 
         try
@@ -547,7 +547,7 @@
 
         try
         {
-            if(!await JS.InvokeAsync<bool>("confirm",$"ذخیره تغییرات صرافی «{updateModel.Name}» (کد {editingTenantId})، اطلاعات مدیر و اشتراک را تأیید می‌کنید؟ وضعیت صرافی: {(updateModel.IsActive?"فعال":"غیرفعال")}{(!string.IsNullOrWhiteSpace(updateModel.NewAdminPassword)?" — رمز مدیر نیز تغییر می‌کند و نشست‌های قبلی نامعتبر می‌شوند.":"")}"))return;
+            if(!await JS.ConfirmOrCancelAsync($"ذخیره تغییرات صرافی «{updateModel.Name}» (کد {editingTenantId})، اطلاعات مدیر و اشتراک را تأیید می‌کنید؟ وضعیت صرافی: {(updateModel.IsActive?"فعال":"غیرفعال")}{(!string.IsNullOrWhiteSpace(updateModel.NewAdminPassword)?" — رمز مدیر نیز تغییر می‌کند و نشست‌های قبلی نامعتبر می‌شوند.":"")}"))return;
             isSaving = true;
             var updated = await TenantService.UpdateAsync(editingTenantId, updateModel);
             await SaasService.ChangeSubscriptionAsync(editingTenantId, subscriptionModel);

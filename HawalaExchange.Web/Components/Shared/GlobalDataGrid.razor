@@ -3,16 +3,21 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
+@inject HawalaExchange.Web.Services.UiConnectionState Connection
+@inject ILogger<GlobalDataGrid> Logger
+@inject Microsoft.Extensions.Options.IOptions<Microsoft.AspNetCore.Components.Server.CircuitOptions> CircuitOptions
 
 <table @ref="tableElement"
        @attributes="AdditionalAttributes"
-       data-global-grid="true">
+       data-global-grid="@(EnableSorting ? "true" : "false")">
     @ChildContent
 </table>
 
 @code {
     private ElementReference tableElement;
     private IJSObjectReference? module;
+    private readonly CancellationTokenSource lifetime = new();
+    private bool disposed, initializing, renderAfterInitialization;
 
     [Parameter, EditorRequired]
     public RenderFragment? ChildContent { get; set; }
@@ -23,38 +28,93 @@
     [Parameter(CaptureUnmatchedValues = true)]
     public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
 
+    protected override void OnInitialized() => Connection.Changed += ConnectionChanged;
+
+    private void ConnectionChanged()
+    {
+        if (disposed || !Connection.IsConnected) return;
+        _ = InvokeAsync(() =>
+        {
+            if (disposed) return;
+            if (initializing) renderAfterInitialization = true;
+            else StateHasChanged();
+        });
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!EnableSorting)
+        if (!EnableSorting || disposed || initializing || !Connection.IsConnected)
             return;
 
+        initializing = true;
+        var connectionToken = Connection.ConnectionToken;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token, connectionToken);
+        // An explicit token replaces JSRuntime's default timeout; retain that limit.
+        cancellation.CancelAfter(CircuitOptions.Value.JSInteropDefaultCallTimeout);
         try
         {
-            module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/global-data-grid.js");
-            await module.InvokeVoidAsync("initialize", tableElement);
+            if (module is null)
+            {
+                var imported = await JS.InvokeAsync<IJSObjectReference>("import", cancellation.Token, "./js/global-data-grid.js");
+                if (disposed || cancellation.IsCancellationRequested)
+                {
+                    await ReleaseModuleAsync(imported);
+                    return;
+                }
+                module = imported;
+            }
+            await module.InvokeVoidAsync("initialize", cancellation.Token, tableElement);
         }
         catch (JSDisconnectedException)
         {
             // The circuit ended while the page was changing.
         }
+        catch (OperationCanceledException)
+        {
+            // Cancellation/timeout is not a broken script and must not kill the circuit.
+            // Retry on the next render/reconnect, never in an immediate retry loop.
+            if (!disposed && !connectionToken.IsCancellationRequested)
+                Logger.LogWarning("Table browser initialization timed out; it will retry on the next render or reconnect.");
+        }
         catch (InvalidOperationException)
         {
             // JavaScript is unavailable during static server-side rendering.
+        }
+        finally
+        {
+            initializing = false;
+            if (renderAfterInitialization && !disposed && Connection.IsConnected)
+            {
+                renderAfterInitialization = false;
+                StateHasChanged();
+            }
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (module is null)
-            return;
+        if (disposed) return;
+        disposed = true;
+        Connection.Changed -= ConnectionChanged;
+        lifetime.Cancel();
+        var currentModule = module;
+        module = null;
+        try { if (currentModule is not null) await ReleaseModuleAsync(currentModule); }
+        finally { lifetime.Dispose(); }
+    }
 
+    private async ValueTask ReleaseModuleAsync(IJSObjectReference reference)
+    {
         try
         {
-            await module.DisposeAsync();
+            await reference.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2));
         }
         catch (JSDisconnectedException)
         {
             // The browser connection has already closed.
         }
+        catch (OperationCanceledException) { }
+        catch (TimeoutException) { Logger.LogWarning("Table browser module cleanup timed out."); }
+        catch (JSException error) { Logger.LogWarning(error, "Could not release the table browser module."); }
     }
 }

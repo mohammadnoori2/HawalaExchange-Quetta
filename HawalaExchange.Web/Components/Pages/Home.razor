@@ -355,8 +355,7 @@
     {
         if (dashboard != null && !chartsRendered)
         {
-            await RenderChartsAsync();
-            chartsRendered = true;
+            chartsRendered = await RenderChartsAsync();
         }
     }
 
@@ -408,27 +407,27 @@
         }
     }
 
-    private async Task RenderChartsAsync()
+    private async Task<bool> RenderChartsAsync()
     {
         if (dashboard == null)
-            return;
+            return false;
 
-        await JSRuntime.InvokeVoidAsync(
+        if (!await JSRuntime.TryInvokeUiVoidAsync(
             "renderDailyChart",
             "dailyChart",
             dashboard.DailyActivities.Select(x => DisplayDates.Date(x.Date)).ToArray(),
-            dashboard.DailyActivities.Select(x => x.Value).ToArray());
-        await JSRuntime.InvokeVoidAsync(
+            dashboard.DailyActivities.Select(x => x.Value).ToArray())) return false;
+        if (!await JSRuntime.TryInvokeUiVoidAsync(
             "renderPeriodicChart",
             "periodicChart",
             dashboard.WeeklyProfit.Select(x => x.Label).ToArray(),
-            dashboard.WeeklyProfit.Select(x => x.Value).ToArray());
-        await JSRuntime.InvokeVoidAsync(
+            dashboard.WeeklyProfit.Select(x => x.Value).ToArray())) return false;
+        if (!await JSRuntime.TryInvokeUiVoidAsync(
             "renderLiquidityChart",
             "liquidityChart",
             currentLiquidityItems.Select(x => $"{x.AccountName} ({x.CurrencyCode})").ToArray(),
-            currentLiquidityItems.Select(x => x.Amount).ToArray());
-        await JSRuntime.InvokeVoidAsync(
+            currentLiquidityItems.Select(x => x.Amount).ToArray())) return false;
+        return await JSRuntime.TryInvokeUiVoidAsync(
             "renderMiniChart",
             "miniChart",
             new[] { "حواله", "تبدیل پول", "عملیات حساب", "مصارف", "سرمایه" },

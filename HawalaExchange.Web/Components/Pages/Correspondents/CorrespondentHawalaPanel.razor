@@ -739,7 +739,7 @@
         showReceiptModal = false;
     }
 
-    private Task PrintReceiptAsync() => JS.InvokeVoidAsync("hawalaTools.printElement", ReceiptPrintId, 80).AsTask();
+    private Task PrintReceiptAsync() => JS.TryInvokeUiVoidAsync("hawalaTools.printElement", ReceiptPrintId, 80).AsTask();
 
     private async Task CopyHawalaInfoAsync(long id)
     {
@@ -751,7 +751,7 @@
                 errors.Add("حواله یافت نشد.");
                 return;
             }
-            var copied = await JS.InvokeAsync<bool>("hawalaTools.copyToClipboard", HawalaShareHelper.BuildText(hawala, DisplayDates));
+            var copied = await JS.TryInvokeUiBooleanAsync("hawalaTools.copyToClipboard", HawalaShareHelper.BuildText(hawala, DisplayDates));
             successMessage = copied ? "معلومات حواله کاپی شد." : "کاپی خودکار انجام نشد.";
         }
         catch (Exception ex)
@@ -769,7 +769,7 @@
             return;
         }
         var url = "https://wa.me/?text=" + Uri.EscapeDataString(HawalaShareHelper.BuildText(hawala, DisplayDates));
-        await JS.InvokeVoidAsync("hawalaTools.openShareUrl", url);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.openShareUrl", url);
     }
 
     private async Task ShareTelegramAsync(long id)
@@ -783,7 +783,7 @@
         var text = HawalaShareHelper.BuildText(hawala, DisplayDates);
         var baseUrl = NavigationManager.BaseUri.TrimEnd('/');
         var url = "tg://msg_url?url=" + Uri.EscapeDataString(baseUrl) + "&text=" + Uri.EscapeDataString(text);
-        await JS.InvokeVoidAsync("hawalaTools.openTelegramApp", url);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.openTelegramApp", url);
     }
 
     private async Task OpenPayAsync(HawalaDto hawala)

@@ -76,8 +76,10 @@ public sealed class PlatformTenantManagement(ImpersonationSessionStore actors,Au
             (t.ContactEmail!=null && t.ContactEmail.Contains(term)) || (t.ContactPhone!=null && t.ContactPhone.Contains(term)) ||
             db.Users.IgnoreQueryFilters().Any(u=>u.TenantId==t.Id && !u.IsPlatformUser && (u.FullName.Contains(term)||u.LocalUserName.Contains(term)||
                 (u.Email!=null && u.Email.Contains(term))||(u.PhoneNumber!=null && u.PhoneNumber.Contains(term)))));
-        return await q.OrderBy(x=>x.Name).Take(100).Select(x=>new PlatformTenantSearch(x.Id,x.Name,x.ContactEmail,x.ContactPhone,
+        var rows = await q.OrderBy(x=>x.Name).Take(100).Select(x=>new PlatformTenantSearch(x.Id,x.Name,x.ContactEmail,x.ContactPhone,
             db.Users.IgnoreQueryFilters().Count(u=>u.TenantId==x.Id && !u.IsPlatformUser && u.IsActive),x.LastActivityAt,x.IsActive)).ToListAsync(ct);
+        var activity=await TenantActivityReader.ReadAsync(db,rows.Select(x=>x.Id),ct);
+        return rows.Select(x=>x with {LastActivityAt=activity.GetValueOrDefault(x.Id)}).ToList();
     }
     public async Task<PlatformTenantOverview> GetAsync(long tenantId,CancellationToken ct=default)
     {
@@ -85,9 +87,7 @@ public sealed class PlatformTenantManagement(ImpersonationSessionStore actors,Au
         await using var db=await factory.CreateDbContextAsync(ct); using var tenantScope=db.UseTenantScope(tenantId);
         await RequireTenantAsync(db,tenantId,ct);
         var tenant=await db.Tenants.AsNoTracking().SingleAsync(x=>x.Id==tenantId,ct);
-        var lastLogin=await db.Users.MaxAsync(x=>x.LastLoginAt,ct);
-        var lastTransaction=await db.Transactions.MaxAsync(x=>(DateTime?)x.CreatedAt,ct);
-        tenant.LastActivityAt=new[]{tenant.LastActivityAt,lastLogin,lastTransaction}.Max();
+        tenant.LastActivityAt=(await TenantActivityReader.ReadAsync(db,[tenantId],ct)).GetValueOrDefault(tenantId);
         var users=await db.Users.AsNoTracking().OrderBy(x=>x.FullName).ToListAsync(ct);
         var roles=await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id
             join u in db.Users on ur.UserId equals u.Id select new {u.Id,Name=r.Name!}).ToListAsync(ct);

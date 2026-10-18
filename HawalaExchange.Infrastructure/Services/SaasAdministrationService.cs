@@ -71,6 +71,7 @@ public sealed class SaasAdministrationService(ApplicationDbContext context) : IS
             })
             .ToListAsync(cancellationToken);
 
+        var activity = await TenantActivityReader.ReadAsync(context, rows.Select(x => x.Tenant.Id), cancellationToken);
         var now = DateTime.UtcNow;
         return rows.Select(x => new SaasTenantDto
         {
@@ -82,7 +83,7 @@ public sealed class SaasAdministrationService(ApplicationDbContext context) : IS
             IsActive = x.Tenant.IsActive,
             IsArchived = x.Tenant.IsArchived,
             CreatedAt = x.Tenant.CreatedAt,
-            LastActivityAt = x.Tenant.LastActivityAt,
+            LastActivityAt = activity.GetValueOrDefault(x.Tenant.Id),
             UserCount = x.UserCount,
             BranchCount = x.BranchCount,
             SubscriptionId = x.Subscription?.Id,

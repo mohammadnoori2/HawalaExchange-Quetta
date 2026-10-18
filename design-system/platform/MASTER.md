@@ -54,6 +54,23 @@ end date remains in the accessible label/title and in editable date controls.
 Reports/export freeze relative wording at report generation time. Keep suspended,
 cancelled and trial statuses explicit; display formatting never changes access rules.
 
+## Tenant directory and detail workflow
+
+The directory is a navigation surface, not an action toolbar per tenant. Company
+names link to `/tenants/{id}`; profile/subscription, guarded impersonation/archive,
+users/permissions, settings/logo, controls, jobs and subscription history live in
+that context. Billing controls reuse the existing component with a tenant context
+and retain PlatformBilling authorization. Archived tenants expose restore, not
+active-user management. No permissions are broadened by embedding components.
+Directory search/status/plan/sort/archive state is kept in URL query parameters;
+tab-local scroll/focus context contains only row id and position. Create has four
+steps with validation and a final review, with no database write before submit.
+Create buttons appear at the right; record tables begin with English row numbers,
+then any action column. Server-paged tables include the page offset. Client sorting
+renumbers only platform positional cells; accounting table behavior is unchanged.
+Keep Vazirmatn, current density and palette. Use keyboard-accessible native controls
+and keep related actions close to the information they affect (short mouse travel).
+
 ## Accessibility and verification
 
 Visible focus, semantic buttons/labels, status/error announcements, no color-only

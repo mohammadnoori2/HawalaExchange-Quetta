@@ -27,17 +27,11 @@
     <div class="modern-card">
         <div class="table-responsive">
             <GlobalDataGrid class="table modern-table mb-0">
-                <thead><tr><th>نام</th><th>نام کاربری</th><th>ایمیل</th><th>نقش</th><th>آخرین ورود</th><th>وضعیت</th><th></th></tr></thead>
-                <tbody>
+                <thead><tr><th data-sortable="false">شماره ردیف</th><th data-sortable="false">سایر عملیات</th><th>نام</th><th>نام کاربری</th><th>ایمیل</th><th>نقش</th><th>آخرین ورود</th><th>وضعیت</th></tr></thead>
+                <tbody>@{var platformRow1=0;}
                     @foreach (var user in users)
                     {
-                        <tr>
-                            <td class="fw-bold">@user.FullName</td><td>@user.UserName</td><td>@user.Email</td>
-                            <td><select class="form-select form-select-sm" value="@user.Role" @onchange="e => RoleChangedAsync(user, e)">@foreach (var role in PlatformRoles.All){<option value="@role">@RoleLabel(role)</option>}</select></td>
-<td><AppDateTime Value="@user.LastLoginAt" Use24Hour="true" EmptyText="-" /></td>
-                            <td><span class="badge-modern @(user.IsActive ? "badge-success" : "badge-secondary")">@(user.IsActive ? "فعال" : "غیرفعال")</span></td>
-                            <td><button class="btn btn-sm @(user.IsActive ? "btn-outline-danger" : "btn-outline-success")" @onclick="() => ToggleAsync(user)">@(user.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")</button></td>
-                        </tr>
+                        <tr><td data-platform-row-number>@((++platformRow1).ToString(System.Globalization.CultureInfo.InvariantCulture))</td><td><button class="btn btn-sm @(user.IsActive ? "btn-outline-danger" : "btn-outline-success")" @onclick="() => ToggleAsync(user)">@(user.IsActive ? "غیرفعال‌سازی" : "فعال‌سازی")</button></td><td class="fw-bold">@user.FullName</td><td>@user.UserName</td><td>@user.Email</td><td><select class="form-select form-select-sm" value="@user.Role" @onchange="e => RoleChangedAsync(user, e)">@foreach (var role in PlatformRoles.All){<option value="@role">@RoleLabel(role)</option>}</select></td><td><AppDateTime Value="@user.LastLoginAt" Use24Hour="true" EmptyText="-" /></td><td><span class="badge-modern @(user.IsActive ? "badge-success" : "badge-secondary")">@(user.IsActive ? "فعال" : "غیرفعال")</span></td></tr>
                     }
                 </tbody>
             </GlobalDataGrid>

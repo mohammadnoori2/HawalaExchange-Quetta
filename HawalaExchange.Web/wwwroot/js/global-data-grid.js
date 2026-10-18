@@ -123,6 +123,13 @@ function applySort(table, columnIndex, direction) {
         sortableRows.forEach(item => fragment.appendChild(item.row));
         fixedRows.forEach(row => fragment.appendChild(row));
         body.appendChild(fragment);
+        // Platform row numbers describe the visible position, not a record identity.
+        // Leave tenant accounting grids and their numbering untouched.
+        if (table.closest('.platform-workspace')) {
+            const cells = [...body.querySelectorAll('[data-platform-row-number]')];
+            const offset = Math.min(...cells.map(cell => Number(cell.textContent.replace(/,/g, ''))));
+            if (Number.isFinite(offset)) cells.forEach((cell, index) => { cell.textContent = String(offset + index); });
+        }
     });
 }
 

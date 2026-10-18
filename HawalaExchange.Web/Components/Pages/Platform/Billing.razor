@@ -8,13 +8,13 @@
 @rendermode InteractiveServer
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
-<PageTitle>مالی و فاکتورهای SaaS</PageTitle>
+@if(!ManagedTenantId.HasValue){<PageTitle>مالی و فاکتورهای SaaS</PageTitle>}
 
 <div class="page-wrapper">
     <div class="page-header">
         <div>
-            <h1 class="page-title">فاکتورها و پرداخت‌ها</h1>
-            <span class="page-subtitle">درآمد دوره‌ای، مطالبات، فاکتورها و پرداخت‌های اشتراک</span>
+            @if(ManagedTenantId.HasValue){<h2 class="h6 mb-0">فاکتورها و پرداخت‌های همین صرافی</h2>}else{<h1 class="page-title">فاکتورها و پرداخت‌ها</h1>}
+            @if(!ManagedTenantId.HasValue){<span class="page-subtitle">درآمد دوره‌ای، مطالبات، فاکتورها و پرداخت‌های اشتراک</span>}
         </div>
         <button class="btn-modern btn-primary-modern" @onclick="OpenCreate"><i class="bi bi-plus-circle"></i> فاکتور جدید</button>
     </div>
@@ -27,7 +27,7 @@
     }
     else
     {
-        @foreach (var summary in dashboard.Currencies)
+        @foreach (var summary in ManagedTenantId.HasValue ? Array.Empty<BillingCurrencySummaryDto>() : dashboard.Currencies)
         {
             <div class="mb-2 fw-bold text-muted">گزارش به واحد @summary.CurrencyCode</div>
             <PageHeaderStats AriaLabel="@($"آمار مالی {summary.CurrencyCode}")">
@@ -46,18 +46,12 @@
         </CompactFilterBar>
 
         <div class="modern-card"><div class="table-responsive"><GlobalDataGrid class="table modern-table mb-0">
-            <thead><tr><th>شماره</th><th>صرافی / پلن</th><th>صدور</th><th>سررسید</th><th>مبلغ</th><th>پرداخت</th><th>باقی‌مانده</th><th>وضعیت</th><th></th></tr></thead>
-            <tbody>
-                @if (invoices.Count == 0) { <tr><td colspan="9" class="text-center py-5 text-muted">فاکتوری یافت نشد.</td></tr> }
-                @foreach (var invoice in invoices)
+            <thead><tr><th data-sortable="false">شماره ردیف</th><th data-sortable="false">سایر عملیات</th><th>شماره</th><th>صرافی / پلن</th><th>صدور</th><th>سررسید</th><th>مبلغ</th><th>پرداخت</th><th>باقی‌مانده</th><th>وضعیت</th></tr></thead>
+            <tbody>@{var platformRow1=0;}
+                @if (!VisibleInvoices.Any()) { <tr><td colspan="10" class="text-center py-5 text-muted">فاکتوری یافت نشد.</td></tr> }
+                @foreach (var invoice in VisibleInvoices)
                 {
-                    <tr>
-                        <td class="fw-bold">@invoice.InvoiceNumber</td><td><div>@invoice.TenantName</div><small class="text-muted">@invoice.PlanName</small></td>
-                        <td>@Date(invoice.IssuedAt)</td><td>@Date(invoice.DueAt)</td><td>@Money(invoice.TotalAmount, invoice.CurrencyCode)</td>
-                        <td>@Money(invoice.PaidAmount, invoice.CurrencyCode)</td><td>@Money(invoice.Balance, invoice.CurrencyCode)</td>
-                        <td><span class="badge-modern @StatusBadge(invoice.Status)">@StatusText(invoice.Status)</span></td>
-                        <td class="text-nowrap"><a class="btn btn-sm btn-outline-primary" href="/platform/invoices/@invoice.Id"><i class="bi bi-eye"></i></a>@if (invoice.Balance > 0 && invoice.Status is not SubscriptionInvoiceStatus.Cancelled) { <button class="btn btn-sm btn-outline-success ms-1" @onclick="() => OpenPayment(invoice)"><i class="bi bi-cash"></i></button> }</td>
-                    </tr>
+                    <tr><td data-platform-row-number>@((++platformRow1).ToString(System.Globalization.CultureInfo.InvariantCulture))</td><td class="text-nowrap"><a class="btn btn-sm btn-outline-primary" href="/platform/invoices/@invoice.Id"><i class="bi bi-eye"></i></a>@if (invoice.Balance > 0 && invoice.Status is not SubscriptionInvoiceStatus.Cancelled) { <button class="btn btn-sm btn-outline-success ms-1" @onclick="() => OpenPayment(invoice)"><i class="bi bi-cash"></i></button> }</td><td class="fw-bold">@invoice.InvoiceNumber</td><td><div>@invoice.TenantName</div><small class="text-muted">@invoice.PlanName</small></td><td>@Date(invoice.IssuedAt)</td><td>@Date(invoice.DueAt)</td><td>@Money(invoice.TotalAmount, invoice.CurrencyCode)</td><td>@Money(invoice.PaidAmount, invoice.CurrencyCode)</td><td>@Money(invoice.Balance, invoice.CurrencyCode)</td><td><span class="badge-modern @StatusBadge(invoice.Status)">@StatusText(invoice.Status)</span></td></tr>
                 }
             </tbody>
         </GlobalDataGrid></div></div>
@@ -69,7 +63,7 @@
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.45)"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
         <div class="modal-header"><h5 class="modal-title">صدور فاکتور اشتراک</h5><button class="btn-close" @onclick="CloseModals"></button></div>
         <EditForm EditContext="createContext" FormName="create-saas-invoice"><DataAnnotationsValidator /><div class="modal-body"><ValidationSummary class="text-danger" /><div class="row g-3">
-            <div class="col-12"><label class="form-label">اشتراک صرافی</label><select class="form-select" value="@createModel.SubscriptionId" @onchange="SubscriptionChanged"><option value="0">انتخاب کنید</option>@foreach (var option in options) { <option value="@option.SubscriptionId">@option.TenantName — @option.PlanName (@option.CurrencyCode)</option> }</select></div>
+            <div class="col-12"><label class="form-label">اشتراک صرافی</label><select class="form-select" value="@createModel.SubscriptionId" @onchange="SubscriptionChanged"><option value="0">انتخاب کنید</option>@foreach (var option in VisibleOptions) { <option value="@option.SubscriptionId">@option.TenantName — @option.PlanName (@option.CurrencyCode)</option> }</select></div>
             <div class="col-md-4"><label class="form-label">تاریخ صدور</label><DualDatePicker class="form-control" @bind-Value="createModel.IssuedAt" /></div><div class="col-md-4"><label class="form-label">سررسید</label><DualDatePicker class="form-control" @bind-Value="createModel.DueAt" /></div>
             <div class="col-md-4"><label class="form-label">مبلغ واحد</label><InputNumber class="form-control financial-value-input" @bind-Value="createModel.UnitPrice" /></div>
             <div class="col-md-6"><label class="form-label">شروع دوره</label><DualDatePicker class="form-control" @bind-Value="createModel.ServicePeriodStart" /></div><div class="col-md-6"><label class="form-label">پایان دوره</label><DualDatePicker class="form-control" @bind-Value="createModel.ServicePeriodEnd" /></div>
@@ -95,25 +89,30 @@
 }
 
 @code {
+    [Parameter] public long? ManagedTenantId {get;set;}
+    [Parameter] public EventCallback Changed {get;set;}
+    private IEnumerable<SubscriptionInvoiceDto> VisibleInvoices=>invoices.Where(x=>!ManagedTenantId.HasValue||x.TenantId==ManagedTenantId);
+    private IEnumerable<BillingSubscriptionOptionDto> VisibleOptions=>options.Where(x=>!ManagedTenantId.HasValue||x.TenantId==ManagedTenantId);
+
     private async Task RefreshPageDataAsync()
     {
-        dashboard = await BillingService.GetDashboardReadOnlyAsync(); invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); options = (await BillingService.GetSubscriptionOptionsAsync()).ToList();
+        if(!ManagedTenantId.HasValue) dashboard = await BillingService.GetDashboardReadOnlyAsync(); invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); options = (await BillingService.GetSubscriptionOptionsAsync()).ToList();
     }
     private BillingDashboardDto dashboard = new(); private List<SubscriptionInvoiceDto> invoices = []; private List<BillingSubscriptionOptionDto> options = [];
     private CreateSubscriptionInvoiceDto createModel = new(); private RecordInvoicePaymentDto paymentModel = new(); private EditContext createContext = default!; private EditContext paymentContext = default!;
     private SubscriptionInvoiceDto? selectedInvoice; private string search = "", statusFilter = ""; private string? message; private bool isError, isLoading = true, isSaving, showCreate, showPayment;
     protected override async Task OnInitializedAsync() => await LoadAsync();
-    private async Task LoadAsync() { isLoading = true; dashboard = await BillingService.GetDashboardAsync(); invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); options = (await BillingService.GetSubscriptionOptionsAsync()).ToList(); isLoading = false; }
+    private async Task LoadAsync() { isLoading = true; if(!ManagedTenantId.HasValue) dashboard = await BillingService.GetDashboardAsync(); invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); options = (await BillingService.GetSubscriptionOptionsAsync()).ToList(); isLoading = false; }
     private async Task SearchChanged(ChangeEventArgs e) { search = e.Value?.ToString() ?? ""; invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); }
     private async Task StatusChanged(ChangeEventArgs e) { statusFilter = e.Value?.ToString() ?? ""; invoices = (await BillingService.GetInvoicesAsync(search, ParsedStatus())).ToList(); }
     private async Task ResetBillingFilters() { search = ""; statusFilter = ""; invoices = (await BillingService.GetInvoicesAsync()).ToList(); }
     private SubscriptionInvoiceStatus? ParsedStatus() => int.TryParse(statusFilter, out var value) ? (SubscriptionInvoiceStatus)value : null;
-    private void OpenCreate() { createModel = new(); createContext = new(createModel); showCreate = true; message = null; }
+    private void OpenCreate() { createModel = new(); if(ManagedTenantId.HasValue && VisibleOptions.FirstOrDefault() is {} option){createModel.SubscriptionId=option.SubscriptionId;createModel.UnitPrice=option.Price;createModel.ServicePeriodStart=option.PeriodStart;createModel.ServicePeriodEnd=option.PeriodEnd;createModel.AutoRenewOnPayment=option.AutoRenew;} createContext = new(createModel); showCreate = true; message = null; }
     private void SubscriptionChanged(ChangeEventArgs e) { if (!long.TryParse(e.Value?.ToString(), out var id)) return; createModel.SubscriptionId = id; var option = options.FirstOrDefault(x => x.SubscriptionId == id); if (option is null) return; createModel.UnitPrice = option.Price; createModel.ServicePeriodStart = option.PeriodStart; createModel.ServicePeriodEnd = option.PeriodEnd; createModel.AutoRenewOnPayment = option.AutoRenew; }
     private void OpenPayment(SubscriptionInvoiceDto invoice) { selectedInvoice = invoice; paymentModel = new() { InvoiceId = invoice.Id, Amount = invoice.Balance, PaidAt = DateTime.UtcNow }; paymentContext = new(paymentModel); showPayment = true; message = null; }
     private void CloseModals() { showCreate = showPayment = false; }
-    private async Task CreateAsync() { if (!createContext.Validate()) return; try { isSaving = true; var invoice = await BillingService.CreateInvoiceAsync(createModel); message = $"فاکتور {invoice.InvoiceNumber} صادر شد."; isError = false; CloseModals(); await LoadAsync(); } catch (Exception ex) { message = ex.Message; isError = true; } finally { isSaving = false; } }
-    private async Task PayAsync() { if (!paymentContext.Validate()) return; try { isSaving = true; await BillingService.RecordPaymentAsync(paymentModel); message = "پرداخت با موفقیت ثبت شد."; isError = false; CloseModals(); await LoadAsync(); } catch (Exception ex) { message = ex.Message; isError = true; } finally { isSaving = false; } }
+    private async Task CreateAsync() { if (!createContext.Validate()) return; if(!VisibleOptions.Any(x=>x.SubscriptionId==createModel.SubscriptionId)){message="اشتراک متعلق به صرافی انتخاب‌شده نیست.";isError=true;return;} try { isSaving = true; var invoice = await BillingService.CreateInvoiceAsync(createModel); message = $"فاکتور {invoice.InvoiceNumber} صادر شد."; isError = false; CloseModals(); await LoadAsync(); await Changed.InvokeAsync(); } catch (Exception ex) { message = ex.Message; isError = true; } finally { isSaving = false; } }
+    private async Task PayAsync() { if (!paymentContext.Validate()) return; if(!VisibleInvoices.Any(x=>x.Id==paymentModel.InvoiceId)){message="فاکتور متعلق به صرافی انتخاب‌شده نیست.";isError=true;return;} try { isSaving = true; await BillingService.RecordPaymentAsync(paymentModel); message = "پرداخت با موفقیت ثبت شد."; isError = false; CloseModals(); await LoadAsync(); await Changed.InvokeAsync(); } catch (Exception ex) { message = ex.Message; isError = true; } finally { isSaving = false; } }
     private static string Money(decimal value, string currency) => $"{value:N2} {currency}"; private string Date(DateTime value) => DisplayDates.Date(value);
     private static string StatusText(SubscriptionInvoiceStatus s) => s switch { SubscriptionInvoiceStatus.Draft => "آماده‌سازی فاکتور", SubscriptionInvoiceStatus.Issued => "فاکتور صادر شده", SubscriptionInvoiceStatus.PartiallyPaid => "بخشی از مبلغ پرداخت شده", SubscriptionInvoiceStatus.Paid => "کامل پرداخت شده", SubscriptionInvoiceStatus.Overdue => "زمان پرداخت گذشته است", SubscriptionInvoiceStatus.Cancelled => "فاکتور لغو شده", SubscriptionInvoiceStatus.Refunded => "مبلغ بازگردانده شده", _ => "وضعیت فاکتور مشخص نیست" };
     private static string StatusBadge(SubscriptionInvoiceStatus s) => s switch { SubscriptionInvoiceStatus.Paid => "badge-success", SubscriptionInvoiceStatus.PartiallyPaid => "badge-info", SubscriptionInvoiceStatus.Overdue => "badge-danger", SubscriptionInvoiceStatus.Issued => "badge-warning", _ => "badge-secondary" };

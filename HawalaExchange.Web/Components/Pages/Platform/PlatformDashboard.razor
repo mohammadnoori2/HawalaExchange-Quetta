@@ -54,13 +54,13 @@
             </div>
             <div class="table-responsive">
                 <GlobalDataGrid class="table modern-table mb-0">
-                    <thead><tr><th>صرافی</th><th>پلن</th><th>وضعیت و اعتبار اشتراک</th><th>کاربران</th><th>شعبه‌ها</th></tr></thead>
-                    <tbody>
-                        @if(dashboard.RecentTenants.Count == 0){<tr><td colspan="5" class="platform-empty">هنوز صرافی‌ای ثبت نشده است.</td></tr>}
+                    <thead><tr><th data-sortable="false">شماره ردیف</th><th>صرافی</th><th>پلن</th><th>وضعیت و اعتبار اشتراک</th><th>کاربران</th><th>شعبه‌ها</th></tr></thead>
+                    <tbody>@{var platformRow1=0;}
+                        @if(dashboard.RecentTenants.Count == 0){<tr><td colspan="6" class="platform-empty">هنوز صرافی‌ای ثبت نشده است.</td></tr>}
                         @foreach (var tenant in dashboard.RecentTenants)
                         {
-                            <tr>
-                                <td class="fw-bold"><AuthorizeView Policy="PlatformImpersonate"><Authorized><a href="@($"/platform/tenant-management/{tenant.Id}")">@tenant.Name</a></Authorized><NotAuthorized>@tenant.Name</NotAuthorized></AuthorizeView></td>
+                            <tr><td data-platform-row-number>@((++platformRow1).ToString(System.Globalization.CultureInfo.InvariantCulture))</td>
+                                <td class="fw-bold"><AuthorizeView Policy="PlatformWrite"><Authorized><a href="@($"/tenants/{tenant.Id}")">@tenant.Name</a></Authorized><NotAuthorized>@tenant.Name</NotAuthorized></AuthorizeView></td>
                                 <td>@(tenant.PlanName ?? "بدون پلن")</td>
                                 <td data-sort-value="@tenant.SubscriptionEndAt?.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture)"><span class="badge-modern @GetStatusBadge(tenant.SubscriptionStatus)">@GetStatusText(tenant.SubscriptionStatus)</span><div><SubscriptionExpiry EndAt="tenant.SubscriptionEndAt" /></div></td>
                                 <td>@Number(tenant.UserCount)</td>

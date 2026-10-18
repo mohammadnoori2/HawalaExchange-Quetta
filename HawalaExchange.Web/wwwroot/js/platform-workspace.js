@@ -69,3 +69,32 @@ document.addEventListener('keydown', event => {
 // Handles interactive rendering and enhanced navigation without a polling timer.
 new MutationObserver(synchronizeDialog).observe(document.body, { childList: true, subtree: true });
 synchronizeDialog();
+
+// Keep the list position when opening a tenant and returning from its details.
+// The URL carries filters; this tab-local entry stores only scroll position and row id.
+const tenantListKey = 'platform-tenant-list-position';
+document.addEventListener('click', event => {
+    const link = event.target.closest?.('.platform-workspace a[data-tenant-detail]');
+    if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    try {
+        const scroller = document.querySelector('.app-main');
+        sessionStorage.setItem(tenantListKey, JSON.stringify({ id: link.dataset.tenantDetail, y: window.scrollY, mainY: scroller?.scrollTop ?? 0 }));
+    } catch { /* Storage may be disabled; normal navigation still works. */ }
+});
+function restoreTenantList() {
+    if (location.pathname !== '/tenants') return;
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(tenantListKey) ?? 'null');
+        if (!saved) return;
+        const link = [...document.querySelectorAll('.platform-workspace a[data-tenant-detail]')].find(item => item.dataset.tenantDetail === saved.id);
+        if (!link) return; // Wait for interactive data, not an arbitrary timer.
+        sessionStorage.removeItem(tenantListKey);
+        requestAnimationFrame(() => {
+            window.scrollTo({ top: saved.y, behavior: 'instant' });
+            document.querySelector('.app-main')?.scrollTo({ top: saved.mainY, behavior: 'instant' });
+            link.focus({ preventScroll: true });
+        });
+    } catch { /* No saved position or storage is unavailable. */ }
+}
+new MutationObserver(restoreTenantList).observe(document.body, { childList: true, subtree: true });
+restoreTenantList();

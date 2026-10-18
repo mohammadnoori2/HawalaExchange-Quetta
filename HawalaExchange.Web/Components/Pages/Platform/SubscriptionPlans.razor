@@ -32,26 +32,17 @@
     <div class="modern-card">
         <div class="table-responsive">
             <GlobalDataGrid class="table modern-table mb-0">
-                <thead><tr><th>پلن</th><th>قیمت ماهانه</th><th>قیمت سالانه</th><th>کاربران</th><th>شعبه‌ها</th><th>تراکنش ماهانه</th><th>وضعیت</th><th></th></tr></thead>
-                <tbody>
+                <thead><tr><th data-sortable="false">شماره ردیف</th><th data-sortable="false">سایر عملیات</th><th>پلن</th><th>قیمت ماهانه</th><th>قیمت سالانه</th><th>کاربران</th><th>شعبه‌ها</th><th>تراکنش ماهانه</th><th>وضعیت</th></tr></thead>
+                <tbody>@{var platformRow1=0;}
                     @if (isLoading)
                     {
-                        <tr><td colspan="8" class="text-center py-5">در حال بارگذاری...</td></tr>
+                        <tr><td colspan="9" class="text-center py-5">در حال بارگذاری...</td></tr>
                     }
                     else
                     {
                         @foreach (var plan in FilteredPlans)
                         {
-                            <tr>
-                                <td><div class="fw-bold">@plan.Name</div></td>
-                                <td>@plan.MonthlyPrice.ToWholeMoney() @plan.CurrencyCode</td>
-                                <td>@plan.AnnualPrice.ToWholeMoney() @plan.CurrencyCode</td>
-                                <td>@plan.MaxUsers</td>
-                                <td>@plan.MaxBranches</td>
-                                <td>@plan.MaxMonthlyTransactions.ToString("N0")</td>
-                                <td><span class="badge-modern @(plan.IsActive ? "badge-success" : "badge-secondary")">@(plan.IsActive ? "فعال" : "غیرفعال")</span></td>
-                                <td><button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEdit(plan)"><i class="bi bi-pencil"></i> ویرایش</button></td>
-                            </tr>
+                            <tr><td data-platform-row-number>@((++platformRow1).ToString(System.Globalization.CultureInfo.InvariantCulture))</td><td><button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEdit(plan)"><i class="bi bi-pencil"></i> ویرایش</button></td><td><div class="fw-bold">@plan.Name</div></td><td>@plan.MonthlyPrice.ToWholeMoney() @plan.CurrencyCode</td><td>@plan.AnnualPrice.ToWholeMoney() @plan.CurrencyCode</td><td>@plan.MaxUsers</td><td>@plan.MaxBranches</td><td>@plan.MaxMonthlyTransactions.ToString("N0")</td><td><span class="badge-modern @(plan.IsActive ? "badge-success" : "badge-secondary")">@(plan.IsActive ? "فعال" : "غیرفعال")</span></td></tr>
                         }
                     }
                 </tbody>

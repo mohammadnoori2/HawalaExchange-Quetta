@@ -1,4 +1,5 @@
 @page "/tenants"
+@page "/tenants/{DetailTenantId:long}"
 @layout PlatformLayout
 @attribute [Authorize(Policy = "PlatformWrite")]
 @using HawalaExchange.Application.DTOs
@@ -11,27 +12,45 @@
 @inject ISaasAdministrationService SaasService
 @inject ICurrentTenant CurrentTenant
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 @inject HawalaExchange.Web.Services.ImpersonationSessionStore Impersonation
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Authentication
 @rendermode InteractiveServer
 
 <PageRefreshButton Refresh="RefreshPageDataAsync" />
-<PageTitle>مدیریت صرافی‌ها</PageTitle>
+<PageTitle>@(SelectedTenant?.Name ?? "مدیریت صرافی‌ها")</PageTitle>
 
 <div class="page-wrapper">
+@if (DetailTenantId > 0)
+{
+    <div class="page-header"><div><h1 class="page-title">@(SelectedTenant?.Name ?? "جزئیات صرافی")</h1><span class="page-subtitle">تمام اطلاعات و عملیات همین صرافی — کد @DetailTenantId</span></div><a class="btn btn-outline-secondary" href="@ListUrl">برگشت به لیست صرافی‌ها</a></div>
+    @if (!string.IsNullOrWhiteSpace(message)){<div role="alert" class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>}
+    @if (SelectedTenant is { } selected)
+    {
+        <section class="modern-card p-3 mb-3" aria-label="خلاصه صرافی">
+            <div class="platform-tenant-facts"><span>وضعیت صرافی: <strong>@(selected.IsArchived ? "بایگانی" : selected.IsActive ? "فعال" : "غیرفعال")</strong></span><span>اشتراک: @SubscriptionLabel(Saas(selected.Id)?.SubscriptionStatus)</span><span><SubscriptionExpiry EndAt="Saas(selected.Id)?.SubscriptionEndAt" /></span><span>تماس: @(selected.ContactPhone ?? "—")</span><span>ایمیل: @(selected.ContactEmail ?? "—")</span><span>تاریخ ایجاد: @DisplayDates.Date(selected.CreatedAt)</span><span>شعبه‌ها: @selected.BranchCount</span></div>
+            <div class="d-flex gap-2 flex-wrap mt-3">
+                @if(!selected.IsArchived){<button class="btn btn-primary" disabled="@isSaving" @onclick="()=>OpenEdit(selected)">مشخصات و تمدید اشتراک</button><AuthorizeView Policy="PlatformImpersonate"><button class="btn btn-outline-warning" disabled="@(!selected.IsActive || isSaving)" @onclick="()=>OpenImpersonation(selected)">ورود به‌جای کاربر</button></AuthorizeView>}
+                <button class="btn @(selected.IsArchived ? "btn-outline-success" : "btn-outline-danger")" disabled="@isSaving" @onclick="()=>ToggleTenantArchiveAsync(selected)">@(selected.IsArchived ? "خروج از بایگانی" : "بایگانی صرافی")</button>
+            </div>
+        </section>
+        @if(!selected.IsArchived){<AuthorizeView Policy="PlatformImpersonate"><HawalaExchange.Web.Components.Pages.Platform.TenantManagement @key="DetailTenantId" @ref="managementPanel" TenantId="DetailTenantId" Embedded="true" Renew="()=>OpenEdit(selected)" /></AuthorizeView>}
+    }
+    else if(!isLoading){<div class="alert alert-warning">صرافی موردنظر یافت نشد.</div>}
+}
+else
+{
     <div class="page-header">
         <div>
             <h1 class="page-title">صرافی‌ها و اشتراک‌ها</h1>
             <span class="page-subtitle">هر صرافی داده‌ها، شعبه‌ها و کاربران مستقل دارد</span>
         </div>
-        <div class="page-actions">
-            <ArchiveViewToggle @bind-ShowArchived="showArchived"
-                               ArchivedCount="@tenants.Count(x => x.IsArchived)" />
-            <button class="btn-modern btn-primary-modern" @onclick="OpenCreate">
-                <i class="bi bi-plus-circle"></i> صرافی جدید
-            </button>
-        </div>
     </div>
+        <div class="page-actions platform-list-toolbar">
+            <button class="btn-modern btn-primary-modern" @onclick="OpenCreate"><i class="bi bi-plus-circle"></i> صرافی جدید</button>
+            <ArchiveViewToggle @bind-ShowArchived="showArchived" @bind-ShowArchived:after="PersistFilters"
+                               ArchivedCount="@tenants.Count(x => x.IsArchived)" />
+        </div>
 
     @if (!string.IsNullOrWhiteSpace(message))
     {
@@ -39,26 +58,31 @@
     }
 
     <CompactFilterBar AriaLabel="جستجوی صرافی‌ها"
-                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm))"
+                      HasActiveFilters="@(!string.IsNullOrWhiteSpace(searchTerm) || filter != "all" || planFilter > 0)"
                       Reset="ResetTenantSearch">
         <SearchContent>
                 <input class="form-control-modern" value="@searchTerm" @oninput="OnSearchChanged"
-                       placeholder="جستجو بر اساس نام صرافی..." />
+                       aria-label="جستجوی صرافی" placeholder="نام، کد صرافی، ایمیل یا شماره تماس..." />
         </SearchContent>
+        <QuickFilters>
+            <select class="form-select compact-quick-filter" aria-label="وضعیت صرافی و اشتراک" @bind="filter" @bind:after="PersistFilters"><option value="all">همه وضعیت‌ها</option><option value="soon">پایان اشتراک تا 30 روز</option><option value="expired">اشتراک منقضی‌شده</option><option value="inactive">صرافی غیرفعال</option><option value="suspended">اشتراک تعلیق‌شده</option></select>
+            <select class="form-select compact-quick-filter" aria-label="پلن اشتراک" @bind="planFilter" @bind:after="PersistFilters"><option value="0">همه پلن‌ها</option>@foreach(var plan in plans){<option value="@plan.Id">@plan.Name</option>}</select>
+            <select class="form-select compact-quick-filter" aria-label="مرتب‌سازی صرافی‌ها" @bind="sort" @bind:after="PersistFilters"><option value="expiry">نزدیک‌ترین انقضا</option><option value="name">نام صرافی</option><option value="activity">آخرین فعالیت</option></select>
+        </QuickFilters>
     </CompactFilterBar>
 
     <div class="modern-card">
         <div class="table-responsive">
-            <GlobalDataGrid class="table modern-table mb-0">
+            <GlobalDataGrid EnableSorting="false" class="table modern-table mb-0">
                 <thead>
                     <tr>
-                        <th>نام صرافی</th>
-                        <th>شعبه‌ها</th>
+                        <th>شماره ردیف</th>
+                        <th>نام صرافی / تماس</th>
+                        <th>پلن</th>
                         <th>کاربران</th>
-                        <th>تاریخ ایجاد</th>
                         <th>وضعیت</th>
                         <th>اعتبار اشتراک</th>
-                        <th class="text-center">عملیات</th>
+                        <th>آخرین فعالیت</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -72,48 +96,26 @@
                     }
                     else
                     {
-                        @foreach (var tenant in FilteredTenants)
+                        @foreach (var (tenant, index) in FilteredTenants.Select((tenant,index)=>(tenant,index)))
                         {
                             <tr>
+                                <td>@((index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture))</td>
                                 <td class="fw-bold">
-                                    @tenant.Name
+                                    <a data-tenant-detail="@tenant.Id" href="@DetailUrl(tenant.Id)">@tenant.Name</a><div class="small text-muted" dir="ltr">@tenant.ContactPhone</div>
                                     @if (tenant.Id == CurrentTenant.TenantId)
                                     {
                                         <span class="badge-modern badge-info ms-1">صرافی جاری</span>
                                     }
                                 </td>
-                                <td>@tenant.BranchCount</td>
+                                <td>@(Saas(tenant.Id)?.PlanName ?? "بدون پلن")</td>
                                 <td>@tenant.UserCount</td>
-                                <td>@DisplayDates.Date(tenant.CreatedAt)</td>
                                 <td>
                                     <span class="badge-modern @(tenant.IsArchived ? "badge-archived" : tenant.IsActive ? "badge-success" : "badge-secondary")">
                                         @(tenant.IsArchived ? "بایگانی" : tenant.IsActive ? "فعال" : "غیرفعال")
                                     </span>
                                 </td>
                                 <td data-sort-value="@saasTenants.FirstOrDefault(x=>x.Id==tenant.Id)?.SubscriptionEndAt?.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture)"><SubscriptionExpiry EndAt="saasTenants.FirstOrDefault(x=>x.Id==tenant.Id)?.SubscriptionEndAt" /></td>
-                                <td class="text-center">
-                                    @if (tenant.IsArchived)
-                                    {
-                                        <button class="btn btn-sm btn-outline-success" @onclick="() => ToggleTenantArchiveAsync(tenant)">
-                                            <i class="bi bi-arrow-counterclockwise"></i> خروج از بایگانی
-                                        </button>
-                                    }
-                                    else
-                                    {
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEdit(tenant)">
-                                            <i class="bi bi-pencil-square"></i> مدیریت
-                                        </button>
-                                        <AuthorizeView Policy="PlatformImpersonate" Context="impersonatePermission">
-                                            <a class="btn btn-sm btn-outline-primary" href="@($"/platform/tenant-management/{tenant.Id}")">کاربران، صلاحیت‌ها و تنظیمات</a>
-                                            <button class="btn btn-sm btn-outline-warning" disabled="@(!tenant.IsActive)" @onclick="()=>OpenImpersonation(tenant)">
-                                                <i class="bi bi-person-bounding-box"></i> ورود به‌جای کاربر
-                                            </button>
-                                        </AuthorizeView>
-                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => ToggleTenantArchiveAsync(tenant)">
-                                            <i class="bi bi-archive"></i> بایگانی
-                                        </button>
-                                    }
-                                </td>
+                                <td data-sort-value="@Saas(tenant.Id)?.LastActivityAt?.ToString("O",System.Globalization.CultureInfo.InvariantCulture)"><AppDateTime Value="Saas(tenant.Id)?.LastActivityAt" Use24Hour="true" EmptyText="فعالیتی ثبت نشده" /></td>
                             </tr>
                         }
                     }
@@ -121,6 +123,7 @@
             </GlobalDataGrid>
         </div>
     </div>
+}
 </div>
 
 @if (showCreate)
@@ -135,11 +138,12 @@
                 <EditForm EditContext="createEditContext" FormName="create-tenant" class="tenant-modal-form">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
+                        <nav class="platform-section-nav" aria-label="مراحل ایجاد صرافی">@for(var i=1;i<=4;i++){var step=i;<button type="button" disabled="@(isSaving || step>createStep)" aria-current="@(createStep==step?"step":null)" @onclick="()=>createStep=step">@step. @CreateSteps[step-1]</button>}</nav>
                         <ValidationSummary class="text-danger" />
                         <div class="alert alert-info py-2">
                             نام کاربری و ایمیل مدیر باید در کل سیستم یکتا باشند.
                         </div>
-                        <div class="row g-3">
+                        <div class="row g-3" hidden="@(createStep!=1)">
                             <div class="col-md-6">
                                 <label class="form-label" for="tenant-name">نام صرافی <span class="tenant-required">*</span></label>
                                 <input id="tenant-name" class="form-control" @bind="createModel.Name" @bind:event="oninput" />
@@ -149,6 +153,8 @@
                             <div class="col-md-6"><label class="form-label">نام مسئول تماس</label><input class="form-control" @bind="createModel.ContactName" @bind:event="oninput" /></div>
                             <div class="col-md-6"><label class="form-label">شماره تماس</label><input class="form-control" @bind="createModel.ContactPhone" @bind:event="oninput" /></div>
                             <div class="col-12"><label class="form-label">ایمیل تماس</label><input type="email" class="form-control" @bind="createModel.ContactEmail" @bind:event="oninput" /></div>
+                        </div>
+                        <div class="row g-3" hidden="@(createStep!=2)">
                             <div class="col-md-6">
                                 <label class="form-label" for="tenant-admin-name">نام مدیر <span class="tenant-required">*</span></label>
                                 <input id="tenant-admin-name" class="form-control" @bind="createModel.AdminFullName" @bind:event="oninput" />
@@ -176,7 +182,9 @@
                                 <ValidationMessage For="@(() => createModel.AdminPassword)" />
                                 <div class="form-text">حداقل 6 نویسه و شامل حرف بزرگ، حرف کوچک و عدد باشد.</div>
                             </div>
-                            <div class="col-12"><hr /><h6>اشتراک اولیه</h6></div>
+                        </div>
+                        <div class="row g-3" hidden="@(createStep!=3)">
+                            <div class="col-12"><h6>اشتراک اولیه</h6></div>
                             <div class="col-md-6">
                                 <label class="form-label">پلن اشتراک <span class="tenant-required">*</span></label>
                                 <InputSelect class="form-select" @bind-Value="createModel.PlanId">
@@ -214,16 +222,20 @@
                             </div>
                             <div class="col-md-6 form-check form-switch mt-5"><InputCheckbox class="form-check-input" @bind-Value="createModel.AutoRenew" /><label class="form-check-label">تمدید خودکار</label></div>
                         </div>
+                        @if(createStep==4){<section aria-label="بررسی نهایی"><h6>بررسی اطلاعات پیش از ایجاد</h6><p>صرافی: <strong>@createModel.Name</strong></p><p>مسئول تماس: @createModel.ContactName — @createModel.ContactPhone</p><p>ادمین: @createModel.AdminFullName — @createModel.AdminUserName — @createModel.AdminEmail</p><p>پلن: @plans.FirstOrDefault(x=>x.Id==createModel.PlanId)?.Name</p><p>اعتبار اشتراک: <SubscriptionExpiry EndAt="createModel.SubscriptionEndAt" /></p><p>مبلغ: @createModel.AgreedPrice.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @createModel.SubscriptionCurrencyCode</p><p class="text-muted">تا کلیک روی «ایجاد صرافی»، هیچ اطلاعاتی ثبت نمی‌شود.</p></section>}
                     </div>
                     @if (!string.IsNullOrWhiteSpace(createError))
                     {
                         <div class="alert alert-danger mx-3 mb-0" role="alert" aria-live="assertive">@createError</div>
                     }
                     <div class="modal-footer">
-                        <button type="button" class="btn-modern btn-light-modern" @onclick="CloseCreate">انصراف</button>
+                        <button type="button" class="btn-modern btn-light-modern" disabled="@isSaving" @onclick="CloseCreate">انصراف</button>
+                        @if(createStep>1){<button type="button" class="btn btn-outline-secondary" disabled="@isSaving" @onclick="()=>createStep--">مرحله قبل</button>}
+                        @if(createStep<4){<button type="button" class="btn btn-primary" @onclick="NextCreateStep">ادامه</button>}else{
                         <button type="button" class="btn-modern btn-primary-modern" disabled="@isSaving" @onclick="CreateAsync">
                             @(isSaving ? "در حال ایجاد..." : "ایجاد صرافی")
                         </button>
+                        }
                     </div>
                 </EditForm>
             </div>
@@ -343,6 +355,38 @@
 }
 
 @code {
+    private int createStep=1;
+    private static readonly string[] CreateSteps=["اطلاعات صرافی","ادمین اولیه","اشتراک","بررسی نهایی"];
+    private void NextCreateStep()
+    {
+        var names=createStep switch {1=>new[]{nameof(createModel.Name),nameof(createModel.LegalName),nameof(createModel.ContactName),nameof(createModel.ContactEmail),nameof(createModel.ContactPhone)},2=>new[]{nameof(createModel.AdminFullName),nameof(createModel.AdminUserName),nameof(createModel.AdminEmail),nameof(createModel.AdminPassword)},_=>new[]{nameof(createModel.PlanId),nameof(createModel.AgreedPrice),nameof(createModel.SubscriptionCurrencyCode)}};
+        var errors=new List<System.ComponentModel.DataAnnotations.ValidationResult>();
+        foreach(var name in names) System.ComponentModel.DataAnnotations.Validator.TryValidateProperty(typeof(CreateTenantDto).GetProperty(name)!.GetValue(createModel),new System.ComponentModel.DataAnnotations.ValidationContext(createModel){MemberName=name},errors);
+        if(createStep==3 && createModel.SubscriptionEndAt<=createModel.SubscriptionStartAt) errors.Add(new("تاریخ پایان باید بعد از تاریخ شروع باشد."));
+        createError=errors.Count>0?string.Join("؛ ",errors.Select(x=>x.ErrorMessage)):null;
+        if(errors.Count==0) createStep++;
+    }
+    [Parameter] public long DetailTenantId { get; set; }
+    [SupplyParameterFromQuery(Name="q")] public string searchTerm { get; set; } = "";
+    [SupplyParameterFromQuery(Name="status")] public string filter { get; set; } = "all";
+    [SupplyParameterFromQuery(Name="plan")] public long planFilter { get; set; }
+    [SupplyParameterFromQuery(Name="archived")] public bool showArchived { get; set; }
+    [SupplyParameterFromQuery(Name="sort")] public string sort { get; set; } = "expiry";
+    private HawalaExchange.Web.Components.Pages.Platform.TenantManagement? managementPanel;
+    private TenantDto? SelectedTenant => tenants.FirstOrDefault(x=>x.Id==DetailTenantId);
+    private long previousDetail;
+    protected override void OnParametersSet()
+    {
+        if(Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/')=="tenants") DetailTenantId=0;
+        searchTerm??="";filter??="all";sort??="expiry";
+        if(previousDetail!=DetailTenantId){showCreate=showEdit=showImpersonation=false;managementPanel=null;message=null;previousDetail=DetailTenantId;}
+    }
+    private SaasTenantDto? Saas(long id) => saasTenants.FirstOrDefault(x=>x.Id==id);
+    private string FilterQuery => $"?q={Uri.EscapeDataString(searchTerm ?? "")}&status={Uri.EscapeDataString(filter ?? "all")}&plan={planFilter}&archived={showArchived.ToString().ToLowerInvariant()}&sort={Uri.EscapeDataString(sort ?? "expiry")}";
+    private void PersistFilters() { if(DetailTenantId==0 && Navigation.ToBaseRelativePath(Navigation.Uri)!=ListUrl.TrimStart('/')) Navigation.NavigateTo(ListUrl,replace:true); }
+    private string ListUrl => "/tenants" + FilterQuery;
+    private string DetailUrl(long id) => $"/tenants/{id}" + FilterQuery;
+    private static string SubscriptionLabel(SubscriptionStatus? status) => status switch { SubscriptionStatus.Active or SubscriptionStatus.ExpiringSoon=>"فعال",SubscriptionStatus.Trial=>"آزمایشی",SubscriptionStatus.Expired=>"منقضی‌شده",SubscriptionStatus.Suspended=>"تعلیق‌شده",SubscriptionStatus.Cancelled=>"لغوشده",_=>"ثبت نشده" };
     private bool showImpersonation;
     private long impersonationTenantId;
     private string impersonationTenantName="";
@@ -359,6 +403,7 @@
     private async Task RefreshPageDataAsync()
     {
         await LoadAsync();
+        if(managementPanel is not null) await managementPanel.RefreshEmbeddedAsync();
     }
     private List<TenantDto> tenants = [];
     private List<SubscriptionPlanDto> plans = [];
@@ -369,10 +414,8 @@
     private EditContext createEditContext = default!;
     private EditContext updateEditContext = default!;
     private long editingTenantId;
-    private string searchTerm = string.Empty;
     private bool isLoading = true;
     private bool isSaving;
-    private bool showArchived;
     private bool showCreate;
     private bool showEdit;
     private bool showCreatePassword;
@@ -396,9 +439,16 @@
         get
         {
             var query = tenants.Where(x => x.IsArchived == showArchived);
-            return string.IsNullOrWhiteSpace(searchTerm)
-                ? query
-                : query.Where(x => x.Name.Contains(searchTerm.Trim(), StringComparison.OrdinalIgnoreCase));
+            if(!string.IsNullOrWhiteSpace(searchTerm))
+                query=query.Where(x=>new[]{x.Name,x.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),x.ContactName,x.ContactEmail,x.ContactPhone,x.AdminEmail,x.AdminFullName}.Any(v=>v?.Contains(searchTerm.Trim(),StringComparison.OrdinalIgnoreCase)==true));
+            if(planFilter>0) query=query.Where(x=>Saas(x.Id)?.PlanId==planFilter);
+            var now=DateTime.UtcNow;
+            query=filter switch {
+                "soon"=>query.Where(x=>Saas(x.Id)?.SubscriptionEndAt is DateTime end && end>=now && end<=now.AddDays(30)),
+                "expired"=>query.Where(x=>Saas(x.Id)?.SubscriptionStatus==SubscriptionStatus.Expired || Saas(x.Id)?.SubscriptionEndAt<now),
+                "inactive"=>query.Where(x=>!x.IsActive),
+                "suspended"=>query.Where(x=>Saas(x.Id)?.SubscriptionStatus==SubscriptionStatus.Suspended),_=>query};
+            return sort switch { "name"=>query.OrderBy(x=>x.Name),"activity"=>query.OrderByDescending(x=>Saas(x.Id)?.LastActivityAt),_=>query.OrderBy(x=>Saas(x.Id)?.SubscriptionEndAt??DateTime.MaxValue).ThenBy(x=>x.Name)};
         }
     }
 
@@ -419,15 +469,18 @@
     private void OnSearchChanged(ChangeEventArgs args)
     {
         searchTerm = args.Value?.ToString() ?? string.Empty;
+        PersistFilters();
     }
 
     private void ResetTenantSearch()
     {
         searchTerm = string.Empty;
+        filter="all";planFilter=0;sort="expiry";PersistFilters();
     }
 
     private void OpenCreate()
     {
+        createStep=1;
         var start = DateTime.UtcNow.Date;
         createModel = new CreateTenantDto
         {
@@ -505,6 +558,7 @@
                 : $"صرافی «{tenant.Name}» بایگانی شد.";
             isError = false;
             await LoadAsync();
+            if(managementPanel is not null) await managementPanel.RefreshEmbeddedAsync();
         }
         catch (Exception ex)
         {
@@ -551,6 +605,7 @@
             isSaving = true;
             var updated = await TenantService.UpdateAsync(editingTenantId, updateModel);
             await SaasService.ChangeSubscriptionAsync(editingTenantId, subscriptionModel);
+            if(managementPanel is not null) await managementPanel.RefreshEmbeddedAsync();
             message = $"اطلاعات صرافی «{updated.Name}» ذخیره شد.";
             isError = false;
             showEdit = false;

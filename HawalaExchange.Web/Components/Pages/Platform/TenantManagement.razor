@@ -14,13 +14,15 @@
 @inject ILogger<TenantManagement> Logger
 @rendermode InteractiveServer
 
-<PageTitle>مدیریت اختصاصی صرافی‌ها</PageTitle>
+@if(!Embedded){<PageTitle>مدیریت اختصاصی صرافی‌ها</PageTitle>}
 <div class="page-wrapper" dir="rtl">
+    @if(!Embedded){
     <div class="page-header"><div><h1 class="page-title">مدیریت صرافی‌ها و کاربران</h1><span class="page-subtitle">ابتدا صرافی را انتخاب کنید؛ تمام تغییرات فقط روی همان صرافی اعمال می‌شود.</span></div><div class="page-actions"><PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@busy" /><a class="btn btn-outline-secondary" href="/tenants">صرافی‌ها و تمدید اشتراک</a></div></div>
+    }
     @if(!string.IsNullOrEmpty(message)){<div role="alert" class="alert @(error?"alert-danger":"alert-success")">@message</div>}
     @if(busy){<div class="platform-busy" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span>در حال انجام عملیات؛ لطفاً صبر کنید...</div>}
     <fieldset disabled="@busy">
-        <div class="modern-card p-3 mb-3">
+        @if(!Embedded){<div class="modern-card p-3 mb-3">
             <form class="platform-search" @onsubmit="Search" @onsubmit:preventDefault>
                 <div><label for="platform-tenant-search">جستجوی صرافی یا کاربر</label><input id="platform-tenant-search" class="form-control" @bind="search" placeholder="نام، کد صرافی، ایمیل یا شماره تماس" /></div>
                 <button type="submit" class="btn btn-primary"><i class="bi bi-search" aria-hidden="true"></i>جستجو</button>
@@ -28,32 +30,38 @@
             </form>
             @if(TenantId==0 || searching)
             {
-                <p class="small text-muted mt-3">حداکثر 100 صرافی نمایش داده می‌شود. برای بازکردن جزئیات، «مدیریت» را انتخاب کنید.</p>
-                <div class="table-responsive"><table class="table text-center align-middle"><thead><tr><th>کد</th><th>صرافی</th><th>ایمیل</th><th>تماس</th><th>کاربران فعال</th><th>آخرین فعالیت</th><th></th></tr></thead><tbody>
-                @foreach(var item in results){<tr><td>@item.Id</td><td>@item.Name</td><td>@item.Email</td><td>@item.Phone</td><td>@item.Users</td><td>@Date(item.LastActivityAt)</td><td><a class="btn btn-sm btn-outline-primary" href="@($"/platform/tenant-management/{item.Id}")">مدیریت</a></td></tr>}
+                <p class="small text-muted mt-3">حداکثر 100 صرافی نمایش داده می‌شود. برای بازکردن جزئیات، نام صرافی را انتخاب کنید.</p>
+                <div class="table-responsive"><table class="table text-center align-middle"><thead><tr><th data-sortable="false">شماره ردیف</th><th>کد</th><th>صرافی</th><th>ایمیل</th><th>تماس</th><th>کاربران فعال</th><th>آخرین فعالیت</th></tr></thead><tbody>@{var platformRow1=0;}
+                @foreach(var item in results){<tr><td data-platform-row-number>@((++platformRow1).ToString(System.Globalization.CultureInfo.InvariantCulture))</td><td>@item.Id</td><td><a href="@($"/tenants/{item.Id}")">@item.Name</a></td><td>@item.Email</td><td>@item.Phone</td><td>@item.Users</td><td>@Date(item.LastActivityAt)</td></tr>}
                 @if(results.Count==0 && !busy){<tr><td colspan="7" class="platform-empty"><i class="bi bi-search" aria-hidden="true"></i>صرافی‌ای پیدا نشد. نام یا شماره تماس دیگری را جستجو کنید.</td></tr>}
                 </tbody></table></div>
             }
-        </div>
+        </div>}
         @if(overview is not null)
         {
-            <div class="modern-card p-3 mb-3 platform-tenant-summary"><div><h2>@overview.Tenant.Name <small class="text-muted">کد @TenantId</small></h2>
-                <div class="d-flex flex-wrap gap-4 small"><span>کاربران: @overview.Users.Count (فعال: @overview.Users.Count(x=>x.Active))</span><span>آخرین فعالیت: @Date(overview.Tenant.LastActivityAt)</span><span>اشتراک: @StatusLabel(overview.Subscriptions.FirstOrDefault()?.Status)</span><span><SubscriptionExpiry EndAt="overview.Subscriptions.FirstOrDefault()?.EndAt" /></span></div></div>
+            <div class="modern-card p-3 mb-3 platform-tenant-summary">@if(!Embedded){<div><h2>@overview.Tenant.Name <small class="text-muted">کد @TenantId</small></h2>
+                <div class="d-flex flex-wrap gap-4 small"><span>کاربران: @overview.Users.Count (فعال: @overview.Users.Count(x=>x.Active))</span><span>آخرین فعالیت: @Date(overview.Tenant.LastActivityAt)</span><span>اشتراک: @StatusLabel(overview.Subscriptions.FirstOrDefault()?.Status)</span><span><SubscriptionExpiry EndAt="overview.Subscriptions.FirstOrDefault()?.EndAt" /></span></div></div>}
                 <span class="badge-modern @(overview.Controls.ReadOnly?"badge-warning":"badge-success")">@(overview.Controls.ReadOnly?"عملیات موقتاً قفل است":"قفل موقت عملیات: خاموش")</span>
             </div>
             <nav class="platform-section-nav" aria-label="بخش‌های مدیریت صرافی">
                 @foreach(var tab in Tabs){<button type="button" aria-current="@(section==tab.Key?"true":null)" aria-controls="tenant-management-panel" @onclick="()=>section=tab.Key">@tab.Value</button>}
             </nav>
             <section id="tenant-management-panel" aria-label="@Tabs[section]">
+            @if(section=="summary")
+            {
+                <div class="modern-card p-3"><h2>خلاصه اطلاعات صرافی</h2><div class="platform-tenant-facts">
+                    @if(!string.IsNullOrWhiteSpace(settings?.LogoPath)){<img src="@settings.LogoPath" alt="لوگوی صرافی" class="platform-tenant-logo" />}
+                    <span>نام قانونی: @(overview.Tenant.LegalName??"—")</span><span>مسئول تماس: @(overview.Tenant.ContactName??"—")</span><span>آدرس: @(settings?.Address??"—")</span><span>کاربران فعال: @overview.Users.Count(x=>x.Active)</span><span>سقف اختصاصی کاربران: @(overview.Controls.MaxUsers?.ToString(System.Globalization.CultureInfo.InvariantCulture)??"مطابق پلن")</span><span>وضعیت صرافی: @(overview.Tenant.IsActive?"فعال":"غیرفعال")</span><span>آخرین فعالیت: @Date(overview.Tenant.LastActivityAt)</span>
+                </div></div>
+            }
             @if(section=="users")
             {
                 <div class="modern-card p-3"><div class="platform-card-heading"><div><h2>کاربران و صلاحیت‌ها</h2><p>مشخصات، نقش و دسترسی کاربران همین صرافی</p></div><button class="btn btn-primary" @onclick="()=>Edit(null)"><i class="bi bi-person-plus" aria-hidden="true"></i>افزودن کاربر</button></div>
                     <p class="platform-helper">حذف امن، کاربر را غیرفعال می‌کند؛ اسناد مالی او باقی می‌ماند. تغییر رمز یا صلاحیت، نشست‌های قبلی را نامعتبر می‌کند.</p>
-                    <div class="table-responsive"><table class="table text-center align-middle"><thead><tr><th>نام / نام کاربری</th><th>ایمیل / تماس</th><th>نقش / وضعیت</th><th>آخرین ورود</th><th>عملیات</th></tr></thead><tbody>
+                    <div class="table-responsive"><table class="table text-center align-middle"><thead><tr><th data-sortable="false">شماره ردیف</th><th data-sortable="false">سایر عملیات</th><th>نام / نام کاربری</th><th>ایمیل / تماس</th><th>نقش / وضعیت</th><th>آخرین ورود</th></tr></thead><tbody>@{var platformRow2=0;}
                     @foreach(var u in overview.Users)
                     {
-                        <tr><td><strong>@u.Name</strong><br/><small dir="ltr">@u.UserName</small></td><td><span dir="ltr">@u.Email</span><br/><span dir="ltr">@u.Phone</span></td><td>@RoleLabel(u.Role)<br/><span class="badge-modern @(u.Active?"badge-success":"badge-secondary")">@(u.Active?"فعال":"غیرفعال")</span> @if(u.LockedUntil>DateTimeOffset.UtcNow){<span class="badge-modern badge-warning">قفل ورود</span>}</td><td>@Date(u.LastLoginAt)</td>
-                        <td><div class="platform-row-actions">
+                        <tr><td data-platform-row-number>@((++platformRow2).ToString(System.Globalization.CultureInfo.InvariantCulture))</td><td><div class="platform-row-actions">
                             <button class="btn btn-sm btn-outline-primary" @onclick="()=>Edit(u)">مشخصات و صلاحیت‌ها</button>
                             <details class="platform-action-disclosure"><summary aria-label="@($"سایر عملیات کاربر {u.Name}")">سایر عملیات<i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div class="platform-action-list">
                             <button class="btn btn-sm btn-outline-secondary" @onclick='()=>ConfirmUser(u,"SignOut","پایان تمام نشست‌ها")'>پایان نشست‌ها</button>
@@ -64,9 +72,9 @@
                             <button class="btn btn-sm btn-outline-warning" @onclick='()=>ConfirmUser(u,"PromoteAdmin","تعیین ادمین جدید با تمام صلاحیت‌های صرافی؛ ادمین قبلی باقی می‌ماند")'>تعیین ادمین</button>
                             <button class="btn btn-sm platform-danger-action @(u.Active?"btn-outline-danger":"btn-outline-success")" @onclick='()=>ConfirmUser(u,u.Active?"Disable":"Enable",u.Active?"حذف امن / غیرفعال‌سازی کاربر":"فعال‌سازی کاربر")'>@(u.Active?"غیرفعال / حذف امن":"فعال‌سازی")</button>
                             </div></details>
-                        </div></td></tr>
+                        </div></td><td><strong>@u.Name</strong><br/><small dir="ltr">@u.UserName</small></td><td><span dir="ltr">@u.Email</span><br/><span dir="ltr">@u.Phone</span></td><td>@RoleLabel(u.Role)<br/><span class="badge-modern @(u.Active?"badge-success":"badge-secondary")">@(u.Active?"فعال":"غیرفعال")</span> @if(u.LockedUntil>DateTimeOffset.UtcNow){<span class="badge-modern badge-warning">قفل ورود</span>}</td><td>@Date(u.LastLoginAt)</td></tr>
                     }
-                    @if(overview.Users.Count==0){<tr><td colspan="5" class="platform-empty">کاربری ثبت نشده است. از «افزودن کاربر» شروع کنید.</td></tr>}
+                    @if(overview.Users.Count==0){<tr><td colspan="6" class="platform-empty">کاربری ثبت نشده است. از «افزودن کاربر» شروع کنید.</td></tr>}
                     </tbody></table></div>
                 </div>
             }
@@ -104,20 +112,21 @@
             }
             @if(section=="jobs")
             {
-                <div class="modern-card p-3"><h6>آخرین 50 عملیات ثبت گروهی</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th>فایل / شناسه</th><th>وضعیت</th><th>پیشرفت</th><th>پیام / دلیل خطا</th><th>تلاش</th><th></th></tr></thead><tbody>
-                    @foreach(var j in overview.Jobs){<tr><td>@j.FileName / @j.BatchId</td><td>@j.Status</td><td>@j.Progress%</td><td>@j.Message<br/><span class="text-danger">@j.Error</span></td><td>@j.Attempts</td><td>@if(j.Status=="Failed"){<button class="btn btn-sm btn-warning" @onclick="()=>Retry(j)">تلاش مجدد</button>}</td></tr>}
+                <div class="modern-card p-3"><h6>آخرین 50 عملیات ثبت گروهی</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th data-sortable="false">شماره ردیف</th><th data-sortable="false">سایر عملیات</th><th>فایل / شناسه</th><th>وضعیت</th><th>پیشرفت</th><th>پیام / دلیل خطا</th><th>تلاش</th></tr></thead><tbody>@{var platformRow3=0;}
+                    @foreach(var j in overview.Jobs){<tr><td data-platform-row-number>@((++platformRow3).ToString(System.Globalization.CultureInfo.InvariantCulture))</td><td>@if(j.Status=="Failed"){<button class="btn btn-sm btn-warning" @onclick="()=>Retry(j)">تلاش مجدد</button>}</td><td>@j.FileName / @j.BatchId</td><td>@j.Status</td><td>@j.Progress%</td><td>@j.Message<br/><span class="text-danger">@j.Error</span></td><td>@j.Attempts</td></tr>}
                 </tbody></table></div><p class="small text-muted">تلاش مجدد فقط برای فایل ناموفق و ثبت‌نشده است؛ درخواست جدید یا حواله تکراری ایجاد نمی‌کند و صلاحیت ثبت‌کننده دوباره بررسی می‌شود.</p></div>
             }
             @if(section=="subscription")
             {
-                <div class="modern-card p-3"><h6>تاریخچه اشتراک‌ها (آخرین 50)</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th>پلن</th><th>وضعیت</th><th>شروع</th><th>پایان</th><th>پایان مهلت</th><th>قیمت توافقی</th><th>یادداشت / دلیل تعلیق</th></tr></thead><tbody>
-                    @foreach(var s in overview.Subscriptions){<tr><td>@s.Plan</td><td>@StatusLabel(s.Status)</td><td>@Date(s.StartAt)</td><td><SubscriptionExpiry EndAt="s.EndAt" /></td><td>@Date(s.GraceEnd)</td><td>@s.Price.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @s.Currency</td><td>@s.Note<br/>@s.SuspensionReason</td></tr>}
-                </tbody></table></div><a class="btn btn-outline-primary" href="/tenants">تمدید، مهلت پرداخت و تعلیق اشتراک</a></div>
-                <div class="modern-card p-3 mt-3"><h6>فاکتورها و پرداخت‌ها (آخرین 50)</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th>فاکتور</th><th>وضعیت</th><th>مجموع</th><th>تخفیف</th><th>پرداخت‌شده</th><th>سررسید</th><th></th></tr></thead><tbody>
-                    @foreach(var i in overview.Invoices){<tr><td>@i.Number</td><td>@i.Status</td><td>@i.Total.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @i.Currency</td><td>@i.Discount.ToString("N0",System.Globalization.CultureInfo.InvariantCulture)</td><td>@i.Paid.ToString("N0",System.Globalization.CultureInfo.InvariantCulture)</td><td>@Date(i.DueAt)</td><td><a href="@($"/platform/invoices/{i.Id}")">جزئیات پرداخت‌ها</a></td></tr>}
-                </tbody></table></div><a href="/platform/billing" class="btn btn-outline-primary">مدیریت مالی، فاکتور و تخفیف</a></div>
-                <div class="modern-card p-3 mt-3"><h6>تاریخچه پرداخت‌های اشتراک (آخرین 50؛ شامل پرداخت‌های بدون فاکتور)</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th>شناسه</th><th>وضعیت</th><th>مبلغ</th><th>تاریخ پرداخت</th><th>روش</th><th>مرجع</th></tr></thead><tbody>
-                    @foreach(var p in overview.Payments){<tr><td>@p.Id</td><td>@p.Status</td><td>@p.Amount.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @p.Currency</td><td>@Date(p.PaidAt)</td><td>@p.Method</td><td>@p.Reference</td></tr>}
+                <div class="modern-card p-3"><h6>تاریخچه اشتراک‌ها (آخرین 50)</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th data-sortable="false">شماره ردیف</th><th>پلن</th><th>وضعیت</th><th>شروع</th><th>پایان</th><th>پایان مهلت</th><th>قیمت توافقی</th><th>یادداشت / دلیل تعلیق</th></tr></thead><tbody>@{var platformRow4=0;}
+                    @foreach(var s in overview.Subscriptions){<tr><td data-platform-row-number>@((++platformRow4).ToString(System.Globalization.CultureInfo.InvariantCulture))</td><td>@s.Plan</td><td>@StatusLabel(s.Status)</td><td>@Date(s.StartAt)</td><td><SubscriptionExpiry EndAt="s.EndAt" /></td><td>@Date(s.GraceEnd)</td><td>@s.Price.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @s.Currency</td><td>@s.Note<br/>@s.SuspensionReason</td></tr>}
+                </tbody></table></div>@if(Embedded){<button class="btn btn-outline-primary" @onclick="()=>Renew.InvokeAsync()">تمدید، مهلت پرداخت و تعلیق اشتراک</button>}else{<a class="btn btn-outline-primary" href="@($"/tenants/{TenantId}")">تمدید، مهلت پرداخت و تعلیق اشتراک</a>}</div>
+                @if(!Embedded){<div class="modern-card p-3 mt-3"><h6>فاکتورها و پرداخت‌ها (آخرین 50)</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th data-sortable="false">شماره ردیف</th><th data-sortable="false">سایر عملیات</th><th>فاکتور</th><th>وضعیت</th><th>مجموع</th><th>تخفیف</th><th>پرداخت‌شده</th><th>سررسید</th></tr></thead><tbody>@{var platformRow5=0;}
+                    @foreach(var i in overview.Invoices){<tr><td data-platform-row-number>@((++platformRow5).ToString(System.Globalization.CultureInfo.InvariantCulture))</td><td><a href="@($"/platform/invoices/{i.Id}")">جزئیات پرداخت‌ها</a></td><td>@i.Number</td><td>@i.Status</td><td>@i.Total.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @i.Currency</td><td>@i.Discount.ToString("N0",System.Globalization.CultureInfo.InvariantCulture)</td><td>@i.Paid.ToString("N0",System.Globalization.CultureInfo.InvariantCulture)</td><td>@Date(i.DueAt)</td></tr>}
+                </tbody></table></div></div>}
+                @if(Embedded){<AuthorizeView Policy="PlatformBilling"><Billing @key="TenantId" ManagedTenantId="TenantId" Changed="Refresh" /></AuthorizeView>}else{<a href="@($"/tenants/{TenantId}")" class="btn btn-outline-primary">مدیریت مالی همین صرافی</a>}
+                <div class="modern-card p-3 mt-3"><h6>تاریخچه پرداخت‌های اشتراک (آخرین 50؛ شامل پرداخت‌های بدون فاکتور)</h6><div class="table-responsive"><table class="table text-center"><thead><tr><th data-sortable="false">شماره ردیف</th><th>شناسه</th><th>وضعیت</th><th>مبلغ</th><th>تاریخ پرداخت</th><th>روش</th><th>مرجع</th></tr></thead><tbody>@{var platformRow6=0;}
+                    @foreach(var p in overview.Payments){<tr><td data-platform-row-number>@((++platformRow6).ToString(System.Globalization.CultureInfo.InvariantCulture))</td><td>@p.Id</td><td>@p.Status</td><td>@p.Amount.ToString("N0",System.Globalization.CultureInfo.InvariantCulture) @p.Currency</td><td>@Date(p.PaidAt)</td><td>@p.Method</td><td>@p.Reference</td></tr>}
                 </tbody></table></div></div>
             }
             @if(section=="health")
@@ -160,10 +169,13 @@
 
 @code{
     [Parameter] public long TenantId {get;set;}
+    [Parameter] public bool Embedded {get;set;}
+    [Parameter] public EventCallback Renew {get;set;}
+    public Task RefreshEmbeddedAsync()=>RefreshPageDataAsync();
     private PlatformTenantOverview? overview;
     private CompanySetting? settings;
     private IReadOnlyList<PlatformTenantSearch> results=[];
-    private string search="",message="",section="users",confirmation="",newPassword="",health="";
+    private string search="",message="",section="summary",confirmation="",newPassword="",health="";
     private string permissionSearch="";
     private bool busy,error,searching,acknowledged,passwordDialog;
     private HashSet<string> disabled=[];
@@ -172,7 +184,7 @@
     private long copySource,loadedTenant;
     private Func<Task>? pending;
     private static readonly string[] Roles=["Admin","Manager","Cashier","Supervisor"];
-    private static readonly Dictionary<string,string> Tabs=new(){["users"]="کاربران و صلاحیت‌ها",["controls"]="قفل و قابلیت‌ها",["settings"]="تنظیمات و لوگو",["jobs"]="عملیات پس‌زمینه",["subscription"]="اشتراک و پرداخت‌ها",["health"]="سلامت سیستم"};
+    private static readonly Dictionary<string,string> Tabs=new(){["summary"]="خلاصه",["users"]="کاربران و صلاحیت‌ها",["subscription"]="اشتراک و پرداخت‌ها",["settings"]="تنظیمات و لوگو",["controls"]="قفل و قابلیت‌ها",["jobs"]="عملیات پس‌زمینه",["health"]="سلامت سیستم"};
     private static string RoleLabel(string role)=>role switch{"Admin"=>"مدیر صرافی","Manager"=>"مدیر عملیات","Cashier"=>"صندوق‌دار","Supervisor"=>"ناظر",_=>role};
     private static string StatusLabel(string? status)=>status switch{"Trial"=>"آزمایشی","Active" or "ExpiringSoon"=>"فعال","Expired"=>"منقضی","Suspended"=>"تعلیق‌شده","Cancelled"=>"لغوشده",null=>"ثبت نشده",_=>status};
     protected override async Task OnParametersSetAsync(){if(loadedTenant!=TenantId||overview is null){CancelConfirm();editUser=null;dialogUser=null;overview=null;await Refresh();loadedTenant=TenantId;}}

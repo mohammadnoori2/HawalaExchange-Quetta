@@ -7,14 +7,17 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>بستن دوره نمایندگی</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <AppPageHeader Title="بستن دوره نمایندگی"
                        Subtitle="ثبت مانده انتقالی بدون پرداخت یا دریافت واقعی"
-                       Icon="bi-calendar-check" />
+                       Icon="bi-calendar-check">
+            <Actions>
+                <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
+            </Actions>
+        </AppPageHeader>
         <button class="btn btn-outline-secondary" @onclick="BackToCorrespondent">
             <i class="bi bi-arrow-left ms-1"></i>
             بازگشت به نمایندگی

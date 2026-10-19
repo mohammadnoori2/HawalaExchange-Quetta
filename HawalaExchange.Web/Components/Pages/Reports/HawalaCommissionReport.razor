@@ -15,10 +15,13 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>گزارش حواله‌ها و کمیشن</PageTitle>
 <div class="page-wrapper reports-page" dir="rtl">
-    <AppPageHeader Title="گزارش حواله‌ها و کمیشن" Subtitle="گزارش خواندنی؛ بدون ثبت کمیشن یا سند حسابداری" Icon="bi-file-earmark-bar-graph" />
+    <AppPageHeader Title="گزارش حواله‌ها و کمیشن" Subtitle="گزارش خواندنی؛ بدون ثبت کمیشن یا سند حسابداری" Icon="bi-file-earmark-bar-graph">
+        <Actions>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
+        </Actions>
+    </AppPageHeader>
     <div class="alert alert-info py-2">بازه مربوط به روز ثبت حواله است. کمیشن ثبت‌شده با نرخ ذخیره‌شده خوانده می‌شود؛ برگشت‌ها در خالص ثبت‌شده شامل نیستند. کسرهای ثبت‌شده با علامت منفی نمایش داده می‌شوند. مبالغ دریافتی و ارسالی و همچنین ارزها جدا جمع می‌شوند.</div>
     @if (error != "") { <div class="alert alert-danger" role="alert">@error</div> }
     <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش حواله‌ها" HasActiveFilters="@(ReportFilterCount > 0 || !string.IsNullOrWhiteSpace(filter.Search))" ActiveFilterCount="@ReportFilterCount" Reset="ResetReportFilters">

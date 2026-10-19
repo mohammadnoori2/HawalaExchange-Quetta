@@ -7,7 +7,6 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت ارزها</PageTitle>
 
 <div class="page-wrapper">
@@ -25,6 +24,7 @@
             <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> ارز جدید
             </button></PermissionAction>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </Actions>
     </AppPageHeader>
 

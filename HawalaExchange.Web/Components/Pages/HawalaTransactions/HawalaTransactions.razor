@@ -21,7 +21,6 @@
 @attribute [Authorize(Policy = "TenantBusiness")]
 @implements IDisposable
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(isLoading || destructiveActionLoading)" />
 <div class="page-wrapper">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -44,6 +43,7 @@
             <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> حواله جدید
             </button></PermissionAction>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(isLoading || destructiveActionLoading)" Inline="true" />
         </div>
     </div>
 

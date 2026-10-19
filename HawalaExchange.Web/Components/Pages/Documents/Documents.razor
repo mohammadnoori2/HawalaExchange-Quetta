@@ -9,7 +9,6 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -30,6 +29,7 @@
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenUploadModal()">
                 <i class="bi bi-cloud-arrow-up"></i> آپلود سند جدید
             </button>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </div>
     </div>
 

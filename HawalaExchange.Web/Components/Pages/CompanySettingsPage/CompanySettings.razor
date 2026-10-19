@@ -13,7 +13,6 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper" dir="rtl">
     <div class="page-header">
         <div>
@@ -22,6 +21,9 @@
                 تنظیمات شرکت
                 <span class="page-subtitle">تنظیم معلومات شرکت و ارز اصلی محاسبه مفاد و ضرر</span>
             </h5>
+        </div>
+        <div class="page-actions">
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </div>
     </div>
 

@@ -19,7 +19,6 @@
 @attribute [Authorize(Policy = "TenantBusiness")]
 @implements IDisposable
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper" dir="rtl">
     <div class="page-header">
         <div>
@@ -34,10 +33,7 @@
             <PageHeaderStat Label="اجرا شده" Value="@totalCount" Icon="bi-check-circle" Tone="success" />
         </PageHeaderStats>
         <div class="page-actions">
-            <button class="btn-modern btn-light-modern btn-rounded" @onclick="() => LoadData()">
-                <i class="bi bi-arrow-clockwise"></i>
-                تازه‌سازی
-            </button>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </div>
     </div>
 

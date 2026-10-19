@@ -9,11 +9,11 @@
 @inject NavigationManager NavigationManager
 @implements IDisposable
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(correspondent == null ? "وضعیت نمایندگی" : $"وضعیت {correspondent.Name}")</PageTitle>
 
 <div class="page-wrapper entity-details-page" dir="rtl">
-    <div class="d-flex justify-content-end mb-3">
+    <div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mb-3">
+        <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         <button type="button" class="btn btn-outline-secondary" @onclick="BackToCorrespondent">
             <i class="bi bi-arrow-right ms-1"></i>بازگشت به نمایندگی
         </button>

@@ -12,9 +12,11 @@
 @inject IJSRuntime JS
 
 <PageTitle>تاریخچه تبدیل و نرخ‌های نمایندگی</PageTitle>
-<PageRefreshButton Refresh="ReloadAsync" Disabled="@busy" />
 <AppPageHeader Title="تاریخچه تبدیل و نرخ‌های نمایندگی" Icon="bi-clock-history">
-    <Actions><button class="btn btn-outline-secondary" @onclick="Back">بازگشت به نمایندگی</button></Actions>
+    <Actions>
+        <button class="btn btn-outline-secondary" @onclick="Back">بازگشت به نمایندگی</button>
+        <PageRefreshButton Refresh="ReloadAsync" Disabled="@busy" Inline="true" />
+    </Actions>
 </AppPageHeader>
 <div class="modern-card p-3 mb-3">
     <div class="d-flex gap-2 mb-3"><button class="btn @(ratesView ? "btn-outline-primary" : "btn-primary")" @onclick="() => ratesView=false">تاریخچه تبدیل‌ها</button><button class="btn @(ratesView ? "btn-primary" : "btn-outline-primary")" @onclick="() => ratesView=true">مشاهده نرخ‌های نمایندگی</button></div>

@@ -12,7 +12,6 @@
 @inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject NavigationManager NavigationManager
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>معاملات درهم</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
@@ -31,6 +30,7 @@
             <PermissionAction Actions="Create"><button class="btn btn-primary" disabled="@(CreateDisabledReason is not null)" title="@CreateDisabledReason" @onclick="OpenCreate">
                 <i class="bi bi-plus-lg"></i> معامله جدید
             </button></PermissionAction>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </div>
     </div>
 

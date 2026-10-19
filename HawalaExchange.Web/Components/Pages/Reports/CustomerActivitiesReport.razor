@@ -15,13 +15,16 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@ReportTitle</PageTitle>
 
 <div class="page-wrapper reports-page">
     <AppPageHeader Title="@ReportTitle"
                    Subtitle="@($"تمام فعالیت‌های مالی {OwnerType}")"
-                   Icon="bi-clipboard-data" />
+                   Icon="bi-clipboard-data">
+        <Actions>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
+        </Actions>
+    </AppPageHeader>
 
     <div class="table-card">
         <div class="table-card-body">

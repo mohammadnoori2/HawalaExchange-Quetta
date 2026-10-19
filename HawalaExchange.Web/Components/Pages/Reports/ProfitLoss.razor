@@ -9,7 +9,6 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>صورت حساب مفاد و ضرر</PageTitle>
 
 <div class="financial-page" dir="rtl">
@@ -27,6 +26,7 @@
                 <i class="bi bi-printer"></i>
                 چاپ
             </button></PermissionAction>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </div>
     </div>
 

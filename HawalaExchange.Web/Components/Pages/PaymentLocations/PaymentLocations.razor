@@ -7,7 +7,6 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>مدیریت محل‌های پرداخت</PageTitle>
 
 <div class="page-wrapper">
@@ -25,6 +24,7 @@
             <button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> محل جدید
             </button>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </Actions>
     </AppPageHeader>
 

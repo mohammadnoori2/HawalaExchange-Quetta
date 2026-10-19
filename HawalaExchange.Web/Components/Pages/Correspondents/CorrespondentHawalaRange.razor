@@ -11,7 +11,6 @@
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(correspondent == null ? "محدوده حواله‌های نمایندگی" : $"محدوده حواله‌های {correspondent.Name}")</PageTitle>
 
 <div class="page-wrapper correspondent-details-page">
@@ -40,6 +39,7 @@
             <div class="correspondent-header-actions">
                 <a class="btn btn-sm btn-outline-primary" href="@($"/correspondents/{CorrespondentId}")">حواله‌های نمایندگی</a>
                 <a class="btn btn-sm btn-light border" href="@($"/correspondents/{CorrespondentId}/status")">بازگشت به وضعیت نمایندگی</a>
+                <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
             </div>
         </header>
 

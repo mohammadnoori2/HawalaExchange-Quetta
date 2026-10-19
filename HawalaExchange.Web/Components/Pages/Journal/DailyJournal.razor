@@ -7,7 +7,6 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>روزنامچه</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
@@ -32,6 +31,7 @@
                 <i class="bi bi-calendar-check"></i>
                 نمایش امروز
             </button>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </div>
     </div>
 

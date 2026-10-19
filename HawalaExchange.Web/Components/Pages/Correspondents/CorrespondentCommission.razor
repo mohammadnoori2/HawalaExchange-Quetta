@@ -11,7 +11,6 @@
 @attribute [Authorize(Policy = "TenantBusiness")]
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(busy || calculating || loadingPage)" />
 <PageTitle>@(isOrigin ? "کمیشن ارسالی به نمایندگی‌ها" : isOutgoing ? "کمیشن پرداختی به نمایندگی‌ها" : "کمیشن حواله‌های دریافتی")</PageTitle>
 
 <div class="page-wrapper" dir="rtl">
@@ -22,6 +21,7 @@
             <button class="btn-modern btn-light-modern" @onclick="BackToCorrespondent">
                 <i class="bi bi-arrow-right"></i> بازگشت به نمایندگی
             </button>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(busy || calculating || loadingPage)" Inline="true" />
         </Actions>
     </AppPageHeader>
 

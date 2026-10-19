@@ -14,7 +14,6 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(IsPreviewPage ? "پیش‌نمایش و تأیید فایل حواله‌ها" : "آپلود گروهی حواله‌های دریافتی")</PageTitle>
 
 <div class="page-wrapper @(IsPreviewPage ? "import-preview-workspace" : string.Empty)" dir="rtl">
@@ -32,6 +31,7 @@
             { <button class="btn btn-outline-secondary" disabled="@isBusy" @onclick="BackToImport"><i class="bi bi-arrow-right ms-1"></i>بازگشت به آپلودها</button> }
             else
             { <button class="btn btn-outline-secondary" disabled="@isBusy" title="@(isBusy ? "تا پایان عملیات ثبت منتظر بمانید." : null)" @onclick="BackToCorrespondent"><i class="bi bi-arrow-right ms-1"></i>بازگشت به نمایندگی</button> }
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </Actions>
     </AppPageHeader>
 

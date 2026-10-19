@@ -7,7 +7,6 @@
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper">
     <!-- هدر صفحه -->
     <div class="page-header">
@@ -31,6 +30,7 @@
             <button class="btn-modern btn-success-modern btn-rounded" @onclick="() => ExportToExcel()">
                 <i class="bi bi-file-earmark-excel"></i> خروجی اکسل
             </button>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </div>
     </div>
 

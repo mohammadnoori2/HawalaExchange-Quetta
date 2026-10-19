@@ -9,7 +9,6 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>سقف بدهکاری</PageTitle>
 
 <div class="page-wrapper">
@@ -28,6 +27,7 @@
             <PermissionAction Actions="Create"><button class="btn-modern btn-primary-modern btn-rounded" @onclick="() => OpenCreateModal()">
                 <i class="bi bi-plus-circle"></i> سقف جدید
             </button></PermissionAction>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </Actions>
     </AppPageHeader>
 

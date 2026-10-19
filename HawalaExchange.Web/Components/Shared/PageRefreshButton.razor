@@ -7,11 +7,11 @@
 @inject ApplicationDbContext Context
 @inject UiReferenceDataCache ReferenceData
 
-<div class="d-flex justify-content-end align-items-center gap-2 mb-2" dir="rtl">
+<div class="@(Inline ? "d-inline-flex flex-wrap align-items-center gap-2" : "d-flex justify-content-end align-items-center gap-2 mb-2")" dir="rtl">
     <button type="button" class="btn-modern btn-light-modern" disabled="@(busy || Disabled)" @onclick="RefreshAsync" title="خواندن دوباره داده‌ها از دیتابیس؛ بدون بارگذاری مجدد صفحه">
         @if (busy) { <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> }
         else { <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> }
-        @(busy ? "در حال بروزرسانی..." : "بروزرسانی")
+        @(busy ? "در حال تازه‌سازی..." : "تازه‌سازی")
     </button>
     @if (!string.IsNullOrWhiteSpace(error)) { <span class="text-danger small" role="alert">@error</span> }
 </div>
@@ -19,6 +19,7 @@
 @code {
     [Parameter, EditorRequired] public EventCallback Refresh { get; set; }
     [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Inline { get; set; }
     private bool busy;
     private string error = "";
     private async Task RefreshAsync()

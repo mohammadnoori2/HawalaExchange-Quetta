@@ -11,7 +11,6 @@
 @inject ICurrencyService CurrencyService
 @inject NavigationManager NavigationManager
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(account == null ? "مشاهده حساب" : account.AccountName)</PageTitle>
 
 <div class="page-wrapper account-details-page">
@@ -52,6 +51,7 @@
                              OnEditRequested="OpenEditModal"
                              OnArchiveToggleRequested="OpenArchiveConfirmation">
             <HeaderActions>
+                <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
                 <button type="button" class="btn btn-sm btn-light border" @onclick="OpenActivityReport">
                     <i class="bi bi-clipboard-data me-1"></i> گزارش فعالیت حساب
                 </button>

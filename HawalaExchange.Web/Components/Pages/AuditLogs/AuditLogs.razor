@@ -13,7 +13,6 @@
 @inject ILogger<AuditLogs> Logger
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>لاگ‌های سیستم</PageTitle>
 
 <div class="page-wrapper">
@@ -30,9 +29,7 @@
             </PageHeaderStats>
         </Stats>
         <Actions>
-            <button type="button" class="btn-modern btn-primary-modern btn-rounded" @onclick="LoadLogs">
-                <i class="bi bi-arrow-clockwise"></i> بروزرسانی
-            </button>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </Actions>
     </AppPageHeader>
 

@@ -20,7 +20,6 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(bulkBusy || isLoading)" />
 <div class="page-wrapper" dir="rtl">
     <div class="page-header">
         <div>
@@ -36,10 +35,7 @@
             <PageHeaderStat Label="مجموع مبلغ" Value="@(MoneyFormatHelper.Format(totalFromAmount))" Icon="bi-cash-stack" Tone="info" />
         </PageHeaderStats>
         <div class="page-actions">
-            <button class="btn-modern btn-light-modern btn-rounded" @onclick="LoadData">
-                <i class="bi bi-arrow-clockwise"></i>
-                تازه‌سازی
-            </button>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@(bulkBusy || isLoading)" Inline="true" />
         </div>
     </div>
 

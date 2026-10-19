@@ -15,7 +15,6 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>داشبورد</PageTitle>
 
 <div class="dashboard-wrapper" dir="rtl">
@@ -38,6 +37,7 @@
             <button class="quick-link-btn quick-link-exchange" @onclick="OpenExchangeModal">تبدیل پول</button>
             <button class="quick-link-btn quick-link-deposit" @onclick="OpenDepositWithdrawModal">رسید / برد</button>
             <button class="quick-link-btn quick-link-pending" @onclick="NavigateToPendingHawalas">اجرای حواله</button>
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </div>
     </div>
 

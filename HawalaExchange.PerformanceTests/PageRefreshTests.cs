@@ -47,6 +47,8 @@ public sealed class PageRefreshTests(SqlServerPerformanceFixture fixture)
             // HtmlRenderer cannot click; invoke the actual event handler through a captured component.
             var component = await renderer.RenderComponentAsync<RefreshHost>(ParameterView.FromDictionary(new Dictionary<string, object?>
             { [nameof(RefreshHost.Callback)] = EventCallback.Factory.Create(this, async () => { refreshedName = (await fixture.CreateAccountService(context).GetByIdAsync(account.Id))!.AccountName; await cache.GetActiveCurrenciesAsync(); }) }));
+            Assert.Contains("d-inline-flex flex-wrap align-items-center gap-2", component.ToHtmlString());
+            Assert.DoesNotContain("justify-content-end", component.ToHtmlString());
             await (Task)typeof(PageRefreshButton).GetMethod("RefreshAsync", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(RefreshHost.Button, null)!;
         });
         Assert.Equal("New from database", refreshedName); Assert.Equal(2, calls);
@@ -62,7 +64,8 @@ public sealed class PageRefreshTests(SqlServerPerformanceFixture fixture)
         protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
         {
             builder.OpenComponent<PageRefreshButton>(0); builder.AddAttribute(1, "Refresh", Callback);
-            builder.AddComponentReferenceCapture(2, value => Button = (PageRefreshButton)value); builder.CloseComponent();
+            builder.AddAttribute(2, "Inline", true);
+            builder.AddComponentReferenceCapture(3, value => Button = (PageRefreshButton)value); builder.CloseComponent();
         }
     }
 

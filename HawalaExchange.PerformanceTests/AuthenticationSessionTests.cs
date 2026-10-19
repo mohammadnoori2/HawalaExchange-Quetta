@@ -19,6 +19,41 @@ namespace HawalaExchange.PerformanceTests;
 [Collection(SqlServerPerformanceCollection.Name)]
 public sealed class AuthenticationSessionTests(SqlServerPerformanceFixture fixture)
 {
+    [Theory]
+    [InlineData("truncated")]
+    [InlineData("altered")]
+    public async Task Tampered_encrypted_cookie_is_rejected(string mutation)
+    {
+        var user = await CreateUser(); using var provider = Services();
+        var result = await Authenticate(provider, user, 1, mutateCookie: cookie => mutation == "truncated"
+            ? cookie[..(cookie.Length / 2)]
+            : cookie[..30] + (cookie[30] == 'A' ? "B" : "A") + cookie[31..]);
+        Assert.False(result.Principal.Identity?.IsAuthenticated ?? false);
+    }
+
+    [Fact]
+    public async Task Platform_role_demotion_must_remove_old_authority_from_a_recent_cookie()
+    {
+        var user = await CreateUser(platform: true);
+        var replacement = await CreateUser(platform: true);
+        await using (var setup = fixture.CreateContext())
+        {
+            var owner = await setup.Roles.SingleAsync(x => x.Name == PlatformRoles.Owner);
+            setup.UserRoles.AddRange(new IdentityUserRole<long> { UserId = user.Id, RoleId = owner.Id },
+                new IdentityUserRole<long> { UserId = replacement.Id, RoleId = owner.Id });
+            await setup.SaveChangesAsync();
+        }
+        using var provider = Services();
+        await using var scope = provider.CreateAsyncScope();
+        var principal = await scope.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>().CreateUserPrincipalAsync(user);
+        Assert.True(principal.IsInRole(PlatformRoles.Owner));
+        var management = new HawalaExchange.Infrastructure.Services.PlatformUserService(
+            scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(), scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
+        await management.SetRoleAsync(user.Id, PlatformRoles.Support);
+        var result = await Authenticate(provider, user, 1, principal);
+        Assert.False(result.Principal.IsInRole(PlatformRoles.Owner), "The real role-change service left the old privileged cookie authorized.");
+    }
+
     [Fact]
     public async Task Force_logout_rejects_a_recent_cookie_without_waiting_for_the_stamp_renewal_interval()
     {
@@ -154,7 +189,7 @@ public sealed class AuthenticationSessionTests(SqlServerPerformanceFixture fixtu
     }
 
     private async Task<(ClaimsPrincipal Principal, string SetCookie, long TenantBeforeAuthentication)> Authenticate(
-        ServiceProvider provider, ApplicationUser user, int ageMinutes, ClaimsPrincipal? principal = null)
+        ServiceProvider provider, ApplicationUser user, int ageMinutes, ClaimsPrincipal? principal = null, Func<string, string>? mutateCookie = null)
     {
         await using var scope = provider.CreateAsyncScope(); var sp = scope.ServiceProvider;
         var http = new DefaultHttpContext { RequestServices = sp }; http.Request.Scheme = "https";
@@ -166,7 +201,8 @@ public sealed class AuthenticationSessionTests(SqlServerPerformanceFixture fixtu
         var options = sp.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(IdentityConstants.ApplicationScheme);
         var issued = DateTimeOffset.UtcNow.AddMinutes(-ageMinutes);
         var ticket = new AuthenticationTicket(principal, new AuthenticationProperties { IssuedUtc = issued, ExpiresUtc = issued.AddDays(30), IsPersistent = true }, IdentityConstants.ApplicationScheme);
-        http.Request.Headers.Cookie = options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+        var protectedCookie = options.TicketDataFormat.Protect(ticket);
+        http.Request.Headers.Cookie = options.Cookie.Name + "=" + (mutateCookie?.Invoke(protectedCookie) ?? protectedCookie);
         var middleware = new AuthenticationMiddleware(_ => Task.CompletedTask, sp.GetRequiredService<IAuthenticationSchemeProvider>());
         await middleware.Invoke(http);
         await response.FireStartingAsync();

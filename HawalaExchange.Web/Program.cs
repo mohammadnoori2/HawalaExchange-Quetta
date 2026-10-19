@@ -54,7 +54,9 @@ public partial class Program
         // ============================================================
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
-        builder.Services.AddControllers();
+        // [ValidateAntiForgeryToken] is an MVC ViewFeatures filter. AddControllers
+        // alone omits its registration, even when antiforgery middleware is enabled.
+        builder.Services.AddControllersWithViews();
 
         // ============================================================
         // 2. Database Context

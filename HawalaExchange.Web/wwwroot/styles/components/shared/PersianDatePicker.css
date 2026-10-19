@@ -133,6 +133,47 @@
         align-items: center;
         justify-content: space-between;
         margin-bottom: 12px;
+        gap: 8px;
+    }
+
+    .calendar-month-year {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        align-items: end;
+        gap: 8px;
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .calendar-month-year label {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+        margin: 0;
+        color: var(--app-muted, #64748b);
+        font-size: .75rem;
+    }
+
+    .calendar-month-year .form-select {
+        width: 100%;
+        min-width: 0;
+        height: 34px;
+        min-height: 34px;
+        padding-block: 4px;
+        font-size: .85rem;
+    }
+
+    .calendar-header > button {
+        flex: 0 0 30px;
+        min-width: 30px;
+        align-self: end;
+        min-height: 34px;
+    }
+
+    @media (max-width: 768px) {
+        .calendar-month-year .form-select { height: 44px; min-height: 44px; font-size: 16px; }
+        .calendar-header > button { min-height: 44px; }
     }
 
     .calendar-weekdays {

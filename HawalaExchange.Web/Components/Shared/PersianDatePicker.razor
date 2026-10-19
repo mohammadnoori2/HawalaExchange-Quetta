@@ -59,16 +59,37 @@
             <div class="calendar-header">
                 <button type="button"
                         class="btn btn-sm btn-light"
+                        aria-label="ماه قبل"
                         @onclick="PreviousMonth">
                     <i class="bi bi-chevron-right"></i>
                 </button>
 
-                <strong>
-                    @(gregorianMode ? ViewFirstDay.ToString("MMMM yyyy", CultureInfo.InvariantCulture) : $"{MonthNames[viewMonth - 1]} {viewYear.ToString(CultureInfo.InvariantCulture)}")
-                </strong>
+                <div class="calendar-month-year" role="group" aria-label="انتخاب ماه و سال">
+                    <label class="calendar-month-field">
+                        <span>ماه</span>
+                        <select class="form-select form-select-sm" aria-label="ماه تقویم"
+                                value="@viewMonth.ToString(CultureInfo.InvariantCulture)" @onchange="OnViewMonthChanged">
+                            @for (var month = 1; month <= MonthsInViewYear; month++)
+                            {
+                                <option value="@month.ToString(CultureInfo.InvariantCulture)">@(gregorianMode ? CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month) : MonthNames[month - 1])</option>
+                            }
+                        </select>
+                    </label>
+                    <label class="calendar-year-field">
+                        <span>سال</span>
+                        <select class="form-select form-select-sm" aria-label="سال تقویم" dir="ltr"
+                                value="@viewYear.ToString(CultureInfo.InvariantCulture)" @onchange="OnViewYearChanged">
+                            @foreach (var year in ViewYears)
+                            {
+                                <option value="@year.ToString(CultureInfo.InvariantCulture)">@year.ToString(CultureInfo.InvariantCulture)</option>
+                            }
+                        </select>
+                    </label>
+                </div>
 
                 <button type="button"
                         class="btn btn-sm btn-light"
+                        aria-label="ماه بعد"
                         @onclick="NextMonth">
                     <i class="bi bi-chevron-left"></i>
                 </button>
@@ -224,6 +245,36 @@
 
     private IReadOnlyList<DualCalendarDay> CalendarDays => DualCalendarDateHelper.MonthDays(viewYear, viewMonth, gregorianMode);
     private DateTime ViewFirstDay => DualCalendarDateHelper.FirstDay(viewYear, viewMonth, gregorianMode);
+    // Render only a moving 201-year window, not thousands of options per open calendar.
+    private int MinimumViewYear => gregorianMode ? persianCalendar.MinSupportedDateTime.Year + 1 : 1;
+    private int MaximumViewYear => gregorianMode ? DateTime.MaxValue.Year : persianCalendar.GetYear(persianCalendar.MaxSupportedDateTime);
+    private int MonthsInViewYear => gregorianMode ? 12 : persianCalendar.GetMonthsInYear(viewYear);
+    private IEnumerable<int> ViewYears
+    {
+        get
+        {
+            var first = Math.Max(MinimumViewYear, viewYear - 100);
+            var last = Math.Min(MaximumViewYear, viewYear + 100);
+            return Enumerable.Range(first, last - first + 1);
+        }
+    }
+
+    private void OnViewMonthChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var month)
+            && month >= 1 && month <= MonthsInViewYear)
+            viewMonth = month;
+    }
+
+    private void OnViewYearChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var year)
+            && year >= MinimumViewYear && year <= MaximumViewYear)
+        {
+            viewYear = year;
+            viewMonth = Math.Min(viewMonth, MonthsInViewYear);
+        }
+    }
     private string MonthEquivalent
     {
         get
@@ -357,7 +408,12 @@
 
     private void ShiftMonth(int direction)
     {
-        try { SetView(gregorianMode ? ViewFirstDay.AddMonths(direction) : persianCalendar.AddMonths(ViewFirstDay, direction)); }
+        try
+        {
+            var date = gregorianMode ? ViewFirstDay.AddMonths(direction) : persianCalendar.AddMonths(ViewFirstDay, direction);
+            var year = gregorianMode ? date.Year : persianCalendar.GetYear(date);
+            if (year >= MinimumViewYear && year <= MaximumViewYear) SetView(date);
+        }
         catch (ArgumentOutOfRangeException) { }
     }
 

@@ -3,6 +3,27 @@ namespace HawalaExchange.PerformanceTests;
 public sealed class PlatformDesignContractTests
 {
     [Fact]
+    public void Platform_content_uses_full_available_width_without_side_gutters_at_any_breakpoint()
+    {
+        var css = File.ReadAllText(Path.Combine(Root(), "HawalaExchange.Web/wwwroot/styles/pages/Platform/PlatformWorkspace.css"));
+        Assert.Contains(".platform-content { width: 100%; max-width: none; margin-inline: 0;", css);
+        var rules = System.Text.RegularExpressions.Regex.Matches(css,
+            @"(?:\.platform-content|\.platform-content > \.page-wrapper\.platform-tenant-detail-body)\s*\{(?<body>[^}]+)\}");
+        Assert.True(rules.Count >= 5);
+        foreach (System.Text.RegularExpressions.Match rule in rules)
+        {
+            var body = rule.Groups["body"].Value;
+            Assert.DoesNotContain("max-width: 100rem", body);
+            foreach (System.Text.RegularExpressions.Match padding in System.Text.RegularExpressions.Regex.Matches(body, @"padding:\s*(?<value>[^;!]+)"))
+            {
+                var values = padding.Groups["value"].Value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                Assert.Equal("0", values.Length == 1 ? values[0] : values[1]);
+                if (values.Length == 4) Assert.Equal("0", values[3]);
+            }
+        }
+    }
+
+    [Fact]
     public void Repeated_controls_share_one_platform_sizing_and_shape_contract()
     {
         var css = File.ReadAllText(Path.Combine(Root(), "HawalaExchange.Web", "wwwroot", "styles", "pages", "Platform", "PlatformWorkspace.css"));

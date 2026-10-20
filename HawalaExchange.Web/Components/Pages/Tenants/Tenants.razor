@@ -17,13 +17,29 @@
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider Authentication
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
 <PageTitle>@(SelectedTenant?.Name ?? "مدیریت صرافی‌ها")</PageTitle>
 
-<div class="page-wrapper">
 @if (DetailTenantId > 0)
 {
-    <div class="page-header"><div><h1 class="page-title">@(SelectedTenant?.Name ?? "جزئیات صرافی")</h1><span class="page-subtitle">تمام اطلاعات و عملیات همین صرافی — کد @DetailTenantId</span></div><a class="btn btn-outline-secondary" href="@ListUrl">برگشت به لیست صرافی‌ها</a></div>
+    <header class="platform-topbar platform-tenant-topbar no-print" aria-label="مدیریت صرافی">
+        <div class="platform-tenant-topbar-name">
+            <span class="platform-brand-mark" aria-hidden="true"><i class="bi bi-buildings"></i></span>
+            <h1 class="platform-tenant-topbar-title">@(SelectedTenant?.Name ?? "جزئیات صرافی")</h1>
+        </div>
+        <nav class="platform-tenant-topbar-actions" aria-label="عملیات صفحه صرافی">
+            <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" Disabled="@(isLoading || isSaving)" />
+            <a class="btn-modern btn-light-modern" href="@ListUrl"><i class="bi bi-arrow-right" aria-hidden="true"></i> برگشت به لیست صرافی‌ها</a>
+        </nav>
+    </header>
+}
+else
+{
+    <PageRefreshButton Refresh="RefreshPageDataAsync" />
+}
+
+<div class="page-wrapper @(DetailTenantId > 0 ? "platform-tenant-detail-body" : null)">
+@if (DetailTenantId > 0)
+{
     @if (!string.IsNullOrWhiteSpace(message)){<div role="alert" class="alert @(isError ? "alert-danger" : "alert-success")">@message</div>}
     @if (SelectedTenant is { } selected)
     {
@@ -34,6 +50,7 @@
                 <button class="btn @(selected.IsArchived ? "btn-outline-success" : "btn-outline-danger")" disabled="@isSaving" @onclick="()=>ToggleTenantArchiveAsync(selected)">@(selected.IsArchived ? "خروج از بایگانی" : "بایگانی صرافی")</button>
             </div>
         </section>
+        <PlatformActivityPanel @key="(DetailTenantId, ActivityFromDate, ActivityToDate)" @ref="activityPanel" TenantId="DetailTenantId" FromDate="ActivityFromDate" ToDate="ActivityToDate" />
         @if(!selected.IsArchived){<AuthorizeView Policy="PlatformImpersonate"><HawalaExchange.Web.Components.Pages.Platform.TenantManagement @key="DetailTenantId" @ref="managementPanel" TenantId="DetailTenantId" Embedded="true" Renew="()=>OpenEdit(selected)" /></AuthorizeView>}
     }
     else if(!isLoading){<div class="alert alert-warning">صرافی موردنظر یافت نشد.</div>}
@@ -367,19 +384,22 @@ else
         if(errors.Count==0) createStep++;
     }
     [Parameter] public long DetailTenantId { get; set; }
+    [SupplyParameterFromQuery(Name="from")] public DateTime? ActivityFromDate { get; set; }
+    [SupplyParameterFromQuery(Name="to")] public DateTime? ActivityToDate { get; set; }
     [SupplyParameterFromQuery(Name="q")] public string searchTerm { get; set; } = "";
     [SupplyParameterFromQuery(Name="status")] public string filter { get; set; } = "all";
     [SupplyParameterFromQuery(Name="plan")] public long planFilter { get; set; }
     [SupplyParameterFromQuery(Name="archived")] public bool showArchived { get; set; }
     [SupplyParameterFromQuery(Name="sort")] public string sort { get; set; } = "expiry";
     private HawalaExchange.Web.Components.Pages.Platform.TenantManagement? managementPanel;
+    private PlatformActivityPanel? activityPanel;
     private TenantDto? SelectedTenant => tenants.FirstOrDefault(x=>x.Id==DetailTenantId);
     private long previousDetail;
     protected override void OnParametersSet()
     {
         if(Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/')=="tenants") DetailTenantId=0;
         searchTerm??="";filter??="all";sort??="expiry";
-        if(previousDetail!=DetailTenantId){showCreate=showEdit=showImpersonation=false;managementPanel=null;message=null;previousDetail=DetailTenantId;}
+        if(previousDetail!=DetailTenantId){showCreate=showEdit=showImpersonation=false;managementPanel=null;activityPanel=null;message=null;previousDetail=DetailTenantId;}
     }
     private SaasTenantDto? Saas(long id) => saasTenants.FirstOrDefault(x=>x.Id==id);
     private string FilterQuery => $"?q={Uri.EscapeDataString(searchTerm ?? "")}&status={Uri.EscapeDataString(filter ?? "all")}&plan={planFilter}&archived={showArchived.ToString().ToLowerInvariant()}&sort={Uri.EscapeDataString(sort ?? "expiry")}";
@@ -403,6 +423,7 @@ else
     private async Task RefreshPageDataAsync()
     {
         await LoadAsync();
+        if(activityPanel is not null) await activityPanel.RefreshAsync();
         if(managementPanel is not null) await managementPanel.RefreshEmbeddedAsync();
     }
     private List<TenantDto> tenants = [];

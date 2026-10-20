@@ -1,0 +1,87 @@
+@page "/platform/tenants/{TenantId:long}/activity"
+@attribute [Authorize(Policy = "PlatformAccess")]
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@inject ISaasAdministrationService SaasService
+@inject ILogger<TenantActivity> Logger
+@inject IAuthorizationService Authorization
+@inject AuthenticationStateProvider Authentication
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>@(tenant?.Name ?? "گزارش فعالیت صرافی")</PageTitle>
+<div class="page-wrapper">
+    <div class="page-header">
+        <div><h1 class="page-title">@(tenant?.Name ?? "گزارش فعالیت صرافی")</h1><span class="page-subtitle">خلاصهٔ صرافی و گزارش تمام فعالیت‌های مالی آن</span></div>
+        <div class="page-actions"><PageRefreshButton Refresh="RefreshPageDataAsync" /><a class="btn-modern btn-light-modern" href="/platform">بازگشت به فهرست فعالیت صرافی‌ها</a></div>
+    </div>
+    @if(loading)
+    {
+        <div class="modern-card p-4" role="status">در حال دریافت اطلاعات صرافی...</div>
+    }
+    else if(error is not null)
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+    }
+    else if(tenant is not null)
+    {
+        <section class="modern-card p-3 mb-3" aria-label="خلاصه صرافی">
+            <div class="platform-tenant-facts">
+                <span>صرافی: <strong>@tenant.Name</strong></span>
+                <span>کد: <strong>@Number(tenant.Id)</strong></span>
+                <span>وضعیت: <strong>@(tenant.IsArchived ? "بایگانی" : tenant.IsActive ? "فعال" : "غیرفعال")</strong></span>
+                <span>پلن: <strong>@(tenant.PlanName ?? "بدون پلن")</strong></span>
+                <span>اعتبار اشتراک: <SubscriptionExpiry EndAt="tenant.SubscriptionEndAt" /></span>
+                <span>کاربران: <strong>@Number(tenant.UserCount)</strong></span>
+                <span>شعبه‌ها: <strong>@Number(tenant.BranchCount)</strong></span>
+                <span>آخرین فعالیت: @DisplayDates.DateTime(tenant.LastActivityAt,true)</span>
+            </div>
+            <AuthorizeView Policy="PlatformWrite"><a class="btn-modern btn-light-modern mt-3" href="@($"/tenants/{TenantId}")">مدیریت همین صرافی</a></AuthorizeView>
+        </section>
+        <PlatformActivityPanel @key="(TenantId, FromDate, ToDate)" @ref="activityPanel" TenantId="TenantId" FromDate="FromDate" ToDate="ToDate" />
+    }
+</div>
+
+@code {
+    [Parameter] public long TenantId { get; set; }
+    [SupplyParameterFromQuery(Name="from")] public DateTime? FromDate { get; set; }
+    [SupplyParameterFromQuery(Name="to")] public DateTime? ToDate { get; set; }
+    private long loadedTenant=-1;
+    private SaasTenantDto? tenant;
+    private PlatformActivityPanel? activityPanel;
+    private bool loading=true;
+    private string? error;
+    protected override async Task OnParametersSetAsync()
+    {
+        // Keep old report links working, but managers now view the reports inside the tenant workspace.
+        // Read-only platform users must not be granted management rights merely to view activity.
+        if((await Authorization.AuthorizeAsync((await Authentication.GetAuthenticationStateAsync()).User,"PlatformWrite")).Succeeded)
+        {
+            var destination=FormattableString.Invariant($"/tenants/{TenantId}");
+            var query=new List<string>();
+            if(FromDate.HasValue)query.Add(FormattableString.Invariant($"from={FromDate.Value:yyyy-MM-dd}"));
+            if(ToDate.HasValue)query.Add(FormattableString.Invariant($"to={ToDate.Value:yyyy-MM-dd}"));
+            if(query.Count>0)destination+="?"+string.Join("&",query);
+            Navigation.NavigateTo(destination,replace:true);
+            return;
+        }
+        if(loadedTenant==TenantId)return;
+        loadedTenant=TenantId;
+        loading=true; activityPanel=null;
+        await LoadSummaryAsync();
+        loading=false;
+    }
+    private async Task LoadSummaryAsync()
+    {
+        error=null;
+        try
+        {
+            tenant=(await SaasService.GetTenantsAsync(includeArchived:true)).FirstOrDefault(x=>x.Id==TenantId);
+            if(tenant is null)error="صرافی موردنظر یافت نشد.";
+        }
+        catch(Exception ex){Logger.LogError(ex,"Unable to load tenant activity summary {TenantId}",TenantId);error="دریافت خلاصهٔ صرافی انجام نشد؛ دوباره تلاش کنید.";}
+    }
+    private async Task RefreshPageDataAsync(){await LoadSummaryAsync();if(activityPanel is not null)await activityPanel.RefreshAsync();}
+    private static string Number(long value)=>value.ToString("N0",System.Globalization.CultureInfo.InvariantCulture);
+}

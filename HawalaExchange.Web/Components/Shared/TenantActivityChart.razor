@@ -1,0 +1,96 @@
+@using System.Globalization
+@using Microsoft.AspNetCore.Components
+@using HawalaExchange.Web.Services
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+
+<section class="tenant-activity-chart" aria-label="گراف مقایسه فعالیت صرافی‌ها">
+    <div class="chart-controls">
+        <div><label class="form-label" for="tenant-chart-search">جستجوی صرافی</label><input id="tenant-chart-search" class="form-control" value="@search" @oninput="SearchChanged" placeholder="نام صرافی..." maxlength="200" /></div>
+        <div><label class="form-label" for="tenant-chart-metric">مبنای مقایسه</label><select id="tenant-chart-metric" class="form-select" value="@metric" @onchange="MetricChanged"><option value="Transactions">مجموع فعالیت مالی</option><option value="Hawalas">حواله‌ها</option><option value="Changes">تغییرات ثبت‌شده</option><option value="Users">کاربران دارای عملیات</option></select></div>
+        <div><label class="form-label" for="tenant-chart-size">صرافی در هر صفحه</label><select id="tenant-chart-size" class="form-select" value="@pageSize" @onchange="PageSizeChanged"><option value="10">10</option><option value="15">15</option></select></div>
+    </div>
+    <div class="chart-summary" role="status">
+        <strong>@MetricLabel</strong>
+        <span>نمایش @Number(filtered.Count == 0 ? 0 : (page - 1) * pageSize + 1)–@Number(Math.Min(page * pageSize, filtered.Count)) از @Number(filtered.Count) صرافی؛ بیشترین به کمترین</span>
+    </div>
+    @if (filtered.Count == 0)
+    {
+        <p class="platform-empty">@(Rows.Count == 0 ? "صرافی‌ای برای نمایش وجود ندارد." : "صرافی‌ای با این جستجو یافت نشد.")</p>
+    }
+    else
+    {
+        <p class="chart-help">برای بازکردن صفحهٔ صرافی روی نام آن کلیک کنید. طول نوار نسبت به بیشترین مقدار در کل فهرست است؛ مقیاس در همه صفحات ثابت می‌ماند.</p>
+        <div class="chart-viewport">
+            <table class="activity-ranking-table">
+                <thead><tr><th scope="col">نام صرافی</th><th scope="col">مقدار فعالیت</th></tr></thead>
+                <tbody>
+                @foreach (var row in Visible)
+                {
+                    <tr data-tenant-bar="@row.TenantId" @key="row.TenantId">
+                        <th scope="row"><a class="tenant-name-link" href="@(TenantLink?.Invoke(row.TenantId) ?? $"/platform/tenants/{row.TenantId}/activity")">@row.Name</a>@if(row.Archived){<small> · بایگانی</small>}</th>
+                        <td><div class="activity-meter-row">
+                            <div class="activity-meter-track" role="meter" aria-label="@($"{row.Name}؛ {MetricLabel}")" aria-valuemin="0" aria-valuemax="@Math.Max(1,maximum)" aria-valuenow="@Value(row)" aria-valuetext="@Number(Value(row))">
+                                <span class="activity-meter-fill metric-@metric" style="width:@Height(row)%"></span>
+                            </div>
+                            <span class="activity-meter-count">@Number(Value(row))<small>@Share(row)% از کل</small></span>
+                        </div></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <CompactPagination CurrentPage="page" TotalPages="TotalPages" PageChanged="ChangePage" />
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<PlatformTenantActivity> Rows { get; set; } = [];
+    [Parameter] public Func<long,string>? TenantLink { get; set; }
+    private IReadOnlyList<PlatformTenantActivity>? previousRows;
+    private List<PlatformTenantActivity> filtered = [];
+    private string search = "";
+    private string metric = "Transactions";
+    private int page = 1, pageSize = 10;
+    private long maximum;
+    private decimal total;
+    private List<PlatformTenantActivity> Visible => filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)pageSize));
+    private string MetricLabel => metric switch { "Hawalas" => "حواله‌ها", "Changes" => "تغییرات ثبت‌شده", "Users" => "کاربران دارای عملیات", _ => "مجموع فعالیت مالی" };
+    private long Value(PlatformTenantActivity row) => Math.Max(0, metric switch { "Hawalas" => row.Hawalas, "Changes" => row.Changes, "Users" => row.ActiveUsers, _ => row.Transactions });
+    private string Height(PlatformTenantActivity row) => (maximum == 0 ? 0 : (decimal)Value(row) * 100 / maximum).ToString("0.####", CultureInfo.InvariantCulture);
+    private string Share(PlatformTenantActivity row) => (total == 0 ? 0 : Value(row) * 100m / total).ToString("0.#", CultureInfo.InvariantCulture);
+    private static string Number(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(previousRows, Rows)) { previousRows = Rows; Rebuild(); }
+    }
+    private void Rebuild()
+    {
+        maximum = Rows.Count == 0 ? 0 : Rows.Max(Value);
+        total = Rows.Sum(row => (decimal)Value(row));
+        var term = search.Trim();
+        filtered = Rows.Where(x => term.Length == 0 || x.Name.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(Value).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.TenantId).ToList();
+        page = 1;
+    }
+    protected void SearchChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString() ?? "";
+        search = value.Length > 200 ? value[..200] : value;
+        Rebuild();
+    }
+    protected void MetricChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        if (value is not ("Transactions" or "Hawalas" or "Changes" or "Users")) return;
+        metric = value; Rebuild();
+    }
+    protected void PageSizeChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        if (value is not ("10" or "15")) return;
+        pageSize = int.Parse(value, CultureInfo.InvariantCulture); page = 1;
+    }
+    protected void ChangePage(int value) => page = Math.Clamp(value, 1, TotalPages);
+}

@@ -222,6 +222,7 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
         builder.Services.AddScoped<UiReferenceDataCache>();
         builder.Services.AddScoped<ITenantAdministrationService, TenantAdministrationService>();
         builder.Services.AddScoped<ISaasAdministrationService, SaasAdministrationService>();
+        builder.Services.AddScoped<HawalaExchange.Web.Services.PlatformActivityService>();
         builder.Services.AddScoped<ISaasBillingService, SaasBillingService>();
         builder.Services.AddScoped<ISubscriptionAccessService, SubscriptionAccessService>();
         builder.Services.AddScoped<IPlatformUserService, PlatformUserService>();

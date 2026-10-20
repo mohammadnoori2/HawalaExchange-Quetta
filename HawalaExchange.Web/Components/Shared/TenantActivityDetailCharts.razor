@@ -1,0 +1,70 @@
+@using System.Globalization
+@using Microsoft.AspNetCore.Components
+@using HawalaExchange.Web.Services
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+
+<section class="activity-detail-charts" aria-label="نمودارهای جزئیات فعالیت صرافی">
+    <h3 class="h6">تفکیک فعالیت مالی صرافی</h3>
+    <p class="chart-note">هر ستون تعداد یک نوع عملیات است. روی ستون کلیک کنید تا روند روزانه همان نوع نمایش داده شود. مبلغ ارزهای مختلف با هم جمع نشده است.</p>
+    <div class="chart-scroll" tabindex="0" aria-label="نمودار تعداد عملیات به تفکیک نوع">
+        <div class="type-columns" style="--columns:@Math.Max(1, Report.Types.Count)">
+            @{var categoryIndex=0;}
+            @foreach(var type in Report.Types)
+            {
+                var color=categoryIndex++ % 3;
+                <button type="button" class="type-column" aria-pressed="@((dailyType == type.Code).ToString().ToLowerInvariant())" title="@($"{type.Label}: {Number(type.Count)}")" @onclick="() => SelectType(type.Code)">
+                    <span class="type-track" aria-hidden="true"><span class="type-bar series-@color" style="height:@Percent(type.Count, TypeMaximum)%"><span class="bar-number">@Number(type.Count)</span></span></span>
+                    <span class="type-name">@type.Label</span>
+                </button>
+            }
+        </div>
+    </div>
+    <div class="daily-heading">
+        <h3 class="h6 mb-0">روند روزانه فعالیت</h3>
+        <div class="daily-select"><label for="detail-daily-type" class="form-label">نوع عملیات در نمودار روزانه</label><select id="detail-daily-type" class="form-select" value="@dailyType" @onchange="e => SelectType(e.Value?.ToString() ?? string.Empty)"><option value="Overview">کل فعالیت و حواله‌ها</option><option value="Total">کل فعالیت مالی</option>@foreach(var type in Report.Types){<option value="@type.Code">@type.Label</option>}</select></div>
+    </div>
+    <p class="chart-note">تعداد عملیات بر اساس تاریخ ثبت (UTC)؛ مقیاس در صفحات ثابت است. حواله‌های دریافتی و ارسالی بخشی از کل فعالیت مالی‌اند و با آن جمع نمی‌شوند.</p>
+    <div class="chart-scroll" tabindex="0" aria-label="نمودار روزانه؛ قابل پیمایش افقی">
+        @{ var dailyMaximum = DailyMaximum; }
+        <div class="daily-columns" style="--columns:@Math.Max(1, VisibleDays.Count)">
+            @foreach(var day in VisibleDays)
+            {
+                <div class="daily-column" data-daily-column="@day.Day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)">
+                    <div class="daily-bars">
+                        @foreach(var series in Series)
+                        {
+                            var value=DayValue(day,series.Code);
+                            <span class="daily-bar series-@series.Color" data-daily-bar="@series.Code" style="height:@Percent(value, dailyMaximum)%" title="@($"{DateLabel(day.Day)} | {series.Label}: {Number(value)}")"><span class="visually-hidden">@series.Label: @Number(value)</span></span>
+                        }
+                    </div>
+                    <span class="daily-date">@DateLabel(day.Day)</span>
+                    <span class="daily-total" title="تعداد @SelectedLabel">@Number(DayValue(day,dailyType == "Overview" ? "Total" : dailyType))</span>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="chart-legend">@foreach(var series in Series){<span><i class="series-@series.Color" aria-hidden="true"></i>@series.Label</span>}</div>
+    <div class="daily-footer"><span>روز @Number(Report.Days.Count == 0 ? 0 : (page-1)*DaysPerPage+1)–@Number(Math.Min(page*DaysPerPage,Report.Days.Count)) از @Number(Report.Days.Count)</span><CompactPagination CurrentPage="page" TotalPages="TotalPages" PageChanged="ChangePage" /></div>
+</section>
+
+@code {
+    [Parameter,EditorRequired]public PlatformActivityReport Report{get;set;}=new([],[],[]);
+    [Parameter]public Func<DateTime,string> DateLabel{get;set;}=date=>date.ToString("yyyy/MM/dd",CultureInfo.InvariantCulture);
+    private const int DaysPerPage=14;
+    private int page=1;
+    private string dailyType="Overview";
+    private PlatformActivityReport? previous;
+    private int TotalPages=>Math.Max(1,(int)Math.Ceiling(Report.Days.Count/(double)DaysPerPage));
+    private List<PlatformDailyActivity> VisibleDays=>Report.Days.OrderBy(x=>x.Day).Skip((page-1)*DaysPerPage).Take(DaysPerPage).ToList();
+    private long TypeMaximum=>Report.Types.Select(x=>x.Count).DefaultIfEmpty().Max();
+    private long DailyMaximum=>Report.Days.SelectMany(day=>Series.Select(series=>DayValue(day,series.Code))).DefaultIfEmpty().Max();
+    private string SelectedLabel=>dailyType is "Overview" or "Total" ? "کل فعالیت مالی" : Report.Types.FirstOrDefault(x=>x.Code==dailyType)?.Label??"";
+    private (string Code,string Label,int Color)[] Series=>dailyType=="Overview" ? [("Total","کل فعالیت مالی",0),("HawalaReceive","حواله دریافتی",1),("HawalaSend","حواله ارسالی",2)] : [(dailyType,SelectedLabel,0)];
+    private static long DayValue(PlatformDailyActivity day,string code)=>code=="Total"?day.Transactions:day.Types.FirstOrDefault(x=>x.Code==code)?.Count??0;
+    private static string Number(long value)=>value.ToString("N0",CultureInfo.InvariantCulture);
+    private static string Percent(long value,long max)=>(max<=0?0:Math.Clamp((decimal)value*100/max,0,100)).ToString("0.####",CultureInfo.InvariantCulture);
+    protected override void OnParametersSet(){if(!ReferenceEquals(previous,Report)){previous=Report;page=1;if(dailyType is not ("Overview" or "Total")&&!Report.Types.Any(x=>x.Code==dailyType))dailyType="Overview";}}
+    protected void SelectType(string code){if(code is not ("Overview" or "Total")&&!Report.Types.Any(x=>x.Code==code))return;dailyType=code;page=1;}
+    protected void ChangePage(int value)=>page=Math.Clamp(value,1,TotalPages);
+}

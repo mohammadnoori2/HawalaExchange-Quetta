@@ -1,0 +1,176 @@
+@using System.Globalization
+@using HawalaExchange.Web.Services
+@using Microsoft.AspNetCore.Components
+@namespace HawalaExchange.Web.Components.Shared
+@inherits HawalaExchange.Web.Components.DateAwareComponent
+@implements IDisposable
+@inject PlatformActivityService ActivityService
+@inject ILogger<PlatformActivityPanel> Logger
+
+<section class="modern-card platform-activity" aria-labelledby="platform-activity-title" aria-busy="@loading.ToString().ToLowerInvariant()">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <h2 id="platform-activity-title" class="h6 mb-1">@(TenantId.HasValue ? "گزارش فعالیت صرافی" : "فعالیت صرافی‌ها")</h2>
+            <span class="text-muted small">آمار همه صرافی‌ها یا یک صرافی، به تفکیک روز</span>
+        </div>
+        <div class="d-flex flex-wrap gap-2" aria-label="بازه‌های سریع فعالیت">
+            <button type="button" class="btn-modern btn-light-modern btn-sm" disabled="@loading" @onclick="() => SetPeriodAsync(1)">امروز</button>
+            <button type="button" class="btn-modern btn-light-modern btn-sm" disabled="@loading" @onclick="() => SetPeriodAsync(7)">7 روز اخیر</button>
+            <button type="button" class="btn-modern btn-light-modern btn-sm" disabled="@loading" @onclick="() => SetPeriodAsync(30)">30 روز اخیر</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <form class="platform-activity-filters @(TenantId.HasValue ? "fixed-tenant-filters" : "")" @onsubmit="ApplyAsync" @onsubmit:preventDefault>
+            @if(!TenantId.HasValue)
+            {
+            <div>
+                <label for="platform-activity-tenant" class="form-label">صرافی</label>
+                <select id="platform-activity-tenant" class="form-select" @bind="selectedTenant" disabled="@loading">
+                    <option value="">همه صرافی‌ها</option>
+                    @foreach (var choice in report?.Choices ?? [])
+                    {
+                        <option value="@choice.Id">@choice.Name @(choice.Archived ? "(بایگانی)" : "")</option>
+                    }
+                </select>
+            </div>
+            }
+            <div>
+                <label for="platform-activity-from" class="form-label">از تاریخ</label>
+                <DualDatePicker Id="platform-activity-from" TValue="DateTime" class="form-control" @bind-Value="fromDate" Disabled="loading" />
+            </div>
+            <div>
+                <label for="platform-activity-to" class="form-label">تا تاریخ</label>
+                <DualDatePicker Id="platform-activity-to" TValue="DateTime" class="form-control" @bind-Value="toDate" Disabled="loading" />
+            </div>
+            <button type="submit" class="btn-modern btn-primary-modern" disabled="@loading"><i class="bi bi-funnel" aria-hidden="true"></i> نمایش فعالیت</button>
+        </form>
+        <p class="text-muted small mt-2 mb-3">بازه بر اساس زمان UTC است؛ حداکثر 366 روز. این آمار میزان ثبت عملیات است، نه زمان حضور یا تعداد بازدید صفحه.</p>
+        @if (loading)
+        {
+            <div class="platform-empty" role="status"><span class="spinner-border spinner-border-sm ms-2" aria-hidden="true"></span>در حال دریافت آمار فعالیت...</div>
+        }
+        else if (error is not null)
+        {
+            <div class="alert alert-danger mb-0" role="alert">@error</div>
+        }
+        else if (report is not null)
+        {
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <strong>@(appliedTenant.HasValue ? report.Tenants.FirstOrDefault()?.Name : "همه صرافی‌ها") <span class="text-muted fw-normal">| @Date(appliedFrom) تا @Date(appliedTo)</span></strong>
+                @if (appliedTenant.HasValue && !TenantId.HasValue)
+                {
+                    <button type="button" class="btn-modern btn-light-modern btn-sm" @onclick="() => SelectTenantAsync(null)">بازگشت به همه صرافی‌ها</button>
+                }
+            </div>
+            <div class="platform-metrics" aria-label="خلاصه فعالیت در بازه انتخاب‌شده">
+                <div class="platform-metric"><i class="bi bi-receipt" aria-hidden="true"></i><div><span>مجموع فعالیت مالی</span><strong>@Number(report.Transactions)</strong><small>حواله، رسید، برد، تبادله و سایر عملیات</small></div></div>
+                <div class="platform-metric"><i class="bi bi-arrow-left-right" aria-hidden="true"></i><div><span>حواله‌های ثبت‌شده</span><strong>@Number(report.Hawalas)</strong><small>بخشی از معاملات ثبت‌شده</small></div></div>
+                <div class="platform-metric"><i class="bi bi-people" aria-hidden="true"></i><div><span>کاربران دارای عملیات</span><strong>@Number(report.ActiveUsers)</strong><small>بدون تکرار در کل بازه</small></div></div>
+                <div class="platform-metric"><i class="bi bi-buildings" aria-hidden="true"></i><div><span>صرافی‌های دارای فعالیت</span><strong>@Number(report.ActiveTenants)</strong><small>از @Number(report.Tenants.Count) صرافی</small></div></div>
+            </div>
+            @if (report.ActiveTenants == 0)
+            {
+                <p class="platform-empty mb-0" role="status">در این بازه فعالیت ثبت‌شده‌ای وجود ندارد.</p>
+            }
+            @if (TenantId.HasValue)
+            {
+                <TenantActivityDetailCharts Report="report" DateLabel="Date" />
+            }
+            else
+            {
+                <TenantActivityChart Rows="report.Tenants" TenantLink="TenantActivityUrl" />
+            }
+            <details class="platform-activity-days mt-3">
+            <summary>جدول جزئیات و مجموع اعداد</summary>
+            <div class="table-responsive">
+                <GlobalDataGrid class="table modern-table mb-0" EnableSorting="false">
+                    <caption class="visually-hidden">مقایسه فعالیت صرافی‌ها در بازه انتخاب‌شده؛ برای جزئیات، نام صرافی را انتخاب کنید.</caption>
+                    <thead><tr><th scope="col">ردیف</th><th scope="col">صرافی</th><th scope="col">معاملات</th><th scope="col">حواله‌ها</th><th scope="col">تغییرات ثبت‌شده</th><th scope="col">کاربران دارای عملیات</th><th scope="col">آخرین عملیات در بازه (UTC)</th></tr></thead>
+                    <tbody>
+                        @{ var index = (page - 1) * PageSize; }
+                        @foreach (var row in report.Tenants.Skip(index).Take(PageSize))
+                        {
+                            <tr @key="row.TenantId">
+                                <td>@Number(++index)</td>
+                                <td><a class="platform-activity-name" href="@TenantActivityUrl(row.TenantId)">@row.Name</a>@if (row.Archived) { <span class="badge-modern badge-secondary">بایگانی</span> }</td>
+                                <td>@Number(row.Transactions)</td><td>@Number(row.Hawalas)</td><td>@Number(row.Changes)</td><td>@Number(row.ActiveUsers)</td>
+                                <td>@(row.LastOperationAt.HasValue ? $"{Date(row.LastOperationAt.Value)} {row.LastOperationAt.Value.ToString("HH:mm", CultureInfo.InvariantCulture)}" : "—")</td>
+                            </tr>
+                        }
+                        @if (report.Tenants.Count == 0) { <tr><td colspan="7" class="platform-empty">صرافی‌ای ثبت نشده است.</td></tr> }
+                    </tbody>
+                    <tfoot><tr><th scope="row" colspan="2">مجموع همه ردیف‌ها</th><td>@Number(report.Transactions)</td><td>@Number(report.Hawalas)</td><td>@Number(report.Changes)</td><td>@Number(report.ActiveUsers)</td><td>—</td></tr></tfoot>
+                </GlobalDataGrid>
+            </div>
+            <CompactPagination CurrentPage="page" TotalPages="TotalPages" PageChanged="ChangePage" />
+            </details>
+            <details class="platform-activity-days mt-3" @key="report">
+                <summary>جزئیات روزانه (@Number(report.Days.Count) روز)</summary>
+                <div class="table-responsive mt-2">
+                    <GlobalDataGrid class="table modern-table mb-0" EnableSorting="false">
+                        <caption class="visually-hidden">آمار روزانه صرافی‌های انتخاب‌شده</caption>
+                        <thead><tr><th scope="col">تاریخ (UTC)</th><th scope="col">معاملات</th><th scope="col">حواله‌ها</th><th scope="col">تغییرات ثبت‌شده</th><th scope="col">کاربران دارای عملیات</th></tr></thead>
+                        <tbody>@foreach (var day in report.Days.OrderByDescending(x => x.Day))
+                        {
+                            <tr><th scope="row">@Date(day.Day)</th><td>@Number(day.Transactions)</td><td>@Number(day.Hawalas)</td><td>@Number(day.Changes)</td><td>@Number(day.ActiveUsers)</td></tr>
+                        }</tbody>
+                    </GlobalDataGrid>
+                </div>
+            </details>
+            <p class="text-muted small mt-3 mb-0">تغییرات ثبت‌شده، رویدادهای موجودِ ایجاد، ویرایش و حذف است و با تعداد معاملات جمع نمی‌شود. کاربران دارای عملیات از کاربران موجود صرافی شمرده می‌شوند؛ کاربران پلتفرم و عملیات بدون کاربر در این تعداد نیستند. آمار معاملات، رکوردهای موجود را بر اساس زمان ثبت می‌شمارد، حتی اگر بعداً لغو شده باشند؛ رکوردهای حذف‌شده در تعداد معاملات نیستند.</p>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter] public long? TenantId { get; set; }
+    [Parameter] public DateTime? FromDate { get; set; }
+    [Parameter] public DateTime? ToDate { get; set; }
+    private const int PageSize = 15;
+    private DateTime fromDate = DateTime.UtcNow.Date.AddDays(-29), toDate = DateTime.UtcNow.Date;
+    private DateTime appliedFrom, appliedTo;
+    private long? selectedTenant, appliedTenant;
+    private PlatformActivityReport? report;
+    private bool loading, disposed;
+    private string? error;
+    private int page = 1;
+    private readonly CancellationTokenSource lifetime = new();
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling((report?.Tenants.Count ?? 0) / (double)PageSize));
+    private string Date(DateTime value) => DisplayDates.Date(DateTime.SpecifyKind(value, DateTimeKind.Unspecified));
+    private static string Number(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
+
+    protected override Task OnInitializedAsync()
+    {
+        selectedTenant = TenantId;
+        fromDate = FromDate ?? fromDate;
+        toDate = ToDate ?? toDate;
+        return RefreshAsync();
+    }
+    private Task ApplyAsync() => RefreshAsync();
+    private async Task SetPeriodAsync(int days)
+    {
+        toDate = DateTime.UtcNow.Date;
+        fromDate = toDate.AddDays(1 - days);
+        await RefreshAsync();
+    }
+    private async Task SelectTenantAsync(long? id) { selectedTenant = id; await RefreshAsync(); }
+    private string TenantActivityUrl(long id) => FormattableString.Invariant($"/platform/tenants/{id}/activity?from={appliedFrom:yyyy-MM-dd}&to={appliedTo:yyyy-MM-dd}");
+    private void ChangePage(int value) => page = Math.Clamp(value, 1, TotalPages);
+    public async Task RefreshAsync()
+    {
+        if (loading || disposed) return;
+        loading = true; error = null;
+        try
+        {
+            report = await ActivityService.GetAsync(fromDate, toDate, TenantId ?? selectedTenant, lifetime.Token);
+            appliedFrom = fromDate; appliedTo = toDate; appliedTenant = selectedTenant; page = 1;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (ArgumentException) { error = "بازه تاریخ معتبر نیست؛ تاریخ پایان باید بعد از تاریخ شروع و بازه حداکثر 366 روز باشد. صرافی انتخاب‌شده نیز باید موجود باشد."; }
+        catch (UnauthorizedAccessException) { error = "نشست یا صلاحیت شما معتبر نیست. دوباره وارد پلتفرم شوید."; }
+        catch (Exception ex) { Logger.LogError(ex, "Unable to load platform activity aggregates"); error = "دریافت آمار فعالیت انجام نشد. دوباره تلاش کنید."; }
+        finally { loading = false; }
+        if (!disposed) StateHasChanged();
+    }
+    public void Dispose() { disposed = true; lifetime.Cancel(); lifetime.Dispose(); }
+}

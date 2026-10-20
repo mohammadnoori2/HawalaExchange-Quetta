@@ -3,6 +3,8 @@
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
 @using HawalaExchange.Domain.Entities
+@using HawalaExchange.Web.Services
+@inject NavigationManager NavigationManager
 
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
@@ -63,7 +65,7 @@
         if (result.Succeeded)
         {
             Logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", userId);
-            RedirectManager.RedirectTo(ReturnUrl);
+            RedirectManager.RedirectTo(LoginDestination.Resolve(user.IsPlatformUser, ReturnUrl, NavigationManager.BaseUri));
         }
         else if (result.IsLockedOut)
         {

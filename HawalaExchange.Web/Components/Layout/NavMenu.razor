@@ -14,9 +14,11 @@
 <div class="nav-sidebar">
     <!-- هدر با لوگوی تصویری -->
     <div class="navbar-brand-custom">
-        <div class="logo-wrapper">
-            <img src="/images/logo.png" alt="Kabul Code Lab" class="logo-image" />
-        </div>
+        <AuthorizeView Context="brandAuth">
+            <a class="logo-wrapper" href="@(brandAuth.User.HasClaim("platform_user", "true") ? "/platform" : "/")" aria-label="رفتن به داشبورد" title="داشبورد">
+                <img src="/images/logo.png" alt="Kabul Code Lab" class="logo-image" />
+            </a>
+        </AuthorizeView>
     </div>
 
     <div class="nav-scrollable">

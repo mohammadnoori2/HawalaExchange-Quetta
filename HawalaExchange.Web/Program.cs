@@ -264,6 +264,7 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
         app.UseHttpsRedirection();
         // ✅ Authentication & Authorization Middleware
         app.UseAuthentication();
+        app.UseMiddleware<PlatformHomeRedirectMiddleware>();
         // Uploads must never bypass tenant ownership through static-file handling.
         app.UseMiddleware<ProtectedUploadsMiddleware>();
         app.UseStaticFiles();

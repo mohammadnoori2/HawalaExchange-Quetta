@@ -5,6 +5,7 @@
 @using HawalaExchange.Domain.Entities
 @using HawalaExchange.Infrastructure.Data
 @using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Services
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
@@ -275,7 +276,7 @@
                 isLoading = false;
 
                 // Direct redirect - no confirmation message
-                NavigationManager.NavigateTo(ReturnUrl ?? (user.IsPlatformUser ? "/platform" : "/"), true);
+                NavigationManager.NavigateTo(LoginDestination.Resolve(user.IsPlatformUser, ReturnUrl, NavigationManager.BaseUri), true);
             }
             else if (result.RequiresTwoFactor)
             {

@@ -125,7 +125,7 @@ public sealed class ProfileController(
 
     private static bool IsOwnedProfileImage(string? path) =>
         !string.IsNullOrWhiteSpace(path) &&
-        path.Replace('\\', '/').StartsWith("uploads/profiles/", StringComparison.OrdinalIgnoreCase);
+        path.Replace('\\', '/').TrimStart('/').StartsWith("uploads/profiles/", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<bool> HasValidImageSignatureAsync(
         IFormFile image,

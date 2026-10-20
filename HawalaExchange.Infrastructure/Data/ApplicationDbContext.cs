@@ -413,6 +413,9 @@ namespace HawalaExchange.Infrastructure.Data
             TagImpersonatedAuditLogs();
             var cashAlertTargets = CaptureCashBalanceAlertTargets();
             AssignAndValidateTenantIds();
+            foreach(var path in ChangedUploadPaths())
+                if(!HawalaExchange.Infrastructure.Services.UploadStorage.IsOwned(this,path))
+                    throw new UnauthorizedAccessException("فایل متعلق به این صرافی نیست.");
             ValidateSubscriptionWriteAccess();
             ValidateAccountDebtLimits();
             var auditEntries = CaptureAuditEntries();
@@ -448,6 +451,9 @@ namespace HawalaExchange.Infrastructure.Data
             TagImpersonatedAuditLogs();
             var cashAlertTargets = CaptureCashBalanceAlertTargets();
             AssignAndValidateTenantIds();
+            foreach(var path in ChangedUploadPaths())
+                if(!await HawalaExchange.Infrastructure.Services.UploadStorage.IsOwnedAsync(this,path,cancellationToken))
+                    throw new UnauthorizedAccessException("فایل متعلق به این صرافی نیست.");
             await ValidateSubscriptionWriteAccessAsync(cancellationToken);
             await ValidateAccountDebtLimitsAsync(cancellationToken);
             var auditEntries = CaptureAuditEntries();
@@ -1339,6 +1345,31 @@ namespace HawalaExchange.Infrastructure.Data
             if (gracePeriodEndAt >= now)
                 throw new InvalidOperationException("اشتراک منقضی شده و سیستم در دوره مهلت فقط خواندنی است.");
             throw new InvalidOperationException("اشتراک و دوره مهلت پایان یافته است.");
+        }
+
+        private IEnumerable<string> ChangedUploadPaths()
+        {
+            foreach(var entry in ChangeTracker.Entries().Where(x=>x.State is EntityState.Added or EntityState.Modified))
+            {
+                string[] names=entry.Entity switch
+                {
+                    Hawala=>[nameof(Hawala.SenderTazkiraImagePath),nameof(Hawala.ReceiverTazkiraImagePath)],
+                    Customer=>[nameof(Customer.PhotoPath),nameof(Customer.TazkiraImagePath)],
+                    Document=>[nameof(Document.FilePath)],
+                    ApplicationUser=>[nameof(ApplicationUser.ProfileImagePath)],
+                    CompanySetting=>[nameof(CompanySetting.LogoPath)],
+                    _=>[]
+                };
+                foreach(var name in names)
+                {
+                    var property=entry.Property(name);
+                    if(property.CurrentValue is not string value || string.IsNullOrWhiteSpace(value))continue;
+                    if(entry.State!=EntityState.Added && Equals(property.OriginalValue,property.CurrentValue))continue;
+                    // Existing manually configured branding assets remain supported.
+                    if(entry.Entity is CompanySetting && !value.TrimStart('/').StartsWith("uploads/",StringComparison.OrdinalIgnoreCase))continue;
+                    yield return value;
+                }
+            }
         }
 
         private void AssignAndValidateTenantIds()

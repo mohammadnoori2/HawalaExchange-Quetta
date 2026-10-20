@@ -77,8 +77,13 @@ namespace HawalaExchange.Infrastructure.Data
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(x =>
                     x.TenantId == tenant.Id && x.LocalUserName == "admin");
-            if (adminUser == null)
+            // Bootstrap only an empty installation. Never recreate an account or
+            // restore privileges that an administrator intentionally removed.
+            if (adminUser == null && !await context.Users.IgnoreQueryFilters().AnyAsync(x => x.TenantId == tenant.Id && !x.IsPlatformUser))
             {
+                var bootstrapPassword = configuration["BootstrapAdmin:Password"];
+                if (string.IsNullOrWhiteSpace(bootstrapPassword) || bootstrapPassword.Length < 12)
+                    throw new InvalidOperationException("برای نصب اولیه BootstrapAdmin:Password را با یک رمز قوی حداقل 12 حرفی در تنظیمات امن سرور تعیین کنید.");
                 adminUser = new ApplicationUser
                 {
                     TenantId = tenant.Id,
@@ -91,27 +96,21 @@ namespace HawalaExchange.Infrastructure.Data
                     BranchId = branch.Id
                 };
 
-                var result = await userManager.CreateAsync(adminUser, "Admin@123");
+                var result = await userManager.CreateAsync(adminUser, bootstrapPassword);
                 if (!result.Succeeded)
                 {
                     var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                     throw new Exception($"Failed to create admin user: {errors}");
                 }
-            }
-
-            foreach (var role in new[] { "Admin", "SuperAdmin" })
-            {
-                if (!await userManager.IsInRoleAsync(adminUser, role))
+                foreach (var role in new[] { "Admin", "SuperAdmin" })
                 {
-                    var result = await userManager.AddToRoleAsync(adminUser, role);
-                    if (!result.Succeeded)
-                        throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+                    var roleResult = await userManager.AddToRoleAsync(adminUser, role);
+                    if (!roleResult.Succeeded)
+                        throw new Exception(string.Join(", ", roleResult.Errors.Select(e => e.Description)));
                 }
             }
 
             var platformPassword = configuration["PlatformOwner:Password"];
-            if (isDevelopment && string.IsNullOrWhiteSpace(platformPassword))
-                platformPassword = "Platform@123";
 
             if (!string.IsNullOrWhiteSpace(platformPassword))
             {
@@ -120,6 +119,8 @@ namespace HawalaExchange.Infrastructure.Data
                     .FirstOrDefaultAsync(x => x.IsPlatformUser && x.LocalUserName == platformUserName);
                 if (platformUser is null)
                 {
+                    if (platformPassword.Length < 12)
+                        throw new InvalidOperationException("رمز اولیه مالک پلتفرم باید حداقل 12 حرف داشته باشد.");
                     platformUser = new ApplicationUser
                     {
                         IsPlatformUser = true,
@@ -134,10 +135,10 @@ namespace HawalaExchange.Infrastructure.Data
                     var createPlatformUser = await userManager.CreateAsync(platformUser, platformPassword);
                     if (!createPlatformUser.Succeeded)
                         throw new Exception(string.Join(", ", createPlatformUser.Errors.Select(x => x.Description)));
+                    var assignOwner = await userManager.AddToRoleAsync(platformUser, PlatformRoles.Owner);
+                    if (!assignOwner.Succeeded)
+                        throw new InvalidOperationException(string.Join("؛ ", assignOwner.Errors.Select(x => x.Description)));
                 }
-
-                if (!await userManager.IsInRoleAsync(platformUser, PlatformRoles.Owner))
-                    await userManager.AddToRoleAsync(platformUser, PlatformRoles.Owner);
             }
         }
     }

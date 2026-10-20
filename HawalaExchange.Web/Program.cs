@@ -262,10 +262,11 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
         app.UseRequestLocalization();
         app.UseHttpsRedirection();
-        app.UseStaticFiles();
-
         // ✅ Authentication & Authorization Middleware
         app.UseAuthentication();
+        // Uploads must never bypass tenant ownership through static-file handling.
+        app.UseMiddleware<ProtectedUploadsMiddleware>();
+        app.UseStaticFiles();
         app.UseAuthorization();
         app.UseAntiforgery();
 

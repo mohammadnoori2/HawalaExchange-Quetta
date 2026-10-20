@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Moq;
+using HawalaExchange.Web.Services;
 
 namespace HawalaExchange.PerformanceTests;
 
@@ -67,8 +68,10 @@ public sealed class SecurityAdversarialFileTests
         // Matches the actual production middleware order; deny-all fallback stands
         // in for authentication. No main application, migrations or workers run.
         var source = File.ReadAllText(Path.Combine(SourceRoot(), "HawalaExchange.Web", "Program.cs"));
-        Assert.True(source.IndexOf("app.UseStaticFiles();", StringComparison.Ordinal)
-            < source.IndexOf("app.UseAuthentication();", StringComparison.Ordinal));
+        Assert.True(source.IndexOf("app.UseAuthentication();", StringComparison.Ordinal)
+            < source.IndexOf("app.UseMiddleware<ProtectedUploadsMiddleware>();", StringComparison.Ordinal));
+        Assert.True(source.IndexOf("app.UseMiddleware<ProtectedUploadsMiddleware>();", StringComparison.Ordinal)
+            < source.IndexOf("app.UseStaticFiles();", StringComparison.Ordinal));
         var folder = Path.Combine(sandbox.WebRoot, "uploads", "tazkira");
         Directory.CreateDirectory(folder);
         await File.WriteAllTextAsync(Path.Combine(folder, "synthetic-private.txt"), "not-public");
@@ -76,6 +79,7 @@ public sealed class SecurityAdversarialFileTests
         { ContentRootPath = sandbox.Root, WebRootPath = sandbox.WebRoot, EnvironmentName = "Production" });
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         await using var app = builder.Build();
+        app.UseMiddleware<ProtectedUploadsMiddleware>();
         app.UseStaticFiles();
         app.Run(context => { context.Response.StatusCode = 401; return Task.CompletedTask; });
         await app.StartAsync();
@@ -177,6 +181,7 @@ internal sealed class SecurityFileSandbox : IDisposable
     public string Root { get; } = Path.Combine(Path.GetTempPath(), "hawala-security-audit-" + Guid.NewGuid().ToString("N"));
     public string WebRoot => Path.Combine(Root, "wwwroot");
     public Mock<IWebHostEnvironment> Environment { get; } = new();
+    public Mock<IUserPermissionService> Permissions { get; } = new();
     public FileService Files { get; }
     public SecurityFileSandbox()
     {
@@ -184,7 +189,10 @@ internal sealed class SecurityFileSandbox : IDisposable
         Environment.SetupGet(x => x.ContentRootPath).Returns(Root);
         Environment.SetupGet(x => x.WebRootPath).Returns(WebRoot);
         Environment.SetupGet(x => x.WebRootFileProvider).Returns(new PhysicalFileProvider(WebRoot));
-        Files = new FileService(Environment.Object);
+        Permissions.Setup(x => x.RefreshAsync(It.IsAny<bool>())).Returns(Task.CompletedTask);
+        Permissions.Setup(x => x.Can(It.IsAny<string>())).Returns(true);
+        Files = new FileService(Environment.Object, new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().Options, new TestCurrentTenant { TenantId = 1, UserId = 1 }), Permissions.Object);
     }
     public void Dispose()
     {

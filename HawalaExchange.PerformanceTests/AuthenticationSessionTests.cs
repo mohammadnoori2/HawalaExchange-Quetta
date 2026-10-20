@@ -20,6 +20,43 @@ namespace HawalaExchange.PerformanceTests;
 public sealed class AuthenticationSessionTests(SqlServerPerformanceFixture fixture)
 {
     [Theory]
+    [InlineData(false, "Admin")]
+    [InlineData(true, "PlatformSupport")]
+    [InlineData(true, "PlatformAdmin")]
+    public async Task Forged_owner_claims_cannot_promote_a_non_privileged_actor(bool platform,string roleName)
+    {
+        var user=await CreateUser(platform);using var provider=Services();
+        await using(var db=fixture.CreateContext())
+        {
+            var role=await db.Roles.SingleAsync(x=>x.Name==roleName);
+            db.UserRoles.Add(new(){UserId=user.Id,RoleId=role.Id});await db.SaveChangesAsync();
+        }
+        await using var scope=provider.CreateAsyncScope();
+        var principal=await scope.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>().CreateUserPrincipalAsync(user);
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(ClaimTypes.Role,PlatformRoles.Owner));
+        scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext=new DefaultHttpContext{User=principal};
+        var service=new HawalaExchange.Infrastructure.Services.PlatformUserService(scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+            scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>service.SetRoleAsync(user.Id,PlatformRoles.Owner));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>service.CreateAsync(new(){UserName="denied",FullName="Denied",Email="denied@example.test",Role=PlatformRoles.Owner,Password="StrongPass123!"}));
+    }
+
+    [Fact]
+    public async Task Platform_reactivation_cannot_revive_a_cookie_from_before_disabling()
+    {
+        var user=await CreateUser(platform:true);using var provider=Services();
+        await using var scope=provider.CreateAsyncScope();
+        var principal=await scope.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>().CreateUserPrincipalAsync(user);
+        var actor=await SetPlatformActor(scope.ServiceProvider, await CreateUser(platform:true));
+        scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext=new DefaultHttpContext{User=actor};
+        var service=new HawalaExchange.Infrastructure.Services.PlatformUserService(scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+            scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
+        await service.SetActiveAsync(user.Id,false);await service.SetActiveAsync(user.Id,true);
+        var result=await Authenticate(provider,user,1,principal);
+        Assert.False(result.Principal.Identity?.IsAuthenticated??false);
+    }
+
+    [Theory]
     [InlineData("truncated")]
     [InlineData("altered")]
     public async Task Tampered_encrypted_cookie_is_rejected(string mutation)
@@ -47,6 +84,8 @@ public sealed class AuthenticationSessionTests(SqlServerPerformanceFixture fixtu
         await using var scope = provider.CreateAsyncScope();
         var principal = await scope.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>().CreateUserPrincipalAsync(user);
         Assert.True(principal.IsInRole(PlatformRoles.Owner));
+        var actor=await SetPlatformActor(scope.ServiceProvider, replacement);
+        scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext=new DefaultHttpContext{User=actor};
         var management = new HawalaExchange.Infrastructure.Services.PlatformUserService(
             scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(), scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>());
         await management.SetRoleAsync(user.Id, PlatformRoles.Support);
@@ -162,6 +201,17 @@ public sealed class AuthenticationSessionTests(SqlServerPerformanceFixture fixtu
         var method = typeof(IdentityRevalidatingAuthenticationStateProvider).GetMethod("ValidateAuthenticationStateAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Assert.True(await (Task<bool>)method.Invoke(auth, [new AuthenticationState(principal), CancellationToken.None])!);
         Assert.Equal(0, sp.GetRequiredService<ICurrentTenant>().TenantId);
+    }
+
+    private async Task<ClaimsPrincipal> SetPlatformActor(IServiceProvider services, ApplicationUser actor)
+    {
+        await using(var db=fixture.CreateContext())
+        {
+            var role=await db.Roles.SingleAsync(x=>x.Name==PlatformRoles.Owner);
+            if(!await db.UserRoles.AnyAsync(x=>x.UserId==actor.Id && x.RoleId==role.Id))
+            {db.UserRoles.Add(new(){UserId=actor.Id,RoleId=role.Id});await db.SaveChangesAsync();}
+        }
+        return await services.GetRequiredService<SignInManager<ApplicationUser>>().CreateUserPrincipalAsync(actor);
     }
 
     private async Task<ApplicationUser> CreateUser(bool platform = false)

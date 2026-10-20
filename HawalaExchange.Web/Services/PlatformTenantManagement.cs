@@ -276,12 +276,13 @@ public sealed class PlatformTenantManagement(ImpersonationSessionStore actors,Au
         await using var db=await factory.CreateDbContextAsync(ct);using var tenantScope=db.UseTenantScope(tenantId);using var bypass=db.BypassSubscriptionEnforcement();
         await RequireTenantAsync(db,tenantId,ct);
         var setting=await db.CompanySettings.FirstOrDefaultAsync(ct)??throw new InvalidOperationException("ابتدا تنظیمات صرافی را ذخیره کنید.");
-        var directory=Path.Combine(environment.WebRootPath,"uploads","company-logo");Directory.CreateDirectory(directory);
+        var directory=UploadStorage.Physical(Path.Combine(environment.WebRootPath,"uploads"),$"company-logo/tenant_{tenantId}/logo.png");
+        directory=Path.GetDirectoryName(directory)!;Directory.CreateDirectory(directory);
         var name=$"tenant_{tenantId}_{Guid.NewGuid():N}{extension}";var path=Path.Combine(directory,name);
         await File.WriteAllBytesAsync(path,bytes,ct);
         try
         {
-            setting.LogoPath=$"/uploads/company-logo/{name}";setting.UpdatedAt=DateTime.UtcNow;
+            setting.LogoPath=$"/uploads/company-logo/tenant_{tenantId}/{name}";setting.UpdatedAt=DateTime.UtcNow;
             Audit(db,actor.Id,tenantId,"Tenant.LogoUpdated",setting.Id);await db.SaveChangesAsync(ct);
         }
         catch{File.Delete(path);throw;}

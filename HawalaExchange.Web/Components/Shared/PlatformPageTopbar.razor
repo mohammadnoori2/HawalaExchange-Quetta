@@ -1,0 +1,22 @@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+
+<header class="platform-topbar platform-page-topbar no-print">
+    <a class="platform-home" href="/platform">
+        <span class="platform-brand-mark" aria-hidden="true"><i class="bi bi-buildings"></i></span>
+        <span><strong>مدیریت پلتفرم</strong><small>Kabul Code Lab</small></span>
+    </a>
+    <div class="platform-topbar-actions">
+        <PageRefreshButton Refresh="Refresh" Inline="true" Disabled="Disabled" />
+        <AuthorizeView Context="platformIdentity">
+            <span class="platform-identity"><i class="bi bi-person-circle" aria-hidden="true"></i><span>@platformIdentity.User.Identity?.Name</span></span>
+        </AuthorizeView>
+    </div>
+</header>
+
+@code {
+    [Parameter, EditorRequired] public EventCallback Refresh { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+}

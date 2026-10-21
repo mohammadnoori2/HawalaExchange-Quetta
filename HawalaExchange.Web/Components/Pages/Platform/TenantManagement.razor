@@ -15,9 +15,10 @@
 @rendermode InteractiveServer
 
 @if(!Embedded){<PageTitle>مدیریت اختصاصی صرافی‌ها</PageTitle>}
+@if(!Embedded){<PlatformPageTopbar Refresh="RefreshPageDataAsync" Disabled="@busy" />}
 <div class="page-wrapper" dir="rtl">
     @if(!Embedded){
-    <div class="page-header"><div><h1 class="page-title">مدیریت صرافی‌ها و کاربران</h1><span class="page-subtitle">ابتدا صرافی را انتخاب کنید؛ تمام تغییرات فقط روی همان صرافی اعمال می‌شود.</span></div><div class="page-actions"><PageRefreshButton Refresh="RefreshPageDataAsync" Disabled="@busy" /><a class="btn btn-outline-secondary" href="/tenants">صرافی‌ها و تمدید اشتراک</a></div></div>
+    <div class="page-header"><div><h1 class="page-title">مدیریت صرافی‌ها و کاربران</h1><span class="page-subtitle">ابتدا صرافی را انتخاب کنید؛ تمام تغییرات فقط روی همان صرافی اعمال می‌شود.</span></div><div class="page-actions"><a class="btn btn-outline-secondary" href="/tenants">صرافی‌ها و تمدید اشتراک</a></div></div>
     }
     @if(!string.IsNullOrEmpty(message)){<div role="alert" class="alert @(error?"alert-danger":"alert-success")">@message</div>}
     @if(busy){<div class="platform-busy" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span>در حال انجام عملیات؛ لطفاً صبر کنید...</div>}

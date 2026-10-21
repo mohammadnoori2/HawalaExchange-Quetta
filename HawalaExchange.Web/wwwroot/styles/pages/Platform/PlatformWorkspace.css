@@ -49,15 +49,19 @@ html:has(.platform-workspace) { font-size: 16px; }
 .platform-home small { display: block; color: var(--app-muted); font-size: 0.75rem; }
 .platform-brand-mark { display: grid; place-items: center; width: 2.625rem; height: 2.625rem; border-radius: 0.75rem; color: var(--app-primary); background: var(--app-primary-soft); border-top: 0.1875rem solid var(--platform-brand); }
 .platform-identity { display: flex; align-items: center; gap: 0.5rem; color: var(--app-muted); font-size: 0.8125rem; overflow-wrap: anywhere; }
-.platform-content { width: 100%; max-width: none; margin-inline: 0; padding: 1.25rem 0 2.5rem; }
+.platform-content { width: 100%; max-width: none; margin-inline: 0; padding: 1.25rem .5rem 2.5rem; }
 .platform-content > .page-wrapper { padding: 0 !important; }
 /* Page-owned header stays in the interactive page so refresh uses its existing callback. */
 .platform-workspace:has(.platform-tenant-topbar) > .platform-topbar { display: none; }
+.platform-workspace:has(.platform-page-topbar) > .platform-topbar { display: none; }
+.platform-content:has(> .platform-page-topbar) { padding-top: 0; }
+.platform-page-topbar { margin-inline: -.5rem; margin-bottom: 1rem; }
+.platform-topbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
 .platform-content:has(.platform-tenant-topbar) { max-width: none; padding: 0; }
 .platform-tenant-topbar-name { display: flex; align-items: center; gap: .75rem; min-width: 0; flex: 1 1 12rem; }
 .platform-tenant-topbar-title { margin: 0; font-size: 1.125rem; font-weight: 700; line-height: 1.6; overflow-wrap: anywhere; }
 .platform-tenant-topbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
-.platform-content > .page-wrapper.platform-tenant-detail-body { max-width: none; margin-inline: 0; padding: 1rem 0 1.75rem !important; }
+.platform-content > .page-wrapper.platform-tenant-detail-body { max-width: none; margin-inline: 0; padding: 1rem .5rem 1.75rem !important; }
 .platform-skip-link { position: fixed; inset-block-start: -6.25rem; inset-inline-start: 1rem; z-index: 2000; padding: 0.75rem 1.25rem; background: var(--app-primary); color: #fff; border-radius: 0.5rem; }
 .platform-skip-link:focus { inset-block-start: 0.75rem; }
 .platform-workspace :is(a,button,input,select,textarea,summary,[tabindex]):focus-visible { outline: 0.1875rem solid var(--app-primary); outline-offset: 0.1875rem; scroll-margin-block: 1.5rem; }
@@ -217,7 +221,7 @@ html:has(.platform-workspace) { font-size: 16px; }
     }
     .platform-topbar { padding: 0.625rem 1.25rem; }
     .platform-brand-mark { width: 2.25rem; height: 2.25rem; border-radius: 0.625rem; }
-    .platform-content { padding: 1rem 0 1.75rem; }
+    .platform-content { padding: 1rem .5rem 1.75rem; }
     .platform-workspace .page-header { gap: 0.75rem; padding-bottom: 1rem !important; }
     .platform-workspace .page-title { font-size: clamp(1.125rem, 1.4vw, 1.375rem) !important; margin-bottom: 0.25rem; }
     .platform-workspace .page-subtitle { line-height: 1.65; }
@@ -257,8 +261,8 @@ html:has(.platform-workspace) { font-size: 16px; }
     .platform-topbar { min-height: 4.75rem; padding: 0.875rem 1rem; padding-inline-start: 4.375rem; }
     .platform-identity { display: none; }
     .platform-tenant-topbar-actions { width: 100%; }
-    .platform-content > .page-wrapper.platform-tenant-detail-body { padding: 1.25rem 0 2rem !important; }
-    .platform-content { padding: 1.25rem 0 2rem; }
+    .platform-content > .page-wrapper.platform-tenant-detail-body { padding: 1.25rem .5rem 2rem !important; }
+    .platform-content { padding: 1.25rem .5rem 2rem; }
     .platform-workspace .page-wrapper { padding-top: 0 !important; }
     .platform-workspace .page-header { gap: 0.75rem; padding-bottom: 1.25rem !important; }
     .platform-workspace .page-actions { width: 100%; }

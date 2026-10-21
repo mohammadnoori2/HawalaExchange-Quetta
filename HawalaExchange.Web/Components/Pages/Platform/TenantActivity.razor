@@ -11,10 +11,11 @@
 @rendermode InteractiveServer
 
 <PageTitle>@(tenant?.Name ?? "گزارش فعالیت صرافی")</PageTitle>
+<PlatformPageTopbar Refresh="RefreshPageDataAsync" />
 <div class="page-wrapper">
     <div class="page-header">
         <div><h1 class="page-title">@(tenant?.Name ?? "گزارش فعالیت صرافی")</h1><span class="page-subtitle">خلاصهٔ صرافی و گزارش تمام فعالیت‌های مالی آن</span></div>
-        <div class="page-actions"><PageRefreshButton Refresh="RefreshPageDataAsync" /><a class="btn-modern btn-light-modern" href="/platform">بازگشت به فهرست فعالیت صرافی‌ها</a></div>
+        <div class="page-actions"><a class="btn-modern btn-light-modern" href="/platform">بازگشت به فهرست فعالیت صرافی‌ها</a></div>
     </div>
     @if(loading)
     {

@@ -7,7 +7,7 @@
 @inject ISaasBillingService BillingService
 @rendermode InteractiveServer
 
-<PageRefreshButton Refresh="RefreshPageDataAsync" />
+@if(!ManagedTenantId.HasValue){<PlatformPageTopbar Refresh="RefreshPageDataAsync" />}
 @if(!ManagedTenantId.HasValue){<PageTitle>مالی و فاکتورهای SaaS</PageTitle>}
 
 <div class="page-wrapper">

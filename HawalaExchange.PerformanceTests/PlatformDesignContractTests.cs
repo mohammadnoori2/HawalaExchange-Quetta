@@ -3,7 +3,7 @@ namespace HawalaExchange.PerformanceTests;
 public sealed class PlatformDesignContractTests
 {
     [Fact]
-    public void Platform_content_uses_full_available_width_without_side_gutters_at_any_breakpoint()
+    public void Platform_content_keeps_full_width_with_small_side_gutters_at_any_breakpoint()
     {
         var css = File.ReadAllText(Path.Combine(Root(), "HawalaExchange.Web/wwwroot/styles/pages/Platform/PlatformWorkspace.css"));
         Assert.Contains(".platform-content { width: 100%; max-width: none; margin-inline: 0;", css);
@@ -17,8 +17,9 @@ public sealed class PlatformDesignContractTests
             foreach (System.Text.RegularExpressions.Match padding in System.Text.RegularExpressions.Regex.Matches(body, @"padding:\s*(?<value>[^;!]+)"))
             {
                 var values = padding.Groups["value"].Value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                Assert.Equal("0", values.Length == 1 ? values[0] : values[1]);
-                if (values.Length == 4) Assert.Equal("0", values[3]);
+                var expected = values.Length == 1 ? "0" : ".5rem";
+                Assert.Equal(expected, values.Length == 1 ? values[0] : values[1]);
+                if (values.Length == 4) Assert.Equal(".5rem", values[3]);
             }
         }
     }
@@ -87,7 +88,7 @@ public sealed class PlatformDesignContractTests
             if (!source.StartsWith("@page ")) continue;
             Assert.Contains("@attribute [Authorize(Policy", source);
             Assert.Contains("<h1 class=\"page-title\">", source);
-            Assert.Contains("<PageRefreshButton Refresh=", source);
+            Assert.Contains("<PlatformPageTopbar Refresh=", source);
         }
         var common = File.ReadAllText(Path.Combine(Root(), "HawalaExchange.Web", "Components", "_Imports.razor"));
         Assert.DoesNotContain("@layout PlatformLayout", common);

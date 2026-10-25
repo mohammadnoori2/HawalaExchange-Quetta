@@ -63,6 +63,11 @@
                 }
             </div>
         </div>
+        <div class="form-check mt-3">
+            <input id="@saveReceiverId" class="form-check-input" type="checkbox" @bind="Model.SaveReceiver" />
+            <label class="form-check-label" for="@saveReceiverId">افزودن به گیرندگان ثبت‌شده</label>
+            <div class="form-text">پس از اجرای موفق، مشخصات گیرنده بدون افتتاح حساب مالی ذخیره می‌شود.</div>
+        </div>
     </div>
 </div>
 
@@ -72,6 +77,7 @@
 
     private string searchTerm = string.Empty;
     private string uploadError = string.Empty;
+    private readonly string saveReceiverId = $"save-receiver-{Guid.NewGuid():N}";
 
     private IEnumerable<CustomerDto> MatchingCustomers
     {

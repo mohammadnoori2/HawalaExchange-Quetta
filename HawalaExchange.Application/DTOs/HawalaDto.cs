@@ -182,6 +182,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class PayHawalaDto
     {
+        public bool SaveReceiver { get; set; }
         public long PaidFromAccountId { get; set; }
         public decimal? AgentCommissionAmount { get; set; }
         public long? AgentCommissionCurrencyId { get; set; }

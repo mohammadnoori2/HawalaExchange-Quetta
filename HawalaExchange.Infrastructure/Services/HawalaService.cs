@@ -2153,6 +2153,9 @@
                     hawala.PaidAt = DateTime.UtcNow;
                     hawala.PaidBy = GetCurrentUserId();
 
+                    if (payment.SaveReceiver)
+                        await RegisterPaidReceiverAsync(payment);
+
                     await _context.SaveChangesAsync();
 
                     await _auditLogService.LogAsync(

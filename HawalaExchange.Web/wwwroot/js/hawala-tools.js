@@ -1,5 +1,6 @@
 ﻿// ===== فقط یک بار تعریف کنید =====
 let activeHawalaOperationMenu = null;
+const operationQuickActionObservers = new WeakMap();
 
 function positionHawalaOperationMenu(button, menu) {
     const viewportGap = 8;
@@ -114,12 +115,38 @@ function tidyActionMenuDividers(menu) {
     });
 }
 
+function watchOperationMenuQuickActions(menu, quickHost, menuId, quickHostId, preferenceKey, defaults) {
+    let state = operationQuickActionObservers.get(menu);
+    if (!state) {
+        state = { frame: null };
+        state.observer = new MutationObserver(() => {
+            if (state.frame !== null) return;
+            state.frame = requestAnimationFrame(() => {
+                state.frame = null;
+                if (!menu.isConnected || !state.quickHost.isConnected) {
+                    state.observer.disconnect();
+                    operationQuickActionObservers.delete(menu);
+                    return;
+                }
+                syncOperationMenuQuickActions(menuId, state.quickHostId, state.preferenceKey, state.defaults);
+            });
+        });
+        // Permission-gated children render asynchronously. Observe only structural and
+        // disabled changes, not the classes/dataset this synchronization updates.
+        state.observer.observe(menu, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled"] });
+        operationQuickActionObservers.set(menu, state);
+    }
+    Object.assign(state, { quickHost, quickHostId, preferenceKey, defaults });
+}
+
 function syncOperationMenuQuickActions(menuId, quickHostId, preferenceKey, defaults) {
     const menu = document.getElementById(menuId);
     const quickHost = document.getElementById(quickHostId);
     if (!menu || !quickHost) {
         return;
     }
+
+    watchOperationMenuQuickActions(menu, quickHost, menuId, quickHostId, preferenceKey, defaults);
 
     const selectedKeys = getSelectedActionKeys(preferenceKey, defaults);
     const actions = getActionMenuItems(menu);
@@ -150,7 +177,7 @@ function syncOperationMenuQuickActions(menuId, quickHostId, preferenceKey, defau
 
         quickButton.addEventListener("click", event => {
             event.stopPropagation();
-            if (!action.button.disabled) {
+            if (action.button.isConnected && !action.button.disabled) {
                 action.button.click();
             }
         });

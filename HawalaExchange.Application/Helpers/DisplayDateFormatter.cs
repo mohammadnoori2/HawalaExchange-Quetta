@@ -21,19 +21,30 @@ public class DisplayDateFormatter
 
     public string Date(DateOnly value) => Date(value.ToDateTime(TimeOnly.MinValue));
 
+    /// <summary>Date portion of a UTC event timestamp, not a financial date-only value.</summary>
+    public string TimestampDate(System.DateTime? value, string emptyText = "—")
+    {
+        if (!value.HasValue || value == System.DateTime.MinValue) return emptyText;
+        return Date(System.DateTime.SpecifyKind(TimestampLocalDate(value.Value), DateTimeKind.Unspecified));
+    }
+
     public string DateTime(System.DateTime? value, bool use24Hour = false, bool showSeconds = false, string emptyText = "—")
     {
         if (!value.HasValue || value == System.DateTime.MinValue) return emptyText;
         var format = use24Hour ? showSeconds ? "HH:mm:ss" : "HH:mm" : showSeconds ? "hh:mm:ss tt" : "hh:mm tt";
-        if(timeZone is not null)
-        {
-            // Timestamp displays only; financial date-only values and stored values are unchanged.
-            var local=TimeZoneInfo.ConvertTimeFromUtc(System.DateTime.SpecifyKind(value.Value,DateTimeKind.Utc),timeZone);
-            return $"{Date(System.DateTime.SpecifyKind(local,DateTimeKind.Unspecified))} {local.ToString(format,CultureInfo.InvariantCulture)}";
-        }
-        return $"{Date(value)} {LocalDate(value.Value).ToString(format, CultureInfo.InvariantCulture)}";
+        var local = TimestampLocalDate(value.Value);
+        return $"{Date(System.DateTime.SpecifyKind(local,DateTimeKind.Unspecified))} {local.ToString(format,CultureInfo.InvariantCulture)}";
     }
 
     public string Month(System.DateTime value) => value == System.DateTime.MinValue ? string.Empty : Date(value)[..7];
+    private System.DateTime TimestampLocalDate(System.DateTime value)
+    {
+        if (timeZone is null) return LocalDate(value);
+        // SQL datetime2 comes back as Unspecified; event timestamps are stored as UTC.
+        // Already-local DateTime values must first be normalized, not re-labelled as UTC.
+        var utc = value.Kind == DateTimeKind.Local ? value.ToUniversalTime()
+            : System.DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        return TimeZoneInfo.ConvertTimeFromUtc(utc, timeZone);
+    }
     private static System.DateTime LocalDate(System.DateTime value) => value.Kind == DateTimeKind.Utc ? value.ToLocalTime() : value;
 }

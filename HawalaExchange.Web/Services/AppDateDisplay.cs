@@ -6,9 +6,19 @@ using Microsoft.EntityFrameworkCore;
 namespace HawalaExchange.Web.Services;
 
 /// <summary>One preference load per tenant and circuit/request, with an independent read-only context.</summary>
-public sealed class AppDateDisplay(DbContextOptions<ApplicationDbContext> options, ICurrentTenant currentTenant)
-    : DisplayDateFormatter
+public sealed class AppDateDisplay : DisplayDateFormatter
 {
+    private const string DefaultTimeZoneId = "Asia/Kabul";
+    private readonly DbContextOptions<ApplicationDbContext> options;
+    private readonly ICurrentTenant currentTenant;
+
+    public AppDateDisplay(DbContextOptions<ApplicationDbContext> options, ICurrentTenant currentTenant)
+    {
+        this.options = options;
+        this.currentTenant = currentTenant;
+        SetTimeZone(DefaultTimeZoneId);
+    }
+
     private Task? initialization;
     private long loadedTenantId = -1;
 
@@ -33,13 +43,13 @@ public sealed class AppDateDisplay(DbContextOptions<ApplicationDbContext> option
     private async Task LoadAsync(long tenantId)
     {
         SetCalendar(true);
-        SetTimeZone(null);
+        SetTimeZone(DefaultTimeZoneId);
         if (tenantId <= 0) return;
         await using var context = new ApplicationDbContext(options, currentTenant);
         var preference = await context.CompanySettings.AsNoTracking()
             .Where(x => x.TenantId == tenantId).Select(x => (bool?)x.UsePersianCalendar).FirstOrDefaultAsync();
         SetCalendar(preference ?? true);
         var zone=await context.Database.SqlQuery<string>($"SELECT TimeZoneId AS [Value] FROM dbo.TenantOperationalControls WHERE TenantId={tenantId}").SingleOrDefaultAsync();
-        if(zone is not null)SetTimeZone(zone);
+        SetTimeZone(string.IsNullOrWhiteSpace(zone) ? DefaultTimeZoneId : zone);
     }
 }

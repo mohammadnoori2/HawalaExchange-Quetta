@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Authorization
 @using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Helpers
 @using HawalaExchange.Application.Interfaces.Services
 @inject IExportService ExportService
 @inject IBalanceService BalanceService
@@ -23,6 +24,10 @@
                    Icon="bi-clipboard-data">
         <Actions>
             <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
+            @if (!IsAccountReport && !IsCorrespondentReport && selectedCustomerId > 0)
+            {
+                <a class="btn-modern btn-light-modern" href="@($"/customers/{selectedCustomerId}")"><i class="bi bi-arrow-right" aria-hidden="true"></i> برگشت به مشتری</a>
+            }
         </Actions>
     </AppPageHeader>
 
@@ -49,8 +54,8 @@
                         <i class="bi bi-wallet2"></i> مانده فعلی حساب (مستقل از بازه گزارش):
                         @foreach (var b in customerBalance)
                         {
-                            <span class="badge-modern @(b.Status == "طلبکار" ? "badge-success" : (b.Status == "بدهکار" ? "badge-danger" : "badge-secondary")) ms-1">
-                                @b.CurrencyCode: @MoneyFormatHelper.Format(Math.Abs(b.Balance)) (@b.Status)
+                            <span class="badge-modern @(b.Balance > 0 ? "badge-success" : (b.Balance < 0 ? "badge-danger" : "badge-secondary")) ms-1">
+                                @b.CurrencyCode: @MoneyFormatHelper.Format(Math.Abs(b.Balance)) (@BalanceStatus(b.Balance))
                             </span>
                         }
                     </div>
@@ -77,18 +82,35 @@
                     <PermissionAction Actions="Export"><button class="btn-modern btn-light-modern" disabled="@(busy || preview == null)" @onclick="ExportPdf">
                         <i class="bi bi-file-earmark-pdf"></i> دانلود PDF
                     </button></PermissionAction>
+                    @if (!IsAccountReport && !IsCorrespondentReport)
+                    {
+                        <PermissionAction Actions="Export"><CustomerBalanceShare @key="selectedCustomerId" CustomerName="@customerName" Balances="customerBalance" Disabled="busy" /></PermissionAction>
+                        <PermissionAction Actions="Export"><button type="button" class="btn-modern btn-light-modern" disabled="@(!CanCopyCustomerBalance)" @onclick="CopyCustomerBalanceAsync" title="کپی مانده فعلی هر ارز؛ مستقل از بازه گزارش و بدون جزئیات تراکنش‌ها">
+                            <i class="bi bi-copy" aria-hidden="true"></i> کپی مانده
+                        </button></PermissionAction>
+                    }
                     @if (!string.IsNullOrEmpty(error))
                     {
                         <span class="text-danger">@error</span>
                     }
                 </div>
+                @if (!string.IsNullOrEmpty(balanceCopyMessage))
+                {
+                    <div class="small mt-2 @(balanceCopyFallback.Length == 0 ? "text-success" : "text-danger")" role="status">@balanceCopyMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(balanceCopyFallback))
+                {
+                    <textarea class="form-control mt-2" rows="5" readonly aria-label="متن مانده برای کپی دستی" value="@balanceCopyFallback"></textarea>
+                }
             }
         </div>
     </div>
     @if (preview != null)
     {
         <div class="table-card mt-3"><div class="table-card-body">
-            <h5>پیش‌نمایش @ReportTitle</h5>
+            <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+                <h5 class="mb-0">پیش‌نمایش @ReportTitle</h5>
+            </div>
             <div class="alert alert-info py-2">@preview.CustomerName (@preview.CustomerCode) | از تاریخ: @RangeDate(preview.FromDate, "ابتدای حساب") تا تاریخ: @RangeDate(preview.ToDate, "آخرین فعالیت")</div>
             <p class="text-muted">این گزارش مربوط به آخرین اجرای «نمایش گزارش» است. پس از تغییر فیلترها دوباره آن را بزنید. خلاصه حساب شامل تمام فعالیت‌های بازه است؛ فیلترهای جزئی فقط ردیف‌ها را محدود می‌کنند.</p>
             <div class="table-responsive"><table class="table table-bordered text-center align-middle">
@@ -116,6 +138,29 @@
 </div>
 
 @code {
+    private string balanceCopyMessage = "", balanceCopyFallback = "";
+    private bool copyingBalance;
+    private bool CanCopyCustomerBalance => !busy && !copyingBalance && !IsAccountReport && !IsCorrespondentReport
+        && selectedCustomerId > 0
+        && !string.IsNullOrWhiteSpace(customerName) && customerBalance is { Count: > 0 };
+
+    private async Task CopyCustomerBalanceAsync()
+    {
+        if (!CanCopyCustomerBalance) return;
+        var customerId = selectedCustomerId;
+        var text = CustomerBalanceShareText.Build(customerName, customerBalance);
+        if (string.IsNullOrEmpty(text)) return;
+        balanceCopyMessage = balanceCopyFallback = "";
+        copyingBalance = true;
+        var copied = false;
+        try { copied = await JSRuntime.TryInvokeUiBooleanAsync("hawalaTools.copyToClipboard", text); }
+        catch (JSException) { /* Show selectable text when clipboard access or the script is unavailable. */ }
+        finally { copyingBalance = false; }
+        if (selectedCustomerId != customerId || IsAccountReport || IsCorrespondentReport) return;
+        balanceCopyMessage = copied ? "مانده حساب کپی شد." : "مرورگر اجازه کپی نداد؛ متن زیر را دستی کپی کنید.";
+        balanceCopyFallback = copied ? "" : text;
+    }
+
     private async Task RefreshPageDataAsync()
     {
         if (busy) return;
@@ -137,10 +182,8 @@
     private long selectedAccountId;
     private long SelectedOwnerId => IsAccountReport ? selectedAccountId : IsCorrespondentReport ? selectedCorrespondentId : selectedCustomerId;
 
-    private record CustomerBalanceItem(string CurrencyCode, decimal Balance, string Status);
-
     private long selectedCustomerId = 0;
-    private List<CustomerBalanceItem>? customerBalance;
+    private List<BalanceDto>? customerBalance;
     private string error = string.Empty;
     private string customerName = string.Empty;
     private DateTime fromDate = DateTime.MinValue, toDate = DateTime.MinValue;
@@ -173,6 +216,7 @@
 
     private async Task ApplyQueryPrefillAsync()
     {
+        balanceCopyMessage = balanceCopyFallback = "";
         if (IsAccountReport)
         {
             var id = AccountIdQuery;
@@ -208,10 +252,11 @@
 
         if (customerId is > 0)
         {
-            if (selectedCorrespondentId != 0 || selectedCustomerId != customerId.Value) { preview = null; ResetFilters(); }
+            if (selectedCorrespondentId != 0 || selectedCustomerId != customerId.Value) { preview = null; customerBalance = null; customerName = ""; ResetFilters(); }
             selectedCorrespondentId = 0;
             selectedCustomerId = customerId.Value;
             var customer = await SafeGetCustomerAsync(customerId.Value);
+            if (selectedCustomerId != customerId.Value || IsAccountReport || IsCorrespondentReport) return;
 
             if (customer != null)
                 customerName = $"{customer.FullName} ({customer.CustomerCode})";
@@ -241,13 +286,10 @@
         try
         {
             var balance = await BalanceService.GetCustomerBalanceAsync(customerId);
+            if (selectedCustomerId != customerId || IsAccountReport || IsCorrespondentReport) return;
             if (balance != null && balance.Balances.Any())
             {
-                customerBalance = balance.Balances.Select(b =>
-                {
-                    var status = b.Balance > 0 ? "طلبکار" : (b.Balance < 0 ? "بدهکار" : "تسویه");
-                    return new CustomerBalanceItem(b.CurrencyCode, b.Balance, status);
-                }).ToList();
+                customerBalance = balance.Balances;
             }
             else
             {

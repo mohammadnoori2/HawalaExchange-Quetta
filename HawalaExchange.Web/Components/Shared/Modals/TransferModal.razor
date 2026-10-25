@@ -72,12 +72,9 @@
                                                 @bind-Value="CurrentTransfer.Amount"
                                                 placeholder="مبلغ انتقال" />
                                 </div>
-                                @if (CurrentTransfer.Amount > 0)
-                                {
-                                    <small class="transfer-money-words">
+                                <small data-money-words hidden="@(!(CurrentTransfer.Amount > 0))" class="transfer-money-words">
                                         @DariNumberToWords.ToWords(CurrentTransfer.Amount) @GetCurrencyName(CurrentTransfer.CurrencyId)
                                     </small>
-                                }
                             </div>
                             @if (RequiresCostBasis)
                             {

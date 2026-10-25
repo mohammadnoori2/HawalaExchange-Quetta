@@ -281,13 +281,14 @@
                             <h6 class="text-primary"><i class="bi bi-currency-exchange me-2"></i> اطلاعات مالی</h6>
                         </div>
                         <div class="card-body">
-                            <div class="row g-3 hawala-financial-grid">
+                            <div class="row g-3 hawala-financial-grid" data-live-finance="hawala">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-right text-muted me-1"></i> مبلغ حواله و ارز <span class="text-danger">*</span>
                                     </label>
                                     <div class="hawala-money-field">
                                         <select class="hawala-money-currency"
+                                                data-live-currency="from"
                                                 value="@CurrentHawala.FromCurrencyId"
                                                 @onchange="OnFromCurrencyChanged">
                                             <option value="0">انتخاب ارز</option>
@@ -295,21 +296,19 @@
                                             {
                                                 @foreach (var currency in CurrenciesList)
                                                 {
-                                                    <option value="@currency.Id">@currency.Name</option>
+                                                    <option value="@currency.Id" data-code="@currency.Code" data-priority="@currency.QuotationPriority">@currency.Name</option>
                                                 }
                                             }
                                         </select>
                                         <MoneyInput class="hawala-money-amount"
+                                                data-live-amount="from"
                                                 Value="CurrentHawala.FromAmount"
                                                 ValueChanged="OnFromAmountChanged"
                                                 placeholder="مبلغ" />
                                     </div>
-                                    @if (CurrentHawala.FromAmount > 0)
-                                    {
-                                        <small class="hawala-money-words">
+                                        <small class="hawala-money-words" data-live-words="from" hidden="@(CurrentHawala.FromAmount <= 0)">
                                             @DariNumberToWords.ToWords(CurrentHawala.FromAmount) @GetCurrencyName(CurrentHawala.FromCurrencyId)
                                         </small>
-                                    }
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
@@ -321,6 +320,7 @@
                                                    type="radio"
                                                    name="calculationMode"
                                                    id="calcByRate"
+                                                   data-live-mode
                                                    value="RateToAmount"
                                                    checked="@(CalculationMode == "RateToAmount")"
                                                    @onchange="OnCalculationModeChanged" />
@@ -331,6 +331,7 @@
                                                    type="radio"
                                                    name="calculationMode"
                                                    id="calcByAmount"
+                                                   data-live-mode
                                                    value="AmountToRate"
                                                    checked="@(CalculationMode == "AmountToRate")"
                                                    @onchange="OnCalculationModeChanged" />
@@ -347,6 +348,7 @@
                                         }
                                     </label>
                                     <NullableMoneyInput DecimalPlaces="8"
+                                                        data-live-amount="rate"
                                                         class="form-control"
                                                         Value="CurrentHawala.ExchangeRate"
                                                         ValueChanged="OnExchangeRateChanged"
@@ -367,6 +369,7 @@
                                     </label>
                                     <div class="hawala-money-field">
                                         <select class="hawala-money-currency"
+                                                data-live-currency="to"
                                                 value="@CurrentHawala.ToCurrencyId"
                                                 @onchange="OnToCurrencyChanged">
                                             <option value="0">انتخاب ارز</option>
@@ -374,22 +377,20 @@
                                             {
                                                 @foreach (var currency in CurrenciesList)
                                                 {
-                                                    <option value="@currency.Id">@currency.Name</option>
+                                                    <option value="@currency.Id" data-code="@currency.Code" data-priority="@currency.QuotationPriority">@currency.Name</option>
                                                 }
                                             }
                                         </select>
                                         <NullableMoneyInput class="hawala-money-amount"
+                                                        data-live-amount="to"
                                                         Value="CurrentHawala.ToAmount"
                                                         ValueChanged="OnToAmountChanged"
                                                         disabled="@(CalculationMode == "RateToAmount" || AreCurrenciesSame())"
                                                         placeholder="مبلغ مقصد" />
                                     </div>
-                                    @if (CurrentHawala.ToAmount is > 0)
-                                    {
-                                        <small class="hawala-money-words">
-                                            @DariNumberToWords.ToWords(CurrentHawala.ToAmount.Value) @GetCurrencyName(CurrentHawala.ToCurrencyId)
+                                        <small class="hawala-money-words" data-live-words="to" hidden="@(CurrentHawala.ToAmount is not > 0)">
+                                            @DariNumberToWords.ToWords(CurrentHawala.ToAmount ?? 0) @GetCurrencyName(CurrentHawala.ToCurrencyId)
                                         </small>
-                                    }
                                     @if (AreCurrenciesSame())
                                     {
                                         <small class="text-muted text-success">ارزها یکسان هستند، مبلغ برابر با مبلغ حواله است</small>
@@ -402,7 +403,7 @@
                                         <i class="bi bi-coin text-muted me-1"></i> کارمزد و ارز
                                     </label>
                                     <div class="hawala-money-field">
-                                        <select class="hawala-money-currency" @bind="CurrentHawala.CommissionCurrencyId">
+                                        <select class="hawala-money-currency" data-live-currency="commission" @bind="CurrentHawala.CommissionCurrencyId">
                                             <option value="0">انتخاب ارز</option>
                                             @if (CurrenciesList != null && CurrenciesList.Any())
                                             {
@@ -412,14 +413,11 @@
                                                 }
                                             }
                                         </select>
-                                        <NullableMoneyInput class="hawala-money-amount" @bind-Value="CurrentHawala.CommissionAmount" placeholder="کارمزد" />
+                                        <NullableMoneyInput class="hawala-money-amount" data-live-amount="commission" @bind-Value="CurrentHawala.CommissionAmount" placeholder="کارمزد" />
                                     </div>
-                                    @if (CurrentHawala.CommissionAmount is > 0)
-                                    {
-                                        <small class="hawala-money-words">
-                                            @DariNumberToWords.ToWords(CurrentHawala.CommissionAmount.Value) @GetCurrencyName(CurrentHawala.CommissionCurrencyId)
+                                        <small class="hawala-money-words" data-live-words="commission" hidden="@(CurrentHawala.CommissionAmount is not > 0)">
+                                            @DariNumberToWords.ToWords(CurrentHawala.CommissionAmount ?? 0) @GetCurrencyName(CurrentHawala.CommissionCurrencyId)
                                         </small>
-                                    }
                                 </div>
                                 }
                                 @if (CurrentHawala.HawalaType != "HawalaReceive" || CurrentHawala.Status == "Paid")
@@ -434,7 +432,7 @@
                                             }
                                         </label>
                                         <div class="hawala-money-field">
-                                            <select class="hawala-money-currency" @bind="CurrentHawala.AgentCommissionCurrencyId">
+                                            <select class="hawala-money-currency" data-live-currency="agent" @bind="CurrentHawala.AgentCommissionCurrencyId">
                                                 <option value="0">انتخاب ارز</option>
                                                 @if (CurrenciesList != null && CurrenciesList.Any())
                                                 {
@@ -444,14 +442,11 @@
                                                     }
                                                 }
                                             </select>
-                                            <NullableMoneyInput class="hawala-money-amount" @bind-Value="CurrentHawala.AgentCommissionAmount" placeholder="کمیشن عامل پرداخت" />
+                                            <NullableMoneyInput class="hawala-money-amount" data-live-amount="agent" @bind-Value="CurrentHawala.AgentCommissionAmount" placeholder="کمیشن عامل پرداخت" />
                                         </div>
-                                        @if (CurrentHawala.AgentCommissionAmount is > 0)
-                                        {
-                                            <small class="hawala-money-words">
-                                                @DariNumberToWords.ToWords(CurrentHawala.AgentCommissionAmount.Value) @GetCurrencyName(CurrentHawala.AgentCommissionCurrencyId)
+                                            <small class="hawala-money-words" data-live-words="agent" hidden="@(CurrentHawala.AgentCommissionAmount is not > 0)">
+                                                @DariNumberToWords.ToWords(CurrentHawala.AgentCommissionAmount ?? 0) @GetCurrencyName(CurrentHawala.AgentCommissionCurrencyId)
                                             </small>
-                                        }
                                     </div>
                                 }
                                 <div class="col-md-4 mb-3">

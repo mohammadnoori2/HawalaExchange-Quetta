@@ -391,12 +391,9 @@
                                                 </div>
                                             </div>
 
-                                            @if (item.Amount > 0)
-                                            {
-                                                <small class="correspondent-initial-balance-words">
+                                            <small data-money-words hidden="@(!(item.Amount > 0))" class="correspondent-initial-balance-words">
                                                     @DariNumberToWords.ToWords(item.Amount) @(itemCurrency?.Name ?? string.Empty)
                                                 </small>
-                                            }
                                         </div>
                                     }
                                 </div>

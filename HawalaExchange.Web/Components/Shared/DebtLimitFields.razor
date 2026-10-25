@@ -24,12 +24,9 @@
                                 min="0" placeholder="مبلغ سقف" />
                 </div>
 
-                @if (item.BadehkarLimit > 0)
-                {
-                    <small class="debt-limit-words">
+                <small data-money-words hidden="@(!(item.BadehkarLimit > 0))" class="debt-limit-words">
                         @DariNumberToWords.ToWords(item.BadehkarLimit) @(currency?.Name ?? string.Empty)
                     </small>
-                }
             </div>
         }
     </div>

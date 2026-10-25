@@ -349,13 +349,9 @@
                                                     @bind-Value="currentExpense.Amount"
                                                     placeholder="مثلاً 5,000" />
                                     </div>
-                                    @if (currentExpense.Amount > 0)
-                                    {
-                                        var selectedCurrency = currencies.FirstOrDefault(currency => currency.Id == currentExpense.CurrencyId);
-                                        <small class="expense-money-words">
-                                            @DariNumberToWords.ToWords(currentExpense.Amount) @(selectedCurrency?.Name ?? string.Empty)
+                                    <small data-money-words hidden="@(currentExpense.Amount <= 0)" class="expense-money-words">
+                                            @DariNumberToWords.ToWords(currentExpense.Amount) @(currencies.FirstOrDefault(currency => currency.Id == currentExpense.CurrencyId)?.Name ?? string.Empty)
                                         </small>
-                                    }
                                 </div>
 
                                 <div class="col-md-6 mb-3">

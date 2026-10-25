@@ -17,7 +17,7 @@
          style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
          dir="rtl">
         <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content money-exchange-modal">
+            <div class="modal-content money-exchange-modal" data-live-finance="exchange" data-live-source="@(LastEditedAmount == AmountInputSource.From ? "from" : "to")">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -89,6 +89,7 @@
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold">گزینه خرید و فروش</label>
                                         <select class="form-select"
+                                                data-live-trade
                                                 value="@TradeOption"
                                                 @onchange="OnTradeOptionChanged">
                                             <option value="@ExchangeTradeOption.Sell">فروش</option>
@@ -141,6 +142,7 @@
 
                                                 <div class="money-exchange-amount-field">
                                                     <select class="money-exchange-amount-currency"
+                                                            data-live-currency="from"
                                                             value="@CurrentExchange.FromCurrencyId"
                                                             @onchange="OnFromCurrencyChanged">
                                                         <option value="0">انتخاب ارز</option>
@@ -148,7 +150,7 @@
                                                         {
                                                             @foreach (var currency in CurrenciesList)
                                                             {
-                                                                <option value="@currency.Id">@currency.Name</option>
+                                                                <option value="@currency.Id" data-code="@currency.Code" data-priority="@currency.QuotationPriority">@currency.Name</option>
                                                             }
                                                         }
                                                         else
@@ -157,17 +159,15 @@
                                                         }
                                                     </select>
                                                     <MoneyInput class="money-exchange-amount-input"
+                                                                data-live-amount="from"
                                                                 DecimalPlaces="@FromAmountDecimalPlaces"
                                                                 Value="CurrentExchange.FromAmount"
                                                                 ValueChanged="OnFromAmountChanged"
                                                                 placeholder="مثلاً 7,000" />
                                                 </div>
-                                                @if (CurrentExchange.FromAmount > 0)
-                                                {
-                                                    <small class="money-exchange-amount-words">
+                                                    <small class="money-exchange-amount-words" data-live-words="from" hidden="@(CurrentExchange.FromAmount <= 0)">
                                                         @DariNumberToWords.ToWords(CurrentExchange.FromAmount) @GetCurrencyName(CurrentExchange.FromCurrencyId)
                                                     </small>
-                                                }
                                                 <small class="text-muted">قابل ویرایش است؛ مبلغ دریافتی با نرخ تبدیل خودکار به‌روزرسانی می‌شود.</small>
                                             </div>
                                         </div>
@@ -198,6 +198,7 @@
 
                                                 <div class="money-exchange-amount-field">
                                                     <select class="money-exchange-amount-currency"
+                                                            data-live-currency="to"
                                                             value="@CurrentExchange.ToCurrencyId"
                                                             @onchange="OnToCurrencyChanged">
                                                         <option value="0">انتخاب ارز</option>
@@ -205,7 +206,7 @@
                                                         {
                                                             @foreach (var currency in CurrenciesList)
                                                             {
-                                                                <option value="@currency.Id">@currency.Name</option>
+                                                                <option value="@currency.Id" data-code="@currency.Code" data-priority="@currency.QuotationPriority">@currency.Name</option>
                                                             }
                                                         }
                                                         else
@@ -214,17 +215,15 @@
                                                         }
                                                     </select>
                                                     <MoneyInput class="money-exchange-amount-input"
+                                                                data-live-amount="to"
                                                                 DecimalPlaces="@ToAmountDecimalPlaces"
                                                                 Value="CurrentExchange.ToAmount"
                                                                 ValueChanged="OnToAmountChanged"
                                                                 placeholder="مثلاً 100" />
                                                 </div>
-                                                @if (CurrentExchange.ToAmount > 0)
-                                                {
-                                                    <small class="money-exchange-amount-words">
+                                                    <small class="money-exchange-amount-words" data-live-words="to" hidden="@(CurrentExchange.ToAmount <= 0)">
                                                         @DariNumberToWords.ToWords(CurrentExchange.ToAmount) @GetCurrencyName(CurrentExchange.ToCurrencyId)
                                                     </small>
-                                                }
                                                 <small class="text-muted">قابل ویرایش است؛ مبلغ پرداختی با نرخ تبدیل خودکار به‌روزرسانی می‌شود.</small>
                                             </div>
                                         </div>
@@ -239,6 +238,7 @@
 
                                         <MoneyInput class="form-control"
                                                     DecimalPlaces="8"
+                                                    data-live-amount="rate"
                                                     Value="CurrentExchange.ExchangeRate"
                                                     ValueChanged="OnExchangeRateChanged"
                                                     placeholder="مثلاً 84" />

@@ -119,10 +119,7 @@
                             <div class="col-md-5">
                                 <label class="form-label">موجودی واقعی صندوق</label>
                                 <MoneyInput @bind-Value="item.Amount" min="0" placeholder="مبلغ" />
-                                @if (item.Amount > 0)
-                                {
-                                    <small class="text-muted">@DariNumberToWords.ToWords(item.Amount) @(currency?.Name ?? string.Empty)</small>
-                                }
+                                <small data-money-words hidden="@(!(item.Amount > 0))" class="text-muted">@DariNumberToWords.ToWords(item.Amount) @(currency?.Name ?? string.Empty)</small>
                             </div>
                             <div class="col-md-2">
                                 <button type="button" class="btn btn-outline-danger w-100" title="حذف" @onclick="() => RemoveOpeningBalanceRow(item)">

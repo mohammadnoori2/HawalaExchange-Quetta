@@ -3,9 +3,9 @@
 @namespace HawalaExchange.Web.Components.Shared
 @inherits ComponentBase
 
-<input type="text" value="@displayValue" inputmode="decimal" dir="ltr" lang="en"
-       @onfocus="HandleFocus" @oninput="HandleInput" @onblur="HandleBlur"
-       @attributes="AdditionalAttributes" />
+<input @attributes="AdditionalAttributes" type="text" value="@initialDisplayValue" inputmode="decimal" dir="ltr" lang="en"
+       data-money-input data-money-value="@displayValue" data-money-decimals="@DecimalPlaces"
+       data-money-nullable="true" data-money-revision="@revision" @onchange="HandleChange" />
 
 @code {
     [Parameter] public decimal? Value { get; set; }
@@ -15,41 +15,29 @@
     public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
 
     private string displayValue = string.Empty;
-    private bool focused;
+    private string? initialDisplayValue;
+    private long revision;
 
     protected override void OnParametersSet()
     {
-        if (!focused)
-            displayValue = MoneyFormatHelper.Format(Value, DecimalPlaces);
+        displayValue = MoneyFormatHelper.Format(Value, DecimalPlaces);
+        initialDisplayValue ??= displayValue;
     }
 
-    private void HandleFocus()
+    private async Task HandleChange(ChangeEventArgs args)
     {
-        focused = true;
-    }
-
-    private async Task HandleInput(ChangeEventArgs args)
-    {
-        displayValue = MoneyFormatHelper.FormatWhileTyping(args.Value?.ToString(), DecimalPlaces == 0 ? 8 : DecimalPlaces);
-        if (string.IsNullOrWhiteSpace(displayValue))
-            await ValueChanged.InvokeAsync(null);
-        else if (MoneyFormatHelper.TryParse(displayValue, out var value))
-            await ValueChanged.InvokeAsync(DecimalPlaces == 0 ? HawalaExchange.Application.Services.AmountValueHelper.RoundConvertedAmount(value) : value);
-    }
-
-    private async Task HandleBlur()
-    {
-        focused = false;
-        if (string.IsNullOrWhiteSpace(displayValue))
+        revision++;
+        var text = args.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(text) || text is "-" or "." or "-.")
         {
-            await ValueChanged.InvokeAsync(null);
             displayValue = string.Empty;
+            await ValueChanged.InvokeAsync(null);
         }
-        else if (MoneyFormatHelper.TryParse(displayValue, out var value))
+        else if (MoneyFormatHelper.TryParse(text, out var value))
         {
             value = DecimalPlaces == 0 ? HawalaExchange.Application.Services.AmountValueHelper.RoundConvertedAmount(value) : value;
-            await ValueChanged.InvokeAsync(value);
             displayValue = MoneyFormatHelper.Format(value, DecimalPlaces);
+            await ValueChanged.InvokeAsync(value);
         }
         else
         {

@@ -15,9 +15,12 @@
             <div class="compact-filter-field"><label class="form-label">حداقل مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="Filter.MinAmount" @bind-Value:after="Notify" /></div>
             <div class="compact-filter-field"><label class="form-label">حداکثر مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="Filter.MaxAmount" @bind-Value:after="Notify" /></div>
         }
-        <div class="compact-filter-field"><label class="form-label">فرستنده</label><input class="form-control" @bind="Filter.Sender" @bind:after="Notify" /></div>
-        <div class="compact-filter-field"><label class="form-label">گیرنده</label><input class="form-control" @bind="Filter.Receiver" @bind:after="Notify" /></div>
-        <div class="compact-filter-field"><label class="form-label">نمبر حواله</label><input class="form-control" @bind="Filter.Reference" @bind:after="Notify" /></div>
+        @if (ShowTextFilters)
+        {
+            <div class="compact-filter-field"><label class="form-label">فرستنده</label><input class="form-control" @bind="Filter.Sender" @bind:after="Notify" /></div>
+            <div class="compact-filter-field"><label class="form-label">گیرنده</label><input class="form-control" @bind="Filter.Receiver" @bind:after="Notify" /></div>
+            <div class="compact-filter-field"><label class="form-label">نمبر حواله</label><input class="form-control" @bind="Filter.Reference" @bind:after="Notify" /></div>
+        }
         <div class="compact-filter-field"><label class="form-label">از نمبر مسلسل</label><input class="form-control" type="number" lang="en" @bind="Filter.MinNumber" @bind:after="Notify" /></div>
         <div class="compact-filter-field"><label class="form-label">تا نمبر مسلسل</label><input class="form-control" type="number" lang="en" @bind="Filter.MaxNumber" @bind:after="Notify" /></div>
         <div class="compact-filter-field"><label class="form-label">نوع ثبت</label><select class="form-select" @bind="Filter.Registration" @bind:after="Notify"><option value="">همه</option><option value="Bulk">آپلود گروهی</option><option value="Manual">دستی</option></select></div>
@@ -27,6 +30,7 @@
 @code {
     [Parameter, EditorRequired] public HawalaExtraFilter Filter { get; set; } = default!;
     [Parameter] public bool ShowBasic { get; set; }
+    [Parameter] public bool ShowTextFilters { get; set; } = true;
     [Parameter] public bool ShowCorrespondents { get; set; }
     [Parameter] public EventCallback Changed { get; set; }
     private IReadOnlyList<CurrencyDto> currencies = [];

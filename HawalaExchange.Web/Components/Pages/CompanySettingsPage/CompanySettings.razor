@@ -13,7 +13,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
-<div class="page-wrapper" dir="rtl">
+<div class="page-wrapper company-settings-page" dir="rtl">
     <div class="page-header">
         <div>
             <h5 class="page-title">
@@ -68,18 +68,20 @@
             else
             {
                 <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">
-                            نام شرکت <span class="text-danger">*</span>
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
+                        <label class="form-label fw-bold" for="companyName">
+                            نام شرکت <span class="text-danger" aria-hidden="true">*</span>
                         </label>
 
                         <input type="text"
+                               id="companyName"
+                               aria-required="true"
                                class="form-control"
                                @bind="setting.CompanyName"
                                placeholder="مثلاً صرافی نمونه" />
                     </div>
 
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <label class="form-label fw-bold">
                             شماره تماس
                         </label>
@@ -89,9 +91,9 @@
                                @bind="setting.PhoneNumber"
                                placeholder="مثلاً 0700000000" />
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">محل پرداخت دفتر خود صرافی <span class="text-danger">*</span></label>
-                        <select class="form-select" @bind="setting.OwnPaymentLocationId">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
+                        <label class="form-label fw-bold" for="ownPaymentLocation">محل پرداخت دفتر خود صرافی <span class="text-danger" aria-hidden="true">*</span></label>
+                        <select id="ownPaymentLocation" aria-required="true" class="form-select" @bind="setting.OwnPaymentLocationId">
                             <option value="">انتخاب محل پرداخت</option>
                             @foreach (var location in paymentLocations)
                             {
@@ -100,10 +102,7 @@
                         </select>
                         <small class="text-muted">برای تشخیص حواله‌هایی که باید حوالهٔ ارسالی مرتبط داشته باشند استفاده می‌شود.</small>
                     </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <label class="form-label fw-bold">
                             شماره واتساپ
                         </label>
@@ -118,7 +117,7 @@
                         </small>
                     </div>
 
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <label class="form-label fw-bold">
                             نام کاربری تلگرام
                         </label>
@@ -128,10 +127,7 @@
                                @bind="setting.TelegramUserName"
                                placeholder="مثلاً mycompany" />
                     </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-12 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <label class="form-label fw-bold">
                             آدرس شرکت
                         </label>
@@ -141,15 +137,12 @@
                                @bind="setting.Address"
                                placeholder="آدرس کامل شرکت" />
                     </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-bold">
-                            ارز اصلی محاسبه مفاد و ضرر <span class="text-danger">*</span>
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
+                        <label class="form-label fw-bold" for="defaultProfitCurrency">
+                            ارز اصلی محاسبه مفاد و ضرر <span class="text-danger" aria-hidden="true">*</span>
                         </label>
 
-                        <select class="form-select" @bind="setting.DefaultProfitCurrencyId">
+                        <select id="defaultProfitCurrency" aria-required="true" class="form-select" @bind="setting.DefaultProfitCurrencyId">
                             <option value="">انتخاب ارز اصلی</option>
                             @foreach (var currency in activeCurrencies)
                             {
@@ -161,20 +154,12 @@
                             بهای تمام‌شده، مفاد و ضرر تبدیل‌های جدید با این ارز محاسبه می‌شود؛ در فرم تبدیل پول دیگر نیاز به انتخاب آن نیست.
                         </small>
                     </div>
-                </div>
-
-                <hr />
-
-                <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <label class="form-label fw-bold" for="displayCalendar">تقویم نمایش تاریخ‌ها</label>
                         <CalendarPreferenceSelect Id="displayCalendar" @bind-Value="setting.UsePersianCalendar" Disabled="isSaving" />
                         <small class="text-muted">تمام تاریخ‌ها، گزارش‌ها و رسیدهای صرافی مطابق این انتخاب نمایش داده می‌شوند؛ تاریخ‌های ذخیره‌شده تغییر نمی‌کنند.</small>
                     </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <label class="form-label fw-bold">
                             لوگوی شرکت
                         </label>
@@ -212,7 +197,7 @@
                         }
                     </div>
 
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <label class="form-label fw-bold">
                             مسیر لوگو
                         </label>
@@ -226,10 +211,7 @@
                             اگر لوگو را دستی در سرور گذاشتید، مسیر آن را اینجا وارد کنید.
                         </small>
                     </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-12 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <label class="form-label fw-bold">
                             متن پایین رسید
                         </label>

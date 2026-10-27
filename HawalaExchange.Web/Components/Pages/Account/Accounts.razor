@@ -8,6 +8,7 @@
 @inject ICustomerService CustomerService
 @inject ICorrespondentService CorrespondentService
 @inject ICurrencyService CurrencyService
+@inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject ILedgerService LedgerService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
@@ -527,7 +528,8 @@
 @code {
     private async Task RefreshPageDataAsync()
     {
-        await LoadLookupData(); await LoadAccounts();
+        await LoadAccounts();
+        if (showModal) await LoadLookupData();
     }
     // ===== لیست‌های اصلی =====
     private List<AccountDto> accounts = new();
@@ -536,8 +538,6 @@
     private List<AccountDto> filteredAccounts { get => advancedFilters.Apply(basefilteredAccounts).ToList(); set => basefilteredAccounts = value; }
     private List<CustomerDto> customers = new();
     private List<CorrespondentDto> correspondents = new();
-    private Dictionary<long, string> customerOwnerNames = new();
-    private Dictionary<long, string> correspondentOwnerNames = new();
 
     private List<CurrencyDto> currencies = new();
 
@@ -690,28 +690,27 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadLookupData();
         await LoadAccounts();
 
     }
 
-    private async Task LoadLookupData()
+    private async Task<bool> LoadLookupData()
     {
         try
         {
             var allCustomers = (await CustomerService.GetAllAsync()).ToList();
             var allCorrespondents = (await CorrespondentService.GetAllAsync()).ToList();
-            customerOwnerNames = allCustomers.ToDictionary(x => x.Id, x => x.FullName);
-            correspondentOwnerNames = allCorrespondents.ToDictionary(x => x.Id, x => x.Name);
             customers = allCustomers.Where(x => !x.IsArchived).ToList();
             correspondents = allCorrespondents.Where(x => !x.IsArchived).ToList();
 
-            var currencyResult = await CurrencyService.GetActiveCurrenciesAsync();
+            var currencyResult = await ReferenceDataCache.GetActiveCurrenciesAsync();
             currencies = currencyResult.ToList();
+            return true;
         }
         catch (Exception ex)
         {
             validationErrors.Add($"خطا در بارگذاری داده‌های کمکی: {ex.Message}");
+            return false;
         }
     }
 
@@ -722,14 +721,6 @@
             isLoading = true;
             var result = await AccountService.GetAllAsync();
             accounts = result.ToList();
-            foreach (var account in accounts)
-            {
-                if (!account.ReferenceId.HasValue) continue;
-                var owners = account.ReferenceType == "Customer" ? customerOwnerNames
-                    : account.ReferenceType == "Correspondent" ? correspondentOwnerNames : null;
-                if (owners != null && owners.TryGetValue(account.ReferenceId.Value, out var owner))
-                    account.ReferenceName = owner;
-            }
             SearchAccounts();
             currentPage = 1;
         }
@@ -901,30 +892,38 @@
 
     // ========== متدهای باز و بسته کردن مودال‌ها ==========
 
-    private void OpenCreateModal()
+    private async Task OpenCreateModal()
     {
-        returnToAccountDetailsAfterEdit = false;
-        currentAccount = new CreateAccountDto();
-        isEditMode = false;
-        editId = 0;
-        validationErrors.Clear();
-        successMessage = string.Empty;
-        showModal = true;
-        initialBalances.Clear();
-        _hasInitialBalance = false;
-        HasInitialBalance = true;
-        _isBalanceSubmitted = false;
-        initialBalanceDate = DateTime.Today;
-        StateHasChanged();
+        if (isLoading) return;
+        isLoading = true;
+        try
+        {
+            if (!await LoadLookupData()) return;
+            returnToAccountDetailsAfterEdit = false;
+            currentAccount = new CreateAccountDto();
+            isEditMode = false;
+            editId = 0;
+            validationErrors.Clear();
+            successMessage = string.Empty;
+            showModal = true;
+            initialBalances.Clear();
+            _hasInitialBalance = false;
+            HasInitialBalance = true;
+            _isBalanceSubmitted = false;
+            initialBalanceDate = DateTime.Today;
+        }
+        finally { isLoading = false; }
     }
 
     private async Task OpenEditModal(long id)
     {
+        if (isLoading) return;
         try
         {
             isLoading = true;
             StateHasChanged();
 
+            if (!await LoadLookupData()) return;
             var account = await AccountService.GetByIdAsync(id);
             if (account != null)
             {

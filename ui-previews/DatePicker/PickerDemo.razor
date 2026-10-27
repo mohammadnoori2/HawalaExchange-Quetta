@@ -1,0 +1,42 @@
+@page "/"
+@using HawalaExchange.Web.Helpers
+<PageTitle>تست انتخاب سال و ماه تقویم</PageTitle>
+<PreviewNavigation />
+<main class="picker-demo sample-fields-page">
+    <DemoPageHeader Title="تست انتخاب سال و ماه" Subtitle="تقویم مشترک سیستم" Count="4" Refresh="RefreshSample" />
+    <p class="sample-feedback" role="status">@refreshMessage</p>
+    <p>همان کامپوننت واقعی تقویم سیستم، با انتخاب ماه و سال در هدر؛ بدون اتصال به دیتابیس.</p>
+    <section>
+        <div class="demo-grid">
+            <div><label for="demo-filter-from">از تاریخ</label><PersianDatePicker Id="demo-filter-from" @bind-Value="from" AllowEmpty="true" Placeholder="از تاریخ" /><small>نمونه فیلتر خالی؛ انتخاب سال و ماه به‌تنهایی فیلتر را تغییر نمی‌دهد.</small></div>
+            <div><label for="demo-filter-to">تا تاریخ</label><PersianDatePicker Id="demo-filter-to" @bind-Value="to" AllowEmpty="true" Placeholder="تا تاریخ" /><small>نمونه تاریخ انتخاب‌شده؛ امکان تغییر تقویم، پاک‌کردن و انتخاب روز.</small></div>
+            <div><label for="demo-limited">تاریخ محدودشده</label><PersianDatePicker Id="demo-limited" @bind-Value="limited" MinDate="@(new DateTime(2026,10,15))" MaxDate="@(new DateTime(2026,10,20))" Placeholder="تاریخ محدودشده" /><small>فقط 2026-10-15 تا 2026-10-20 قابل انتخاب است.</small></div>
+            <div><label for="demo-disabled">فیلد غیرفعال</label><PersianDatePicker Id="demo-disabled" Value="@(new DateTime(2026,10,18))" Disabled="true" Placeholder="فیلد غیرفعال" /><small>رفتار غیرفعال فعلی حفظ شده است.</small></div>
+        </div>
+    </section>
+    <div class="demo-values" aria-live="polite">
+        <span>از تاریخ: <b dir="ltr">@(from == DateTime.MinValue ? "—" : DualCalendarDateHelper.PersianText(from))</b></span>
+        <span>تا تاریخ: <b dir="ltr">@DualCalendarDateHelper.PersianText(to)</b></span>
+        <span>تاریخ و زمان در مودال: <b dir="ltr">@DualCalendarDateHelper.PersianText(withTime, true)</b></span>
+    </div>
+    <section>
+        <button class="btn btn-outline-primary" @onclick="()=>showModal=true">تست تقویم داخل مودال</button>
+        <p class="small mt-3 mb-0">سال‌ها در یک بازه متحرک نمایش داده می‌شوند. با انتخاب یک سال دورتر، فهرست سال‌ها حول همان سال تنظیم می‌شود. همه اعداد انگلیسی‌اند.</p>
+    </section>
+    <p class="small">این میزبان تست مستقل است؛ هیچ ورود کاربر، ثبت حسابداری یا تغییر داده‌ای انجام نمی‌دهد.</p>
+</main>
+@if(showModal)
+{
+    <div class="modal show d-block" style="background:rgba(0,0,0,.35)" role="dialog" aria-modal="true" aria-label="مودال تست تاریخ">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title">نمونه تاریخ داخل مودال</h2></div><div class="modal-body"><label for="demo-time" class="form-label">تاریخ و زمان</label><PersianDatePicker Id="demo-time" @bind-Value="withTime" IncludeTime="true" Placeholder="تاریخ و زمان" /></div><div class="modal-footer"><button class="btn btn-primary" @onclick="()=>showModal=false">بستن مودال نمونه</button></div></div></div>
+    </div>
+}
+@code {
+    private DateTime from;
+    private DateTime to = new(2026,10,18);
+    private DateTime limited = new(2026,10,18);
+    private DateTime withTime = new(2026,10,18,14,30,0);
+    private bool showModal;
+    private string refreshMessage="نمونه تقویم؛ داده واقعی خوانده نمی‌شود.";
+    private void RefreshSample()=>refreshMessage="اطلاعات نمونه تازه شد؛ تاریخ‌های انتخاب‌شده حفظ شدند.";
+}

@@ -7,6 +7,7 @@ namespace HawalaExchange.Application.Interfaces.Services
         Task<HawalaDto> CreateHawalaAsync(CreateHawalaDto dto);
         Task<IReadOnlyList<HawalaDto>> CreateHawalasAsync(IReadOnlyCollection<CreateHawalaDto> items);
         Task<HawalaDto> UpdateHawalaAsync(long id, UpdateHawalaDto dto);
+        Task<long> ResolvePaymentLocationAccountAsync(long? paymentLocationId);
         Task DeleteHawalaAsync(long id);
         Task<HawalaDto?> GetHawalaByIdAsync(long id);
         Task<HawalaListResultDto> GetHawalasAsync(HawalaFilterDto filter, CancellationToken cancellationToken = default);

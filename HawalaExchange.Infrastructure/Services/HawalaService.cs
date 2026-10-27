@@ -21,6 +21,7 @@
             private readonly IAuditLogService _auditLogService;
             private readonly IFileService _fileService;
             private readonly ICorrespondentSettlementService _settlementService;
+            private readonly IDbContextFactory<ApplicationDbContext>? _contextFactory;
 
 
             public HawalaService(
@@ -30,7 +31,8 @@
                 IAccountService accountService,
                 IAuditLogService auditLogService,
                 IFileService fileService,
-                ICorrespondentSettlementService? settlementService = null)
+                ICorrespondentSettlementService? settlementService = null,
+                IDbContextFactory<ApplicationDbContext>? contextFactory = null)
             {
                 _context = context;
                 _mapper = mapper;
@@ -38,6 +40,7 @@
                 _accountService = accountService;
                 _auditLogService = auditLogService;
                 _fileService = fileService;
+                _contextFactory = contextFactory;
                 _settlementService = settlementService ??
                     new HawalaExchange.Infrastructure.Services.CorrespondentSettlementService(context);
             }
@@ -219,7 +222,14 @@
             public async Task<long> GetNextNumberAsync(long correspondentId, string hawalaType)
             {
                 if (hawalaType == "HawalaSend")
+                {
+                    if (_contextFactory != null && _context.Database.CurrentTransaction == null)
+                    {
+                        await using var readContext = await _contextFactory.CreateDbContextAsync();
+                        return (await GetOutgoingNumberingCoreAsync(readContext, [correspondentId]))[correspondentId].Next;
+                    }
                     return (await GetOutgoingNumberingAsync([correspondentId]))[correspondentId].Next;
+                }
                 var currentPeriodStart = await GetCurrentPeriodStartAsync(correspondentId);
                 var lastNumber = await _context.Hawalas
                     .Where(h => h.CorrespondentId == correspondentId &&
@@ -234,21 +244,24 @@
 
             private sealed record OutgoingNumbering(long Minimum, long Next);
 
-            private async Task<Dictionary<long, OutgoingNumbering>> GetOutgoingNumberingAsync(IEnumerable<long> correspondentIds)
+            private Task<Dictionary<long, OutgoingNumbering>> GetOutgoingNumberingAsync(IEnumerable<long> correspondentIds) =>
+                GetOutgoingNumberingCoreAsync(_context, correspondentIds);
+
+            private static async Task<Dictionary<long, OutgoingNumbering>> GetOutgoingNumberingCoreAsync(ApplicationDbContext context, IEnumerable<long> correspondentIds)
             {
                 var ids = correspondentIds.Distinct().ToArray();
                 if (ids.Length == 0) return [];
-                var periods = await _context.CorrespondentAccountPeriods.AsNoTracking()
-                    .Where(p => ids.Contains(p.CorrespondentId) && !_context.CorrespondentAccountPeriods.Any(newer =>
+                var periods = await context.CorrespondentAccountPeriods.AsNoTracking()
+                    .Where(p => ids.Contains(p.CorrespondentId) && !context.CorrespondentAccountPeriods.Any(newer =>
                         newer.CorrespondentId == p.CorrespondentId &&
                         (newer.PeriodTo > p.PeriodTo || newer.PeriodTo == p.PeriodTo && newer.Id > p.Id)))
                     .Select(p => new { p.CorrespondentId, ReserveFirst = p.Balances.Any(b => b.TalabKar > b.BadehKar) })
                     .ToDictionaryAsync(p => p.CorrespondentId, p => p.ReserveFirst);
                 // Use actual closed-period membership, not the hawala date: an import
                 // registered after close can contain backdated hawalas in the new period.
-                var maxima = await _context.Hawalas.AsNoTracking()
+                var maxima = await context.Hawalas.AsNoTracking()
                     .Where(h => h.CorrespondentId.HasValue && ids.Contains(h.CorrespondentId.Value) && h.HawalaType == "HawalaSend" &&
-                        !_context.CorrespondentAccountPeriodHawalas.Any(closed => closed.HawalaId == h.Id))
+                        !context.CorrespondentAccountPeriodHawalas.Any(closed => closed.HawalaId == h.Id))
                     .GroupBy(h => h.CorrespondentId!.Value)
                     .Select(g => new { Id = g.Key, Number = g.Max(h => h.Number) })
                     .ToDictionaryAsync(x => x.Id, x => x.Number);
@@ -687,7 +700,7 @@
                     var fromAccountId = (paymentLocationChanged || hawala.Status != "Paid") &&
                                         hawala.HawalaType == "HawalaReceive" &&
                                         updatedStatus == "Paid"
-                        ? await ResolvePaymentLocationAccountAsync(dto.PaymentLocationId)
+                        ? await ResolvePaymentLocationAccountCoreAsync(_context, dto.PaymentLocationId)
                         : dto.FromAccountId ?? await ResolveExistingFromAccountIdAsync(hawala);
 
                     var generatedHawala = await _context.Hawalas
@@ -898,30 +911,60 @@
                 }
             }
 
-            private async Task<long> ResolvePaymentLocationAccountAsync(long? paymentLocationId)
+            public async Task<long> ResolvePaymentLocationAccountAsync(long? paymentLocationId)
+            {
+                if (_contextFactory == null)
+                    return await ResolvePaymentLocationAccountCoreAsync(_context, paymentLocationId);
+                await using var readContext = await _contextFactory.CreateDbContextAsync();
+                return await ResolvePaymentLocationAccountCoreAsync(readContext, paymentLocationId);
+            }
+
+            private static async Task<long> ResolvePaymentLocationAccountCoreAsync(ApplicationDbContext context, long? paymentLocationId)
             {
                 if (!paymentLocationId.HasValue)
                     throw new InvalidOperationException("برای حواله پرداخت‌شده، محل پرداخت الزامی است.");
 
-                var location = await _context.PaymentLocations
+                var location = await context.PaymentLocations
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.Id == paymentLocationId.Value)
+                    .FirstOrDefaultAsync(x => x.Id == paymentLocationId.Value && x.IsActive)
                     ?? throw new InvalidOperationException("محل پرداخت انتخاب‌شده معتبر نیست.");
 
-                var correspondents = await _context.Correspondents
-                    .AsNoTracking()
-                    .Where(x => !x.IsArchived)
-                    .Select(x => new { x.Id, x.Name })
-                    .ToListAsync();
-                var correspondent = correspondents.FirstOrDefault(x =>
-                    PaymentLocationNameNormalizer.Normalize(x.Name) == location.NormalizedName);
+                var today = DateTime.Today;
+                var assignments = context.PaymentLocationCorrespondentAssignments.AsNoTracking()
+                    .Where(x => x.PaymentLocationId == location.Id);
+                var currentOwners = await assignments
+                    .Where(x => x.EffectiveFrom <= today && (x.EffectiveTo == null || today < x.EffectiveTo))
+                    .Select(x => x.CorrespondentId).Distinct().Take(2).ToListAsync();
+                if (currentOwners.Count > 1)
+                    throw new InvalidOperationException($"برای محل پرداخت «{location.Name}» بیش از یک مسئول فعال ثبت شده است؛ تعیین مسئول را اصلاح کنید.");
+
+                Correspondent? correspondent;
+                if (currentOwners.Count == 1)
+                {
+                    var ownerId = currentOwners[0];
+                    correspondent = await context.Correspondents.AsNoTracking()
+                        .FirstOrDefaultAsync(x => x.Id == ownerId && !x.IsArchived);
+                    if (correspondent is null)
+                        throw new InvalidOperationException($"نمایندگی مسئول محل پرداخت «{location.Name}» فعال نیست.");
+                }
+                else
+                {
+                    if (await assignments.AnyAsync())
+                        throw new InvalidOperationException($"برای محل پرداخت «{location.Name}» مسئول معتبر در تاریخ امروز تعیین نشده است.");
+                    // Legacy locations may predate assignment history. Never use this fallback
+                    // to override an explicit assignment or an expired/future assignment.
+                    var correspondents = await context.Correspondents.AsNoTracking()
+                        .Where(x => !x.IsArchived).ToListAsync();
+                    correspondent = correspondents.FirstOrDefault(x =>
+                        PaymentLocationNameNormalizer.Normalize(x.Name) == location.NormalizedName);
+                }
                 if (correspondent is null)
                     throw new InvalidOperationException(
                         $"نمایندگی مربوط به محل پرداخت «{location.Name}» پیدا نشد.");
 
-                var accountId = await _context.Accounts
+                var accountId = await context.Accounts
                     .AsNoTracking()
-                    .Where(x => !x.IsArchived && x.CorrespondentId == correspondent.Id)
+                    .Where(x => !x.IsArchived && x.AccountType == "Correspondent" && x.CorrespondentId == correspondent.Id)
                     .OrderBy(x => x.Id)
                     .Select(x => (long?)x.Id)
                     .FirstOrDefaultAsync();

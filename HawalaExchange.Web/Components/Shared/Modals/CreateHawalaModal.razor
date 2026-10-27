@@ -465,6 +465,7 @@
                                         </label>
                                         <AccountSearchSelect Accounts="@AccountsList"
                                                              Value="@(CurrentHawala.FromAccountId ?? 0)"
+                                                             ValueChanged="FromAccountChanged"
                                                              OnSelected="SelectFromAccount"
                                                              ShowBalanceSummary="false"
                                                              ShowAccountCode="false"
@@ -485,6 +486,7 @@
                                         </label>
                                         <AccountSearchSelect Accounts="@AccountsList"
                                                              Value="@(CurrentHawala.FromAccountId ?? 0)"
+                                                             ValueChanged="FromAccountChanged"
                                                              OnSelected="SelectFromAccount"
                                                              ShowBalanceSummary="false"
                                                              ShowAccountCode="false"
@@ -1806,6 +1808,9 @@
         StateHasChanged();
     }
 
+    private int paymentLocationResolutionVersion;
+    private readonly SemaphoreSlim paymentLocationResolutionGate = new(1, 1);
+
     private async Task OnPaymentLocationChanged(ChangeEventArgs e)
     {
         CurrentHawala.PaymentLocationId = long.TryParse(e.Value?.ToString(), out var locationId)
@@ -1815,28 +1820,39 @@
         if (IsEditMode && CurrentHawala.HawalaType == "HawalaReceive" &&
             CurrentHawala.Status == "Paid" && CurrentHawala.PaymentLocationId.HasValue)
         {
-            var location = PaymentLocationsList.FirstOrDefault(x => x.Id == CurrentHawala.PaymentLocationId.Value);
-            var normalizedLocationName = PaymentLocationNameNormalizer.Normalize(location?.Name);
-            var correspondent = CorrespondentsList.FirstOrDefault(x =>
-                PaymentLocationNameNormalizer.Normalize(x.Name) == normalizedLocationName);
-            var account = correspondent == null
-                ? null
-                : AccountsList.FirstOrDefault(x => !x.IsArchived &&
-                    string.Equals(x.ReferenceType, "Correspondent", StringComparison.OrdinalIgnoreCase) &&
-                    x.ReferenceId == correspondent.Id);
-
-            CurrentHawala.FromAccountId = account?.Id;
+            var version = ++paymentLocationResolutionVersion;
+            var model = CurrentHawala;
+            var selectedLocationId = model.PaymentLocationId.Value;
+            model.FromAccountId = null;
             CurrentHawala.GeneratedSendHawalaNumber = null;
             ValidationErrors.RemoveAll(x => x.StartsWith("برای محل پرداخت انتخاب‌شده", StringComparison.Ordinal));
-            if (account == null)
+            await paymentLocationResolutionGate.WaitAsync();
+            try
             {
-                ValidationErrors.Add(
-                    $"برای محل پرداخت انتخاب‌شده «{location?.Name}»، حساب نمایندگی مرتبط پیدا نشد.");
-            }
-            else
-            {
+                if (version != paymentLocationResolutionVersion || !ReferenceEquals(model, CurrentHawala) || model.PaymentLocationId != selectedLocationId)
+                    return;
+                var accountId = await HawalaService.ResolvePaymentLocationAccountAsync(selectedLocationId);
+                var account = AccountsList.FirstOrDefault(x => x.Id == accountId)
+                    ?? await AccountService.GetByIdAsync(accountId);
+                if (version != paymentLocationResolutionVersion || !ReferenceEquals(model, CurrentHawala) || model.PaymentLocationId != selectedLocationId)
+                    return;
+                if (account is null || account.IsArchived)
+                    throw new InvalidOperationException("حساب فعال نمایندگی مسئول یافت نشد.");
+                if (!AccountsList.Any(x => x.Id == accountId)) AccountsList.Add(account);
+                model.FromAccountId = accountId;
                 await GetSuggestedGeneratedSendHawalaNumberAsync();
             }
+            catch (InvalidOperationException ex)
+            {
+                if (version == paymentLocationResolutionVersion && ReferenceEquals(model, CurrentHawala) && model.PaymentLocationId == selectedLocationId)
+                    ValidationErrors.Add($"برای محل پرداخت انتخاب‌شده: {ex.Message}");
+            }
+            catch (Exception)
+            {
+                if (version == paymentLocationResolutionVersion && ReferenceEquals(model, CurrentHawala) && model.PaymentLocationId == selectedLocationId)
+                    ValidationErrors.Add("برای محل پرداخت انتخاب‌شده، دریافت حساب مسئول انجام نشد؛ دوباره تلاش کنید.");
+            }
+            finally { paymentLocationResolutionGate.Release(); }
         }
 
         StateHasChanged();
@@ -2043,6 +2059,12 @@
     }
 
     // ===== متدهای جستجوی حساب =====
+
+    private void FromAccountChanged(long id)
+    {
+        CurrentHawala.FromAccountId = id > 0 ? id : null;
+        if (id == 0) CurrentHawala.GeneratedSendHawalaNumber = null;
+    }
 
     private async Task SelectFromAccount(AccountDto account)
     {

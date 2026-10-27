@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow"><title>تست اصلاحات جزئی — ساختار فعلی صرافی</title>
+  <link rel="stylesheet" href="../lib/bootstrap/dist/css/bootstrap.rtl.min.css">
+  <link rel="stylesheet" href="../styles/app.css">
+  <link rel="stylesheet" href="exchange-current.css">
+  <script type="module" src="exchange-current.js"></script>
+</head>
+<body class="preview-polished">
+<a class="preview-skip" href="#sample-main">رفتن به محتوای صفحه</a>
+<div class="preview-comparison" aria-label="کنترل پیش‌نمایش"><strong>نسخه تستی · ساختار فعلی حفظ شده</strong><div role="group" aria-label="مقایسه ظاهر"><button type="button" id="baseline" aria-pressed="false">ظاهر فعلی</button><button type="button" id="polished" aria-pressed="true">اصلاحات جزئی</button></div><small>اطلاعات ساختگی · بدون اتصال به دیتابیس</small></div>
+<div class="page app-shell">
+  <input type="checkbox" id="mobile-nav-toggle" class="mobile-menu-toggle" aria-label="نمایش منوی اصلی">
+  <label for="mobile-nav-toggle" class="mobile-menu-button" aria-label="باز یا بسته کردن منوی اصلی"><span aria-hidden="true">☰</span></label>
+  <label for="mobile-nav-toggle" class="mobile-menu-backdrop" aria-label="بستن منوی اصلی"></label>
+  <aside class="sidebar" aria-label="منوی اصلی"><div class="nav-sidebar">
+    <div class="navbar-brand-custom"><div class="logo-wrapper"><img src="../images/logo.png" alt="Kabul Code Lab" class="logo-image"></div></div>
+    <div class="nav-scrollable"><nav class="nav flex-column">
+      <div class="nav-item px-3"><button class="nav-link-custom" data-notice="داشبورد"><span class="preview-icon" data-icon="grid"></span>داشبورد</button></div><div class="nav-divider"></div>
+      <div class="nav-item px-3"><button class="nav-link-custom" data-notice="حساب‌ها"><span class="preview-icon" data-icon="wallet"></span>حساب‌ها</button></div>
+      <div class="nav-item px-3"><button class="nav-link-custom" data-view="customers"><span class="preview-icon" data-icon="people"></span>مشتری‌ها</button></div>
+      <div class="nav-item px-3"><button class="nav-link-custom" data-notice="نمایندگی‌ها"><span class="preview-icon" data-icon="building"></span>نمایندگی‌ها</button></div>
+      <details class="nav-item nav-menu-group px-3" open><summary class="nav-link-custom nav-link-toggle"><span class="preview-icon" data-icon="arrows"></span>حواله‌ها<span class="toggle-icon">⌄</span></summary><div class="sub-menu">
+        <button class="nav-link-custom sub-link active" data-view="hawalas" aria-current="page"><span class="preview-icon" data-icon="document"></span>ثبت و لیست حواله‌ها</button>
+        <button class="nav-link-custom sub-link" data-notice="حواله‌های دریافتی"><span class="preview-icon" data-icon="down"></span>حواله‌های دریافتی</button>
+        <button class="nav-link-custom sub-link" data-notice="حواله‌های اجرا نشده"><span class="preview-icon" data-icon="clock"></span>حواله‌های اجرا نشده</button>
+      </div></details>
+      <div class="nav-item px-3"><button class="nav-link-custom" data-notice="تبادله اسعار"><span class="preview-icon" data-icon="arrows"></span>تبادله اسعار</button></div>
+      <div class="nav-item px-3"><button class="nav-link-custom" data-notice="معاملات درهم"><span class="preview-icon" data-icon="wallet"></span>معاملات درهم</button></div>
+      <div class="nav-item px-3"><button class="nav-link-custom" data-notice="رسید / برد"><span class="preview-icon" data-icon="arrows"></span>رسید / برد</button></div>
+      <div class="nav-item px-3"><button class="nav-link-custom" data-notice="انتقال‌ها"><span class="preview-icon" data-icon="send"></span>انتقال‌ها</button></div>
+      <div class="nav-item px-3"><button class="nav-link-custom" data-notice="روزنامچه"><span class="preview-icon" data-icon="document"></span>روزنامچه</button></div><div class="nav-divider"></div>
+      <details class="nav-item nav-menu-group px-3"><summary class="nav-link-custom nav-link-toggle"><span class="preview-icon" data-icon="document"></span>حسابداری<span class="toggle-icon">⌄</span></summary><div class="sub-menu"><button class="nav-link-custom sub-link" data-notice="دفتر کل">دفتر کل</button><button class="nav-link-custom sub-link" data-notice="سرمایه و برداشت مالک">سرمایه و برداشت مالک</button><button class="nav-link-custom sub-link" data-notice="مصارف">مصارف</button></div></details>
+      <details class="nav-item nav-menu-group px-3"><summary class="nav-link-custom nav-link-toggle"><span class="preview-icon" data-icon="chart"></span>گزارش‌ها<span class="toggle-icon">⌄</span></summary><div class="sub-menu"><button class="nav-link-custom sub-link" data-notice="گزارش حواله‌ها">گزارش حواله‌ها</button><button class="nav-link-custom sub-link" data-notice="بیلانس شیت">بیلانس شیت</button></div></details>
+      <div class="nav-item px-3"><button class="nav-link-custom" data-notice="تنظیمات"><span class="preview-icon" data-icon="settings"></span>تنظیمات</button></div>
+    </nav></div>
+  </div></aside>
+  <main class="app-main" id="sample-main" tabindex="-1"><article class="content app-content px-0"><div class="page-wrapper">
+    <div class="page-header">
+      <div><h1 class="page-title"><span class="preview-icon" id="heading-icon" data-icon="arrows"></span><span id="heading-title">مدیریت حواله‌ها</span><span class="page-subtitle" id="heading-subtitle">لیست و جستجوی حواله‌ها</span></h1></div>
+      <div class="page-header-stats" aria-label="آمار نمونه" id="header-stats"></div>
+      <div class="page-actions"><button class="btn-modern btn-primary-modern btn-rounded" id="new-record"><span class="preview-icon" data-icon="plus"></span><span id="new-record-label">حواله جدید</span></button></div>
+    </div>
+    <div class="customer-type-tabs" id="customer-tabs" hidden><button type="button" class="active" data-customer-type="customers">مشتریان</button><button type="button" data-customer-type="receivers">گیرندگان ثبت‌شده</button></div>
+    <section class="compact-filter-bar mb-3" id="filter-root" data-expanded="false" aria-label="جستجو و فیلتر نمونه">
+      <div class="compact-filter-main">
+        <div class="compact-filter-search"><span class="preview-search-icon preview-icon" data-icon="search"></span><input type="search" class="form-control" id="search" aria-label="جستجوی اصلی" placeholder="جستجو در اطلاعات حواله..."></div>
+        <select class="form-select compact-quick-filter" id="type-filter" aria-label="نوع حواله"><option value="">همه انواع</option><option>حواله ارسال</option><option>حواله دریافت</option><option>حواله متفرقه</option></select>
+        <select class="form-select compact-quick-filter" id="agent-filter" aria-label="نمایندگی"><option value="">همه نمایندگی‌ها</option><option>کویته</option><option>کابل برچی</option><option>هرات</option></select>
+        <div class="compact-advanced-filters compact-adaptive-fields">
+          <div class="compact-filter-field"><label class="form-label" for="status-filter">وضعیت حواله</label><select class="form-select" id="status-filter"><option value="">همه وضعیت‌ها</option><option>در انتظار</option><option>پرداخت شده</option><option>ارسال شده</option></select></div>
+          <div class="compact-filter-field"><label class="form-label" for="place-filter">محل پرداخت</label><select class="form-select" id="place-filter"><option value="">همه محل‌ها</option><option>قندوز</option><option>کابل برچی</option><option>هرات</option><option>خود صرافی</option></select></div>
+          <div class="compact-filter-field"><label class="form-label" for="currency-filter">ارز مبلغ</label><select class="form-select" id="currency-filter"><option value="">همه ارزها</option><option>AFN</option><option>USD</option></select></div>
+          <div class="compact-filter-field"><label class="form-label" for="minimum">حداقل مبلغ</label><input class="form-control" id="minimum" type="number" min="0" placeholder="از مبلغ"></div>
+          <div class="compact-filter-field"><label class="form-label" for="maximum">حداکثر مبلغ</label><input class="form-control" id="maximum" type="number" min="0" placeholder="تا مبلغ"></div>
+          <div class="compact-filter-field"><label class="form-label" for="from-date">از تاریخ ثبت</label><div class="persian-date-picker-wrapper" dir="rtl"><div class="date-picker-control"><input id="from-date" class="form-control date-picker-input" placeholder="انتخاب تاریخ" readonly aria-haspopup="dialog" aria-label="از تاریخ ثبت"><button type="button" class="date-picker-icon date-picker-calendar" data-calendar="from-date" aria-label="انتخاب از تاریخ"><span class="preview-icon" data-icon="calendar"></span></button><button type="button" class="date-picker-icon date-picker-clear" data-clear-date="from-date" aria-label="پاک کردن از تاریخ" hidden>×</button></div></div></div>
+          <div class="compact-filter-field"><label class="form-label" for="to-date">تا تاریخ ثبت</label><div class="persian-date-picker-wrapper" dir="rtl"><div class="date-picker-control"><input id="to-date" class="form-control date-picker-input" placeholder="انتخاب تاریخ" readonly aria-haspopup="dialog" aria-label="تا تاریخ ثبت"><button type="button" class="date-picker-icon date-picker-calendar" data-calendar="to-date" aria-label="انتخاب تا تاریخ"><span class="preview-icon" data-icon="calendar"></span></button><button type="button" class="date-picker-icon date-picker-clear" data-clear-date="to-date" aria-label="پاک کردن تا تاریخ" hidden>×</button></div></div></div>
+        </div>
+        <button type="button" class="btn-modern btn-light-modern compact-more-filter" id="more-filters" aria-expanded="false"><span class="preview-icon" data-icon="filter"></span>فیلترهای بیشتر<span aria-hidden="true">⌄</span></button>
+        <button type="button" class="compact-reset-filter" id="reset-filters" aria-label="پاک‌کردن همه فیلترها" title="پاک‌کردن همه فیلترها"><span class="preview-icon" data-icon="refresh"></span></button>
+      </div>
+    </section>
+    <div class="table-card hawala-list-card">
+      <div class="table-card-header"><div class="table-card-header-left"><span class="badge-modern badge-info" id="result-count">8</span></div></div>
+      <div class="table-card-body">
+        <div class="preview-selection" id="selected-toolbar" hidden><strong id="selected-count"></strong><button class="btn btn-outline-primary btn-sm" id="copy-records">کپی جزئیات</button><button class="btn btn-outline-secondary btn-sm" id="clear-selection">لغو انتخاب</button></div>
+        <div class="table-scroll-wrapper" tabindex="0" role="region" aria-label="جدول داده‌های ساختگی"><table class="table-modern table-striped-modern" id="records-table"><thead id="records-head"></thead><tbody id="records-body"></tbody></table></div>
+      </div>
+      <div class="table-card-footer"><div class="table-card-footer-left"><span class="text-muted small" id="result-summary"></span><span class="preview-page" aria-label="صفحه 1">1</span></div><label class="preview-page-size">تعداد در صفحه <select class="form-select select-page-size" id="page-size"><option>10</option><option>5</option></select></label></div>
+    </div>
+    <div class="preview-bottom"><button class="btn btn-outline-secondary btn-sm" id="refresh-sample"><span class="preview-icon" data-icon="refresh"></span>بروزرسانی نمونه</button><small>تست ظاهر؛ هیچ حواله یا سند واقعی ثبت، ویرایش یا حذف نمی‌شود.</small></div>
+  </div></article></main>
+</div>
+<dialog id="sample-dialog" class="preview-dialog" aria-labelledby="sample-dialog-title"><form id="sample-form"><header class="modal-header"><h2 class="modal-title" id="sample-dialog-title">جزئیات</h2><button type="button" class="btn-close close-dialog" aria-label="بستن"></button></header><div class="modal-body" id="sample-dialog-body"></div><footer class="modal-footer"><button type="submit" class="btn btn-primary" id="sample-submit">بستن</button><button type="button" class="btn btn-outline-secondary close-dialog">انصراف</button><span class="text-muted small">فقط آزمایشی</span></footer></form></dialog>
+<dialog id="date-dialog" class="preview-dialog preview-date-dialog" aria-labelledby="date-dialog-title"><form id="date-form"><header class="modal-header"><h2 class="modal-title" id="date-dialog-title">انتخاب تاریخ نمونه</h2><button type="button" class="btn-close close-date" aria-label="بستن تقویم"></button></header><div class="modal-body"><p class="text-muted small">ظاهر فیلد مانند سیستم فعلی است؛ این انتخاب‌گر فقط برای تست نمونه است.</p><label class="form-label" for="native-date">تاریخ میلادی</label><input class="form-control" type="date" id="native-date" value="2026-10-18" required><p class="mt-3 mb-0" id="date-equivalent" dir="ltr"></p></div><footer class="modal-footer"><button type="submit" class="btn btn-primary">انتخاب</button><button type="button" class="btn btn-outline-secondary close-date">انصراف</button></footer></form></dialog>
+<div id="sample-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+</body></html>

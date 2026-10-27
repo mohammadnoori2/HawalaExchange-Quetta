@@ -1,0 +1,269 @@
+/* Responsive corrections use the established colors, typefaces and component shapes.
+   Wide financial tables scroll inside their own viewport; the page itself must fit. */
+@media screen and (max-width: 1024px) {
+    .app-shell,
+    .app-main,
+    .app-content,
+    .page-wrapper,
+    .dashboard-wrapper,
+    .page-header,
+    .app-page-heading,
+    .page-actions,
+    .table-card,
+    .table-card-body,
+    .table-card-header,
+    .table-card-header-left,
+    .table-card-footer,
+    .compact-filter-bar,
+    .compact-filter-main,
+    .panel-filters,
+    .correspondent-hawala-sections,
+    .correspondent-hawala-panel,
+    .panel-header,
+    .modern-card,
+    .transactions-card,
+    .chart-card,
+    .date-filter,
+    .date-input-group,
+    .card-body {
+        min-inline-size: 0;
+        max-inline-size: 100%;
+        box-sizing: border-box;
+    }
+
+    .app-main { inline-size: 100%; }
+    .correspondent-hawala-sections { grid-template-columns: minmax(0, 1fr); }
+    .correspondent-hawala-panel { inline-size: 100%; }
+    .panel-header { flex-wrap: wrap; }
+    .app-shell > .sidebar {
+        inline-size: min(86vw, 19rem) !important;
+        max-inline-size: calc(100vw - 2.75rem);
+    }
+
+    .app-content > .page-wrapper,
+    .app-content > .dashboard-wrapper,
+    .platform-workspace {
+        padding-block-start: max(3.75rem, calc(env(safe-area-inset-top) + 3.25rem)) !important;
+    }
+
+    .app-content :is(.row, .d-flex, [class*="grid"]) > * {
+        min-inline-size: 0;
+    }
+
+    :is(.table-scroll-wrapper, .table-responsive, .statement-table-wrap, .report-table-wrapper) {
+        display: block;
+        inline-size: 100%;
+        max-inline-size: 100%;
+        min-inline-size: 0;
+        overflow-x: auto !important;
+        overscroll-behavior-inline: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    :is(.page-actions, .table-card-header, .table-card-header-left, .table-card-footer,
+        .panel-pagination, .list-footer-controls, .filter-actions) {
+        flex-wrap: wrap !important;
+        gap: .5rem;
+    }
+
+    :is(.page-title, .page-subtitle, .card-title, .modal-title, .detail-value, .info-value) {
+        min-inline-size: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .page-actions > *, .table-card-footer > * { max-inline-size: 100%; }
+
+    /* The native checkbox remains keyboard-operable underneath the existing icon. */
+    .app-shell > .mobile-menu-toggle {
+        display: block;
+        position: fixed;
+        inset-block-start: max(.65rem, env(safe-area-inset-top));
+        inset-inline-start: max(.65rem, env(safe-area-inset-right));
+        z-index: 1071;
+        inline-size: max(44px, 2.75rem);
+        block-size: max(44px, 2.75rem);
+        margin: 0;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    .mobile-menu-button { min-inline-size: 44px; min-block-size: 44px; }
+    .app-shell:has(.modal.show) > :is(.mobile-menu-toggle, .mobile-menu-button) {
+        visibility: hidden;
+        pointer-events: none;
+    }
+    .mobile-menu-toggle:focus-visible + .mobile-menu-button {
+        outline: 2px solid var(--app-primary);
+        outline-offset: 3px;
+    }
+
+    body.mobile-nav-open { overflow: hidden; }
+
+    .nav-sidebar :is(.nav-link-custom, .nav-link-toggle, .sub-link, .user-dropdown-item) {
+        min-block-size: 44px !important;
+        font-size: max(.9rem, 14px) !important;
+        white-space: normal;
+    }
+
+    .app-main :is(.btn, .btn-modern, .action-btn, .page-link, .compact-quick-filter),
+    .modal :is(.btn, .btn-modern, .action-btn, .page-link, .btn-close) {
+        min-block-size: 44px !important;
+    }
+
+    .app-main :is(.action-btn, .page-link), .modal :is(.action-btn, .btn-close) {
+        min-inline-size: 44px !important;
+    }
+
+    .modal-dialog {
+        inline-size: calc(100% - 1rem) !important;
+        max-inline-size: min(58rem, calc(100vw - 1rem)) !important;
+        margin-inline: auto !important;
+    }
+
+    .modal-content {
+        max-block-size: calc(100dvh - 1rem);
+        min-inline-size: 0;
+    }
+
+    .modal-body {
+        min-block-size: 0;
+        min-inline-size: 0;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+    }
+
+    .modal-header, .modal-footer { flex: 0 0 auto; }
+    .modal-header { gap: .5rem; }
+    .modal-footer { flex-wrap: wrap; gap: .5rem; }
+    .modal-footer > * { margin: 0; }
+    .modal-header .btn-close { flex-shrink: 0; }
+
+    .login-wrapper, .login-wrapper > *, .login-page .input-group-modern {
+        min-inline-size: 0;
+        max-inline-size: 100%;
+    }
+    .login-page .form-control-modern {
+        min-inline-size: 0;
+        font-size: max(16px, 1rem);
+        min-block-size: 44px;
+    }
+    .login-page .form-control-modern::placeholder { font-size: inherit; }
+    .login-page .toggle-password { min-inline-size: 44px; min-block-size: 44px; }
+    .login-page .form-options { flex-wrap: wrap; gap: .5rem; }
+}
+
+@media screen and (max-width: 768px) {
+    /* Override the legacy two-column mobile header without changing its styling. */
+    .app-main .page-header,
+    .app-main .page-header:has(.page-header-stats) {
+        grid-template-columns: minmax(0, 1fr) !important;
+        align-items: stretch !important;
+    }
+
+    .app-main .page-header:has(.page-header-stats) > :first-child {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+    }
+
+    .app-main .page-header:has(.page-header-stats) > .page-actions {
+        grid-column: 1 !important;
+        grid-row: 2 !important;
+    }
+
+    .app-main .page-header:has(.page-header-stats) > .page-header-stats {
+        grid-column: 1 !important;
+        grid-row: 3 !important;
+    }
+
+    .page-header-stats {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(min(6rem, 100%), 1fr));
+        gap: .5rem 0;
+        inline-size: 100%;
+        max-inline-size: 100%;
+        overflow: visible;
+    }
+    .page-header-stats > * { min-inline-size: 0; }
+    .page-header-stat { grid-template-columns: 18px minmax(0, 1fr); }
+    .page-header-stat :is(span, strong) { white-space: normal; overflow-wrap: anywhere; }
+
+    .compact-filter-search,
+    .compact-filter-main > .compact-filter-search,
+    .search-modern {
+        flex: 1 1 100% !important;
+        inline-size: 100% !important;
+        min-inline-size: 0 !important;
+        max-inline-size: 100% !important;
+    }
+
+    .compact-filter-main :is(.compact-quick-filter, .filter-selector) {
+        flex: 1 1 9rem;
+        max-inline-size: 100%;
+        min-inline-size: 0;
+    }
+
+    :is(.search-modern .search-input, .form-control, .form-select, .searchable-dropdown) {
+        min-inline-size: 0;
+        max-inline-size: 100%;
+    }
+
+    /* Keep mobile inputs readable and avoid focus zoom; desktop density is intact. */
+    .app-main :is(input.form-control, input.form-control-sm, select.form-select,
+        input.search-input, textarea.form-control, input.money-input) {
+        font-size: max(16px, 1rem) !important;
+        min-block-size: 44px !important;
+    }
+
+    .action-group { gap: .5rem !important; }
+    .quick-link-btn, .btn-filter { min-block-size: 44px; }
+    .date-filter, .date-input-group { inline-size: 100%; flex-wrap: wrap; }
+    .date-input-group > :is(.persian-date-picker-wrapper, .dual-date-picker-wrapper) {
+        flex: 1 1 10rem;
+        inline-size: auto;
+        max-inline-size: 100%;
+    }
+    .table-card-footer :is(.pagination, .pagination-modern) { flex-wrap: wrap; gap: .25rem; }
+    .table-card-footer .page-size-selector { inline-size: auto !important; flex: 1 1 auto; }
+
+    :is(.dashboard-layout, .charts-row, .provision-row, .bottom-row) {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    :is(.stats-row, .transaction-stats, .liquidity-items) {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    :is(.account-summary-strip, .statement-summary-grid, .report-summary-grid) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .modal-body { padding: .75rem !important; }
+    .modal-header, .modal-footer { padding: .75rem !important; }
+    .modal .modal-footer > .btn { flex: 1 1 auto; }
+    .modal-body :is(.d-flex, .input-group) { min-inline-size: 0; }
+    .modal :is(input.form-control, select.form-select, textarea.form-control) {
+        font-size: max(16px, 1rem) !important;
+        min-block-size: 44px;
+    }
+}
+
+@media screen and (max-width: 575.98px) {
+    .modal-body .row > [class*="col-"],
+    .app-main .row > :is(.col-6, .col-4, .col-3) {
+        flex: 0 0 100%;
+        inline-size: 100%;
+    }
+
+    .modal-footer { padding-block-end: max(.75rem, env(safe-area-inset-bottom)) !important; }
+    :is(.currency-rates-grid, .transaction-stats, .liquidity-items) {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@media screen and (max-width: 359.98px) {
+    :is(.stats-row, .account-summary-strip) { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-shell :is(.sidebar, .sub-menu, .toggle-icon) { transition: none !important; }
+}

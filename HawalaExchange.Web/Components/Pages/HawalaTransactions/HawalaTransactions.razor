@@ -801,10 +801,13 @@
     </div>
 }
 
+<HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
+
 @code {
+    private HawalaDto? executedHawala;
     private async Task RefreshPageDataAsync()
     {
-        await LoadLookupData(); await LoadAccounts(); await LoadCustomers(); await LoadPaymentLocations(); await LoadHawalas();
+        await LoadLookupData(); await LoadPaymentLocations(); await LoadHawalas(refreshStatistics: true);
     }
     [SupplyParameterFromQuery(Name = "editId")]
     public long? RequestedEditId { get; set; }
@@ -1086,8 +1089,6 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadLookupData();
-        await LoadAccounts();
-        await LoadCustomers();
         await LoadHawalas(refreshStatistics: true);
         await LoadPaymentLocations();
     }
@@ -1122,15 +1123,8 @@
 
     private async Task LoadAccounts()
     {
-        try
-        {
-            var result = await AccountService.GetAllAsync();
-            accounts = result.Where(a => !a.IsArchived).ToList();
-        }
-        catch (Exception ex)
-        {
-            validationErrors.Add($"خطا در بارگذاری حساب‌ها: {ex.Message}");
-        }
+        var result = await AccountService.GetAllAsync();
+        accounts = result.Where(a => !a.IsArchived).ToList();
     }
 
     private async Task LoadCustomers()
@@ -1478,13 +1472,29 @@
 
     // ===== متدهای عملیاتی =====
 
-    private void OpenPayFromMenu(HawalaDto hawala)
+    private Task OpenPayFromMenu(HawalaDto hawala)
     {
-        OpenPayModal(hawala.Id, hawala.Number);
+        return OpenPayModal(hawala.Id, hawala.Number);
     }
 
-    private void OpenPayModal(long hawalaId, long hawalaNumber)
+    private async Task OpenPayModal(long hawalaId, long hawalaNumber)
     {
+        if (isLoading) return;
+        try
+        {
+            isLoading = true;
+            await LoadAccounts();
+            await LoadCustomers();
+        }
+        catch (Exception ex)
+        {
+            validationErrors.Add($"خطا در بارگذاری اطلاعات پرداخت: {ex.Message}");
+            return;
+        }
+        finally
+        {
+            isLoading = false;
+        }
         payHawalaId = hawalaId;
         payHawalaNumber = hawalaNumber;
         selectedPaymentAccountId = 0;
@@ -1510,6 +1520,7 @@
 
     private async Task ConfirmPayHawala()
     {
+        if (isLoading) return;
         validationErrors.Clear();
         successMessage = string.Empty;
 
@@ -1526,7 +1537,8 @@
             StateHasChanged();
 
             payDetails.PaidFromAccountId = selectedPaymentAccountId;
-            await HawalaService.MarkAsPaidAsync(payHawalaId, payDetails);
+            executedHawala = HawalaExecutionReceiptSnapshot.WithDisplayDetails(
+                await HawalaService.MarkAsPaidAsync(payHawalaId, payDetails), payHawala);
 
             successMessage = "حواله با موفقیت پرداخت شد.";
 

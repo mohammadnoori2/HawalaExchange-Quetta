@@ -20,6 +20,11 @@
         چاپ رسید اجرا
     </button>
 
+    @if (!string.IsNullOrWhiteSpace(printError))
+    {
+        <div class="alert alert-warning mt-2" role="status">@printError</div>
+    }
+
     <div class="position-fixed" style="left:-10000px;top:0;width:80mm" aria-hidden="true">
         <div id="@printAreaId">
             <article class="hawala-receipt execution-receipt" dir="rtl">
@@ -52,6 +57,18 @@
                         <tr><th>نمبر مسلسل:</th><td class="receipt-strong">@Hawala.Number</td></tr>
                         <tr><th>فرستنده:</th><td>@Display(Hawala.SenderName)</td></tr>
                         <tr><th>گیرنده:</th><td>@ReceiverFullName</td></tr>
+                        @if (!string.IsNullOrWhiteSpace(ReceiverPhone))
+                        {
+                            <tr><th>شماره تماس:</th><td dir="ltr">@ReceiverPhone</td></tr>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(ReceiverTazkiraNumber))
+                        {
+                            <tr><th>شماره تذکره:</th><td dir="ltr">@ReceiverTazkiraNumber</td></tr>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(ReceiverAddress))
+                        {
+                            <tr><th>آدرس گیرنده:</th><td>@ReceiverAddress</td></tr>
+                        }
                         <tr>
                             <th>مبلغ:</th>
                             <td class="receipt-amount" dir="ltr">
@@ -91,7 +108,8 @@
 
 @code {
     [Parameter, EditorRequired] public HawalaDto? Hawala { get; set; }
-    [Parameter, EditorRequired] public PayHawalaDto Payment { get; set; } = new();
+    [Parameter] public PayHawalaDto Payment { get; set; } = new();
+    [Parameter] public bool AutoPrint { get; set; }
     [Parameter] public string ButtonClass { get; set; } = "btn-modern btn-light-modern";
 
     private readonly string printAreaId = $"hawala-execution-receipt-{Guid.NewGuid():N}";
@@ -99,6 +117,22 @@
     private DateTime previewExecutionTime = DateTime.UtcNow;
     private bool printing;
     private bool printRequested;
+    private long? autoPrintedHawalaId;
+    private string? printError;
+
+    private string? ReceiverPhone => ReceiverDetail(Payment.ReceiverPhone, Hawala?.ReceiverPhone);
+    private string? ReceiverTazkiraNumber => ReceiverDetail(Payment.ReceiverTazkiraNumber, Hawala?.ReceiverTazkiraNumber);
+    private string? ReceiverAddress => ReceiverDetail(Payment.ReceiverAddress, Hawala?.ReceiverAddress);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AutoPrint && Hawala is { Status: "Paid" } && autoPrintedHawalaId != Hawala.Id)
+        {
+            // A rerender or a print failure must never replay a financial action or print request.
+            autoPrintedHawalaId = Hawala.Id;
+            await PrintAsync();
+        }
+    }
 
     private DateTime ExecutionTime => Hawala?.PaidAt ?? previewExecutionTime;
     private decimal PaymentAmount => Hawala?.ToAmount ?? Hawala?.FromAmount ?? 0;
@@ -126,12 +160,13 @@
 
     private async Task PrintAsync()
     {
-        if (Hawala == null)
+        if (Hawala == null || printing)
             return;
 
         try
         {
             printing = true;
+            printError = null;
             previewExecutionTime = DateTime.UtcNow;
             company = await CompanySettingService.GetAsync();
             printRequested = true;
@@ -139,7 +174,7 @@
         catch
         {
             printing = false;
-            throw;
+            printError = "نمایش رسید ممکن نشد؛ برای تلاش دوباره «چاپ رسید اجرا» را بزنید. نیازی به اجرای دوباره حواله نیست.";
         }
     }
 
@@ -151,7 +186,12 @@
         printRequested = false;
         try
         {
-            await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", printAreaId, 80);
+            if (!await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", printAreaId, 80, true))
+                printError = "ارتباط با مرورگر قطع شد؛ برای نمایش رسید دوباره «چاپ رسید اجرا» را بزنید.";
+        }
+        catch (JSException)
+        {
+            printError = "پیش‌نمایش چاپ باز نشد؛ برای تلاش دوباره «چاپ رسید اجرا» را بزنید. نیازی به اجرای دوباره حواله نیست.";
         }
         finally
         {
@@ -162,6 +202,9 @@
 
     private static string Display(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
+
+    private static string? ReceiverDetail(string? draft, string? saved) =>
+        !string.IsNullOrWhiteSpace(draft) ? draft.Trim() : saved?.Trim();
 
     private static string GetCurrencyName(string? toName, string? toCode, string? fromName, string? fromCode)
     {

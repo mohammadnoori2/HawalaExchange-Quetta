@@ -60,6 +60,7 @@
     <RecordFilterBar TItem="CapitalInvestmentDto" Items="@baseInvestments" State="@advancedFilters" Changed="StateHasChanged" />
     <div class="modern-card mt-3 p-3">
         <h6>خلاصه به تفکیک ارز</h6>
+        <div class="table-responsive" tabindex="0" role="region" aria-label="خلاصه سرمایه به تفکیک ارز">
         <GlobalDataGrid class="table table-sm mb-0">
             <thead><tr><th>ارز</th><th>سرمایه واردشده</th><th>برداشت مالک</th><th>خالص سرمایه ثبت‌شده</th></tr></thead>
             <tbody>
@@ -71,6 +72,7 @@
                 }
             </tbody>
         </GlobalDataGrid>
+        </div>
         <small class="text-muted">این خالص فقط شامل سرمایه و برداشت‌های ثبت‌شده است؛ مفاد و مانده افتتاحیه را شامل نمی‌شود.</small>
     </div>
     <div class="table-card mt-4">

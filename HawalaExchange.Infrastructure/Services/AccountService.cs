@@ -22,6 +22,25 @@ namespace HawalaExchange.Application.Services
 
         // در AccountService.cs
 
+        // Read-only lists must stay fresh within a long-lived Blazor circuit.
+        public override async Task<IEnumerable<AccountDto>> GetAllAsync()
+        {
+            return await _dbSet.AsNoTracking().Select(account => new AccountDto
+            {
+                Id = account.Id,
+                AccountCode = account.AccountCode,
+                AccountName = account.AccountName,
+                AccountType = account.AccountType,
+                ReferenceType = account.CustomerId.HasValue ? "Customer"
+                    : account.CorrespondentId.HasValue ? "Correspondent" : null,
+                ReferenceId = account.CustomerId ?? account.CorrespondentId,
+                ReferenceName = account.Customer != null ? account.Customer.FullName
+                    : account.Correspondent != null ? account.Correspondent.Name : null,
+                IsArchived = account.IsArchived,
+                CreatedAt = account.CreatedAt
+            }).ToListAsync();
+        }
+
         public override async Task<AccountDto> CreateAsync(CreateAccountDto createDto)
         {
             await using var transaction = _context.Database.IsRelational() && _context.Database.CurrentTransaction == null

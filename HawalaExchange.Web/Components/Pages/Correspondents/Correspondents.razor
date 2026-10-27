@@ -5,6 +5,7 @@
 @using Microsoft.JSInterop
 @inject ICorrespondentService CorrespondentService
 @inject ICurrencyService CurrencyService
+@inject HawalaExchange.Web.Services.UiReferenceDataCache ReferenceDataCache
 @inject IAccountService AccountService
 @inject IHawalaService HawalaService
 @inject IJSRuntime JS
@@ -684,7 +685,8 @@
 @code {
     private async Task RefreshPageDataAsync()
     {
-        await LoadCorrespondents(); await LoadCurrencies(); await LoadAccounts();
+        await LoadCorrespondents(); await LoadAccounts();
+        if (showModal) await LoadCurrencies();
     }
     // ===== لیست‌ها =====
     private List<CorrespondentDto> correspondents = new();
@@ -808,7 +810,6 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadCorrespondents();
-        await LoadCurrencies();
         await LoadAccounts();
     }
 
@@ -833,16 +834,18 @@
         }
     }
 
-    private async Task LoadCurrencies()
+    private async Task<bool> LoadCurrencies()
     {
         try
         {
-            var result = await CurrencyService.GetActiveCurrenciesAsync();
+            var result = await ReferenceDataCache.GetActiveCurrenciesAsync();
             currencies = result.ToList();
+            return true;
         }
         catch (Exception ex)
         {
             validationErrors.Add($"خطا در بارگذاری ارزها: {ex.Message}");
+            return false;
         }
     }
 
@@ -968,30 +971,38 @@
     private static InitialBalanceDto NewInitialBalance() => new() { Direction = "Debit" };
 
     // ===== باز و بسته کردن مودال‌ها =====
-    private void OpenCreateModal()
+    private async Task OpenCreateModal()
     {
-        currentCorrespondent = new CreateCorrespondentDto();
-        correspondentCodeDisplay = null;
-        isEditMode = false;
-        editId = 0;
-        validationErrors.Clear();
-        successMessage = string.Empty;
-        showModal = true;
-        initialBalances.Clear();
-        hasInitialBalance = false;
-        HasInitialBalance = true;
-        initialBalanceValidationAttempted = false;
-        initialBalanceError = string.Empty;
-        StateHasChanged();
+        if (isLoading) return;
+        isLoading = true;
+        try
+        {
+            if (!await LoadCurrencies()) return;
+            currentCorrespondent = new CreateCorrespondentDto();
+            correspondentCodeDisplay = null;
+            isEditMode = false;
+            editId = 0;
+            validationErrors.Clear();
+            successMessage = string.Empty;
+            showModal = true;
+            initialBalances.Clear();
+            hasInitialBalance = false;
+            HasInitialBalance = true;
+            initialBalanceValidationAttempted = false;
+            initialBalanceError = string.Empty;
+        }
+        finally { isLoading = false; }
     }
 
     private async Task OpenEditModal(long id)
     {
+        if (isLoading) return;
         try
         {
             isLoading = true;
             StateHasChanged();
 
+            if (!await LoadCurrencies()) return;
             var correspondent = await CorrespondentService.GetByIdAsync(id);
             if (correspondent != null)
             {

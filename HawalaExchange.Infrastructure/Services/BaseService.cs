@@ -33,7 +33,7 @@ namespace HawalaExchange.Application.Services
 
         public virtual async Task<IEnumerable<TDto>> GetAllAsync()
         {
-            var entities = await _dbSet.ToListAsync();
+            var entities = await _dbSet.AsNoTracking().ToListAsync();
             return _mapper.Map<IEnumerable<TDto>>(entities);
         }
 

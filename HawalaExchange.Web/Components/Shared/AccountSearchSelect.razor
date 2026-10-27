@@ -1,60 +1,19 @@
 @using HawalaExchange.Application.DTOs
-@inject IJSRuntime JS
+@using System.Text.Json
 
-<div class="searchable-dropdown" @ref="dropdownElement">
-    <div class="searchable-dropdown-input" @onclick="Open">
-        <input type="text"
-               class="@CssClass"
-               value="@DisplayText"
-               placeholder="@Placeholder"
-               autocomplete="off"
-               disabled="@Disabled"
-               @oninput="HandleInputAsync"
-               @onfocus="Open"
-               @onblur="Close"
-               @onkeydown="HandleKeyDownAsync"
-               @onkeydown:stopPropagation="true" />
+<div class="searchable-dropdown" data-account-search data-account-options="@optionsJson"
+     data-account-value="@Value" data-account-revision="@acknowledgedRevision"
+     data-account-limit="@MaxResults" data-account-clear="@AllowClear.ToString().ToLowerInvariant()"
+     data-account-show-code="@ShowAccountCode.ToString().ToLowerInvariant()"
+     data-account-clear-text="@ClearText">
+    <div class="searchable-dropdown-input">
+        <input type="text" class="@CssClass" placeholder="@Placeholder" aria-label="@Placeholder" autocomplete="off"
+               disabled="@Disabled" data-account-query role="combobox" aria-autocomplete="list"
+               aria-expanded="false" aria-controls="@listId" />
     </div>
-
-    <div class="searchable-dropdown-menu searchable-dropdown-menu-floating"
-         @ref="menuElement" popover="manual">
-        @if (isOpen && !Disabled)
-        {
-            @if (AllowClear)
-            {
-                <button type="button"
-                        class="searchable-dropdown-item searchable-dropdown-clear"
-                        @onmousedown:preventDefault="true"
-                        @onclick="ClearAsync">
-                    <i class="bi bi-x-circle me-1"></i>
-                    @ClearText
-                </button>
-            }
-
-            @if (!MatchingAccounts.Any())
-            {
-                <div class="searchable-dropdown-item text-muted">حسابی یافت نشد</div>
-            }
-            else
-            {
-                @foreach (var account in MatchingAccounts.Take(MaxResults))
-                {
-                    <div class="searchable-dropdown-item"
-                         @onmousedown:preventDefault="true"
-                         @onclick="() => SelectAsync(account)">
-                        <div class="fw-bold">@account.AccountName</div>
-                        <small class="text-muted">
-                            @if (ShowAccountCode)
-                            {
-                                <span>@account.AccountCode - </span>
-                            }
-                            @GetAccountTypeName(account.AccountType)
-                        </small>
-                    </div>
-                }
-            }
-        }
-    </div>
+    <input type="hidden" data-account-commit @onchange="HandleSelectionAsync" />
+    <div id="@listId" class="searchable-dropdown-menu searchable-dropdown-menu-floating"
+         data-account-results popover="manual" role="listbox"></div>
 </div>
 
 @if (ShowBalanceSummary)
@@ -76,137 +35,52 @@
     [Parameter] public string ClearText { get; set; } = "همه حساب‌ها";
     [Parameter] public int MaxResults { get; set; } = 30;
 
-    private string searchText = string.Empty;
-    private bool isOpen;
-    private bool hasObservedValue;
-    private long lastObservedValue;
-    private ElementReference dropdownElement;
-    private ElementReference menuElement;
-    private bool openMenuAfterRender;
-
-    private List<AccountDto> AccountList =>
-        (Accounts ?? Array.Empty<AccountDto>()).ToList();
-
-    private IEnumerable<AccountDto> MatchingAccounts =>
-        string.IsNullOrWhiteSpace(searchText)
-            ? AccountList
-            : AccountList.Where(account =>
-                Contains(account.AccountName, searchText) ||
-                Contains(account.AccountCode, searchText) ||
-                Contains(account.ReferenceName, searchText));
-
-    private string DisplayText
-    {
-        get
-        {
-            if (!string.IsNullOrWhiteSpace(searchText))
-                return searchText;
-
-            var selected = AccountList.FirstOrDefault(x => x.Id == Value);
-            if (selected == null)
-                return string.Empty;
-
-            return ShowAccountCode
-                ? $"{selected.AccountName} ({selected.AccountCode})"
-                : selected.AccountName;
-        }
-    }
-
-    private void Open()
-    {
-        if (!Disabled)
-        {
-            isOpen = true;
-            openMenuAfterRender = true;
-        }
-    }
-
-    private async Task Close()
-    {
-        searchText = string.Empty;
-        isOpen = false;
-        await JS.TryInvokeUiVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!openMenuAfterRender || !isOpen || Disabled)
-            return;
-
-        openMenuAfterRender = false;
-        await JS.TryInvokeUiVoidAsync("hawalaTools.openFloatingDropdown", dropdownElement, menuElement);
-    }
+    private readonly string listId = $"account-options-{Guid.NewGuid():N}";
+    private readonly SemaphoreSlim selectionGate = new(1, 1);
+    private long lastClientRevision;
+    private long acknowledgedRevision;
+    private List<AccountDto> accountList = [];
+    private string optionsJson = "[]";
 
     protected override void OnParametersSet()
     {
-        if (!hasObservedValue)
+        accountList = (Accounts ?? []).Where(x => !x.IsArchived).ToList();
+        optionsJson = JsonSerializer.Serialize(accountList.Select(x => new {
+            id = x.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            name = x.AccountName, code = x.AccountCode, reference = x.ReferenceName,
+            type = AppDisplayText.AccountType(x.AccountType),
+            display = ShowAccountCode ? $"{x.AccountName} ({x.AccountCode})" : x.AccountName
+        }));
+    }
+
+    private async Task HandleSelectionAsync(ChangeEventArgs args)
+    {
+        SelectionMessage? message;
+        try { message = JsonSerializer.Deserialize<SelectionMessage>(args.Value?.ToString() ?? ""); }
+        catch (JsonException) { return; }
+        if (message is null || message.revision <= 0) return;
+        await selectionGate.WaitAsync();
+        try
         {
-            lastObservedValue = Value;
-            hasObservedValue = true;
-            return;
+            if (message.revision <= lastClientRevision) return;
+            lastClientRevision = message.revision;
+            if (Disabled || !long.TryParse(message.id, out var id) || id < 0) return;
+            var account = accountList.FirstOrDefault(x => x.Id == id);
+            if (id != 0 && account is null) return;
+            Value = id;
+            await ValueChanged.InvokeAsync(id);
+            if (account is not null) await OnSelected.InvokeAsync(account);
         }
-
-        if (lastObservedValue == Value)
-            return;
-
-        lastObservedValue = Value;
-        searchText = string.Empty;
-        isOpen = false;
-    }
-
-    private async Task HandleInputAsync(ChangeEventArgs args)
-    {
-        searchText = args.Value?.ToString() ?? string.Empty;
-        isOpen = true;
-
-        if (Value != 0)
+        finally
         {
-            Value = 0;
-            lastObservedValue = 0;
-            await ValueChanged.InvokeAsync(0);
+            acknowledgedRevision = lastClientRevision;
+            selectionGate.Release();
         }
     }
 
-    private async Task HandleKeyDownAsync(KeyboardEventArgs args)
+    private sealed class SelectionMessage
     {
-        if (args.Key == "Escape")
-        {
-            await Close();
-            return;
-        }
-
-        if (args.Key != "Enter")
-            return;
-
-        var matches = MatchingAccounts.Take(2).ToList();
-        if (matches.Count == 1)
-            await SelectAsync(matches[0]);
+        public string? id { get; set; }
+        public long revision { get; set; }
     }
-
-    private async Task SelectAsync(AccountDto account)
-    {
-        Value = account.Id;
-        lastObservedValue = account.Id;
-        searchText = string.Empty;
-        isOpen = false;
-        await JS.TryInvokeUiVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
-        await ValueChanged.InvokeAsync(account.Id);
-        await OnSelected.InvokeAsync(account);
-    }
-
-    private async Task ClearAsync()
-    {
-        Value = 0;
-        lastObservedValue = 0;
-        searchText = string.Empty;
-        isOpen = false;
-        await JS.TryInvokeUiVoidAsync("hawalaTools.closeFloatingDropdown", menuElement);
-        await ValueChanged.InvokeAsync(0);
-    }
-
-    private static bool Contains(string? value, string term) =>
-        !string.IsNullOrWhiteSpace(value) &&
-        value.Contains(term, StringComparison.OrdinalIgnoreCase);
-
-    private static string GetAccountTypeName(string? type) => AppDisplayText.AccountType(type);
 }

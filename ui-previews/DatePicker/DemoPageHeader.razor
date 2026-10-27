@@ -1,0 +1,30 @@
+@* Preserve the AppPageHeader / PageHeaderStats markup and existing CSS contract. *@
+<header class="page-header app-page-header">
+    <div class="app-page-heading"><h1 class="page-title"><span class="sample-title-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 7V4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h15V7H5a1 1 0 0 1 0-3M20 12h-6v5h6" /></svg></span><span class="app-page-title-text">@Title<small class="page-subtitle">@Subtitle</small></span></h1></div>
+    <div class="page-header-stats" aria-label="آمار نمونه">
+        <div class="page-header-stat primary"><i class="sample-stat-icon" aria-hidden="true">□</i><span>مجموع</span><strong>@Count</strong></div>
+        <div class="page-header-stat success"><i class="sample-stat-icon" aria-hidden="true">✓</i><span>فعال</span><strong>@Count</strong></div>
+        <div class="page-header-stat danger"><i class="sample-stat-icon" aria-hidden="true">□</i><span>بایگانی</span><strong>0</strong></div>
+    </div>
+    <div class="page-actions" aria-label="عملیات صفحه">
+        @if(Create.HasDelegate){<button type="button" class="btn-modern btn-primary-modern btn-rounded" @onclick="Create"><span aria-hidden="true">＋</span> @CreateLabel</button>}
+        @if(ShowArchive){<button type="button" class="btn-modern btn-light-modern" @onclick="()=>Archive.InvokeAsync()">بایگانی‌ها (0)</button>}
+        <button type="button" class="btn-modern btn-light-modern demo-refresh" disabled="@busy" @onclick="RefreshAsync" aria-label="تازه‌سازی داده‌های نمونه" title="بازخوانی داده‌های نمونه؛ بدون بارگذاری مجدد صفحه">
+            @if(busy){<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>}else{<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10a8 8 0 1 0-1 8M20 4v6h-6" /></svg>}
+            @(busy?"در حال تازه‌سازی…":"تازه‌سازی")
+        </button>
+    </div>
+</header>
+@code{
+    [Parameter] public string Title {get;set;}="";
+    [Parameter] public string Subtitle {get;set;}="";
+    [Parameter] public string Icon {get;set;}="bi-wallet2";
+    [Parameter] public string CreateLabel {get;set;}="ایجاد";
+    [Parameter] public int Count {get;set;}
+    [Parameter] public bool ShowArchive {get;set;}
+    [Parameter] public EventCallback Create {get;set;}
+    [Parameter] public EventCallback Archive {get;set;}
+    [Parameter] public EventCallback Refresh {get;set;}
+    private bool busy;
+    private async Task RefreshAsync(){if(busy)return;busy=true;try{await Refresh.InvokeAsync();}finally{busy=false;}}
+}

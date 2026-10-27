@@ -22,13 +22,13 @@
                 title="@Title"
                 aria-label="@AriaLabel"
                 aria-haspopup="menu"
-                aria-expanded="@isOpen.ToString().ToLowerInvariant()"
-                @onclick="ToggleAsync">
+                aria-expanded="false"
+                data-operation-menu-toggle="@menuId">
             <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
         </button>
 
         <div id="@menuId"
-             class="operation-menu @MenuCssClass @(!isOpen ? "operation-menu-closed" : null)"
+             class="operation-menu @MenuCssClass operation-menu-closed"
              dir="rtl"
              role="menu">
             @if (isConfiguring)
@@ -63,7 +63,7 @@
             }
             else
             {
-                <div class="operation-menu-items" @onclick="CloseMenuAsync">
+                <div class="operation-menu-items">
                     @ChildContent
                 </div>
                 <div class="operation-menu-divider operation-menu-settings-divider"></div>
@@ -219,7 +219,7 @@
                 return;
 
             dotNetReference ??= DotNetObjectReference.Create(this);
-            var opened = await TryInvokeAsync<object>("hawalaTools.openOperationMenu", buttonId, menuId, dotNetReference);
+            var opened = await TryInvokeAsync<object>("hawalaTools.refreshOperationMenu", buttonId, menuId, dotNetReference);
             if (opened.Success) positionAfterRender = false;
         }
         finally
@@ -256,11 +256,15 @@
 
     private async Task OpenSettingsAsync()
     {
+        // Ordinary opening is local to the browser; only the settings editor needs server state.
+        if (!isOpen) await ToggleAsync();
+        dotNetReference ??= DotNetObjectReference.Create(this);
         var result = await TryInvokeAsync<List<ActionMenuOption>>(
             "hawalaTools.getOperationMenuOptions",
             menuId,
             effectivePreferenceKey,
-            DefaultQuickActions);
+            DefaultQuickActions,
+            dotNetReference);
 
         if (!result.Success) return;
         var options = result.Value ?? [];

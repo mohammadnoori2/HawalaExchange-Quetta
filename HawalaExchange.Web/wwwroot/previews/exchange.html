@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>پیش‌نمایش طراحی صرافی — داده‌های ساختگی</title>
+  <link rel="stylesheet" href="exchange.css"><script src="exchange.js" defer></script>
+</head>
+<body>
+<a href="#main" class="skip">رفتن به محتوای اصلی</a>
+<svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="arrows" viewBox="0 0 24 24"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></symbol>
+<symbol id="people" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6m3 11v-3a6 6 0 0 0-3-5"/></symbol>
+<symbol id="building" viewBox="0 0 24 24"><path d="M3 21h18M6 21V4h12v17M9 8h1m4 0h1M9 12h1m4 0h1m-5 9v-5h4v5"/></symbol>
+<symbol id="wallet" viewBox="0 0 24 24"><path d="M20 7V4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h15V7H5a1 1 0 0 1 0-3M20 12h-6v5h6"/></symbol>
+<symbol id="chart" viewBox="0 0 24 24"><path d="M4 3v18h17M8 16v-5m5 5V7m5 9V4"/></symbol>
+<symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></symbol>
+<symbol id="calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h1m4 0h1"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0-1 8M20 4v6h-6"/></symbol>
+<symbol id="filter" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16M9 3v6m6 0v6m-7 0v6"/></symbol>
+<symbol id="down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="upload" viewBox="0 0 24 24"><path d="M4 15v6h16v-6M12 16V3m-5 5 5-5 5 5"/></symbol>
+</defs></svg>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark"><svg><use href="#arrows"/></svg></span><div><strong>صرافی شما</strong><small>فضای کاری نمونه</small></div></div>
+    <div class="branch"><span class="initial">ش</span><div><strong>شعبه مرکزی</strong><small>کاربر آزمایشی · مدیر</small></div><span class="dot"></span></div>
+    <nav aria-label="بخش‌های نمونه صرافی"><p class="nav-label">فضای کاری</p>
+      <button data-page="home"><svg><use href="#grid"/></svg>نمای کلی</button>
+      <button data-page="hawalas" aria-current="page"><svg><use href="#arrows"/></svg>حواله‌ها <span class="nav-count">8</span></button>
+      <button data-page="customers"><svg><use href="#people"/></svg>مشتریان</button>
+      <button data-page="correspondents"><svg><use href="#building"/></svg>نمایندگی‌ها</button>
+      <button data-page="accounts"><svg><use href="#wallet"/></svg>حساب‌ها</button>
+      <p class="nav-label">حسابداری و بررسی</p>
+      <button data-page="journal"><svg><use href="#calendar"/></svg>روزنامچه</button>
+      <button data-page="commissions"><svg><use href="#chart"/></svg>کمیشن‌ها</button>
+      <button data-page="reports"><svg><use href="#chart"/></svg>گزارش‌ها</button>
+    </nav>
+    <div class="sidebar-note"><strong>محیط پیش‌نمایش</strong><small>تمام نام‌ها و مبالغ ساختگی‌اند.<br>هیچ اتصال به دیتابیس وجود ندارد.</small></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span>صرافی / <strong id="breadcrumb">حواله‌ها</strong></span><div><span class="preview-label">نسخه پیشنهادی · آزمایشی</span><span class="today">1405/07/26</span></div></header>
+    <main id="main" tabindex="-1">
+      <div class="page-heading"><div><p class="eyebrow">مدیریت روزانه صرافی</p><h1 id="page-title">حواله‌ها</h1><p id="page-subtitle">ثبت، پیگیری و مدیریت حواله‌ها در یک فضای کاری</p></div><button class="button" id="refresh"><svg><use href="#icon-refresh"/></svg>بروزرسانی نمونه</button></div>
+      <div class="summary" aria-label="خلاصه داده‌های ساختگی"><div><span id="summary-label">حواله‌های این لیست</span><strong id="total-count">8 <small>حواله</small></strong></div><div><span>مجموع افغانی همین لیست</span><strong id="afn-total" dir="ltr">0 <small>AFN</small></strong></div><div><span>مجموع دالر همین لیست</span><strong id="usd-total" dir="ltr">0 <small>USD</small></strong></div><div><span>در انتظار اجرا</span><strong id="pending-total">3 <small>حواله</small></strong></div></div>
+      <section class="panel">
+        <div class="toolbar"><button class="button primary" id="create"><svg><use href="#plus"/></svg><span id="create-label">ثبت حواله</span></button><button class="button" id="bulk"><svg><use href="#upload"/></svg>آپلود گروهی</button><span class="toolbar-hint">داده‌های نمایشی؛ بدون ثبت واقعی</span></div>
+        <form id="filters" class="filters">
+          <label class="field search-field"><span>جستجو</span><span class="input-wrap"><svg><use href="#icon-search"/></svg><input id="search" type="search" placeholder="نمبر، نام یا محل پرداخت…" autocomplete="off"></span></label>
+          <label class="field"><span>وضعیت</span><select id="status"><option value="">همه وضعیت‌ها</option>در انتظار اجرا</option><option>پرداخت شده</option><option>ارسال شده</option></select></label>
+          <label class="field"><span>ارز</span><select id="currency"><option value="">همه ارزها</option><option>AFN</option><option>USD</option></select></label>
+          <label class="field"><span>از تاریخ</span><span class="input-wrap date-wrap"><input id="from-date" type="date" aria-describedby="date-hint"></span></label>
+          <label class="field"><span>تا تاریخ</span><span class="input-wrap date-wrap"><input id="to-date" type="date" aria-describedby="date-hint"></span></label>
+          <button type="button" class="button more-filter" id="more-filters" aria-expanded="false" aria-controls="advanced"><svg><use href="#filter"/></svg>فیلترهای بیشتر</button>
+          <button type="reset" class="button text-button">پاک‌کردن</button>
+          <div id="advanced" class="advanced" hidden><label class="field"><span>نمایندگی</span><select id="correspondent"><option value="">همه نمایندگی‌ها</option><option>کویته</option><option>کابل برچی</option><option>هرات</option></select></label><label class="field"><span>محل پرداخت</span><select id="location"><option value="">همه محل‌ها</option><option>کابل برچی</option><option>قندوز</option><option>هرات</option><option>خود صرافی</option></select></label><label class="field"><span>نوع حواله</span><select id="kind"><option value="">همه انواع</option><option>دریافتی</option><option>ارسالی</option></select></label><p id="date-hint">تقویم میلادی مرورگر فقط برای آزمایش ثبات فیلد است؛ در نسخه اصلی همان تقویم شمسی/میلادی سیستم استفاده می‌شود.</p></div>
+        </form>
+        <div class="list-heading"><div><h2 id="list-title">لیست حواله‌ها</h2><span id="result-count">8 مورد</span></div><span class="muted" id="selection-hint">برای عملیات گروهی، ردیف‌ها را انتخاب کنید</span></div>
+        <div class="selection-bar" id="selection-bar" hidden><strong id="selected-count"></strong><button class="button" id="copy">کپی جزئیات</button><button class="button" id="export">خروجی CSV نمونه</button><button class="button" id="execute">پیش‌نمایش اجرای گروهی</button><button class="button text-button" id="clear-selection">لغو انتخاب</button></div>
+        <div class="table-wrap" role="region" aria-label="لیست نمونه با قابلیت اسکرول افقی" tabindex="0"><table><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
+        <footer class="list-footer"><span id="footer-count"></span><label>تعداد در صفحه <select id="page-size"><option>8</option><option>5</option></select></label><div class="pagination"><button class="button" id="prev" aria-label="صفحه قبل">→</button><span id="page-number">1</span><button class="button" id="next" aria-label="صفحه بعد">←</button></div></footer>
+      </section>
+      <p class="bottom-note">این صفحه فقط برای بررسی طراحی است. عملیات ثبت، پرداخت و حسابداری در آن انجام نمی‌شود.</p>
+    </main>
+  </div>
+</div>
+<dialog id="record-dialog" aria-labelledby="dialog-title"><form id="record-form"><header class="dialog-header"><div><span class="eyebrow">پیش‌نمایش فرم</span><h2 id="dialog-title">ثبت حواله جدید</h2></div><button type="button" class="button close-dialog" aria-label="بستن">✕</button></header><div class="dialog-body" id="dialog-body"></div><footer class="dialog-footer"><button type="submit" class="button primary" id="dialog-submit">بررسی نمونه</button><button type="button" class="button close-dialog">انصراف</button><small>بدون ثبت در دیتابیس</small></footer></form></dialog>
+<div id="notice" role="status" aria-live="polite" aria-atomic="true"></div>
+</body></html>

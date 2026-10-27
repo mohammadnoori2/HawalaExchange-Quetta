@@ -698,7 +698,10 @@
     </div>
 }
 
+<HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
+
 @code {
+    private HawalaDto? executedHawala;
     private async Task RefreshPageDataAsync()
     {
         await LoadAccounts(); await LoadCustomers(); await LoadData();
@@ -1025,6 +1028,7 @@
 
     private async Task ConfirmPay()
     {
+        if (isLoading) return;
         validationErrors.Clear();
         successMessage = string.Empty;
 
@@ -1039,7 +1043,8 @@
             isLoading = true;
 
             payDetails.PaidFromAccountId = selectedPaymentAccountId;
-            await HawalaService.MarkAsPaidAsync(payHawalaId, payDetails);
+            executedHawala = HawalaExecutionReceiptSnapshot.WithDisplayDetails(
+                await HawalaService.MarkAsPaidAsync(payHawalaId, payDetails), payHawala);
 
             successMessage = "حواله با موفقیت پرداخت شد.";
 

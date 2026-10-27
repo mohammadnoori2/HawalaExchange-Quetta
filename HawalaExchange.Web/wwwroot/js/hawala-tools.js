@@ -37,6 +37,7 @@ function positionHawalaOperationMenu(button, menu) {
 }
 
 function cleanupHawalaOperationMenu(state) {
+    state.detachObserver?.disconnect();
     document.removeEventListener("pointerdown", state.onPointerDown, true);
     document.removeEventListener("keydown", state.onKeyDown, true);
     window.removeEventListener("scroll", state.onScroll, true);
@@ -45,13 +46,37 @@ function cleanupHawalaOperationMenu(state) {
 
 function closeHawalaOperationMenuFromBrowser(state) {
     cleanupHawalaOperationMenu(state);
+    state.menu.classList.add("operation-menu-closed");
+    state.menu.style.visibility = "hidden";
+    state.button.setAttribute("aria-expanded", "false");
 
     if (activeHawalaOperationMenu === state) {
         activeHawalaOperationMenu = null;
     }
 
-    void state.dotNetReference.invokeMethodAsync("CloseFromJs").catch(() => { });
+    if (state.dotNetReference) {
+        void state.dotNetReference.invokeMethodAsync("CloseFromJs").catch(() => { });
+    }
 }
+
+// The menu shell is a browser interaction. It must not wait for a Blazor round trip.
+document.addEventListener("click", event => {
+    const trigger = event.target.closest?.("[data-operation-menu-toggle]");
+    if (trigger) {
+        event.stopPropagation();
+        const menuId = trigger.dataset.operationMenuToggle;
+        if (activeHawalaOperationMenu?.menuId === menuId) {
+            closeHawalaOperationMenuFromBrowser(activeHawalaOperationMenu);
+        } else {
+            window.hawalaTools.openOperationMenu(trigger.id, menuId, null);
+        }
+        return;
+    }
+    const action = event.target.closest?.(".operation-menu-items .operation-menu-item");
+    if (action && !action.disabled && activeHawalaOperationMenu?.menu.contains(action)) {
+        closeHawalaOperationMenuFromBrowser(activeHawalaOperationMenu);
+    }
+}, true);
 
 function getActionMenuStorageKey(preferenceKey) {
     return `hawala:action-menu:${preferenceKey}`;
@@ -185,6 +210,9 @@ function syncOperationMenuQuickActions(menuId, quickHostId, preferenceKey, defau
     });
 
     tidyActionMenuDividers(menu);
+    if (activeHawalaOperationMenu?.menu === menu) {
+        positionHawalaOperationMenu(activeHawalaOperationMenu.button, menu);
+    }
 }
 
 window.hawalaTools = {
@@ -235,7 +263,10 @@ window.hawalaTools = {
         syncOperationMenuQuickActions(menuId, quickHostId, preferenceKey, defaults);
     },
 
-    getOperationMenuOptions: function (menuId, preferenceKey, defaults) {
+    getOperationMenuOptions: function (menuId, preferenceKey, defaults, dotNetReference) {
+        if (activeHawalaOperationMenu?.menuId === menuId && dotNetReference) {
+            activeHawalaOperationMenu.dotNetReference = dotNetReference;
+        }
         const menu = document.getElementById(menuId);
         const selectedKeys = getSelectedActionKeys(preferenceKey, defaults);
         return getActionMenuItems(menu).map(action => ({
@@ -259,17 +290,16 @@ window.hawalaTools = {
                 []));
     },
 
-    openOperationMenu: async function (buttonId, menuId, dotNetReference) {
-        if (activeHawalaOperationMenu && activeHawalaOperationMenu.menuId !== menuId) {
-            const previousMenu = activeHawalaOperationMenu;
-            cleanupHawalaOperationMenu(previousMenu);
-            activeHawalaOperationMenu = null;
+    refreshOperationMenu: function (buttonId, menuId, dotNetReference) {
+        // A delayed server render may refresh an open editor, but never reopen a closed menu.
+        if (activeHawalaOperationMenu?.menuId === menuId) {
+            window.hawalaTools.openOperationMenu(buttonId, menuId, dotNetReference);
+        }
+    },
 
-            try {
-                await previousMenu.dotNetReference.invokeMethodAsync("CloseFromJs");
-            } catch {
-                // The previous component may already have been disposed.
-            }
+    openOperationMenu: function (buttonId, menuId, dotNetReference) {
+        if (activeHawalaOperationMenu && activeHawalaOperationMenu.menuId !== menuId) {
+            closeHawalaOperationMenuFromBrowser(activeHawalaOperationMenu);
         }
 
         const button = document.getElementById(buttonId);
@@ -279,7 +309,10 @@ window.hawalaTools = {
             return;
         }
 
+        menu.classList.remove("operation-menu-closed");
+        button.setAttribute("aria-expanded", "true");
         if (activeHawalaOperationMenu?.menuId === menuId) {
+            if (dotNetReference) activeHawalaOperationMenu.dotNetReference = dotNetReference;
             positionHawalaOperationMenu(button, menu);
             return;
         }
@@ -306,7 +339,8 @@ window.hawalaTools = {
                 button.focus();
             }
         };
-        state.onScroll = function () {
+        state.onScroll = function (event) {
+            if (menu.contains(event.target)) return;
             closeHawalaOperationMenuFromBrowser(state);
         };
         state.onResize = function () {
@@ -314,6 +348,10 @@ window.hawalaTools = {
         };
 
         activeHawalaOperationMenu = state;
+        state.detachObserver = new MutationObserver(() => {
+            if (!button.isConnected || !menu.isConnected) closeHawalaOperationMenuFromBrowser(state);
+        });
+        state.detachObserver.observe(document.body, { childList: true, subtree: true });
         positionHawalaOperationMenu(button, menu);
 
         document.addEventListener("pointerdown", state.onPointerDown, true);
@@ -342,11 +380,14 @@ window.hawalaTools = {
             return;
         }
 
-        cleanupHawalaOperationMenu(activeHawalaOperationMenu);
+        const state = activeHawalaOperationMenu;
+        cleanupHawalaOperationMenu(state);
         activeHawalaOperationMenu = null;
+        state.button.setAttribute("aria-expanded", "false");
 
         const menu = document.getElementById(menuId);
         if (menu) {
+            menu.classList.add("operation-menu-closed");
             menu.style.visibility = "hidden";
         }
     },
@@ -575,7 +616,7 @@ window.hawalaTools = {
         return true;
     },
 
-    printElement: function (elementId, paperWidthMm) {
+    printElement: function (elementId, paperWidthMm, useFrame) {
         const element = document.getElementById(elementId);
 
         if (!element) {
@@ -591,9 +632,18 @@ window.hawalaTools = {
 
         const receiptHtml = clonedElement.innerHTML;
 
-        const printWindow = window.open("", "_blank", "width=420,height=700");
+        // Printing after an asynchronous payment must not depend on popup permissions.
+        let printFrame;
+        if (useFrame) {
+            printFrame = document.createElement("iframe");
+            printFrame.title = "پیش‌نمایش رسید اجرای حواله";
+            printFrame.style.cssText = "position:fixed;right:100%;top:0;width:420px;height:700px;border:0";
+            document.body.appendChild(printFrame);
+        }
+        const printWindow = printFrame ? printFrame.contentWindow : window.open("", "_blank", "width=420,height=700");
 
         if (!printWindow) {
+            if (printFrame) printFrame.remove();
             alert("Print window was blocked. Please allow popups for this site.");
             return;
         }
@@ -958,5 +1008,8 @@ window.hawalaTools = {
         `);
 
         printWindow.document.close();
+        if (printFrame) {
+            printWindow.addEventListener("afterprint", () => printFrame.remove(), { once: true });
+        }
     }
 };

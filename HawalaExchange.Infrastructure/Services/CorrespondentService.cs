@@ -158,7 +158,7 @@ namespace HawalaExchange.Application.Services
 
         public override async Task<IEnumerable<CorrespondentDto>> GetAllAsync()
         {
-            var entities = await _dbSet.Include(x => x.SettlementCurrency).ToListAsync();
+            var entities = await _dbSet.AsNoTracking().Include(x => x.SettlementCurrency).ToListAsync();
             return _mapper.Map<IEnumerable<CorrespondentDto>>(entities);
         }
 

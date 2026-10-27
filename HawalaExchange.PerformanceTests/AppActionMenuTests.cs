@@ -137,6 +137,24 @@ public sealed class AppActionMenuTests
     }
 
     [Fact]
+    public async Task Server_prepares_shortcuts_and_refreshes_settings_without_reopening_the_menu()
+    {
+        var browser = new Browser();
+        using var services = Services(browser);
+        await using var renderer = new HtmlRenderer(services, services.GetRequiredService<ILoggerFactory>());
+        await renderer.Dispatcher.InvokeAsync(async () =>
+        {
+            var menu = await Render(renderer);
+            await menu.AfterRender(true);
+            Assert.Equal("hawalaTools.syncOperationMenuQuickActions", Assert.Single(browser.Calls));
+            await menu.Call("OpenSettingsAsync");
+            await menu.AfterRender(false);
+            Assert.Contains("hawalaTools.refreshOperationMenu", browser.Calls);
+            Assert.DoesNotContain("hawalaTools.openOperationMenu", browser.Calls);
+        });
+    }
+
+    [Fact]
     public async Task Genuine_script_errors_are_not_hidden_as_disconnects()
     {
         var browser = new Browser { Handle = (_, _) => Task.FromException<object?>(new JSException("Broken script")) };

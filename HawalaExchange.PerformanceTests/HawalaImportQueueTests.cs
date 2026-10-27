@@ -681,6 +681,91 @@ public sealed class HawalaImportQueueTests(ITestOutputHelper output) : IAsyncLif
         Assert.All(await context.LedgerEntries.GroupBy(x => new { x.AccountId, x.CurrencyId }).Select(x => x.Sum(e => e.TalabKar - e.BadehKar)).ToListAsync(), x => Assert.Equal(0m, x));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Moving_imported_payment_location_reposts_to_assigned_account_and_preserves_history(bool closePeriod)
+    {
+        var request = await PreviewAsync(3, 100m);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await CreateImport(context).ConfirmAsync(request);
+        context.ChangeTracker.Clear();
+        var row = await context.HawalaImportRows.AsNoTracking().FirstAsync(x => x.BatchId == request.BatchId && x.GeneratedSendHawalaId != null);
+        var received = await context.Hawalas.AsNoTracking().SingleAsync(x => x.Id == row.HawalaId);
+        var key = Guid.NewGuid().ToString("N");
+        var destination = new Correspondent { Code = key, Name = "Assigned destination " + key, CommissionMethod = "PerTransaction" };
+        var location = new PaymentLocation { Name = "lashkargah " + key,
+            NormalizedName = PaymentLocationNameNormalizer.Normalize("lashkargah " + key), CreatedBy = fixture.UserId };
+        context.AddRange(destination, location); await context.SaveChangesAsync();
+        var account = new Account { AccountCode = key, AccountName = destination.Name, AccountType = "Correspondent", CorrespondentId = destination.Id };
+        context.Accounts.Add(account);
+        context.PaymentLocationCorrespondentAssignments.Add(new() { PaymentLocationId = location.Id, CorrespondentId = destination.Id,
+            EffectiveFrom = DateTime.Today, CreatedBy = fixture.UserId });
+        await context.SaveChangesAsync();
+        if (closePeriod)
+        {
+            await fixture.CreateCorrespondentService(context).ClosePeriodAsync(fixture.SourceCorrespondent.Id, new());
+            await fixture.CreateCorrespondentService(context).ClosePeriodAsync(fixture.DestinationCorrespondent.Id, new());
+        }
+        var oldEntries = await context.LedgerEntries.AsNoTracking().Where(x => x.HawalaId == received.Id || x.HawalaId == row.GeneratedSendHawalaId)
+            .OrderBy(x => x.Id).Select(x => new { x.Id, x.AccountId, x.CurrencyId, x.TalabKar, x.BadehKar }).ToListAsync();
+        var oldIds = oldEntries.Select(x => x.Id).ToArray();
+        var closedBalances = System.Text.Json.JsonSerializer.Serialize(await context.CorrespondentAccountPeriodBalances.AsNoTracking().OrderBy(x => x.Id).ToListAsync());
+        var oldDestinationNet = await context.LedgerEntries.Where(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 2)
+            .SumAsync(x => x.TalabKar - x.BadehKar);
+        await fixture.CreateService(context).UpdateHawalaAsync(received.Id, new() {
+            PaymentLocationId = location.Id, FromAmount = received.FromAmount, ToAmount = received.ToAmount,
+            FromCurrencyId = received.FromCurrencyId, ToCurrencyId = received.ToCurrencyId,
+            SenderName = received.SenderName, ReceiverName = received.ReceiverName, Status = "Paid",
+            CorrespondentId = received.CorrespondentId, FromAccountId = fixture.DestinationAccount.Id,
+            GeneratedSendHawalaNumber = await fixture.CreateService(context).GetNextNumberAsync(destination.Id, "HawalaSend")
+        });
+        context.ChangeTracker.Clear();
+        var updatedRow = await context.HawalaImportRows.AsNoTracking().SingleAsync(x => x.Id == row.Id);
+        var sent = await context.Hawalas.AsNoTracking().SingleAsync(x => x.Id == row.GeneratedSendHawalaId);
+        Assert.Equal(row.GeneratedSendHawalaId, updatedRow.GeneratedSendHawalaId);
+        Assert.Equal(destination.Id, sent.CorrespondentId); Assert.Equal(location.Id, sent.PaymentLocationId);
+        Assert.Equal(account.Id, sent.PaidFromAccountId); Assert.Equal(destination.Id, updatedRow.DestinationCorrespondentId);
+        Assert.Equal(fixture.SourceCorrespondent.Id, await context.Hawalas.Where(x => x.Id == received.Id).Select(x => x.CorrespondentId).SingleAsync());
+        Assert.Equal(oldDestinationNet - 100m, await context.LedgerEntries.Where(x => x.AccountId == fixture.DestinationAccount.Id && x.CurrencyId == 2).SumAsync(x => x.TalabKar - x.BadehKar));
+        Assert.Equal(100m, await context.LedgerEntries.Where(x => x.AccountId == account.Id && x.CurrencyId == 2).SumAsync(x => x.TalabKar - x.BadehKar));
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(oldEntries), System.Text.Json.JsonSerializer.Serialize(
+            await context.LedgerEntries.AsNoTracking().Where(x => oldIds.Contains(x.Id)).OrderBy(x => x.Id)
+                .Select(x => new { x.Id, x.AccountId, x.CurrencyId, x.TalabKar, x.BadehKar }).ToListAsync()));
+        Assert.Equal(closedBalances, System.Text.Json.JsonSerializer.Serialize(await context.CorrespondentAccountPeriodBalances.AsNoTracking().OrderBy(x => x.Id).ToListAsync()));
+        Assert.All(await context.LedgerEntries.GroupBy(x => x.CurrencyId).Select(x => x.Sum(e => e.TalabKar - e.BadehKar)).ToListAsync(), x => Assert.Equal(0m, x));
+    }
+
+    [Fact]
+    public async Task Missing_assigned_account_rolls_back_imported_location_correction_without_removing_journals()
+    {
+        var request = await PreviewAsync(3, 100m);
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await CreateImport(context).ConfirmAsync(request);
+        context.ChangeTracker.Clear();
+        var row = await context.HawalaImportRows.AsNoTracking().FirstAsync(x => x.BatchId == request.BatchId && x.GeneratedSendHawalaId != null);
+        var received = await context.Hawalas.AsNoTracking().SingleAsync(x => x.Id == row.HawalaId);
+        var key = Guid.NewGuid().ToString("N");
+        var destination = new Correspondent { Code = key, Name = key, CommissionMethod = "PerTransaction" };
+        var location = new PaymentLocation { Name = "Missing account " + key, NormalizedName = "missing-account-" + key, CreatedBy = fixture.UserId };
+        context.AddRange(destination, location); await context.SaveChangesAsync();
+        context.PaymentLocationCorrespondentAssignments.Add(new() { PaymentLocationId = location.Id, CorrespondentId = destination.Id,
+            EffectiveFrom = DateTime.Today, CreatedBy = fixture.UserId });
+        await context.SaveChangesAsync();
+        var before = System.Text.Json.JsonSerializer.Serialize(await context.LedgerEntries.AsNoTracking().OrderBy(x => x.Id).ToListAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.CreateService(context).UpdateHawalaAsync(received.Id, new() {
+            PaymentLocationId = location.Id, Status = "Paid", FromAmount = received.FromAmount, ToAmount = received.ToAmount,
+            FromCurrencyId = received.FromCurrencyId, ToCurrencyId = received.ToCurrencyId,
+            SenderName = received.SenderName, ReceiverName = received.ReceiverName
+        }));
+        context.ChangeTracker.Clear();
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(await context.LedgerEntries.AsNoTracking().OrderBy(x => x.Id).ToListAsync()));
+        Assert.Equal(row.PaymentLocationId, await context.HawalaImportRows.Where(x => x.Id == row.Id).Select(x => x.PaymentLocationId).SingleAsync());
+        Assert.Equal(received.PaymentLocationId, await context.Hawalas.Where(x => x.Id == received.Id).Select(x => x.PaymentLocationId).SingleAsync());
+    }
+
     private async Task<ConfirmHawalaImportDto> PreviewAsync(int rows, decimal amount = 100m, int numberOffset = 0, string currency = "USD")
     {
         await using var context = fixture.CreateContext();

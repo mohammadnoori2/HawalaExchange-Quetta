@@ -50,6 +50,7 @@ public static class PermissionOperationMap
         if(service=="IHawalaService" && method is "MarkAsPaidAsync" or "PreviewBulkPaymentAsync" or "PayBulkAsync") { module="HawalaExecution"; action="Execute"; }
         if(service=="ITransactionService" && method=="MarkAsPaidAsync") { module="HawalaExecution"; action="Execute"; }
         if(service=="IHawalaService" && method is "GetPaymentHistoryAsync" or "GetPaymentBatchAsync") { module="HawalaExecution"; action="View"; }
+        if(service=="IHawalaService" && method=="ResolvePaymentLocationAccountAsync")action="View";
         if(service=="ICorrespondentService" && method is "ClosePeriodAsync" or "GetPeriodClosePreviewAsync" or "GetPeriodsAsync" or "GetPeriodAsync") { module="Periods"; action=method=="ClosePeriodAsync"?"Close":"View"; }
         if(service=="IJournalService" && method=="CloseCashDayAsync")action="Close";
         if(action is null)throw new UnauthorizedAccessException("Unmapped operation: "+service+"."+method);

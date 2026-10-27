@@ -1,0 +1,25 @@
+<div class="sample-form-grid">
+    @if(Model.Section=="hawalas")
+    {
+        <div class="sample-field"><label for="form-type">نوع حواله</label><InputSelect id="form-type" class="form-select" @bind-Value="Model.Type"><option>دریافتی</option><option>ارسالی</option><option>متفرقه</option></InputSelect><span class="field-message"></span></div>
+        <div class="sample-field"><label for="form-agent">نمایندگی</label><InputSelect id="form-agent" class="form-select" @bind-Value="Model.Correspondent"><option>کویته</option><option>کابل برچی</option><option>هرات</option></InputSelect><span class="field-message"></span></div>
+        <div class="sample-field"><label for="form-location">محل پرداخت</label><InputSelect id="form-location" class="form-select" @bind-Value="Model.PaymentLocation"><option>خود صرافی</option><option>قندوز</option><option>کابل برچی</option></InputSelect><span class="field-message"></span></div>
+    }
+    <div class="sample-field"><label for="form-name">@(Model.Section=="hawalas"?"فرستنده":Model.Section=="customers"?"نام کامل":"نام حساب") <span class="text-danger">*</span></label><InputText id="form-name" class="form-control" @bind-Value="Model.Name" aria-required="true" aria-describedby="name-error" /><div class="field-message" id="name-error"><ValidationMessage For="@(()=>Model.Name)" /></div></div>
+    <div class="sample-field"><label for="form-other">@(Model.Section=="hawalas"?"گیرنده":Model.Section=="customers"?"نام پدر":"صاحب حساب") @if(Model.Section=="hawalas"){<span class="text-danger">*</span>}</label><InputText id="form-other" class="form-control" @bind-Value="Model.OtherName" aria-describedby="other-error" /><div class="field-message" id="other-error"><ValidationMessage For="@(()=>Model.OtherName)" /></div></div>
+    <div class="sample-field"><label for="form-code">@(Model.Section=="hawalas"?"نمبر حواله":Model.Section=="customers"?"کد مشتری":"کد حساب")</label><InputText id="form-code" class="form-control" @bind-Value="Model.Code" dir="ltr" /><span class="field-message"></span></div>
+    @if(Model.Section!="customers")
+    {
+        <div class="sample-field"><label for="form-amount">@(Model.Section=="hawalas"?"مبلغ":"موجودی اولیه نمونه") @if(Model.Section=="hawalas"){<span class="text-danger">*</span>}</label><NullableMoneyInput id="form-amount" class="form-control" @bind-Value="Model.Amount" placeholder="0" aria-describedby="amount-error" /><div class="field-message" id="amount-error"><ValidationMessage For="@(()=>Model.Amount)" /></div></div>
+        <div class="sample-field"><label for="form-currency">ارز</label><InputSelect id="form-currency" class="form-select" @bind-Value="Model.Currency"><option>AFN</option><option>USD</option><option>PKR</option></InputSelect><span class="field-message"></span></div>
+    }
+    <div class="sample-field"><label for="form-date">تاریخ ثبت</label><PersianDatePicker Id="form-date" @bind-Value="Model.Date" Placeholder="تاریخ ثبت" /><span class="field-message"></span></div>
+    <div class="sample-field"><label for="form-phone">شماره تماس</label><InputText id="form-phone" class="form-control" @bind-Value="Model.Phone" type="tel" dir="ltr" /><span class="field-message"></span></div>
+    @if(Model.Section=="customers")
+    {
+        <div class="sample-field"><label for="form-identity">نمبر تذکره</label><InputText id="form-identity" class="form-control" @bind-Value="Model.IdentityNumber" dir="ltr" /><span class="field-message"></span></div>
+        <div class="sample-field span-two"><label for="form-address">آدرس</label><InputText id="form-address" class="form-control" @bind-Value="Model.Address" /><span class="field-message"></span></div>
+    }
+    <div class="sample-field span-all"><label for="form-notes">یادداشت</label><InputTextArea id="form-notes" class="form-control" @bind-Value="Model.Notes" rows="3" placeholder="توضیحات اختیاری" /><span class="field-message"></span></div>
+</div>
+@code{[Parameter,EditorRequired] public PreviewFormModel Model {get;set;}=default!;}

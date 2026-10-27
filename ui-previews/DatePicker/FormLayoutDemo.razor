@@ -1,0 +1,80 @@
+@page "/fields"
+@page "/fields/{Section}"
+@inject IJSRuntime JS
+<PageTitle>نمونه نظم فیلدها — @Title</PageTitle>
+<PreviewNavigation />
+<main class="sample-fields-page page-wrapper">
+    <DemoPageHeader Title="@Title" Subtitle="@Subtitle" Count="@records.Count" Icon="@Icon"
+                    CreateLabel="@NewLabel" Create="OpenForm" ShowArchive="true" Archive="ToggleArchive" Refresh="ReloadAsync" />
+    <p class="sample-feedback" role="status">@feedback</p>
+    <CompactFilterBar AriaLabel="فیلترهای نمونه" HasActiveFilters="@HasFilters" Reset="ResetFilters">
+        <SearchContent><label for="list-search" class="sample-search-label">جستجو</label><input id="list-search" class="form-control" @bind="search" @bind:event="oninput" placeholder="@SearchHint" /></SearchContent>
+        <QuickFilters>
+            <label class="sample-filter-quick"><span>وضعیت</span><select class="form-select" @bind="status"><option value="">همه وضعیت‌ها</option><option>فعال</option>@if(kind=="hawalas"){<option>در انتظار</option><option>پرداخت شده</option>}</select></label>
+            @if(kind!="customers"){
+                <label class="sample-filter-quick"><span>ارز</span><select class="form-select" @bind="currency"><option value="">همه ارزها</option><option>AFN</option><option>USD</option></select></label>
+            }
+        </QuickFilters>
+        <AdvancedFilters>
+            <div class="compact-filter-field"><label for="filter-from" class="form-label">از تاریخ ثبت</label><PersianDatePicker Id="filter-from" @bind-Value="from" AllowEmpty="true" Placeholder="از تاریخ ثبت" /></div>
+            <div class="compact-filter-field"><label for="filter-to" class="form-label">تا تاریخ ثبت</label><PersianDatePicker Id="filter-to" @bind-Value="to" AllowEmpty="true" Placeholder="تا تاریخ ثبت" /></div>
+            @if(kind!="customers"){
+                <div class="compact-filter-field"><label for="filter-min" class="form-label">حداقل مبلغ</label><NullableMoneyInput id="filter-min" class="form-control" @bind-Value="minimum" placeholder="از مبلغ" /></div>
+                <div class="compact-filter-field"><label for="filter-max" class="form-label">حداکثر مبلغ</label><NullableMoneyInput id="filter-max" class="form-control" @bind-Value="maximum" placeholder="تا مبلغ" /></div>
+            }
+        </AdvancedFilters>
+    </CompactFilterBar>
+    <div class="table-card">
+        <div class="table-card-header"><span class="badge-modern badge-info">@Filtered.Count() مورد</span></div>
+        <div class="table-card-body"><div class="table-scroll-wrapper" role="region" aria-label="جدول داده‌های ساختگی" tabindex="0"><table class="table-modern table-striped-modern">
+            <thead><tr><th>#</th><th>@(kind=="hawalas"?"نمبر مسلسل":"کد")</th><th>@(kind=="accounts"?"نام حساب":kind=="customers"?"نام کامل":"فرستنده")</th><th>@(kind=="accounts"?"صاحب حساب":kind=="customers"?"نام پدر":"گیرنده")</th><th>@(kind=="customers"?"شماره تماس":"مبلغ / ارز")</th><th>وضعیت</th><th>تاریخ</th></tr></thead>
+            <tbody>@{var rowNumber=0;}@foreach(var record in Filtered.Take(pageSize)){
+                <tr><td>@(++rowNumber)</td><td dir="ltr">@record.Code</td><td>@record.Name</td><td>@record.Other</td><td dir="ltr">@(kind=="customers"?record.Phone:$"{record.Amount.ToString("N0",System.Globalization.CultureInfo.InvariantCulture)} {record.Currency}")</td><td><span class="badge-modern @(record.Status=="در انتظار"?"badge-warning":"badge-success")">@record.Status</span></td><td dir="ltr">@DualCalendarDateHelper.PersianText(record.Date)</td></tr>
+            }@if(!Filtered.Any()){<tr><td colspan="7" class="text-center py-5">موردی پیدا نشد؛ جستجو یا فیلترها را تغییر دهید.</td></tr>}</tbody>
+        </table></div></div>
+        <div class="table-card-footer"><span class="small text-muted">داده‌های این جدول ساختگی‌اند.</span><label class="sample-page-size">تعداد در صفحه <select class="form-select" @bind="pageSize"><option value="10">10</option><option value="2">2</option></select></label></div>
+    </div>
+    <p class="small text-muted mt-3">برای دیدن نظم فیلدهای فرم، «@NewLabel» را باز کنید. هیچ عملیاتی در دیتابیس انجام نمی‌شود.</p>
+</main>
+<dialog id="sample-fields-dialog" class="sample-form-dialog" aria-labelledby="sample-form-title">
+    <EditForm Model="@model" OnValidSubmit="ValidSubmit" OnInvalidSubmit="InvalidSubmit" @key="kind">
+        <DataAnnotationsValidator />
+        <header class="modal-header"><h2 class="modal-title" id="sample-form-title">@NewLabel — نمونه تستی</h2><button type="button" class="btn-close" aria-label="بستن فرم" @onclick="CloseForm"></button></header>
+        <div class="modal-body">
+            <p class="sample-form-notice">این فرم فقط برای بررسی ظاهر و اعتبارسنجی است. ثبت حسابداری انجام نمی‌شود.</p>
+            <fieldset><legend>@(kind=="hawalas"?"اطلاعات حواله":kind=="customers"?"مشخصات مشتری":"مشخصات حساب")</legend><FormFields Model="@model" /></fieldset>
+        </div>
+        <footer class="modal-footer"><button type="submit" class="btn btn-primary">بررسی نمونه</button><button type="button" class="btn btn-outline-secondary" @onclick="CloseForm">انصراف</button><small>بدون ثبت واقعی</small></footer>
+    </EditForm>
+</dialog>
+@code {
+    [Parameter] public string? Section {get;set;}
+    private string kind="",search="",status="",currency="",feedback="";
+    private bool archived;
+    private DateTime from,to;
+    private decimal? minimum,maximum;
+    private int pageSize=10,reloads;
+    private PreviewFormModel model=new();
+    private List<SampleRow> records=[];
+    private string Title=>kind=="accounts"?"مدیریت حساب‌ها":kind=="customers"?"مدیریت مشتریان":"مدیریت حواله‌ها";
+    private string Subtitle=>kind=="accounts"?"لیست و جستجوی حساب‌ها":kind=="customers"?"لیست و جستجوی مشتریان":"لیست و جستجوی حواله‌ها";
+    private string NewLabel=>kind=="accounts"?"حساب جدید":kind=="customers"?"مشتری جدید":"حواله جدید";
+    private string Icon=>kind=="accounts"?"bi-wallet2":kind=="customers"?"bi-people":"bi-arrow-left-right";
+    private string SearchHint=>kind=="accounts"?"جستجو با کد، نام یا صاحب حساب…":kind=="customers"?"نام، کد، تماس، تذکره یا آدرس…":"نمبر، فرستنده یا گیرنده…";
+    private bool HasFilters=>search!=""||status!=""||currency!=""||from!=default||to!=default||minimum.HasValue||maximum.HasValue||archived;
+    private IEnumerable<SampleRow> Filtered=>records.Where(r=>!archived && (string.IsNullOrWhiteSpace(search)||$"{r.Code} {r.Name} {r.Other} {r.Phone} TEST-{r.Code} کابل".Contains(search.Trim(),StringComparison.OrdinalIgnoreCase)) && (status==""||r.Status==status) && (currency==""||r.Currency==currency) && (from==default||r.Date.Date>=from.Date) && (to==default||r.Date.Date<=to.Date) && (!minimum.HasValue||r.Amount>=minimum) && (!maximum.HasValue||r.Amount<=maximum));
+    protected override void OnParametersSet(){var next=Section is "customers" or "hawalas"?Section:"accounts";if(kind==next)return;kind=next;model=new(){Section=kind};ResetFilters();records=Seed();feedback="اطلاعات نمونه؛ بدون اتصال به دیتابیس.";}
+    private List<SampleRow> Seed()=>kind switch {
+        "accounts"=>[new("AC001","صندوق مرکزی","صرافی",850000,"AFN","فعال","0700000001",new(2026,10,18)),new("AC002","صندوق دالر","صرافی",12000,"USD","فعال","0700000002",new(2026,10,17)),new("AC003","حساب بانکی","صرافی",250000,"AFN","فعال","0700000003",new(2026,10,18))],
+        "customers"=>[new("C001","احمد ولی","محمد ولی",0,"","فعال","0700000001",new(2026,10,18)),new("C002","علی رضایی","محمد رضا",0,"","فعال","0700000002",new(2026,10,17)),new("C003","محمد اکبری","عبدالله",0,"","فعال","0700000003",new(2026,10,18))],
+        _=>[new("2172","عبدالله نظری","عبدالجمیل",21560,"AFN","پرداخت شده","",new(2026,10,18)),new("2173","احمد ولی","محمد ناصر",1000,"USD","در انتظار","",new(2026,10,17)),new("2174","علی رضایی","حسین احمدی",85000,"AFN","در انتظار","",new(2026,10,18))]
+    };
+    private void ResetFilters(){search=status=currency="";from=to=default;minimum=maximum=null;archived=false;}
+    private void ToggleArchive(){archived=!archived;feedback=archived?"بایگانی نمونه خالی است؛ با کلیک دوباره به لیست برگردید.":"نمایش اطلاعات فعال نمونه.";}
+    private async Task ReloadAsync(){await Task.Yield();records=Seed();reloads++;feedback=$"بازخوانی نمونه شماره {reloads.ToString(System.Globalization.CultureInfo.InvariantCulture)} انجام شد؛ جستجو، فیلتر و پیش‌نویس فرم حفظ شدند.";}
+    private Task OpenForm()=>JS.TryInvokeUiVoidAsync("previewForms.open","sample-fields-dialog").AsTask();
+    private Task CloseForm()=>JS.TryInvokeUiVoidAsync("previewForms.close","sample-fields-dialog").AsTask();
+    private async Task ValidSubmit(){feedback="اعتبارسنجی نمونه موفق بود؛ هیچ اطلاعاتی ثبت نشد.";await CloseForm();}
+    private Task InvalidSubmit()=>JS.TryInvokeUiVoidAsync("previewForms.focusInvalid","sample-fields-dialog").AsTask();
+    private sealed record SampleRow(string Code,string Name,string Other,decimal Amount,string Currency,string Status,string Phone,DateTime Date);
+}

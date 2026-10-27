@@ -15,7 +15,7 @@ function element() {
 function setup() {
     const observers = [], frames = new Map(), nodes = new Map(), storage = new Map();
     let next = 0;
-    const context = { window: {}, document: { getElementById: id => nodes.get(id), createElement: element },
+    const context = { window: {}, document: { getElementById: id => nodes.get(id), createElement: element, addEventListener() {} },
         localStorage: { getItem: k => storage.get(k) ?? null },
         requestAnimationFrame: fn => { frames.set(++next, fn); return next; },
         cancelAnimationFrame: id => frames.delete(id),

@@ -439,7 +439,10 @@
     </div>
 }
 
+<HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
+
 @code {
+    private HawalaDto? executedHawala;
     [Parameter, EditorRequired] public long CorrespondentId { get; set; }
     [Parameter, EditorRequired] public string HawalaType { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
@@ -842,7 +845,8 @@
         {
             actionLoading = true;
             payDetails.PaidFromAccountId = selectedPaymentAccountId;
-            await HawalaService.MarkAsPaidAsync(payHawalaId, payDetails);
+            executedHawala = HawalaExecutionReceiptSnapshot.WithDisplayDetails(
+                await HawalaService.MarkAsPaidAsync(payHawalaId, payDetails), payHawala);
             ClosePay();
             successMessage = "حواله با موفقیت اجرا شد.";
             await LoadHawalasAsync();

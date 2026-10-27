@@ -8,26 +8,38 @@
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.rtl.min.css"]" />
     <link rel="stylesheet" href="styles/app.css" asp-append-version="true" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="@Assets["lib/bootstrap-icons/font/bootstrap-icons.min.css"]" />
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <HeadOutlet />
+    <HeadOutlet @rendermode="PageRenderMode" />
 </head>
 
 <body>
-    <Routes />
+    <Routes @rendermode="PageRenderMode" />
     <ReconnectModal />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="js/download.js"></script>
     <script src="js/dashboard.js"></script>
-    <script src="js/hawala-tools.js"></script>
+    <script src="@Assets["js/hawala-tools.js"]"></script>
     <script src="js/login.js"></script>
     <script src="js/global-data-grid.js" type="module"></script>
     <script src="js/navigation.js"></script>
     <script src="js/platform-workspace.js" type="module"></script>
     <script src="@Assets["js/money-input.js"]" type="module"></script>
+    <script src="@Assets["js/account-search.js"]" type="module"></script>
     <script src="_framework/blazor.web.js"></script>
     <script src="@Assets["Components/Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // Account pages keep static rendering for cookie writes and form posts.
+    // Business pages share a circuit and don't execute initialization twice.
+    private IComponentRenderMode? PageRenderMode => HttpContext.AcceptsInteractiveRouting()
+        ? new InteractiveServerRenderMode(prerender: false)
+        : null;
+}

@@ -40,6 +40,8 @@ public sealed class UserPermissionTests
         Assert.Empty(missing);
         Assert.Throws<UnauthorizedAccessException>(()=>PermissionOperationMap.Resolve("IHawalaService","NewUnreviewedOperationAsync"));
     }
+    [Fact] public void Payment_location_lookup_is_an_explicit_read_operation() =>
+        Assert.Equal("Hawalas.View", PermissionOperationMap.Resolve("IHawalaService", "ResolvePaymentLocationAccountAsync"));
     [Fact] public async Task Denied_create_never_invokes_the_business_service_and_allowed_read_returns_its_result()
     {
         var permission=new Mock<IUserPermissionService>();

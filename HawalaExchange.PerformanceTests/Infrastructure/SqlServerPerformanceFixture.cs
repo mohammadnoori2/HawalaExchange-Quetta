@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Microsoft.AspNetCore.Identity;
 
 namespace HawalaExchange.PerformanceTests.Infrastructure;
 
@@ -50,6 +51,14 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
         await context.GetService<IMigrator>().MigrateAsync(targetMigration);
 
         using var bypass = context.BypassSubscriptionEnforcement();
+        // Match the application's role bootstrap before authentication regression tests.
+        string[] roleNames = ["SuperAdmin", "Admin", "Manager", "Cashier", "Supervisor", .. PlatformRoles.All];
+        foreach (var roleName in roleNames)
+        {
+            if (!await context.Roles.AnyAsync(x => x.Name == roleName))
+                context.Roles.Add(new IdentityRole<long> { Name = roleName, NormalizedName = roleName.ToUpperInvariant() });
+        }
+        await context.SaveChangesAsync();
         var user = new ApplicationUser
         {
             TenantId = 1,
@@ -164,7 +173,7 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
         await using var broker=sql.CreateCommand();broker.CommandText=$"ALTER DATABASE [{DatabaseName}] SET DISABLE_BROKER WITH NO_WAIT";await broker.ExecuteNonQueryAsync();
     }
 
-    public HawalaService CreateService(ApplicationDbContext context)
+    public HawalaService CreateService(ApplicationDbContext context, IDbContextFactory<ApplicationDbContext>? contextFactory = null)
     {
         var mapperConfig = new MapperConfiguration(
             cfg => cfg.AddProfile<MappingProfile>(),
@@ -176,7 +185,7 @@ public sealed class SqlServerPerformanceFixture : IAsyncLifetime
             Mock.Of<ILedgerService>(),
             Mock.Of<IAccountService>(),
             Mock.Of<IAuditLogService>(),
-            Mock.Of<IFileService>());
+            Mock.Of<IFileService>(), contextFactory: contextFactory);
     }
 
     public CorrespondentService CreateCorrespondentService(ApplicationDbContext context)

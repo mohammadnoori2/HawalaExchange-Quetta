@@ -1,0 +1,137 @@
+@page "/correspondents/{CorrespondentId:long}/agent-commission-report"
+@using System.Globalization
+@using System.Text.Json
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "TenantBusiness")]
+@rendermode InteractiveServer
+@inject IAgentCommissionReportService Service
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>راپور کمیشن عامل پرداخت</PageTitle>
+<div class="page-wrapper reports-page" dir="rtl">
+    <AppPageHeader Title="راپور کمیشن عامل پرداخت" Subtitle="@lookups.CorrespondentName" Icon="bi-file-earmark-bar-graph">
+        <Actions><PageRefreshButton Refresh="LoadReport" Disabled="@busy" Inline="true" /><a class="btn btn-outline-secondary" href="@($"/correspondents/{CorrespondentId}")">برگشت به نمایندگی</a></Actions>
+    </AppPageHeader>
+    @if (error != "") { <div class="alert alert-danger" role="alert">@error</div> }
+    <div class="alert alert-info py-2">این راپور فقط کمیشن عاملِ ثبت‌شده در خود حواله ارسالی را می‌خواند؛ پیش‌فرض، کمیشن‌های افزوده‌شده امروز بر اساس منطقه زمانی صرافی است. برای سوابق فاقد تاریخ مستقل کمیشن، تاریخ حواله مبنا قرار می‌گیرد. کمیشن دوره‌ای شامل نیست. نبود سابقه تسویه سیستمی، به معنی پرداخت‌نشدن حواله‌های قدیمی نیست.</div>
+    <fieldset disabled="@busy">
+        <CompactFilterBar AriaLabel="فیلتر کمیشن عامل پرداخت" HasActiveFilters="@HasFilters" ActiveFilterCount="@FilterCount" Reset="ResetFilters">
+            <SearchContent><input class="form-control" placeholder="نمبر مسلسل، نمبر حواله، فرستنده یا گیرنده" @bind="filter.Search" /></SearchContent>
+            <QuickFilters>
+                <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="filter.From" /></div>
+                <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="filter.To" /></div>
+                <select class="form-select compact-quick-filter" aria-label="وضعیت تسویه" @bind="filter.Settlement"><option value="">همه وضعیت‌های تسویه</option>@foreach (var state in states) { <option value="@state">@AgentCommissionReportLabels.Settlement(state)</option> }</select>
+            </QuickFilters>
+            <AdvancedFilters>
+                <div class="compact-filter-field"><label class="form-label">محل پرداخت</label><select class="form-select" @bind="filter.PaymentLocationId"><option value="">همه</option><option value="0">نامشخص</option>@foreach (var option in lookups.Locations) { <option value="@option.Id">@option.Name</option> }</select></div>
+                <div class="compact-filter-field"><label class="form-label">ارز حواله</label><select class="form-select" @bind="filter.CurrencyId"><option value="">همه ارزها</option>@foreach (var option in lookups.Currencies) { <option value="@option.Id">@option.Name</option> }</select></div>
+                <div class="compact-filter-field"><label class="form-label">ارز کمیشن</label><select class="form-select" @bind="filter.CommissionCurrencyId"><option value="">همه ارزها</option><option value="0">نامشخص</option>@foreach (var option in lookups.Currencies) { <option value="@option.Id">@option.Name</option> }</select></div>
+                <div class="compact-filter-field"><label class="form-label">مبنای تاریخ</label><select class="form-select" @bind="filter.DateBasis"><option value="Commission">تاریخ افزودن کمیشن</option><option value="Registration">تاریخ ثبت حواله</option></select></div><div class="compact-filter-field"><label class="form-label">وضعیت اجرا</label><select class="form-select" @bind="filter.Status"><option value="">همه</option><option value="Pending">در انتظار اجرا</option><option value="Paid">پرداخت‌شده</option><option value="Cancel">لغوشده</option></select></div>
+                <label class="form-check"><input class="form-check-input" type="checkbox" @bind="filter.IncludeZeroCommission" /> نمایش حواله‌های بدون کمیشن</label>
+                <label class="form-check"><input class="form-check-input" type="checkbox" @bind="filter.IncludeCancelled" /> نمایش حواله‌های لغوشده، جدا از مجموع</label>
+            </AdvancedFilters>
+        </CompactFilterBar>
+    </fieldset>
+    <div class="d-flex flex-wrap gap-2 my-3">
+        <button type="button" class="btn btn-primary" disabled="@busy" @onclick="LoadReport">@(busy ? "در حال بارگذاری…" : "نمایش راپور")</button>
+        <PermissionView Permission="CorrespondentReports.Export"><button type="button" class="btn btn-outline-success" disabled="@(busy || report is null)" @onclick="() => Export(ExportFormat.Excel)">اکسل</button><button type="button" class="btn btn-outline-danger" disabled="@(busy || report is null)" @onclick="() => Export(ExportFormat.Pdf)">PDF</button></PermissionView>
+    </div>
+    @if (report is not null && applied is not null)
+    {
+        <div class="alert alert-secondary py-2">راپور اجراشده: @DisplayDates.Date(applied.From) تا @DisplayDates.Date(applied.To) · @(applied.DateBasis == "Commission" ? "بر اساس تاریخ افزودن کمیشن" : "بر اساس تاریخ ثبت حواله") · @N(report.Count) حواله · @N(report.CancelledCount) لغوشده. پس از تغییر فیلترها، «نمایش راپور» را بزنید؛ خروجی‌ها مطابق راپور اجراشده هستند.</div>
+        <h6>مجموع‌ها به تفکیک ارز — کمیشن لغوشده در مجموع شامل نیست</h6>
+        <div class="table-responsive mb-3"><table class="table table-bordered text-center align-middle"><thead><tr><th>ارز</th><th>اصل حواله‌ها</th><th>مجموع کمیشن عامل</th><th>تسویه با بیل</th><th>رسید تسویه قبلی</th><th>بیل در انتظار</th><th>بدون سابقه تسویه</th><th>کمیشن لغوشده</th></tr></thead><tbody>
+        @foreach (var total in report.Currencies) { <tr><td>@total.Currency</td><td dir="ltr">@Money(total.Principal)</td><td dir="ltr" class="fw-bold">@Money(total.Commission)</td><td dir="ltr">@Money(total.PaidCommission)</td><td dir="ltr">@Money(total.HistoricalCommission)</td><td dir="ltr">@Money(total.BilledCommission)</td><td dir="ltr">@Money(total.UnrecordedCommission)</td><td dir="ltr" class="text-danger">@Money(total.CancelledCommission)</td></tr> }
+        </tbody></table></div>
+        <h6>تفکیک محل پرداخت</h6>
+        <div class="table-responsive"><table class="table table-striped text-center align-middle"><thead><tr><th>محل پرداخت</th><th>تعداد حواله</th><th>مجموع اصل به تفکیک ارز</th><th>مجموع کمیشن به تفکیک ارز</th><th>جزئیات</th></tr></thead><tbody>
+        @foreach (var location in report.Locations)
+        {
+            <tr><td>@location.Location</td><td>@N(location.Count)</td><td>@foreach (var total in location.Currencies.Where(x => x.Principal != 0)) { <div dir="ltr">@Money(total.Principal) @total.Currency</div> }</td><td>@foreach (var total in location.Currencies.Where(x => x.Commission != 0 || x.CancelledCommission != 0)) { <div dir="ltr"><strong>@Money(total.Commission) @total.Currency</strong>@if (total.CancelledCommission != 0) { <div class="text-danger">لغوشده: @Money(total.CancelledCommission) @total.Currency</div> }</div> }</td><td><button type="button" class="btn btn-sm btn-outline-primary" disabled="@busy" aria-expanded="@(selectedLocation == (location.LocationId ?? 0))" @onclick="() => OpenLocation(location)">جزئیات حواله‌ها</button></td></tr>
+        }
+        </tbody></table></div>
+        @if (report.Count == 0) { <div class="alert alert-light">حواله‌ای مطابق فیلترها یافت نشد.</div> }
+        @if (details is not null && selectedLocation.HasValue)
+        {
+            <div class="card mt-3"><div class="card-header d-flex justify-content-between align-items-center"><strong>حواله‌های @selectedLocationName</strong><button type="button" class="btn btn-sm btn-outline-secondary" disabled="@busy" @onclick="CloseDetails">بستن جزئیات</button></div><div class="card-body">
+                <div class="table-responsive"><table class="table table-sm table-bordered text-center align-middle"><thead><tr><th>نمبر مسلسل / نمبر حواله</th><th>افزودن کمیشن / ثبت حواله</th><th>گیرنده / فرستنده</th><th>محل پرداخت</th><th>مبلغ حواله</th><th>کمیشن عامل</th><th>وضعیت اجرا</th><th>وضعیت تسویه</th><th>بیل / رسید</th></tr></thead><tbody>
+                @foreach (var row in details.Items)
+                {
+                    <tr class="@(row.Status == "Cancel" ? "table-danger" : "")"><td>@N(row.Number)<br />@row.Reference</td><td>@DisplayDates.TimestampDate(row.CommissionAddedAt)<br /><small>ثبت حواله: @DisplayDates.TimestampDate(row.CreatedAt)</small></td><td>@row.Receiver<br /><small>@row.Sender</small></td><td>@row.Location</td><td dir="ltr">@Money(row.Amount) @row.Currency</td><td dir="ltr">@Money(row.Commission) @row.CommissionCurrency</td><td>@AppDisplayText.Status(row.Status, "HawalaSend")</td><td>@AgentCommissionReportLabels.Settlement(row.Settlement)</td><td>@if (row.BillId.HasValue) { <span>#@N(row.BillId.Value)</span><PermissionView Permission="HawalaExecution.View"><a class="d-block" href="@($"/correspondents/{CorrespondentId}/agent-bills/{row.BillId}")">مشاهده</a></PermissionView> } else { <span>—</span> }</td></tr>
+                }
+                </tbody></table></div>
+                <div class="d-flex gap-2 align-items-center"><button type="button" class="btn btn-outline-primary" disabled="@(busy || details.PageNumber <= 1)" @onclick="() => LoadDetails(details.PageNumber - 1)">قبلی</button><span>@N(details.PageNumber) / @N(details.TotalPages) · @N(details.TotalCount) حواله</span><button type="button" class="btn btn-outline-primary" disabled="@(busy || details.PageNumber >= details.TotalPages)" @onclick="() => LoadDetails(details.PageNumber + 1)">بعدی</button></div>
+            </div></div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public long CorrespondentId { get; set; }
+    private static readonly string[] states = ["Paid", "Historical", "Billed", "Unrecorded"];
+    private AgentCommissionReportLookups lookups = new();
+    private AgentCommissionReportFilter filter = new();
+    private AgentCommissionReportFilter? applied;
+    private AgentCommissionReportResult? report;
+    private PaginatedResult<AgentCommissionReportRow>? details;
+    private long? selectedLocation;
+    private string selectedLocationName = "", error = "";
+    private long loadedId;
+    private bool busy, disposed;
+    private CancellationTokenSource lifetime = new();
+    private IJSObjectReference? downloadModule;
+    private int FilterCount => new[] { filter.From.Date != lookups.Today, filter.To.Date != lookups.Today,
+        filter.PaymentLocationId.HasValue, filter.CurrencyId.HasValue, filter.CommissionCurrencyId.HasValue, filter.Status != "", filter.Settlement != "", filter.IncludeZeroCommission, filter.IncludeCancelled, filter.DateBasis != "Commission" }.Count(x => x);
+    private bool HasFilters => FilterCount > 0 || !string.IsNullOrWhiteSpace(filter.Search);
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loadedId == CorrespondentId) return;
+        lifetime.Cancel(); lifetime.Dispose(); lifetime = new(); var ct = lifetime.Token;
+        loadedId = CorrespondentId; busy = true; report = null; applied = null; CloseDetails(); error = "";
+        try { var result = await Service.GetLookupsAsync(CorrespondentId, ct); ct.ThrowIfCancellationRequested(); lookups = result; ResetFilters(); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+        catch (Exception ex) { error = ex.Message; return; }
+        finally { if (!ct.IsCancellationRequested) busy = false; }
+        await LoadReport();
+    }
+    private void ResetFilters() => filter = new() { CorrespondentId = CorrespondentId, From = lookups.Today, To = lookups.Today };
+    private async Task LoadReport()
+    {
+        if (busy || disposed) return; busy = true; error = ""; var ct = lifetime.Token;
+        try { var snapshot = JsonSerializer.Deserialize<AgentCommissionReportFilter>(JsonSerializer.Serialize(filter))!; snapshot.CorrespondentId = CorrespondentId;
+            var result = await Service.GetAsync(snapshot, ct); ct.ThrowIfCancellationRequested(); report = result; applied = snapshot; CloseDetails(); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) { error = ex.Message; }
+        finally { if (!ct.IsCancellationRequested) busy = false; }
+    }
+    private async Task OpenLocation(AgentCommissionLocationSummary location)
+    {
+        if (busy || disposed) return;
+        selectedLocation = location.LocationId ?? 0; selectedLocationName = location.Location; await LoadDetails(1);
+    }
+    private async Task LoadDetails(int page)
+    {
+        if (busy || applied is null || !selectedLocation.HasValue || disposed) return; busy = true; error = ""; var ct = lifetime.Token;
+        try { var result = await Service.GetDetailsAsync(applied, selectedLocation, page, 50, ct); ct.ThrowIfCancellationRequested(); details = result; }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) { error = ex.Message; details = null; }
+        finally { if (!ct.IsCancellationRequested) busy = false; }
+    }
+    private void CloseDetails() { details = null; selectedLocation = null; selectedLocationName = ""; }
+    private async Task Export(ExportFormat format)
+    {
+        if (busy || applied is null || disposed) return; busy = true; error = ""; var ct = lifetime.Token;
+        try { var file = await Service.ExportAsync(applied, format, ct); ct.ThrowIfCancellationRequested(); downloadModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/record-selection.js");
+            await downloadModule.InvokeVoidAsync("download", file.FileName, file.ContentType, Convert.ToBase64String(file.Content)); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception ex) { error = ex.Message; }
+        finally { if (!ct.IsCancellationRequested) busy = false; }
+    }
+    private static string N(long value) => value.ToString(CultureInfo.InvariantCulture);
+    private static string Money(decimal value) => AmountValueHelper.Format(value);
+    public async ValueTask DisposeAsync() { disposed = true; lifetime.Cancel(); lifetime.Dispose(); if (downloadModule is not null) await downloadModule.TryDisposeBrowserModuleAsync(); }
+}

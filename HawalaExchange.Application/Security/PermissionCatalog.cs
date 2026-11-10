@@ -58,6 +58,7 @@ public static class PermissionCatalog
         {
             if(path.Contains("hawala-import"))return "BulkImports.View";
             if(path.Contains("agent-bills"))return "HawalaExecution.View";
+            if(path.EndsWith("agent-commission-report"))return "CorrespondentReports.View";
             if(path.EndsWith("outgoing-commission"))return "DestinationCommission.View";
             if(path.EndsWith("forwarding-commission"))return "ForwardingCommission.View";
             if(path.EndsWith("commission")||path.StartsWith("commissions/"))return "IncomingCommission.View";
@@ -66,7 +67,7 @@ public static class PermissionCatalog
             if(path.EndsWith("/range"))return "CorrespondentReports.View";
         }
         var module=path.Split('/')[0] switch
-        {""=>"Dashboard","hawala-transactions" or "hawala-receive"=>"Hawalas","hawala-pending"=>"HawalaExecution","customers"=>"Customers","correspondents"=>"Correspondents","accounts"=>"Accounts","payment-locations"=>"PaymentLocations","branches"=>"Branches","currencies"=>"Currencies","deposit-withdraw"=>"Deposits","transfers"=>"Transfers","money-exchange"=>"Exchanges","aed-transactions"=>"AedDeals","capital-investment"=>"Capital","expenses"=>"Expenses","ledger"=>"Ledger","daily-journal"=>"Journal","exchangerates"=>"Rates","account-limits"=>"AccountLimits","cash-balance-alerts"=>"CashAlerts","documents"=>"Documents","company-settings"=>"Settings","users"=>"Users","auditlogs"=>"AuditLogs","transactions"=>"Transactions","reports"=>path switch{"reports/hawalas"=>"HawalaReports","reports/customer-activities"=>"CustomerReports","reports/correspondent-activities"=>"CorrespondentReports","reports/account-activities"=>"AccountReports","reports/balance-sheet"=>"BalanceSheet","reports/profit-loss"=>"ProfitLoss",_=>"Reports"},_=>null};
+        {""=>"Dashboard","hawala-transactions" or "hawala-receive"=>"Hawalas","hawala-pending" or "hawala-cash-executed"=>"HawalaExecution","customers"=>"Customers","correspondents"=>"Correspondents","accounts"=>"Accounts","payment-locations"=>"PaymentLocations","branches"=>"Branches","currencies"=>"Currencies","deposit-withdraw"=>"Deposits","transfers"=>"Transfers","money-exchange"=>"Exchanges","aed-transactions"=>"AedDeals","capital-investment"=>"Capital","expenses"=>"Expenses","ledger"=>"Ledger","daily-journal"=>"Journal","exchangerates"=>"Rates","account-limits"=>"AccountLimits","cash-balance-alerts"=>"CashAlerts","documents"=>"Documents","company-settings"=>"Settings","users"=>"Users","auditlogs"=>"AuditLogs","transactions"=>"Transactions","reports"=>path switch{"reports/hawalas"=>"HawalaReports","reports/customer-activities"=>"CustomerReports","reports/correspondent-activities"=>"CorrespondentReports","reports/account-activities"=>"AccountReports","reports/balance-sheet"=>"BalanceSheet","reports/profit-loss"=>"ProfitLoss",_=>"Reports"},_=>null};
         return module is null?null:module+".View";
     }
 }

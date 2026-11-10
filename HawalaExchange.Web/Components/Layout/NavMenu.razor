@@ -95,6 +95,9 @@
                     <PermissionView Permission="HawalaExecution.View"><NavLink class="nav-link-custom sub-link" href="/hawala-pending">
                         <span class="bi bi-clock-history"></span> حواله‌های اجرا نشده
                     </NavLink></PermissionView>
+                    <PermissionView Permission="HawalaExecution.View"><NavLink class="nav-link-custom sub-link" href="/hawala-cash-executed">
+                        <span class="bi bi-cash-stack"></span> حواله‌های اجراشده از صندوق
+                    </NavLink></PermissionView>
                 </div>
             </details></PermissionView>
 
@@ -397,7 +400,7 @@
 
     private bool IsSectionActive(string section) => section switch
     {
-        "hawala" => IsCurrentPath("hawala-transactions", "hawala-receive", "hawala-pending"),
+        "hawala" => IsCurrentPath("hawala-transactions", "hawala-receive", "hawala-pending", "hawala-cash-executed"),
         "accounting" => IsCurrentPath("ledger", "capital-investment", "expenses"),
         "settings" => IsCurrentPath("branches", "payment-locations", "users", "currencies", "exchangerates", "account-limits", "cash-balance-alerts", "company-settings"),
         "reports" => IsCurrentPath("reports"),

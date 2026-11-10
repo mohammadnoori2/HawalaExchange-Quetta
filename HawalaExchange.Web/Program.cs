@@ -200,6 +200,8 @@ public partial class Program
         builder.Services.AddScoped<ICorrespondentSettlementService, CorrespondentSettlementService>();
         builder.Services.AddScoped<ISelectedRecordsService, SelectedRecordsService>();
         builder.Services.AddScoped<IHawalaCommissionReportService, HawalaCommissionReportService>();
+        builder.Services.AddScoped<IAgentCommissionReportService, AgentCommissionReportService>();
+        builder.Services.AddScoped<ICashExecutedHawalaService, CashExecutedHawalaService>();
         builder.Services.AddScoped<IAccountStatementService>(services => new AccountStatementService(
             new ApplicationDbContext(services.GetRequiredService<DbContextOptions<ApplicationDbContext>>(),
                 services.GetRequiredService<HawalaExchange.Application.Interfaces.ICurrentTenant>()), ownsContext: true));

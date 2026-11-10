@@ -1,0 +1,79 @@
+@page "/hawala-cash-executed"
+@using System.Globalization
+@using System.Text.Json
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Application.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "TenantBusiness")]
+@rendermode InteractiveServer
+@inject ICashExecutedHawalaService Service
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>حواله‌های اجراشده از صندوق</PageTitle>
+<div class="page-wrapper reports-page" dir="rtl">
+<AppPageHeader Title="حواله‌های اجراشده از صندوق" Subtitle="پرداخت مستقیم و تسویه بیل عامل پرداخت" Icon="bi-cash-stack">
+    <Actions><PageRefreshButton Refresh="Reload" Disabled="@busy" Inline="true" /></Actions>
+</AppPageHeader>
+@if (error != "") { <div class="alert alert-danger" role="alert">@error</div> }
+<div class="alert alert-info py-2">مبنای تاریخ، زمان پرداخت از صندوق است. پرداخت بانکی و رسید تسویه قبلیِ بدون ثبت حسابداری شامل نیست. برگشت پرداخت، جدا از مجموع پرداخت‌ها نمایش داده می‌شود.</div>
+<fieldset disabled="@busy">
+<CompactFilterBar AriaLabel="فیلتر حواله‌های اجراشده از صندوق" Reset="Reset" HasActiveFilters="@HasFilters" ActiveFilterCount="@FilterCount">
+<SearchContent><input class="form-control" placeholder="نمبر مسلسل، نمبر حواله، فرستنده یا گیرنده" @bind="filter.Search" /></SearchContent>
+<QuickFilters>
+<div class="compact-filter-field"><label class="form-label">از تاریخ پرداخت</label><PersianDatePicker @bind-Value="filter.From" /></div>
+<div class="compact-filter-field"><label class="form-label">تا تاریخ پرداخت</label><PersianDatePicker @bind-Value="filter.To" /></div>
+<select class="form-select compact-quick-filter" aria-label="صندوق" @bind="filter.AccountId"><option value="">همه صندوق‌ها</option>@foreach(var x in lookups.Accounts){<option value="@x.Id">@x.Name</option>}</select>
+</QuickFilters>
+<AdvancedFilters>
+<div class="compact-filter-field"><label class="form-label">نمایندگی</label><select class="form-select" @bind="filter.CorrespondentId"><option value="">همه</option>@foreach(var x in lookups.Correspondents){<option value="@x.Id">@x.Name</option>}</select></div>
+<div class="compact-filter-field"><label class="form-label">محل پرداخت</label><select class="form-select" @bind="filter.LocationId"><option value="">همه</option><option value="0">نامشخص</option>@foreach(var x in lookups.Locations){<option value="@x.Id">@x.Name</option>}</select></div>
+<div class="compact-filter-field"><label class="form-label">ارز پرداخت</label><select class="form-select" @bind="filter.CurrencyId"><option value="">همه</option>@foreach(var x in lookups.Currencies){<option value="@x.Id">@x.Name</option>}</select></div>
+<div class="compact-filter-field"><label class="form-label">نوع اجرا</label><select class="form-select" @bind="filter.Mode"><option value="">همه</option><option value="Direct">مستقیم</option><option value="Bill">از طریق بیل</option></select></div>
+<div class="compact-filter-field"><label class="form-label">وضعیت پرداخت</label><select class="form-select" @bind="filter.State"><option value="Paid">پرداخت‌شده</option><option value="Reversed">برگشت‌شده</option><option value="All">همه</option></select></div>
+</AdvancedFilters>
+</CompactFilterBar>
+</fieldset>
+<div class="d-flex flex-wrap gap-2 my-3"><button class="btn btn-primary" disabled="@busy" @onclick="Reload">@(busy ? "در حال بارگذاری…" : "نمایش حواله‌ها")</button><PermissionView Permission="HawalaExecution.Export"><button class="btn btn-outline-success" disabled="@(busy || report is null)" @onclick="() => Export(ExportFormat.Excel)">اکسل</button><button class="btn btn-outline-danger" disabled="@(busy || report is null)" @onclick="() => Export(ExportFormat.Pdf)">PDF</button></PermissionView></div>
+@if(report is not null && applied is not null){
+<div class="alert alert-secondary py-2">@DisplayDates.Date(applied.From) تا @DisplayDates.Date(applied.To) · تعداد حواله: <strong>@N(report.HawalaCount)</strong> · تعداد پرداخت: @N(report.PaymentCount). مجموع‌ها مربوط تمام نتایج فیلترشده‌اند. برای اعمال تغییر فیلترها «نمایش حواله‌ها» را بزنید.</div>
+<div class="table-responsive"><table class="table table-bordered text-center align-middle"><thead><tr><th>وضعیت</th><th>تعداد حواله</th><th>ارز</th><th>مجموع اصل مبلغ</th><th>کمیشن عامل</th><th>مجموع پرداخت از صندوق</th></tr></thead><tbody>
+@foreach(var t in report.Totals){<tr><td>پرداخت‌شده</td><td>@N(t.Count)</td><td>@t.Currency</td><td dir="ltr">@Money(t.Principal)</td><td dir="ltr">@Money(t.Commission)</td><td class="fw-bold" dir="ltr">@Money(t.Total)</td></tr>}
+@foreach(var t in report.ReversedTotals){<tr class="table-danger"><td>برگشت‌شده — خارج از مجموع</td><td>@N(t.Count)</td><td>@t.Currency</td><td dir="ltr">@Money(t.Principal)</td><td dir="ltr">@Money(t.Commission)</td><td dir="ltr">@Money(t.Total)</td></tr>}
+</tbody></table></div>
+<div class="table-responsive"><table class="table table-striped text-center align-middle"><thead><tr><th>#</th><th>نمبر مسلسل / نمبر حواله</th><th>گیرنده / فرستنده</th><th>نمایندگی / محل پرداخت</th><th>ارز / صندوق</th><th>اصل مبلغ</th><th>کمیشن عامل</th><th>مجموع پرداخت</th><th>تاریخ پرداخت / کاربر</th><th>نوع / وضعیت</th></tr></thead><tbody>
+@{var index=(report.Page.PageNumber-1)*report.Page.PageSize;}
+@foreach(var row in report.Page.Items){var p=row.Payment;
+<tr class="@(p.IsReversed ? "table-danger" : "")"><td>@N(++index)</td><td>@N(p.Number)<br />@p.Reference</td><td>@p.Receiver<br /><small>@p.Sender</small></td><td>@p.Correspondent<br />@p.Location</td><td>@foreach(var a in row.Amounts){<div>@a.Currency · @a.Account</div>}</td><td>@foreach(var a in row.Amounts){<div dir="ltr">@Money(a.Principal) @a.Currency</div>}</td><td>@foreach(var a in row.Amounts){<div dir="ltr">@Money(a.Commission) @a.Currency</div>}</td><td class="fw-bold">@foreach(var a in row.Amounts){<div dir="ltr">@Money(a.Principal+a.Commission) @a.Currency</div>}</td><td>@DisplayDates.DateTime(p.PaidAt,true)<br />@p.ExecutedByName</td><td>@(p.Mode=="Bill" ? "بیل عامل" : "مستقیم")<br />@(p.IsReversed ? "برگشت‌شده" : "پرداخت‌شده")
+@if(p.BillId.HasValue){<a class="d-block" href="@($"/correspondents/{p.CorrespondentId}/agent-bills/{p.BillId}")">بیل #@N(p.BillId.Value)</a>}
+@if(p.IsReversed){<small>@DisplayDates.DateTime(p.ReversedAt,true)</small>}</td></tr>}
+</tbody></table></div>
+@if(!report.Page.Items.Any()){<div class="alert alert-light">حواله‌ای مطابق فیلترها یافت نشد.</div>}
+<div class="d-flex gap-2 align-items-center"><button class="btn btn-outline-primary" disabled="@(busy || report.Page.PageNumber<=1)" @onclick="() => Load(report.Page.PageNumber-1,false)">قبلی</button><span>@N(report.Page.PageNumber) / @N(report.Page.TotalPages)</span><button class="btn btn-outline-primary" disabled="@(busy || report.Page.PageNumber>=report.Page.TotalPages)" @onclick="() => Load(report.Page.PageNumber+1,false)">بعدی</button></div>
+}
+</div>
+@code {
+    private CashExecutedHawalaLookups lookups=new();
+    private CashExecutedHawalaFilter filter=new();
+    private CashExecutedHawalaFilter? applied;
+    private CashExecutedHawalaResult? report;
+    private bool busy,disposed;
+    private string error="";
+    private readonly CancellationTokenSource lifetime=new();
+    private IJSObjectReference? module;
+    private int FilterCount=>new[]{filter.From.Date!=lookups.Today,filter.To.Date!=lookups.Today,filter.AccountId.HasValue,filter.CorrespondentId.HasValue,filter.LocationId.HasValue,filter.CurrencyId.HasValue,filter.Mode!="",filter.State!="Paid"}.Count(x=>x);
+    private bool HasFilters=>FilterCount>0 || !string.IsNullOrWhiteSpace(filter.Search);
+    protected override async Task OnInitializedAsync(){try{lookups=await Service.GetLookupsAsync(lifetime.Token); if(disposed)return; Reset(); await Reload();}catch(OperationCanceledException) when(lifetime.IsCancellationRequested){}catch(Exception ex){error=ex.Message;}}
+    private void Reset()=>filter=new(){From=lookups.Today,To=lookups.Today};
+    private Task Reload()=>Load(1,true);
+    private async Task Load(int page,bool fresh){if(busy||disposed)return;busy=true;error="";var ct=lifetime.Token;
+        try{var snapshot=fresh ? JsonSerializer.Deserialize<CashExecutedHawalaFilter>(JsonSerializer.Serialize(filter))! : applied!;var result=await Service.GetAsync(snapshot,page,50,ct);ct.ThrowIfCancellationRequested();report=result;applied=snapshot;}
+        catch(OperationCanceledException) when(ct.IsCancellationRequested){}catch(Exception ex){error=ex.Message;}finally{if(!disposed)busy=false;}}
+    private async Task Export(ExportFormat format){if(busy||disposed||applied is null)return;busy=true;error="";var ct=lifetime.Token;
+        try{var file=await Service.ExportAsync(applied,format,ct);ct.ThrowIfCancellationRequested();module??=await JS.InvokeAsync<IJSObjectReference>("import","./js/record-selection.js");await module.InvokeVoidAsync("download",file.FileName,file.ContentType,Convert.ToBase64String(file.Content));}
+        catch(OperationCanceledException) when(ct.IsCancellationRequested){}catch(Exception ex){error=ex.Message;}finally{if(!disposed)busy=false;}}
+    private static string N(long n)=>n.ToString(CultureInfo.InvariantCulture);
+    private static string Money(decimal n)=>AmountValueHelper.Format(n);
+    public async ValueTask DisposeAsync(){disposed=true;lifetime.Cancel();if(module is not null)await module.TryDisposeBrowserModuleAsync();lifetime.Dispose();}
+}

@@ -16,6 +16,7 @@
             @if (CorrespondentId > 0)
             {
                 <PermissionView Permission="HawalaExecution.View"><a class="operation-menu-item" role="menuitem" href="@($"/correspondents/{CorrespondentId}/agent-bills")"><i class="bi bi-receipt text-primary"></i> بیل‌های پرداخت عامل</a></PermissionView>
+                <PermissionView Permission="CorrespondentReports.View"><a class="operation-menu-item" role="menuitem" href="@($"/correspondents/{CorrespondentId}/agent-commission-report")"><i class="bi bi-file-earmark-bar-graph text-primary"></i> راپور کمیشن عامل پرداخت</a></PermissionView>
             }
 
             @if (CanUseFinancialActions)

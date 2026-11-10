@@ -20,9 +20,9 @@ public static class PermissionOperationMap
         ["IAccountMoneyOperationService"]="Deposits",["IMoneyExchangeOperationService"]="Exchanges",
         ["IJournalService"]="Journal",["ICompanySettingService"]="Settings",["IAedDealService"]="AedDeals",
         ["ICorrespondentCommissionService"]="IncomingCommission",["ICorrespondentSettlementService"]="Settlement",
-        ["ISelectedRecordsService"]="Hawalas",["IHawalaCommissionReportService"]="HawalaReports",
+        ["ISelectedRecordsService"]="Hawalas",["IHawalaCommissionReportService"]="HawalaReports",["IAgentCommissionReportService"]="CorrespondentReports",
         ["IAccountStatementService"]="AccountReports",["IExportService"]="CustomerReports",
-        ["IHawalaPaymentHistoryExportService"]="HawalaExecution",["ICorrespondentSettlementHistoryExportService"]="Settlement"
+        ["IHawalaPaymentHistoryExportService"]="HawalaExecution",["ICorrespondentSettlementHistoryExportService"]="Settlement",["ICashExecutedHawalaService"]="HawalaExecution"
     };
     private static readonly Dictionary<string,string> Actions=new(StringComparer.Ordinal);
     static PermissionOperationMap()
@@ -48,6 +48,8 @@ public static class PermissionOperationMap
     {
         var module=overrideModule ?? Modules.GetValueOrDefault(service) ?? throw new UnauthorizedAccessException("Unmapped service");
         var action=Actions.GetValueOrDefault(method);
+        if(service=="ICashExecutedHawalaService" && method=="GetLookupsAsync")action="View";
+        if(service=="IAgentCommissionReportService" && method=="GetLookupsAsync")action="View";
         if(service=="IMoneyExchangeOperationService" && method=="GetByLinkedHawalaAsync") action="View";
         if(service=="IHawalaService" && method is "PreviewAgentBillAsync" or "GetAgentBillAsync" or "GetAgentBillsAsync" or "GetAgentBillsForHawalasAsync" or "GetAgentBillPaymentAccountsAsync") { module="HawalaExecution"; action="View"; }
         if(service=="IHawalaService" && method is "CreateHistoricalAgentReceiptAsync" or "ExecuteAndCreateAgentBillAsync" or "CreateAgentBillAsync" or "PayAgentBillAsync" or "ConfirmAgentExecutionAsync" or "CancelAgentBillAsync") { module="HawalaExecution"; action="Execute"; }

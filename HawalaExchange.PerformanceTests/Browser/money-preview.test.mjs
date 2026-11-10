@@ -79,6 +79,17 @@ test('exchange calculates from the last edited side and hawala reverse mode upda
     to.value = '13000'; refreshMoneyPreview(to, true); assert.equal(from.value, '200'); assert.equal(trade.value, 'Buy');
     rate.value = '130'; refreshMoneyPreview(rate, true); assert.equal(from.value, '100');
     trade.value = 'Sell'; refreshMoneyPreview(trade); assert.equal(to.value, '13,000');
+    delete nodes['[data-live-trade]'];
+    from.value = '10000'; rate.value = '65.14';
+    refreshMoneyPreview(from, true); assert.equal(to.value, '651,400');
+    to.value = '325700'; refreshMoneyPreview(to, true); assert.equal(from.value, '5,000');
+    scope.dataset.linkedRate = 'true';
+    fromCurrency.selectedOptions[0].dataset = {code:'PKR',priority:'3'};
+    from.value = '14000'; rate.value = '0.231'; refreshMoneyPreview(from,true);
+    assert.equal(to.value,'3,234');
+    delete scope.dataset.linkedRate;
+    fromCurrency.selectedOptions[0].dataset = {code:'USD',priority:'1'};
+    from.value = '100';
     scope.dataset.liveFinance = 'hawala'; nodes['[data-live-mode]:checked'] = { value: 'AmountToRate' };
     to.value = '6500'; refreshMoneyPreview(to, true); assert.equal(rate.value, '65');
     toCurrency.value = '0'; refreshMoneyPreview(from); assert.equal(to.value, '');

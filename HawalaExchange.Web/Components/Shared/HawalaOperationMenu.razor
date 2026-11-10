@@ -1,4 +1,7 @@
 @using HawalaExchange.Application.DTOs
+@using HawalaExchange.Web.Components.Shared.Modals
+@using HawalaExchange.Application.Interfaces.Services
+@inject IMoneyExchangeOperationService ExchangeService
 
 <div class="hawala-quick-actions" @onclick:stopPropagation="true">
     <AppActionMenu Title="سایر عملیات"
@@ -9,14 +12,14 @@
             کاپی معلومات
         </button></PermissionView>
 
-        @if (ShowEdit && Hawala.Status != "Cancel")
+        @if (ShowEdit && Hawala.Status != "Cancel" && Hawala.CompensatesHawalaId is null)
         {
             <PermissionView Permission="Hawalas.Edit"><button type="button" class="operation-menu-item" role="menuitem" data-action-key="edit" @onclick="EditAsync">
                 <i class="bi bi-pencil text-warning"></i>
                 ویرایش
             </button></PermissionView>
         }
-        @if (ShowDelete && !Hawala.HasPeriodicCommissionHistory)
+        @if (ShowDelete && !Hawala.HasPeriodicCommissionHistory && Hawala.CancellationAccountingMode is null && Hawala.CompensatesHawalaId is null)
         {
             <PermissionView Permission="Hawalas.Delete"><button type="button" class="operation-menu-item operation-menu-danger" role="menuitem" data-action-key="delete" @onclick="DeleteAsync">
                 <i class="bi bi-trash"></i>
@@ -32,6 +35,11 @@
         }
 
         <div class="operation-menu-divider"></div>
+        @if(Hawala.CorrespondentId.HasValue && Hawala.Status!="Cancel" && (Hawala.HawalaType is "HawalaReceive" or "HawalaSend"))
+        {
+            <PermissionView Permission="Exchanges.Create"><button class="operation-menu-item" type="button" disabled="@Hawala.HasIndependentExchange" @onclick="() => showExchange=true">تبدیل حواله به ارز انتخابی</button></PermissionView>
+            @if(Hawala.HasIndependentExchange){<PermissionView Permission="Exchanges.View"><button class="operation-menu-item" @onclick="ViewExchange">جزئیات تبدیل اسعار</button></PermissionView>}
+        }
         <button type="button" class="operation-menu-item" role="menuitem" data-action-key="view" @onclick="ViewAsync">
             <i class="bi bi-eye text-info"></i>
             مشاهده
@@ -60,17 +68,34 @@
             </button></PermissionView>
         }
 
-        @if (ShowCancel && Hawala.Status != "Cancel")
+        @if (ShowCancel && Hawala.CompensatesHawalaId is null && (Hawala.Status != "Cancel" || Hawala.CancellationAccountingMode == "ManualPending"))
         {
             <PermissionView Permission="Hawalas.Delete"><button type="button" class="operation-menu-item" role="menuitem" data-action-key="cancel" @onclick="CancelAsync">
                 <i class="bi bi-x-circle text-danger"></i>
-                لغو حواله
+                @(Hawala.CancellationAccountingMode == "ManualPending" ? "ثبت حواله جبرانی لغو" : "لغو حواله")
             </button></PermissionView>
         }
     </AppActionMenu>
+    @if(exchangeError!=null){<div class="text-danger small" role="alert">@exchangeError</div>}
 </div>
+<MoneyExchangeModal IsVisible="showExchange" IsVisibleChanged="value => showExchange=value" LinkedHawalaId="Hawala.Id" OnSaveSuccess="ExchangeSaved" />
+@if(exchangeDetails!=null){
+<div class="modal d-block" role="dialog" aria-modal="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>تبدیل مستقل حواله @Hawala.Number</h5></div><div class="modal-body">
+<div dir="ltr">@exchangeDetails.FromAmount @exchangeDetails.FromCurrencyCode → @exchangeDetails.ToAmount @exchangeDetails.ToCurrencyCode</div>
+<div>نرخ هر 1 واحد ارز مبدأ: @(exchangeDetails.ToAmount/exchangeDetails.FromAmount)</div><div>@DisplayDates.DateTime(exchangeDetails.ExchangeDate)</div><p>@exchangeDetails.Description</p>
+@if(exchangeError!=null){<div class="alert alert-danger">@exchangeError</div>}
+</div><div class="modal-footer"><button class="btn btn-secondary" @onclick="()=>exchangeDetails=null">بستن</button><PermissionView Permission="Exchanges.Delete"><button class="btn btn-outline-danger" @onclick="()=>confirmRemove=true">حذف تبدیل</button>@if(confirmRemove){<button class="btn btn-danger" @onclick="RemoveExchange">تأیید حذف و برگشت اثر تبدیل</button>}</PermissionView></div></div></div></div><div class="modal-backdrop fade show"></div>
+}
 
 @code {
+    private bool showExchange;
+    private MoneyExchangeOperationDto? exchangeDetails;
+    private string? exchangeError;
+    private bool confirmRemove;
+    private async Task ViewExchange(){exchangeError=null;confirmRemove=false;try{exchangeDetails=await ExchangeService.GetByLinkedHawalaAsync(Hawala.Id);}catch(Exception ex){exchangeError=ex.Message;}}
+    private async Task RemoveExchange(){try{await ExchangeService.DeleteAsync(exchangeDetails!.Id);exchangeDetails=null;Hawala.HasIndependentExchange=false;await OnExchangeSaved.InvokeAsync();}catch(Exception ex){exchangeError=ex.Message;}}
+    [Parameter] public EventCallback OnExchangeSaved { get; set; }
+    private async Task ExchangeSaved(CreateMoneyExchangeOperationDto _) { Hawala.HasIndependentExchange=true; await OnExchangeSaved.InvokeAsync(); }
     [Parameter] public HawalaDto Hawala { get; set; } = new();
 
     [Parameter] public bool ShowEdit { get; set; } = false;

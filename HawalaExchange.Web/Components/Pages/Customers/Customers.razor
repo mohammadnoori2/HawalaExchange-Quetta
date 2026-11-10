@@ -176,6 +176,7 @@
                                                     <i class="bi bi-eye text-primary"></i>
                                                     مشاهده مشتری
                                                 </button>
+                                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewOpeningBalances(customer.Id)"><i class="bi bi-wallet2 text-primary"></i> موجودی افتتاحیه</button>
                                             }
                                             else
                                             {
@@ -363,7 +364,7 @@
                         <div class="customer-initial-balance-switch">
                             <input class="form-check-input" type="checkbox" id="customerHasInitialBalance" @bind="HasInitialBalance" />
                             <label class="form-check-label fw-bold" for="customerHasInitialBalance">
-                                <i class="bi bi-plus-circle text-primary me-1"></i> افزودن موجودی اولیه
+                                <i class="bi bi-plus-circle text-primary me-1"></i> افزودن موجودی افتتاحیه
                             </label>
                         </div>
 
@@ -371,7 +372,7 @@
                         {
                             <div class="modern-card customer-initial-balance-card mt-2 mb-4">
                                 <div class="card-header">
-                                    <h6 class="text-primary"><i class="bi bi-wallet2 me-2"></i> ثبت موجودی اولیه</h6>
+                                    <h6 class="text-primary"><i class="bi bi-wallet2 me-2"></i> ثبت موجودی افتتاحیه</h6>
                                 </div>
                                 <div class="card-body">
                                     <div class="customer-initial-balance-grid">
@@ -381,7 +382,7 @@
                                             var itemIsIncomplete = initialBalanceValidationAttempted && !IsEmptyInitialBalance(item) && !IsCompleteInitialBalance(item);
                                             <div class="customer-initial-balance-item" @key="item">
                                                 <div class="customer-initial-balance-controls @(itemIsIncomplete ? "customer-initial-balance-invalid" : string.Empty)">
-                                                    <select class="customer-initial-balance-currency" @bind="item.CurrencyId" aria-label="واحد پولی موجودی اولیه">
+                                                    <select class="customer-initial-balance-currency" @bind="item.CurrencyId" aria-label="واحد پولی موجودی افتتاحیه">
                                                         <option value="0">انتخاب ارز</option>
                                                         @foreach (var currency in currencies)
                                                         {
@@ -392,17 +393,12 @@
                                                     <MoneyInput class="customer-initial-balance-amount" @bind-Value="item.Amount" min="0" placeholder="مبلغ" />
 
                                                     <select class="customer-initial-balance-direction @(item.Direction == "Debit" ? "is-debit" : "is-credit")"
-                                                            @bind="item.Direction" aria-label="نوع موجودی اولیه">
+                                                            @bind="item.Direction" aria-label="نوع موجودی افتتاحیه">
                                                         <option value="Debit">بدهکار</option>
                                                         <option value="Credit">طلبکار</option>
                                                     </select>
 
-                                                    <div class="customer-initial-balance-account @(itemIsIncomplete && item.OppositeAccountId <= 0 ? "customer-initial-balance-invalid" : string.Empty)">
-                                                        <AccountSearchSelect Accounts="@accounts"
-                                                                             @bind-Value="item.OppositeAccountId"
-                                                                             Placeholder="حساب طرف مقابل"
-                                                                             ShowBalanceSummary="false" />
-                                                    </div>
+                                                    <span class="text-muted small">طرف مقابل: حساب افتتاحیه</span>
                                                 </div>
 
                                                 <small data-money-words hidden="@(!(item.Amount > 0))" class="customer-initial-balance-words">
@@ -436,7 +432,7 @@
                     {
                         <div class="alert alert-warning mt-2">
                             <i class="bi bi-info-circle"></i>
-                            <small>موجودی اولیه فقط در زمان ایجاد مشتری قابل ثبت است. برای تغییر موجودی، از بخش تراکنش‌ها استفاده کنید.</small>
+                            <small>برای افزودن، ویرایش یا حذف موجودی افتتاحیه، از گزینه موجودی افتتاحیه مشتری استفاده کنید.</small>
                         </div>
                     }
 
@@ -874,7 +870,7 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
 
-    // ===== موجودی اولیه =====
+    // ===== موجودی افتتاحیه =====
     private bool hasInitialBalance = true;
     private List<InitialBalanceDto> initialBalances = new();
     private bool initialBalanceValidationAttempted = false;
@@ -1166,18 +1162,17 @@
         StateHasChanged();
     }
 
-    // ===== موجودی اولیه =====
+    // ===== موجودی افتتاحیه =====
     private static bool IsEmptyInitialBalance(InitialBalanceDto item)
     {
         return item.CurrencyId <= 0 &&
                item.Amount <= 0 &&
-               item.OppositeAccountId <= 0 &&
                string.IsNullOrWhiteSpace(item.Description);
     }
 
     private static bool IsCompleteInitialBalance(InitialBalanceDto item)
     {
-        return item.CurrencyId > 0 && item.Amount > 0 && item.OppositeAccountId > 0;
+        return item.CurrencyId > 0 && item.Amount > 0;
     }
 
     private void AddInitialBalanceRow()
@@ -1187,13 +1182,13 @@
 
         if (initialBalances.Any(item => !IsCompleteInitialBalance(item)))
         {
-            initialBalanceError = "برای افزودن موجودی، ارز، مبلغ بزرگ‌تر از صفر و حساب طرف مقابل را کامل کنید.";
+            initialBalanceError = "برای افزودن موجودی، ارز، مبلغ بزرگ‌تر از صفر را کامل کنید.";
             return;
         }
 
         if (initialBalances.GroupBy(item => item.CurrencyId).Any(group => group.Count() > 1))
         {
-            initialBalanceError = "برای این ارز قبلاً موجودی اولیه افزوده شده است؛ ردیف قبلی را حذف یا همان را استفاده کنید.";
+            initialBalanceError = "برای این ارز قبلاً موجودی افتتاحیه افزوده شده است؛ ردیف قبلی را حذف یا همان را استفاده کنید.";
             return;
         }
 
@@ -1253,11 +1248,11 @@
                                             (!enteredInitialBalances.Any() || hasIncompleteInitialBalance);
 
         if (hasInitialBalance && !enteredInitialBalances.Any())
-            validationErrors.Add("حداقل یک موجودی اولیه باید ثبت شود");
+            validationErrors.Add("حداقل یک موجودی افتتاحیه باید ثبت شود");
 
         if (hasIncompleteInitialBalance)
         {
-            initialBalanceError = "اطلاعات موجودی اولیه کامل نیست؛ ارز، مبلغ بزرگ‌تر از صفر و حساب طرف مقابل را وارد کنید.";
+            initialBalanceError = "اطلاعات موجودی افتتاحیه کامل نیست؛ ارز، مبلغ بزرگ‌تر از صفر را وارد کنید.";
             validationErrors.Add(initialBalanceError);
         }
 
@@ -1268,7 +1263,7 @@
                                        .Any(group => group.Count() > 1);
         if (hasDuplicateCurrency)
         {
-            initialBalanceError = "برای ارز انتخاب‌شده قبلاً یک ردیف موجودی اولیه وجود دارد.";
+            initialBalanceError = "برای ارز انتخاب‌شده قبلاً یک ردیف موجودی افتتاحیه وجود دارد.";
             validationErrors.Add(initialBalanceError);
         }
 
@@ -1510,6 +1505,8 @@
     }
 
     // ===== مشاهده تراکنش‌ها =====
+    private void ViewOpeningBalances(long id) => NavigationManager.NavigateTo($"/customers/{id}/opening-balances");
+
     private void ViewTransactions(long id)
     {
         NavigationManager.NavigateTo($"/customers/{id}/transactions");

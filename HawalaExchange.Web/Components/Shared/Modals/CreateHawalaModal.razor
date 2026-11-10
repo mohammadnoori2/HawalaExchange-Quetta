@@ -1,4 +1,4 @@
-﻿@* Components/Shared/Modals/CreateHawalaModal.razor *@
+@* Components/Shared/Modals/CreateHawalaModal.razor *@
 @using Microsoft.JSInterop
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
@@ -73,7 +73,7 @@
                                         <label class="form-label fw-bold">نوع حواله <span class="text-danger">*</span></label>
                                         <select class="form-select"
                                                 value="@CurrentHawala.HawalaType"
-                                                @onchange="(ChangeEventArgs e) => { CurrentHawala.HawalaType = e.Value?.ToString() ?? string.Empty; OnHawalaTypeChanged(e); }">
+                                                @onchange="OnHawalaTypeChanged">
                                             <option value="">انتخاب نوع</option>
                                             <option value="HawalaSend">حواله ارسال</option>
                                             <option value="HawalaReceive">حواله دریافت</option>
@@ -105,21 +105,10 @@
                                             <span class="text-danger">*</span>
                                         }
                                     </label>
-                                    <select class="form-select"
-                                            value="@CurrentHawala.PaymentLocationId"
-                                            @onchange="OnPaymentLocationChanged"
-                                            disabled="@isPaymentLocationsLoading">
-                                        <option value="">
-                                            انتخاب محل پرداخت
-                                        </option>
-                                        @if (PaymentLocationsList != null && PaymentLocationsList.Any())
-                                        {
-                                            @foreach (var location in PaymentLocationsList)
-                                            {
-                                                <option value="@location.Id">@location.Name - @location.Address</option>
-                                            }
-                                        }
-                                    </select>
+                                    <PaymentLocationSearchSelect Locations="@PaymentLocationsList"
+                                                                 Value="@CurrentHawala.PaymentLocationId"
+                                                                 ValueChanged="OnPaymentLocationChanged"
+                                                                 Disabled="@isPaymentLocationsLoading" />
                                     @if (CurrentHawala.HawalaType == "HawalaSend")
                                     {
                                         <small class="text-muted">محلی که گیرنده می‌تواند پول را دریافت کند.</small>
@@ -565,7 +554,7 @@
                 <button type="button" class="btn-modern btn-light-modern" @onclick="CloseModal">
                     <i class="bi bi-x-circle"></i> انصراف
                 </button>
-                <button type="button" class="btn-modern btn-primary-modern" @onclick="SaveHawala" disabled="@IsLoading">
+                <button type="button" class="btn-modern btn-primary-modern" @onclick="SaveHawala" disabled="@(IsLoading || paymentAccountSelection.IsResolving)">
                     @if (IsLoading)
                     {
                         <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -752,13 +741,13 @@
                     <!-- دکمه‌های اقدام -->
                     <div class="row row-cols-2 row-cols-md-5 g-2">
                         <div class="col">
-                            <button class="btn w-100 py-2" style="background: #e9ecef; border-radius: 10px;" @onclick="PrintReceiptWithHeader">
+                            <button type="button" class="btn w-100 py-2" style="background: #e9ecef; border-radius: 10px;" data-receipt-print-target="@CreatedReceiptWithHeaderId">
                                 <i class="bi bi-printer text-primary me-1"></i>
                                 <span class="small">چاپ با سربرگ</span>
                             </button>
                         </div>
                         <div class="col">
-                            <button class="btn w-100 py-2" style="background: #e9ecef; border-radius: 10px;" @onclick="PrintReceiptWithoutHeader">
+                            <button type="button" class="btn w-100 py-2" style="background: #e9ecef; border-radius: 10px;" data-receipt-print-target="@CreatedReceiptWithoutHeaderId">
                                 <i class="bi bi-printer text-secondary me-1"></i>
                                 <span class="small">چاپ بدون سربرگ</span>
                             </button>
@@ -829,6 +818,12 @@
 
     // ===== متغیرها =====
     private CreateHawalaDto CurrentHawala { get; set; } = new();
+    private string? destinationEditSnapshot;
+    private HawalaDto? editingDocument;
+    private bool CanCorrectPaymentLocation => IsEditMode && EditData is not null &&
+        ((EditData.HawalaType == "HawalaReceive" && EditData.Status == "Paid") ||
+         (EditData.HawalaType == "HawalaSend" && editingDocument?.IsSystemGenerated == true &&
+          editingDocument.SourceHawalaId.HasValue && EditData.Status != "Cancel"));
     private List<CorrespondentDto> CorrespondentsList { get; set; } = new();
     private List<CurrencyDto> CurrenciesList { get; set; } = new();
     private List<AccountDto> AccountsList { get; set; } = new();
@@ -889,6 +884,7 @@
     {
         if (!IsVisible)
         {
+            paymentAccountSelection.Invalidate();
             if (wasVisible)
                 await CleanupPendingTazkiraImagesAsync();
             wasVisible = false;
@@ -902,6 +898,8 @@
 
         wasVisible = true;
 
+        destinationEditSnapshot = null;
+        editingDocument = null;
         // داده‌های کمکی فقط هنگام بازشدن مودال بارگذاری می‌شوند.
         await LoadLookupData();
 
@@ -961,6 +959,7 @@
         ValidationErrors.Clear();
         SuccessMessage = string.Empty;
         await LoadPaymentLocationsAsync(IsEditMode);
+        if (IsEditMode) destinationEditSnapshot = HawalaDestinationEdit.Snapshot(CurrentHawala);
         StateHasChanged();
 
         // دریافت شماره پیشنهادی
@@ -986,6 +985,10 @@
             CurrenciesList = (await CurrencyService.GetActiveCurrenciesAsync()).ToList();
             AccountsList = (await AccountService.GetAllAsync()).Where(a => !a.IsArchived).ToList();
             companySetting = await CompanySettingService.GetAsync();
+            if (IsEditMode)
+            {
+                editingDocument = await HawalaService.GetHawalaByIdAsync(EditId);
+            }
 
             var afn = CurrenciesList.FirstOrDefault(x => x.Code.Equals("AFN", StringComparison.OrdinalIgnoreCase));
             AfnCurrencyId = afn?.Id ?? 0;
@@ -1084,7 +1087,7 @@
 
         try
         {
-            await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", CreatedReceiptWithHeaderId, 80);
+            await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", CreatedReceiptWithHeaderId, 72);
         }
         catch (Exception ex)
         {
@@ -1102,7 +1105,7 @@
 
         try
         {
-            await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", CreatedReceiptWithoutHeaderId, 80);
+            await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", CreatedReceiptWithoutHeaderId, 72);
         }
         catch (Exception ex)
         {
@@ -1568,6 +1571,7 @@
 
     private async Task CloseModal()
     {
+        paymentAccountSelection.Invalidate();
         await CleanupPendingTazkiraImagesAsync();
         IsVisible = false;
         await IsVisibleChanged.InvokeAsync(false);
@@ -1578,8 +1582,33 @@
 
     private async Task SaveHawala()
     {
+        if (paymentAccountSelection.IsResolving || IsLoading) return;
         ValidationErrors.Clear();
         SuccessMessage = string.Empty;
+
+        if (CanCorrectPaymentLocation && CurrentHawala.PaymentLocationId != editingDocument?.PaymentLocationId)
+        {
+            if (CurrentHawala.PaymentLocationId is not > 0)
+            {
+                ValidationErrors.Add("محل پرداخت جدید را انتخاب کنید.");
+                return;
+            }
+            if (destinationEditSnapshot is null || destinationEditSnapshot != HawalaDestinationEdit.Snapshot(CurrentHawala))
+            {
+                ValidationErrors.Add("اصلاح محل پرداخت را جدا از تغییر سایر مشخصات ذخیره کنید تا تبدیل ارز توافقی و حساب مبدأ حفظ شوند.");
+                return;
+            }
+            try
+            {
+                IsLoading = true;
+                await HawalaService.ChangePaymentLocationAsync(EditId, CurrentHawala.PaymentLocationId.Value);
+                await OnEditSuccess.InvokeAsync(EditId);
+                await CloseModal();
+            }
+            catch (Exception ex) { ValidationErrors.Add(ex.Message); }
+            finally { IsLoading = false; StateHasChanged(); }
+            return;
+        }
 
         // ===== اعتبارسنجی =====
         if (string.IsNullOrEmpty(CurrentHawala.HawalaType))
@@ -1759,12 +1788,13 @@
 
     private async Task OnHawalaTypeChanged(ChangeEventArgs e)
     {
+        paymentAccountSelection.Invalidate();
+        CurrentHawala.HawalaType = e?.Value?.ToString() ?? string.Empty;
         if (UsesPeriodicCommission())
         {
             CurrentHawala.CommissionAmount = null;
             CurrentHawala.CommissionCurrencyId = null;
         }
-        CurrentHawala.HawalaType = e?.Value?.ToString() ?? string.Empty;
         if (!IsEditMode)
         {
             CurrentHawala.Status =
@@ -1773,6 +1803,7 @@
         CurrentHawala.Number = 0;
         CurrentHawala.GeneratedSendHawalaNumber = null;
         await GetSuggestedNumber();
+        await SelectPaymentLocationAccountAsync();
         await GetSuggestedGeneratedSendHawalaNumberAsync();
         StateHasChanged();
     }
@@ -1780,6 +1811,7 @@
     private async Task OnStatusChanged(ChangeEventArgs e)
     {
         CurrentHawala.Status = e?.Value?.ToString() ?? "Pending";
+        await SelectPaymentLocationAccountAsync();
 
         if (CurrentHawala.Status == "Paid")
         {
@@ -1808,54 +1840,37 @@
         StateHasChanged();
     }
 
-    private int paymentLocationResolutionVersion;
-    private readonly SemaphoreSlim paymentLocationResolutionGate = new(1, 1);
+    private readonly HawalaPaymentAccountSelection paymentAccountSelection = new();
 
-    private async Task OnPaymentLocationChanged(ChangeEventArgs e)
+    private async Task OnPaymentLocationChanged(long? locationId)
     {
-        CurrentHawala.PaymentLocationId = long.TryParse(e.Value?.ToString(), out var locationId)
-            ? locationId
-            : null;
-
-        if (IsEditMode && CurrentHawala.HawalaType == "HawalaReceive" &&
-            CurrentHawala.Status == "Paid" && CurrentHawala.PaymentLocationId.HasValue)
-        {
-            var version = ++paymentLocationResolutionVersion;
-            var model = CurrentHawala;
-            var selectedLocationId = model.PaymentLocationId.Value;
-            model.FromAccountId = null;
-            CurrentHawala.GeneratedSendHawalaNumber = null;
-            ValidationErrors.RemoveAll(x => x.StartsWith("برای محل پرداخت انتخاب‌شده", StringComparison.Ordinal));
-            await paymentLocationResolutionGate.WaitAsync();
-            try
-            {
-                if (version != paymentLocationResolutionVersion || !ReferenceEquals(model, CurrentHawala) || model.PaymentLocationId != selectedLocationId)
-                    return;
-                var accountId = await HawalaService.ResolvePaymentLocationAccountAsync(selectedLocationId);
-                var account = AccountsList.FirstOrDefault(x => x.Id == accountId)
-                    ?? await AccountService.GetByIdAsync(accountId);
-                if (version != paymentLocationResolutionVersion || !ReferenceEquals(model, CurrentHawala) || model.PaymentLocationId != selectedLocationId)
-                    return;
-                if (account is null || account.IsArchived)
-                    throw new InvalidOperationException("حساب فعال نمایندگی مسئول یافت نشد.");
-                if (!AccountsList.Any(x => x.Id == accountId)) AccountsList.Add(account);
-                model.FromAccountId = accountId;
-                await GetSuggestedGeneratedSendHawalaNumberAsync();
-            }
-            catch (InvalidOperationException ex)
-            {
-                if (version == paymentLocationResolutionVersion && ReferenceEquals(model, CurrentHawala) && model.PaymentLocationId == selectedLocationId)
-                    ValidationErrors.Add($"برای محل پرداخت انتخاب‌شده: {ex.Message}");
-            }
-            catch (Exception)
-            {
-                if (version == paymentLocationResolutionVersion && ReferenceEquals(model, CurrentHawala) && model.PaymentLocationId == selectedLocationId)
-                    ValidationErrors.Add("برای محل پرداخت انتخاب‌شده، دریافت حساب مسئول انجام نشد؛ دوباره تلاش کنید.");
-            }
-            finally { paymentLocationResolutionGate.Release(); }
-        }
-
+        CurrentHawala.PaymentLocationId = locationId;
+        await SelectPaymentLocationAccountAsync();
+        await GetSuggestedGeneratedSendHawalaNumberAsync();
         StateHasChanged();
+    }
+
+    private async Task SelectPaymentLocationAccountAsync()
+    {
+        ValidationErrors.RemoveAll(x => x.StartsWith("برای محل پرداخت انتخاب‌شده", StringComparison.Ordinal));
+        try
+        {
+            var account = await paymentAccountSelection.ResolveAsync(CurrentHawala, () => CurrentHawala, async locationId =>
+            {
+                var accountId = await HawalaService.ResolvePaymentLocationAccountAsync(locationId);
+                return AccountsList.FirstOrDefault(x => x.Id == accountId) ?? await AccountService.GetByIdAsync(accountId);
+            });
+            if (account is null) return;
+            if (!AccountsList.Any(x => x.Id == account.Id)) AccountsList.Add(account);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ValidationErrors.Add($"برای محل پرداخت انتخاب‌شده: {ex.Message}");
+        }
+        catch (Exception)
+        {
+            ValidationErrors.Add("برای محل پرداخت انتخاب‌شده، دریافت حساب مسئول انجام نشد؛ دوباره تلاش کنید.");
+        }
     }
 
     private bool UsesPeriodicCommission() =>
@@ -2062,6 +2077,7 @@
 
     private void FromAccountChanged(long id)
     {
+        paymentAccountSelection.Invalidate();
         CurrentHawala.FromAccountId = id > 0 ? id : null;
         if (id == 0) CurrentHawala.GeneratedSendHawalaNumber = null;
     }

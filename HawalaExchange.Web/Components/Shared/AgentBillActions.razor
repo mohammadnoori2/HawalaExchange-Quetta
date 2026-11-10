@@ -1,0 +1,111 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@inject IHawalaService Service
+@inject NavigationManager Navigation
+<PermissionView Permission="HawalaExecution.View"><a class="btn btn-sm btn-outline-secondary" href="@($"/correspondents/{CorrespondentId}/agent-bills")">بیل‌های پرداخت عامل</a></PermissionView>
+<PermissionView Permission="HawalaExecution.Execute">
+    <button type="button" class="btn btn-sm btn-primary" disabled="@(busy || SelectedIds.Count == 0)" @onclick="Open">اجرا، پرداخت و صدور بیل (@SelectedIds.Count)</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@(busy || SelectedIds.Count == 0)" @onclick="OpenHistorical">رسید تسویه قبلی — بدون ثبت حسابداری</button>
+</PermissionView>
+@if (!string.IsNullOrEmpty(message)) { <div class="alert alert-info w-100" role="status">@message</div> }
+@if (open)
+{
+    <div class="modal d-block" role="dialog" aria-modal="true" aria-label="@(request.HistoricalReceipt ? "صدور رسید تسویه قبلی" : "اجرا، پرداخت و صدور بیل")" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">@(request.HistoricalReceipt ? "رسید تسویه قبلی" : "اجرا و پرداخت") · @request.HawalaIds.Count حواله</h5><button type="button" class="btn-close" aria-label="بستن" disabled="@busy" @onclick="Close"></button></div>
+            <div class="modal-body">
+                @if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger" role="alert">@error</div> }
+                @if (previousBills.Count > 0)
+                {
+                    <div class="alert alert-info">بعضی از حواله‌های انتخاب‌شده قبلاً بیل دارند. برای چاپ مجدد، همان بیل را باز کنید؛ برای صدور بیل تازه، ابتدا بیل قبلی را لغو کنید.
+                        @foreach (var prior in previousBills) { <div><a href="@($"/correspondents/{CorrespondentId}/agent-bills/{prior.Id}")">مشاهده و چاپ مجدد بیل #@prior.Id</a></div> }
+                    </div>
+                }
+                <div class="row g-3 mb-3">
+                    @if (!request.HistoricalReceipt)
+                    {
+                    <div class="col-12"><label class="form-label">حساب پرداخت اصل حواله‌ها و کمیشن عامل</label>
+                        <select class="form-select" disabled="@busy" @bind="paymentAccountId" @bind:after="Invalidate"><option value="0">انتخاب صندوق یا بانک</option>@foreach (var account in accounts) { <option value="@account.Id">@account.AccountName (@account.AccountCode)</option> }</select>
+                    </div>
+                    }
+                    else
+                    {
+                        <div class="col-12"><label class="form-label">مرجع تسویه قبلی</label><input class="form-control" maxlength="200" placeholder="نمبر سند یا توضیح پرداخت قبلی" disabled="@busy" @bind="request.PreviousSettlementReference" @bind:after="Invalidate" /></div>
+                    }
+                    <div class="col-md-6"><label class="form-label">نام دریافت‌کننده پول</label><input class="form-control" maxlength="200" disabled="@busy" @bind="request.RecipientName" @bind:after="Invalidate" /></div>
+                    <div class="col-md-6"><label class="form-label">شماره تماس</label><input class="form-control" maxlength="50" disabled="@busy" @bind="request.RecipientPhone" @bind:after="Invalidate" /></div>
+                    <div class="col-12"><label class="form-label">توضیحات</label><textarea class="form-control" maxlength="1000" disabled="@busy" @bind="request.Notes" @bind:after="Invalidate"></textarea></div>
+                </div>
+                @if (request.HistoricalReceipt)
+                {
+                    <label class="form-check mb-3"><input class="form-check-input" type="checkbox" disabled="@busy" @bind="request.ConfirmPreviouslySettled" /> تأیید می‌کنم اصل و کمیشن این حواله‌ها قبلاً با عامل تسویه شده و فقط رسید آن صادر می‌شود.</label>
+                    <div class="alert alert-info">این گزینه فقط برای حواله‌های اجراشده است. صدور، چاپ مجدد و لغو این رسید هیچ برداشت یا برگشت وجهی ایجاد نمی‌کند و وضعیت اجرای حواله‌ها را تغییر نمی‌دهد.</div>
+                }
+                else
+                {
+                    <label class="form-check mb-3"><input class="form-check-input" type="checkbox" disabled="@busy" @bind="request.ConfirmUnsettled" /> بررسی کردم که اصل و کمیشن این حواله‌ها قبلاً با عامل تسویه نشده است.</label>
+                    <div class="alert alert-info">با تأیید، حواله‌های اجرا‌نشده اجرا می‌شوند و اصل حواله‌ها همراه کمیشن عامل از حساب انتخابی پرداخت و بیل صادر می‌شود. مبالغ هر ارز جدا ثبت می‌شوند.</div>
+                }
+                @if (preview is not null) { <AgentBillDetails Bill="preview" /> }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" disabled="@busy" @onclick="Close">انصراف</button>
+                <button class="btn btn-outline-primary" disabled="@(busy || previousBills.Count > 0 || !HasPaymentInformation)" @onclick="Preview">پیش‌نمایش</button>
+                <button class="btn btn-primary" disabled="@(busy || preview is null || !IsConfirmed || !HasPaymentInformation || previousBills.Count > 0)" @onclick="Create">@(request.HistoricalReceipt ? "صدور رسید بدون ثبت حسابداری" : "تأیید اجرا، پرداخت و صدور بیل")</button>
+            </div>
+        </div></div>
+    </div><div class="modal-backdrop fade show"></div>
+}
+@code {
+    [Parameter] public long CorrespondentId { get; set; }
+    [Parameter] public IReadOnlyCollection<long> SelectedIds { get; set; } = [];
+    [Parameter] public EventCallback Changed { get; set; }
+    private bool busy, open;
+    private string? message, error;
+    private AgentBillCreateDto request = new();
+    private AgentBillDto? preview;
+    private List<AccountDto> accounts = [];
+    private IReadOnlyList<AgentBillDto> previousBills = [];
+    private long paymentAccountId;
+    private Guid executionRequestId;
+    private bool HasPaymentInformation => request.HistoricalReceipt ? !string.IsNullOrWhiteSpace(request.PreviousSettlementReference) : paymentAccountId > 0;
+    private bool IsConfirmed => request.HistoricalReceipt ? request.ConfirmPreviouslySettled : request.ConfirmUnsettled;
+    private Task Open() => OpenForm(false);
+    private Task OpenHistorical() => OpenForm(true);
+    private async Task OpenForm(bool historical)
+    {
+        if (busy) return;
+        request = new() { CorrespondentId = CorrespondentId, HawalaIds = SelectedIds.ToList(), HistoricalReceipt = historical };
+        executionRequestId = Guid.NewGuid(); preview = null; error = null; open = true; busy = true;
+        previousBills = []; accounts = []; paymentAccountId = 0;
+        try
+        {
+            if (!historical)
+            {
+                accounts = (await Service.GetAgentBillPaymentAccountsAsync()).ToList();
+                paymentAccountId = accounts.Where(x => x.AccountType == "Cash").OrderByDescending(x => x.AccountCode == "1001").ThenBy(x => x.Id).Select(x => x.Id).FirstOrDefault();
+            }
+            previousBills = await Service.GetAgentBillsForHawalasAsync(CorrespondentId, request.HawalaIds);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private void Close() { open=false; preview=null; }
+    private void Invalidate() => preview=null;
+    private async Task Preview() { busy=true; error=null; preview=null; try { preview=await Service.PreviewAgentBillAsync(request); request.PreviewToken=preview.ConfirmationToken; } catch(Exception ex) { error=ex.Message; } finally { busy=false; } }
+    private async Task Create()
+    {
+        if (busy || preview is null || !HasPaymentInformation || !IsConfirmed || previousBills.Count > 0) return;
+        busy = true; error = null;
+        try
+        {
+            var bill = request.HistoricalReceipt
+                ? await Service.CreateHistoricalAgentReceiptAsync(new() { Bill = request, RequestId = executionRequestId })
+                : await Service.ExecuteAndCreateAgentBillAsync(new() { Bill = request, RequestId = executionRequestId,
+                    Accounts = preview.Totals.Select(x => new AgentBillPaymentAccountDto { CurrencyId = x.CurrencyId, AccountId = paymentAccountId }).ToList() });
+            Navigation.NavigateTo($"/correspondents/{CorrespondentId}/agent-bills/{bill.Id}");
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+}

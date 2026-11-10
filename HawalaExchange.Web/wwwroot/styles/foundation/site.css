@@ -1091,6 +1091,17 @@ body {
     cursor: pointer;
 }
 
+/* Numeric fields are edited by typing, never by spinner controls. */
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
     .btn-modern i {
         font-size: 1rem;
     }

@@ -162,6 +162,9 @@
                                                 <i class="bi bi-eye text-primary"></i>
                                                 مشاهده نمایندگی
                                             </button>
+                                            <PermissionAction Actions="View"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenOpeningBalances(correspondent.Id)">
+                                                <i class="bi bi-wallet2 text-primary"></i> موجودی افتتاحیه
+                                            </button></PermissionAction>
                                             @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
                                             {
                                                  <PermissionAction Actions="View" Module="IncomingCommission"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenCommissionPage(correspondent.Id)">
@@ -212,7 +215,7 @@
 </div>
 
 <!-- ============================================================ -->
-<!-- مودال ایجاد/ویرایش نماینده (با قابلیت موجودی اولیه) -->
+<!-- مودال ایجاد/ویرایش نماینده (با قابلیت موجودی افتتاحیه) -->
 <!-- ============================================================ -->
 @if (showModal)
 {
@@ -327,16 +330,20 @@
                                     </select>
                                     <div class="form-text">در روش دوره‌ای، کمیشن داخل حواله دریافتی ثبت نمی‌شود.</div>
                                 </div>
+                                <div class="col-12 mb-3">
+                                    <label class="form-check"><input class="form-check-input" type="checkbox" @bind="currentCorrespondent.RequiresManualExecution" /> نیاز به تأیید دستی اجرای حواله‌های ارجاع‌شده</label>
+                                    <div class="form-text">حواله‌های جدید ارجاع‌شده در انتظار اجرا می‌مانند. وضعیت حواله‌های قبلی تغییر نمی‌کند.</div>
+                                </div>
                             </div>
 
-                            <!-- ===== سوئیچ موجودی اولیه (فقط در حالت ایجاد) ===== -->
+                            <!-- ===== سوئیچ موجودی افتتاحیه (فقط در حالت ایجاد) ===== -->
                             @if (!isEditMode)
                             {
                                 <div class="custom-switch-inline mt-3">
                                     <input class="form-check-input" type="checkbox" id="hasInitialBalance"
                                            @bind="HasInitialBalance" />
                                     <label class="form-check-label fw-bold" for="hasInitialBalance">
-                                        <i class="bi bi-plus-circle text-primary me-1"></i> افزودن موجودی اولیه
+                                        <i class="bi bi-plus-circle text-primary me-1"></i> افزودن موجودی افتتاحیه
                                     </label>
                                 </div>
                             }
@@ -344,22 +351,23 @@
                             {
                                 <div class="alert alert-warning mt-2">
                                     <i class="bi bi-info-circle"></i>
-                                    <small>موجودی اولیه فقط در زمان ایجاد نماینده قابل ثبت است.</small>
+                                    <small>موجودی افتتاحیه را از گزینه «موجودی افتتاحیه» در عملیات نمایندگی مدیریت کنید.</small>
                                 </div>
                             }
                         </div>
                     </div>
 
-                    <!-- ===== بخش ثبت موجودی اولیه (فقط در حالت ایجاد و زمانی که سوئیچ فعال باشد) ===== -->
+                    <!-- ===== بخش ثبت موجودی افتتاحیه (فقط در حالت ایجاد و زمانی که سوئیچ فعال باشد) ===== -->
                     @if (!isEditMode && hasInitialBalance)
                     {
                         <div class="modern-card mb-4">
                             <div class="card-header">
                                 <h6 class="text-primary">
-                                    <i class="bi bi-wallet2 me-2"></i> ثبت موجودی اولیه
+                                    <i class="bi bi-wallet2 me-2"></i> ثبت موجودی افتتاحیه
                                 </h6>
                             </div>
                             <div class="card-body">
+                                <p class="text-muted small">طرف مقابل، حساب انتقال مانده افتتاحیه است؛ این ثبت موجودی صندوق یا بانک را افزایش نمی‌دهد و شامل کمیشن نیست.</p>
                                 <div class="correspondent-initial-balance-grid">
                                     @foreach (var item in initialBalances)
                                     {
@@ -367,7 +375,7 @@
                                         var itemIsIncomplete = initialBalanceValidationAttempted && !IsEmptyInitialBalance(item) && !IsCompleteInitialBalance(item);
                                         <div class="correspondent-initial-balance-item" @key="item">
                                             <div class="correspondent-initial-balance-controls @(itemIsIncomplete ? "correspondent-initial-balance-invalid" : string.Empty)">
-                                                <select class="correspondent-initial-balance-currency" @bind="item.CurrencyId" aria-label="واحد پولی موجودی اولیه">
+                                                <select class="correspondent-initial-balance-currency" @bind="item.CurrencyId" aria-label="واحد پولی موجودی افتتاحیه">
                                                     <option value="0">انتخاب ارز</option>
                                                     @foreach (var currency in currencies)
                                                     {
@@ -378,18 +386,12 @@
                                                 <MoneyInput class="correspondent-initial-balance-amount" @bind-Value="item.Amount" min="0" placeholder="مبلغ" />
 
                                                 <select class="correspondent-initial-balance-direction @(item.Direction == "Debit" ? "is-debit" : "is-credit")"
-                                                        @bind="item.Direction" aria-label="نوع موجودی اولیه">
+                                                        @bind="item.Direction" aria-label="نوع موجودی افتتاحیه">
                                                     <option value="Debit">بدهکار</option>
                                                     <option value="Credit">طلبکار</option>
                                                 </select>
 
-                                                <div class="correspondent-initial-balance-account @(itemIsIncomplete && item.OppositeAccountId <= 0 ? "correspondent-initial-balance-invalid" : string.Empty)">
-                                                    <AccountSearchSelect Accounts="@accounts"
-                                                                         @bind-Value="item.OppositeAccountId"
-                                                                         Placeholder="حساب طرف مقابل"
-                                                                         ShowAccountCode="false"
-                                                                         ShowBalanceSummary="false" />
-                                                </div>
+                                                <span class="visually-hidden">طرف مقابل: حساب افتتاحیه</span>
                                             </div>
 
                                             <small data-money-words hidden="@(!(item.Amount > 0))" class="correspondent-initial-balance-words">
@@ -683,6 +685,7 @@
 }
 
 @code {
+    private void OpenOpeningBalances(long id) => NavigationManager.NavigateTo($"/correspondents/{id}/opening-balances");
     private async Task RefreshPageDataAsync()
     {
         await LoadCorrespondents(); await LoadAccounts();
@@ -781,7 +784,7 @@
 
     private CreateCorrespondentDto currentCorrespondent = new();
 
-    // ===== متغیرهای موجودی اولیه =====
+    // ===== متغیرهای موجودی افتتاحیه =====
     private bool hasInitialBalance = true;
     private List<InitialBalanceDto> initialBalances = new();
     private bool initialBalanceValidationAttempted;
@@ -919,7 +922,7 @@
         StateHasChanged();
     }
 
-    // ===== متدهای موجودی اولیه =====
+    // ===== متدهای موجودی افتتاحیه =====
     private static bool IsEmptyInitialBalance(InitialBalanceDto item)
     {
         return item.CurrencyId <= 0 &&
@@ -931,8 +934,7 @@
     private static bool IsCompleteInitialBalance(InitialBalanceDto item)
     {
         return item.CurrencyId > 0 &&
-               item.Amount > 0 &&
-               item.OppositeAccountId > 0;
+               item.Amount > 0;
     }
 
     private void AddInitialBalanceRow()
@@ -942,13 +944,13 @@
 
         if (initialBalances.Any(item => !IsCompleteInitialBalance(item)))
         {
-            initialBalanceError = "برای افزودن موجودی، ارز، مبلغ بزرگ‌تر از صفر و حساب طرف مقابل را کامل کنید.";
+            initialBalanceError = "برای افزودن موجودی، ارز و مبلغ بزرگ‌تر از صفر را کامل کنید.";
             return;
         }
 
         if (initialBalances.GroupBy(item => item.CurrencyId).Any(group => group.Count() > 1))
         {
-            initialBalanceError = "برای این ارز قبلاً موجودی اولیه افزوده شده است.";
+            initialBalanceError = "برای این ارز قبلاً موجودی افتتاحیه افزوده شده است.";
             return;
         }
 
@@ -1017,6 +1019,7 @@
                     Remarks = correspondent.Remarks,
                     SettlementCurrencyId = correspondent.SettlementCurrencyId,
                     CommissionMethod = correspondent.CommissionMethod
+                    ,RequiresManualExecution = correspondent.RequiresManualExecution
                 };
 
                 isEditMode = true;
@@ -1206,13 +1209,13 @@
         if (string.IsNullOrWhiteSpace(currentCorrespondent.Name))
             validationErrors.Add("نام نماینده الزامی است");
         if (hasInitialBalance && !enteredInitialBalances.Any())
-            validationErrors.Add("حداقل یک موجودی اولیه باید ثبت شود");
+            validationErrors.Add("حداقل یک موجودی افتتاحیه باید ثبت شود");
 
         var hasIncompleteInitialBalance = hasInitialBalance &&
                                           enteredInitialBalances.Any(item => !IsCompleteInitialBalance(item));
         if (hasIncompleteInitialBalance)
         {
-            initialBalanceError = "اطلاعات موجودی اولیه کامل نیست؛ ارز، مبلغ بزرگ‌تر از صفر و حساب طرف مقابل را وارد کنید.";
+            initialBalanceError = "اطلاعات موجودی افتتاحیه کامل نیست؛ ارز، مبلغ بزرگ‌تر از صفر را وارد کنید.";
             validationErrors.Add(initialBalanceError);
         }
 
@@ -1221,7 +1224,7 @@
             .GroupBy(item => item.CurrencyId)
             .Any(group => group.Count() > 1))
         {
-            initialBalanceError = "برای هر ارز فقط یک موجودی اولیه وارد کنید.";
+            initialBalanceError = "برای هر ارز فقط یک موجودی افتتاحیه وارد کنید.";
             validationErrors.Add(initialBalanceError);
         }
 
@@ -1250,6 +1253,7 @@
                     Remarks = currentCorrespondent.Remarks,
                     SettlementCurrencyId = currentCorrespondent.SettlementCurrencyId,
                     CommissionMethod = currentCorrespondent.CommissionMethod,
+                    RequiresManualExecution = currentCorrespondent.RequiresManualExecution,
                     IsArchived = false
                 };
                 await CorrespondentService.UpdateAsync(editId, updateRequest);

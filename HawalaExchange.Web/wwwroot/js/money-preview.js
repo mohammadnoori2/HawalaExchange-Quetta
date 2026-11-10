@@ -103,6 +103,7 @@ export function refreshMoneyPreview(trigger, edited = false) {
         } else if (scope.dataset.liveFinance === 'exchange') {
             if (trade && edited && ['from', 'to'].includes(trigger.dataset?.liveAmount)) trade.value = state.source === 'from' ? 'Sell' : 'Buy';
             if (from.id === to.id) set(state.source === 'from' ? 'to' : 'from', null);
+            else if (scope.dataset.linkedRate === 'true') { const a=decimal(amount('from')),r=decimal(rate.value); set('to',positive(a)&&positive(r)?rounded(a.n*r.n,a.d*r.d).toString():null); }
             else if (state.source === 'from') set('to', convertPreview(amount('from'), rate.value, from, to));
             else set('from', convertPreview(amount('to'), rate.value, to, from));
         }

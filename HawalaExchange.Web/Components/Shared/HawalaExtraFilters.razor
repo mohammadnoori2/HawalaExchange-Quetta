@@ -3,6 +3,7 @@
 @using HawalaExchange.Infrastructure.Data
 @inject DbContextOptions<ApplicationDbContext> DbOptions
 @inject HawalaExchange.Application.Interfaces.ICurrentTenant CurrentTenant
+<div class="compact-filter-field"><label class="form-label">تبدیل مستقل اسعار</label><select class="form-select" @bind="Filter.IndependentExchange" @bind:after="Notify"><option value="">همه</option><option value="Converted">تبدیل‌شده</option><option value="Original">تبدیل‌نشده</option></select></div>
 
         @if (ShowBasic)
         {

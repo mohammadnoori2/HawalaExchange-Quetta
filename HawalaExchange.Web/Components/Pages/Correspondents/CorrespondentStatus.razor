@@ -18,7 +18,18 @@
             <i class="bi bi-arrow-right ms-1"></i>بازگشت به نمایندگی
         </button>
     </div>
-    @if (isLoading)
+    @if (!string.IsNullOrEmpty(pageError))
+    {
+        <div class="alert alert-warning d-flex align-items-center gap-2" role="alert">
+            <span>@pageError @(correspondent != null ? "اطلاعات قبلی نمایش داده می‌شود و ممکن است به‌روز نباشد." : "")</span>
+            <button type="button" class="btn btn-sm btn-outline-primary" disabled="@isLoading" @onclick="RefreshPageDataAsync">تلاش مجدد</button>
+        </div>
+    }
+    @if (isLoading && correspondent != null)
+    {
+        <div class="text-muted mb-2" role="status">در حال به‌روزرسانی اطلاعات...</div>
+    }
+    @if (isLoading && correspondent == null)
     {
         <div class="entity-page-state">
             <div class="spinner-border text-primary" role="status"></div>
@@ -28,14 +39,13 @@
     else if (correspondent == null || accountForView == null)
     {
         <div class="entity-page-state entity-page-error">
-            <h5>نمایندگی یافت نشد</h5>
-            <p>@pageError</p>
+            <h5>اطلاعات نمایندگی در دسترس نیست</h5>
             <button class="btn btn-primary" @onclick="BackToCorrespondents">بازگشت به نمایندگی‌ها</button>
         </div>
     }
     else
     {
-        <AccountDetailsModal @ref="refreshAccountDetails" IsVisible="true"
+        <AccountDetailsModal @key="dataVersion" IsVisible="true"
                              PageMode="true"
                              Account="@accountForView"
                              ViewTitle="وضعیت نمایندگی"
@@ -61,9 +71,12 @@
 @code {
     private async Task RefreshPageDataAsync()
     {
-        await LoadCorrespondentAsync(); if (refreshAccountDetails != null) await refreshAccountDetails.RefreshDataAsync();
+        if (isLoading) return;
+        pageLoadCts?.Dispose();
+        pageLoadCts = new CancellationTokenSource();
+        await LoadCorrespondentAsync(pageLoadCts.Token);
     }
-    private AccountDetailsModal? refreshAccountDetails;
+    private int dataVersion;
     [Parameter] public long CorrespondentId { get; set; }
 
     private CorrespondentDto? correspondent;
@@ -85,6 +98,10 @@
         pageLoadCts?.Cancel();
         pageLoadCts?.Dispose();
         pageLoadCts = new CancellationTokenSource();
+        correspondent = null;
+        accountForView = null;
+        initialBalances = null;
+        initialOperationsPage = null;
         loadedCorrespondentId = CorrespondentId;
         await LoadCorrespondentAsync(pageLoadCts.Token);
     }
@@ -124,15 +141,18 @@
                 IsArchived = correspondent.IsArchived,
                 CreatedAt = correspondent.CreatedAt
             };
+            dataVersion++;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
         catch (Exception ex)
         {
-            correspondent = null;
-            accountForView = null;
-            pageError = $"خطا در بارگذاری نمایندگی: {ex.Message}";
+            if (loadVersion != pageLoadVersion) return;
+            pageError = ex is TimeoutException || ex is OperationCanceledException ||
+                (ex is Microsoft.Data.SqlClient.SqlException sql && sql.Number == -2)
+                ? "دریافت اطلاعات بیش از حد طول کشید؛ دوباره تلاش کنید."
+                : "دریافت اطلاعات نمایندگی ناموفق بود؛ دوباره تلاش کنید.";
         }
         finally
         {
@@ -167,6 +187,7 @@
 
     public void Dispose()
     {
+        pageLoadVersion++;
         pageLoadCts?.Cancel();
         pageLoadCts?.Dispose();
     }

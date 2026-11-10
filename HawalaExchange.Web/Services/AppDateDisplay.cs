@@ -49,7 +49,9 @@ public sealed class AppDateDisplay : DisplayDateFormatter
         var preference = await context.CompanySettings.AsNoTracking()
             .Where(x => x.TenantId == tenantId).Select(x => (bool?)x.UsePersianCalendar).FirstOrDefaultAsync();
         SetCalendar(preference ?? true);
-        var zone=await context.Database.SqlQuery<string>($"SELECT TimeZoneId AS [Value] FROM dbo.TenantOperationalControls WHERE TenantId={tenantId}").SingleOrDefaultAsync();
+        var zone=await (context.Database.IsNpgsql()
+            ? context.Database.SqlQuery<string>($"SELECT \"TimeZoneId\" AS \"Value\" FROM public.\"TenantOperationalControls\" WHERE \"TenantId\"={tenantId}")
+            : context.Database.SqlQuery<string>($"SELECT TimeZoneId AS [Value] FROM dbo.TenantOperationalControls WHERE TenantId={tenantId}")).SingleOrDefaultAsync();
         SetTimeZone(string.IsNullOrWhiteSpace(zone) ? DefaultTimeZoneId : zone);
     }
 }

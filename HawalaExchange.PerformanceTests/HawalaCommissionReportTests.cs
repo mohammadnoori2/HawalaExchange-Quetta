@@ -11,6 +11,34 @@ namespace HawalaExchange.PerformanceTests;
 public sealed class HawalaCommissionReportTests(SqlServerPerformanceFixture fixture)
 {
     [Fact]
+    public async Task Direct_report_includes_zero_fee_hawalas_and_keeps_cancelled_fees_out_of_totals()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        var day = new DateTime(2048, 3, 15);
+        var charged = Receive(298800001, 1, 10000, day);
+        charged.CommissionAmount = 25; charged.CommissionCurrencyId = 1;
+        var free = Receive(298800002, 1, 20000, day);
+        var cancelled = Receive(298800003, 1, 30000, day);
+        cancelled.Status = "Cancel"; cancelled.CommissionAmount = 40; cancelled.CommissionCurrencyId = 1;
+        var outside = Receive(298800004, 1, 10000, day.AddDays(-2));
+        context.Hawalas.AddRange(charged, free, cancelled, outside);
+        await context.SaveChangesAsync();
+        var filter = Filter(day); filter.CommissionType = "Direct";
+        var report = await new HawalaCommissionReportService(context).GetAsync(filter);
+        Assert.Equal(3, report.Rows.Count);
+        Assert.Equal(0m, report.Rows.Single(x => x.HawalaId == free.Id).Commission);
+        Assert.Equal("AFN", report.Rows.Single(x => x.HawalaId == free.Id).CommissionCurrency);
+        Assert.Equal("Reversed", report.Rows.Single(x => x.HawalaId == cancelled.Id).CommissionStatus);
+        Assert.Equal(25m, Assert.Single(report.Summaries).Total);
+        Assert.DoesNotContain(report.Rows, x => x.HawalaId == outside.Id);
+        Assert.Equal(3, report.Amounts.Sum(x => x.Count));
+        filter.PaymentLocationId = long.MaxValue;
+        Assert.Empty((await new HawalaCommissionReportService(context).GetAsync(filter)).Rows);
+    }
+
+    [Fact]
     public async Task Estimates_use_source_day_rates_separate_all_three_types_and_never_write_valuations_or_journals()
     {
         await using var context = fixture.CreateContext();

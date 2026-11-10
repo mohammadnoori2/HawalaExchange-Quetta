@@ -19,7 +19,11 @@
             <h6>@Title</h6>
             <span>@totalCount حواله</span>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap justify-content-end">
+            @if (HawalaType == "HawalaSend")
+            {
+                <AgentBillActions CorrespondentId="CorrespondentId" SelectedIds="@selectedSettlementIds.ToArray()" Changed="RefreshDataAsync" />
+            }
             @if (CanCreate && HawalaType == "HawalaReceive")
             {
                 <PermissionView Permission="BulkImports.Create"><button type="button" class="btn btn-sm btn-outline-success" @onclick="OpenBulkImport">
@@ -100,6 +104,18 @@
             <HawalaExtraFilters Filter="@extraFilters" ShowBasic="true" ShowCorrespondents="false" Changed="OnFilterChangedAsync" />
         </AdvancedFilters>
     </CompactFilterBar>
+    <div class="modern-card p-3 my-3">
+        <h6>مجموع کمیشن‌های ثبت‌شده در حواله‌ها</h6>
+        <small class="text-muted">تمام نتایج فیلتر فعلی، به تفکیک ارز؛ کمیشن‌های دوره‌ای در این مجموع شامل نیستند.</small>
+        @if (directCommissionTotals.Count == 0) { <div class="text-muted mt-1">کمیشنی روی حواله‌ها ثبت نشده است.</div> }
+        @foreach (var total in directCommissionTotals)
+        {
+            <div class="d-flex gap-3 flex-wrap mt-2"><strong>@total.Currency</strong>
+                @if (total.Received != 0) { <span>کمیشن دریافتی: <bdi class="fw-bold text-success">@MoneyFormatHelper.Format(total.Received) @total.Currency</bdi></span> }
+                @if (total.Paid != 0) { <span>کمیشن پرداختی به نمایندگی/عامل: <bdi class="fw-bold text-danger">@MoneyFormatHelper.Format(total.Paid) @total.Currency</bdi></span> }
+            </div>
+        }
+    </div>
     <div class="small text-muted d-flex gap-3 px-1 pb-2">
         <span><i class="settlement-legend settlement-legend-pending"></i> نیازمند تبدیل به ارز توافقی</span>
         <span><i class="settlement-legend settlement-legend-converted"></i> تبدیل‌شده</span>
@@ -139,9 +155,9 @@
                 {
                     @foreach (var hawala in hawalas)
                     {
-                        <tr class="@GetSettlementRowClass(hawala)">
+                        <tr class="@(hawala.Status == "Cancel" ? "hawala-cancelled" : hawala.HasIndependentExchange ? "table-info" : GetSettlementRowClass(hawala))">
                             <RecordSelectionCell RecordId="@hawala.Id" />
-                            <td class="fw-bold">@hawala.Number</td>
+                            <td class="fw-bold">@hawala.Number@if(hawala.HasIndependentExchange){<span class="badge bg-info text-dark d-block">تبدیل اسعار انجام شده</span>}</td>
                             <td>@(hawala.SenderName ?? "—")</td>
                             <td>@(hawala.ReceiverName ?? "—")</td>
                             <td title="@GetPaymentLocation(hawala)"><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@GetPaymentLocationName(hawala)" /></td>
@@ -152,6 +168,10 @@
                                     @if (hawala.AgentCommissionAmount is > 0)
                                     {
                                         <span>@MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) @hawala.AgentCommissionCurrencyCode</span>
+                                        @if (hawala.Status != "Cancel")
+                                        {
+                                            <PermissionView Permission="Hawalas.Edit"><button type="button" class="btn btn-link btn-sm p-0 ms-1" title="ویرایش کمیشن نمایندگی" aria-label="ویرایش کمیشن نمایندگی حواله @hawala.Number" @onclick="() => OpenAddCommissionAsync(hawala)"><i class="bi bi-pencil-square" aria-hidden="true"></i></button></PermissionView>
+                                        }
                                     }
                                     else if (CanCreate && hawala.Status != "Cancel")
                                     {
@@ -199,6 +219,7 @@
                             <td><AppDateTime Value="@hawala.CreatedAt" /></td>
                             <td class="text-center operation-cell">
                                 <HawalaOperationMenu Hawala="hawala"
+                                                     OnExchangeSaved="StateHasChanged"
                                                      ShowEdit="true"
                                                      ShowPay="true"
                                                      ShowCancel="true"
@@ -312,8 +333,9 @@
                     <button type="button" class="btn-close" @onclick="CloseReceipt"></button>
                 </div>
                 <div class="modal-body">
+                    <label class="small d-block mb-2"><input type="checkbox" @bind="showReceiptCorrespondent" /> نمایش نمایندگی ارسال‌کننده در رسید</label>
                     <div id="@ReceiptPrintId">
-                        <HawalaReceipt Hawala="receiptHawala" Company="companySetting" />
+<HawalaReceipt Hawala="receiptHawala" Company="companySetting" ShowSendingCorrespondent="showReceiptCorrespondent" ExecutionMode="@(receiptHawala.Status == "Paid" && receiptHawala.HawalaType == "HawalaReceive")" />
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -321,7 +343,7 @@
                     <PermissionView Permission="Hawalas.Export"><button class="btn btn-outline-secondary" @onclick="() => CopyHawalaInfoAsync(receiptHawala.Id)">کاپی</button></PermissionView>
                     <PermissionView Permission="Hawalas.Export"><button class="btn btn-outline-success" @onclick="() => ShareWhatsAppAsync(receiptHawala.Id)">واتساپ</button></PermissionView>
                     <PermissionView Permission="Hawalas.Export"><button class="btn btn-outline-primary" @onclick="() => ShareTelegramAsync(receiptHawala.Id)">تلگرام</button></PermissionView>
-                    <PermissionView Permission="Hawalas.Export"><button class="btn btn-primary" @onclick="PrintReceiptAsync">چاپ</button></PermissionView>
+                    <PermissionView Permission="Hawalas.Export"><button type="button" class="btn btn-primary" data-receipt-print-target="@ReceiptPrintId">چاپ</button></PermissionView>
                 </div>
             </div>
         </div>
@@ -361,37 +383,7 @@
 
 @if (showCancelModal)
 {
-    <div class="modal show d-block correspondent-hawala-overlay" tabindex="-1" dir="rtl">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content correspondent-hawala-modal">
-                <div class="modal-header">
-                    <h5 class="modal-title">لغو حواله</h5>
-                    <button type="button" class="btn-close" @onclick="CloseCancel"></button>
-                </div>
-                <div class="modal-body">
-                    <label class="form-label fw-bold">نوع لغو</label>
-                    <div class="d-grid gap-2 mb-3">
-                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
-                            <input type="radio" name="cancelModeCorrespondent" checked="@cancelIncludesCommission"
-                                   @onchange="() => cancelIncludesCommission = true" />
-                            <span><strong>لغو با کارمزد</strong><br /><small class="text-muted">مبلغ حواله و تمام کارمزدها معکوس می‌شوند.</small></span>
-                        </label>
-                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
-                            <input type="radio" name="cancelModeCorrespondent" checked="@(!cancelIncludesCommission)"
-                                   @onchange="() => cancelIncludesCommission = false" />
-                            <span><strong>لغو بدون کارمزد</strong><br /><small class="text-muted">فقط مبلغ حواله معکوس می‌شود و کارمزد باقی می‌ماند.</small></span>
-                        </label>
-                    </div>
-                    <label class="form-label">دلیل لغو</label>
-                    <textarea class="form-control" rows="3" @bind="cancelReason"></textarea>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-light border" @onclick="CloseCancel">انصراف</button>
-                    <button class="btn btn-danger" disabled="@actionLoading" @onclick="ConfirmCancelAsync">تأیید لغو</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <HawalaCancellationModal HawalaId="cancelId" OnClose="CloseCancel" OnChanged="CancellationChangedAsync" />
 }
 
 @if (showDeleteModal)
@@ -417,23 +409,23 @@
 
 @if (showCommissionModal && commissionHawala is not null)
 {
-    <div class="modal show d-block correspondent-hawala-overlay" tabindex="-1" dir="rtl">
+    <div class="modal show d-block correspondent-hawala-overlay" role="dialog" aria-modal="true" aria-labelledby="agency-commission-title" tabindex="-1" dir="rtl">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content correspondent-hawala-modal">
                 <div class="modal-header">
-                    <div><h5 class="modal-title">افزودن کمیشن نمایندگی</h5><small>حواله ارسالی نمبر @commissionHawala.Number</small></div>
-                    <button type="button" class="btn-close" @onclick="CloseAddCommission"></button>
+                    <div><h5 id="agency-commission-title" class="modal-title">@(commissionHawala.AgentCommissionAmount is > 0 ? "ویرایش کمیشن نمایندگی" : "افزودن کمیشن نمایندگی")</h5><small>حواله ارسالی نمبر @commissionHawala.Number</small></div>
+                    <button type="button" class="btn-close" aria-label="بستن" disabled="@actionLoading" @onclick="CloseAddCommission"></button>
                 </div>
                 <div class="modal-body">
                     @if (!string.IsNullOrWhiteSpace(commissionError))
                     { <div class="alert alert-danger">@commissionError</div> }
                     <div class="row g-3">
-                        <div class="col-md-6"><label class="form-label">مبلغ کمیشن <span class="text-danger">*</span></label><InputNumber class="form-control" @bind-Value="commissionAmount" /></div>
-                        <div class="col-md-6"><label class="form-label">ارز کمیشن <span class="text-danger">*</span></label><select class="form-select" @bind="commissionCurrencyId"><option value="0">انتخاب ارز...</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code - @currency.Name</option>}</select></div>
+                        <div class="col-md-6"><label for="agency-commission-amount" class="form-label">مبلغ کمیشن <span class="text-danger">*</span></label><InputNumber id="agency-commission-amount" class="form-control" min="0.01" step="0.01" disabled="@actionLoading" @bind-Value="commissionAmount" /></div>
+                        <div class="col-md-6"><label for="agency-commission-currency" class="form-label">ارز کمیشن <span class="text-danger">*</span></label><select id="agency-commission-currency" class="form-select" disabled="@actionLoading" @bind="commissionCurrencyId"><option value="0">انتخاب ارز...</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code - @currency.Name</option>}</select></div>
                     </div>
-                    <div class="form-text mt-2">پس از ثبت، کمیشن به طلب نمایندگی اضافه و در حسابداری ثبت می‌شود.</div>
+                    <div class="form-text mt-2">@(commissionHawala.AgentCommissionAmount is > 0 ? "مبلغ و ارز فعلی نمایش داده شده است. با ذخیره، کمیشن همین حواله ارسالی و ثبت حسابداری آن اصلاح می‌شود." : "پس از ثبت، کمیشن به طلب نمایندگی اضافه و در حسابداری ثبت می‌شود.")</div>
                 </div>
-                <div class="modal-footer"><button class="btn btn-light border" @onclick="CloseAddCommission">انصراف</button><button class="btn btn-success" disabled="@(actionLoading || commissionAmount is not > 0 || commissionCurrencyId <= 0)" @onclick="SaveAgentCommissionAsync">ثبت کمیشن</button></div>
+                <div class="modal-footer"><button class="btn btn-light border" disabled="@actionLoading" @onclick="CloseAddCommission">انصراف</button><button class="btn btn-success" disabled="@(actionLoading || commissionAmount is not > 0 || commissionCurrencyId <= 0)" @onclick="SaveAgentCommissionAsync">@(actionLoading ? "در حال ذخیره..." : commissionHawala.AgentCommissionAmount is > 0 ? "ذخیره تغییرات" : "ثبت کمیشن")</button></div>
             </div>
         </div>
     </div>
@@ -442,6 +434,7 @@
 <HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
 
 @code {
+    private bool showReceiptCorrespondent;
     private HawalaDto? executedHawala;
     [Parameter, EditorRequired] public long CorrespondentId { get; set; }
     [Parameter, EditorRequired] public string HawalaType { get; set; } = string.Empty;
@@ -498,8 +491,6 @@
     private HawalaDto? payHawala;
     private bool showCancelModal;
     private long cancelId;
-    private string cancelReason = string.Empty;
-    private bool cancelIncludesCommission = true;
     private bool showDeleteModal;
     private long deleteId;
     private long deleteHawalaNumber;
@@ -511,6 +502,7 @@
     private bool currenciesLoaded;
 
     private string ReceiptPrintId => $"correspondentHawalaReceipt-{CorrespondentId}-{HawalaType}";
+    private List<HawalaDirectCommissionTotalDto> directCommissionTotals = [];
     public Task RefreshDataAsync() => LoadHawalasAsync();
 
     protected override async Task OnParametersSetAsync()
@@ -533,11 +525,12 @@
             isLoading = true;
             errors.Clear();
             var result = await HawalaService.GetHawalasAsync(
-                BuildFilter(currentPage, pageSize), cancellationToken);
+                BuildFilter(currentPage, pageSize, true), cancellationToken);
             if (loadVersion != panelLoadVersion)
                 return;
 
             hawalas = result.Items.ToList();
+            directCommissionTotals = result.DirectCommissionTotals;
             foreach (var selected in hawalas.Where(x => selectedSettlementIds.Contains(x.Id)))
             {
                 selectedSettlementHawalas[selected.Id] = selected;
@@ -589,8 +582,8 @@
         }
 
         commissionHawala = hawala;
-        commissionAmount = null;
-        commissionCurrencyId = hawala.ToCurrencyId;
+        commissionAmount = hawala.AgentCommissionAmount;
+        commissionCurrencyId = hawala.AgentCommissionCurrencyId ?? hawala.ToCurrencyId;
         commissionError = null;
         showCommissionModal = true;
     }
@@ -611,8 +604,19 @@
         {
             actionLoading = true;
             commissionError = null;
-            await HawalaService.AddAgentCommissionAsync(commissionHawala.Id, new AddHawalaAgentCommissionDto { Amount = commissionAmount.Value, CurrencyId = commissionCurrencyId });
-            successMessage = "کمیشن نمایندگی ثبت و به حسابداری اضافه شد.";
+            if (commissionHawala.AgentCommissionAmount is > 0)
+            {
+                await HawalaService.UpdateAgentCommissionAsync(commissionHawala.Id, new UpdateHawalaAgentCommissionDto {
+                    Amount = commissionAmount.Value, CurrencyId = commissionCurrencyId,
+                    PreviousAmount = commissionHawala.AgentCommissionAmount.Value,
+                    PreviousCurrencyId = commissionHawala.AgentCommissionCurrencyId });
+                successMessage = "کمیشن نمایندگی و ثبت حسابداری آن اصلاح شد.";
+            }
+            else
+            {
+                await HawalaService.AddAgentCommissionAsync(commissionHawala.Id, new AddHawalaAgentCommissionDto { Amount = commissionAmount.Value, CurrencyId = commissionCurrencyId });
+                successMessage = "کمیشن نمایندگی ثبت و به حسابداری اضافه شد.";
+            }
             CloseAddCommission();
             await LoadHawalasAsync();
         }
@@ -738,11 +742,12 @@
 
     private void CloseReceipt()
     {
+        showReceiptCorrespondent = false;
         receiptHawala = null;
         showReceiptModal = false;
     }
 
-    private Task PrintReceiptAsync() => JS.TryInvokeUiVoidAsync("hawalaTools.printElement", ReceiptPrintId, 80).AsTask();
+    private Task PrintReceiptAsync() => JS.TryInvokeUiVoidAsync("hawalaTools.printElement", ReceiptPrintId, 72).AsTask();
 
     private async Task CopyHawalaInfoAsync(long id)
     {
@@ -864,46 +869,18 @@
     private void OpenCancel(long id)
     {
         cancelId = id;
-        cancelReason = string.Empty;
-        cancelIncludesCommission = true;
         showCancelModal = true;
     }
 
     private void CloseCancel()
     {
         showCancelModal = false;
-        cancelReason = string.Empty;
-        cancelIncludesCommission = true;
     }
 
-    private async Task ConfirmCancelAsync()
+    private async Task CancellationChangedAsync()
     {
-        if (actionLoading) return;
-        if (string.IsNullOrWhiteSpace(cancelReason))
-        {
-            errors.Add("دلیل لغو را وارد کنید.");
-            return;
-        }
-        try
-        {
-            actionLoading = true;
-            await HawalaService.CancelHawalaAsync(cancelId, new CancelHawalaDto
-            {
-                CancelReason = cancelReason.Trim(),
-                ReverseCommission = cancelIncludesCommission
-            });
-            CloseCancel();
-            successMessage = "حواله لغو شد.";
-            await LoadHawalasAsync();
-        }
-        catch (Exception ex)
-        {
-            errors.Add($"لغو حواله انجام نشد: {ex.Message}");
-        }
-        finally
-        {
-            actionLoading = false;
-        }
+        successMessage = "وضعیت لغو و جبران حواله به‌روزرسانی شد.";
+        await LoadHawalasAsync();
     }
 
     private void OpenDelete(long id)
@@ -1014,7 +991,7 @@
         }
     }
 
-    private HawalaFilterDto BuildFilter(int pageNumber, int requestedPageSize)
+    private HawalaFilterDto BuildFilter(int pageNumber, int requestedPageSize, bool includeDirectCommissionTotals = false)
     {
         decimal? amount = null;
         long number = 0;
@@ -1028,6 +1005,7 @@
         return new HawalaFilterDto
             {
                 Extra = extraFilters.Copy(),
+                  IncludeDirectCommissionTotals = includeDirectCommissionTotals,
             CorrespondentId = CorrespondentId,
             HawalaType = HawalaType,
             Status = string.IsNullOrWhiteSpace(statusFilter) ? null : statusFilter,

@@ -115,6 +115,36 @@ public sealed class UploadSecurityRegressionTests
 public sealed class UploadSecurityDatabaseRegressionTests(SqlServerPerformanceFixture fixture)
 {
     [Fact]
+    public async Task Platform_profile_can_change_email_and_password_without_tenant_permissions_or_changing_role()
+    {
+        await using var setup = fixture.CreateContext();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlServer(setup.Database.GetConnectionString()).Options;
+        await using var db = new ApplicationDbContext(options, new TestCurrentTenant { TenantId = 0 });
+        var services = new ServiceCollection().AddLogging().AddSingleton(db);
+        services.AddIdentityCore<ApplicationUser>(o => { o.User.AllowedUserNameCharacters = null; o.User.RequireUniqueEmail = true; })
+            .AddRoles<Microsoft.AspNetCore.Identity.IdentityRole<long>>().AddEntityFrameworkStores<ApplicationDbContext>();
+        await using var provider = services.BuildServiceProvider();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var manager = provider.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>>();
+        var name = "profile-" + Guid.NewGuid().ToString("N");
+        var user = new ApplicationUser { TenantId = 1, IsPlatformUser = true, IsActive = true, UserName = "platform:" + name,
+            LocalUserName = name, FullName = "Platform profile test", Email = name + "@example.test" };
+        Assert.True((await manager.CreateAsync(user, "Test-Only-Password-123!")).Succeeded);
+        Assert.True((await manager.AddToRoleAsync(user, PlatformRoles.Owner)).Succeeded);
+        Assert.False((await manager.ChangePasswordAsync(user, "Incorrect-password!", "New-Test-Password-456!")).Succeeded);
+        user.Email = "new-" + name + "@example.test";
+        Assert.True((await manager.UpdateAsync(user)).Succeeded);
+        Assert.True((await manager.ChangePasswordAsync(user, "Test-Only-Password-123!", "New-Test-Password-456!")).Succeeded);
+        Assert.False(await manager.CheckPasswordAsync(user, "Test-Only-Password-123!"));
+        Assert.True(await manager.CheckPasswordAsync(user, "New-Test-Password-456!"));
+        var stored = await db.Users.IgnoreQueryFilters().AsNoTracking().SingleAsync(x => x.Id == user.Id);
+        Assert.Equal(user.Email, stored.Email);
+        Assert.True(stored.IsPlatformUser); Assert.Null(stored.BranchId);
+        Assert.True(await manager.IsInRoleAsync(user, PlatformRoles.Owner));
+        Assert.Empty(await db.Users.ToListAsync());
+    }
+
+    [Fact]
     public async Task Platform_users_without_a_tenant_claim_can_manage_only_their_own_private_profile()
     {
         using var sandbox=new SecurityFileSandbox();

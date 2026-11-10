@@ -1,0 +1,80 @@
+@using HawalaExchange.Application.DTOs
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components
+@namespace HawalaExchange.Web.Components.Shared
+@inherits ComponentBase
+
+<div class="searchable-dropdown" data-account-search data-account-options="@optionsJson"
+     data-account-value="@(Value ?? 0)" data-account-revision="@acknowledgedRevision"
+     data-account-limit="@MaxResults" data-account-clear="@AllowClear.ToString().ToLowerInvariant()"
+     data-account-show-code="false"
+     data-account-clear-text="@ClearText" data-account-empty-text="محل پرداختی یافت نشد">
+    <div class="searchable-dropdown-input">
+        <input type="text" class="@CssClass" placeholder="@Placeholder" aria-label="محل پرداخت" autocomplete="off"
+               disabled="@Disabled" data-account-query role="combobox" aria-autocomplete="list"
+               aria-expanded="false" aria-controls="@listId" />
+    </div>
+    <input type="hidden" data-account-commit @onchange="HandleSelectionAsync" />
+    <div id="@listId" class="searchable-dropdown-menu searchable-dropdown-menu-floating"
+         data-account-results popover="manual" role="listbox"></div>
+</div>
+
+
+@code {
+    [Parameter] public IEnumerable<PaymentLocationDto>? Locations { get; set; }
+    [Parameter] public long? Value { get; set; }
+    [Parameter] public EventCallback<long?> ValueChanged { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "جستجو و انتخاب محل پرداخت...";
+    [Parameter] public string CssClass { get; set; } = "form-control";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool AllowClear { get; set; } = true;
+    [Parameter] public string ClearText { get; set; } = "بدون محل پرداخت";
+    [Parameter] public int MaxResults { get; set; } = 30;
+
+    private readonly string listId = $"payment-location-options-{Guid.NewGuid():N}";
+    private readonly SemaphoreSlim selectionGate = new(1, 1);
+    private long lastClientRevision;
+    private long acknowledgedRevision;
+    private List<PaymentLocationDto> locationList = [];
+    private string optionsJson = "[]";
+
+    protected override void OnParametersSet()
+    {
+        locationList = (Locations ?? []).ToList();
+        optionsJson = JsonSerializer.Serialize(locationList.Select(x => new {
+            id = x.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            name = x.Name, code = "", reference = string.Join(" ", new[] { x.Address }.Concat(x.Aliases ?? [])),
+            type = x.Address, display = x.Name
+        }));
+    }
+
+    private async Task HandleSelectionAsync(ChangeEventArgs args)
+    {
+        SelectionMessage? message;
+        try { message = JsonSerializer.Deserialize<SelectionMessage>(args.Value?.ToString() ?? ""); }
+        catch (JsonException) { return; }
+        if (message is null || message.revision <= 0) return;
+        await selectionGate.WaitAsync();
+        try
+        {
+            if (message.revision <= lastClientRevision) return;
+            lastClientRevision = message.revision;
+            if (Disabled || !long.TryParse(message.id, out var id) || id < 0) return;
+            var location = locationList.FirstOrDefault(x => x.Id == id);
+            if (id != 0 && location is null) return;
+            Value = id == 0 ? null : id;
+            await ValueChanged.InvokeAsync(Value);
+        }
+        finally
+        {
+            acknowledgedRevision = lastClientRevision;
+            selectionGate.Release();
+        }
+    }
+
+    private sealed class SelectionMessage
+    {
+        public string? id { get; set; }
+        public long revision { get; set; }
+    }
+}

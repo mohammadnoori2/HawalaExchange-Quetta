@@ -17,9 +17,24 @@ namespace HawalaExchange.Web.Components.Account
             AuthenticationState authenticationState,
             CancellationToken cancellationToken)
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var sessions = scope.ServiceProvider.GetRequiredService<TenantSessionValidator>();
-            return await sessions.ValidateAsync(authenticationState.User, cancellationToken) is not null;
+            // This token belongs to a superseded/disposed revalidation loop. Its
+            // cancellation must not sign out the current circuit or query SQL.
+            if (cancellationToken.IsCancellationRequested)
+                return authenticationState.User.Identity?.IsAuthenticated == true;
+
+            try
+            {
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var sessions = scope.ServiceProvider.GetRequiredService<TenantSessionValidator>();
+                return await sessions.ValidateAsync(authenticationState.User, cancellationToken) is not null;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // EF/SqlClient can throw with a different cancellation token.
+                // Keep the existing state while the owning loop terminates;
+                // independent timeouts and database failures still propagate.
+                return authenticationState.User.Identity?.IsAuthenticated == true;
+            }
         }
     }
 }

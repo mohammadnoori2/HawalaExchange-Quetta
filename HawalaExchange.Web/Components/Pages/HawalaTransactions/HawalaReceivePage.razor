@@ -131,7 +131,7 @@
 
                             @foreach (var hawala in pagedHawalas)
                             {
-                                <tr>
+                                <tr class="@(hawala.Status == "Cancel" ? "hawala-cancelled" : null)">
                                     <RecordSelectionCell RecordId="@hawala.Id" />
                                     <td>@rowIndex</td>
 
@@ -568,9 +568,9 @@
                 </div>
 
                 <div class="modal-body">
+                    <label class="small d-block mb-2"><input type="checkbox" @bind="showReceiptCorrespondent" /> نمایش نمایندگی ارسال‌کننده در رسید</label>
                     <div id="hawalaReceiptPrintArea">
-                        <HawalaReceipt Hawala="receiptHawala"
-                                       Company="companySetting" />
+<HawalaReceipt Hawala="receiptHawala" Company="companySetting" ShowSendingCorrespondent="showReceiptCorrespondent" ExecutionMode="@(receiptHawala.Status == "Paid" && receiptHawala.HawalaType == "HawalaReceive")" />
                     </div>
                 </div>
 
@@ -594,7 +594,7 @@
                         تلگرام
                     </button></PermissionAction>
 
-                    <PermissionAction Actions="Export"><button class="btn-modern btn-primary-modern" @onclick="PrintReceipt">
+                    <PermissionAction Actions="Export"><button type="button" class="btn-modern btn-primary-modern" data-receipt-print-target="hawalaReceiptPrintArea">
                         <i class="bi bi-printer"></i>
                         چاپ
                     </button></PermissionAction>
@@ -606,57 +606,7 @@
 
 @if (showCancelModal)
 {
-    <div class="modal show d-block modal-modern"
-         tabindex="-1"
-         style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
-         dir="rtl">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header modal-header-danger">
-                    <h5 class="modal-title text-white">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        لغو حواله
-                    </h5>
-
-                    <button type="button"
-                            class="btn-close btn-close-white"
-                            @onclick="CloseCancelModal"></button>
-                </div>
-
-                <div class="modal-body">
-                    <p class="fw-bold mb-2">نوع لغو را انتخاب کنید:</p>
-                    <div class="d-grid gap-2 mb-3">
-                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
-                            <input type="radio" name="cancelModeReceive" checked="@cancelIncludesCommission"
-                                   @onchange="() => cancelIncludesCommission = true" />
-                            <span><strong>لغو با کارمزد</strong><br /><small class="text-muted">مبلغ حواله و تمام کارمزدها در لیجر معکوس می‌شوند.</small></span>
-                        </label>
-                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
-                            <input type="radio" name="cancelModeReceive" checked="@(!cancelIncludesCommission)"
-                                   @onchange="() => cancelIncludesCommission = false" />
-                            <span><strong>لغو بدون کارمزد</strong><br /><small class="text-muted">فقط مبلغ حواله معکوس می‌شود و کارمزدهای ثبت‌شده باقی می‌مانند.</small></span>
-                        </label>
-                    </div>
-                    <p>دلیل لغو حواله را وارد کنید:</p>
-
-                    <textarea class="form-control"
-                              rows="3"
-                              @bind="cancelReason"
-                              placeholder="دلیل لغو..."></textarea>
-                </div>
-
-                <div class="modal-footer justify-content-center">
-                    <button class="btn-modern btn-light-modern" @onclick="CloseCancelModal">
-                        انصراف
-                    </button>
-
-                    <button class="btn-modern btn-danger-modern" disabled="@isLoading" @onclick="ConfirmCancel">
-                        تأیید لغو
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <HawalaCancellationModal HawalaId="cancelId" OnClose="CloseCancelModal" OnChanged="CancellationChangedAsync" />
 }
 
 @if (showDeleteModal)
@@ -701,6 +651,7 @@
 <HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
 
 @code {
+    private bool showReceiptCorrespondent;
     private HawalaDto? executedHawala;
     private async Task RefreshPageDataAsync()
     {
@@ -737,8 +688,6 @@
 
     private long cancelId = 0;
     private long deleteId = 0;
-    private string cancelReason = string.Empty;
-    private bool cancelIncludesCommission = true;
 
     private string searchTerm = string.Empty;
     private CancellationTokenSource? searchChangeCts;
@@ -1101,6 +1050,7 @@
 
     private void CloseReceipt()
     {
+        showReceiptCorrespondent = false;
         showReceiptModal = false;
         receiptHawala = null;
     }
@@ -1195,8 +1145,6 @@
     private void ShowCancelConfirm(long id)
     {
         cancelId = id;
-        cancelReason = string.Empty;
-        cancelIncludesCommission = true;
         validationErrors.Clear();
         successMessage = string.Empty;
         showCancelModal = true;
@@ -1206,46 +1154,12 @@
     {
         showCancelModal = false;
         cancelId = 0;
-        cancelReason = string.Empty;
-        cancelIncludesCommission = true;
     }
 
-    private async Task ConfirmCancel()
+    private async Task CancellationChangedAsync()
     {
-        if (isLoading) return;
-        validationErrors.Clear();
-        successMessage = string.Empty;
-
-        if (string.IsNullOrWhiteSpace(cancelReason))
-        {
-            validationErrors.Add("دلیل لغو حواله الزامی است.");
-            return;
-        }
-
-        try
-        {
-            isLoading = true;
-
-            await HawalaService.CancelHawalaAsync(cancelId, new CancelHawalaDto
-            {
-                CancelReason = cancelReason,
-                ReverseCommission = cancelIncludesCommission
-            });
-
-            successMessage = "حواله با موفقیت لغو شد.";
-
-            CloseCancelModal();
-
-            await LoadData();
-        }
-        catch (Exception ex)
-        {
-            validationErrors.Add($"خطا در لغو حواله: {ex.Message}");
-        }
-        finally
-        {
-            isLoading = false;
-        }
+        successMessage = "وضعیت لغو و جبران حواله به‌روزرسانی شد.";
+        await LoadData();
     }
 
     private void ShowDeleteConfirm(long id)

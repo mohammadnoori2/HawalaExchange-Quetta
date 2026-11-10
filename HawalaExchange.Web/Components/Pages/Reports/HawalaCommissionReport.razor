@@ -67,6 +67,44 @@
     @if (report != null)
     {
         <div class="alert alert-secondary py-2">گزارش آخرین اجرا: @DisplayDates.Date(applied!.From) تا @DisplayDates.Date(applied.To). پس از تغییر فیلترها دوباره «نمایش گزارش» را بزنید.</div>
+        @if (applied.CommissionType == "Direct")
+        {
+            <div class="mb-3">
+                <button type="button" class="btn btn-outline-primary" aria-expanded="@showDirectLocations" @onclick="() => showDirectLocations = !showDirectLocations">جزئیات کارمزد به تفکیک محل پرداخت</button>
+                <small class="d-block text-muted mt-2">تمام حواله‌های مطابق فیلتر، حتی حواله‌های بدون کارمزد، نمایش داده می‌شوند. کارمزد حواله‌های لغوشده در مجموع شامل نیست؛ ارزها جدا جمع می‌شوند.</small>
+            </div>
+            @if (showDirectLocations)
+            {
+                <div class="table-responsive mb-3">
+                    <table class="table table-bordered align-middle text-center">
+                        <thead><tr><th>محل پرداخت</th><th>تعداد حواله</th><th>مجموع کارمزد به تفکیک ارز</th><th>جزئیات</th></tr></thead>
+                        <tbody>
+                        @foreach (var location in report.Rows.GroupBy(x => x.LocationId ?? 0).OrderBy(g => g.First().Location))
+                        {
+                            <tr><td>@location.First().Location</td><td>@location.Count().ToString(CultureInfo.InvariantCulture)</td>
+                                <td>@foreach (var total in location.Where(x => x.CommissionStatus != "Reversed").GroupBy(x => x.CommissionCurrency)) { <div dir="ltr">@Money(total.Sum(x => x.Commission ?? 0)) @total.Key</div> }</td>
+                                <td><button type="button" class="btn btn-sm btn-outline-primary" aria-expanded="@(directLocationId == location.Key)" @onclick="() => OpenDirectLocation(location.Key)">@(directLocationId == location.Key ? "بستن جزئیات" : "جزئیات حواله‌ها")</button></td>
+                            </tr>
+                            @if (directLocationId == location.Key)
+                            {
+                                <tr><td colspan="4">
+                                    <h6>حواله‌های @location.First().Location</h6>
+                                    <div class="table-responsive"><table class="table table-sm table-striped text-center">
+                                        <thead><tr><th>نمبر مسلسل / نمبر حواله</th><th>تاریخ</th><th>نمایندگی</th><th>فرستنده</th><th>گیرنده</th><th>مبلغ</th><th>وضعیت</th><th>کارمزد</th></tr></thead>
+                                        <tbody>@foreach (var item in location.Skip((directLocationPage - 1) * PageSize).Take(PageSize))
+                                        {
+                                            <tr class="@(item.Status == "Cancel" ? "table-danger" : "")"><td>@item.Number.ToString(CultureInfo.InvariantCulture)<br />@item.Reference</td><td>@DisplayDates.Date(item.Date.ToLocalTime())</td><td>@item.Correspondent</td><td>@item.Sender</td><td>@item.Receiver</td><td dir="ltr">@Money(item.Amount) @item.Currency</td><td>@AppDisplayText.Status(item.Status, item.HawalaType)</td><td dir="ltr">@Money(item.Commission) @item.CommissionCurrency</td></tr>
+                                        }</tbody>
+                                    </table></div>
+                                    <div class="d-flex gap-2 justify-content-center align-items-center"><button type="button" class="btn btn-sm btn-outline-primary" disabled="@(directLocationPage <= 1)" @onclick="() => directLocationPage--">قبلی</button><span>@directLocationPage.ToString(CultureInfo.InvariantCulture) / @Math.Max(1, (int)Math.Ceiling(location.Count() / (double)PageSize)).ToString(CultureInfo.InvariantCulture)</span><button type="button" class="btn btn-sm btn-outline-primary" disabled="@(directLocationPage * PageSize >= location.Count())" @onclick="() => directLocationPage++">بعدی</button></div>
+                                </td></tr>
+                            }
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
         <h6>خلاصه حواله‌ها — بدون دوباره‌شماری انواع کمیشن</h6>
         <div class="d-flex flex-wrap gap-2 mb-3">@foreach (var amount in report.Amounts) { <div class="border rounded p-3">@(amount.HawalaType == "HawalaReceive" ? "دریافتی" : "ارسالی") · @amount.Count.ToString(CultureInfo.InvariantCulture) حواله · <span dir="ltr">@Money(amount.Amount) @amount.Currency</span></div> }</div>
         <h6>خلاصه کمیشن — خالص فقط در همان ارز</h6>
@@ -123,6 +161,14 @@
     private bool busy;
     private string error = "";
     private int page = 1;
+    private bool showDirectLocations;
+    private long? directLocationId;
+    private int directLocationPage = 1;
+    private void OpenDirectLocation(long id)
+    {
+        directLocationId = directLocationId == id ? null : id;
+        directLocationPage = 1;
+    }
     private const int PageSize = 100;
     private int TotalPages => Math.Max(1, (int)Math.Ceiling((report?.Rows.Count ?? 0) / (double)PageSize));
     private IJSObjectReference? module;
@@ -141,7 +187,7 @@
     private async Task LoadReport()
     {
         if (busy) return; busy = true; error = "";
-        try { var snapshot = JsonSerializer.Deserialize<HawalaCommissionReportFilter>(JsonSerializer.Serialize(filter))!; var result = await ReportService.GetAsync(snapshot); report = result; applied = snapshot; page = 1; }
+        try { var snapshot = JsonSerializer.Deserialize<HawalaCommissionReportFilter>(JsonSerializer.Serialize(filter))!; var result = await ReportService.GetAsync(snapshot); report = result; applied = snapshot; page = 1; directLocationId = null; directLocationPage = 1; showDirectLocations = false; }
         catch (Exception ex) { error = ex.Message; }
         finally { busy = false; }
     }

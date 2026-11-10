@@ -1,0 +1,47 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Services
+@namespace HawalaExchange.Web.Components.Shared
+@inherits HawalaExchange.Web.Components.DateAwareComponent
+<article class="hawala-receipt agent-bill-receipt" dir="rtl">
+    <header class="receipt-brand @(string.IsNullOrWhiteSpace(Company.LogoPath) ? "receipt-no-logo" : "")">
+        <div class="receipt-brand-copy"><h3>@Company.CompanyName</h3><div class="receipt-kind">@(Bill.Status == "Cancelled" ? "رسید / بیل لغوشده" : Bill.IsHistoricalReceipt ? "رسید تسویه قبلی عامل" : Bill.Status == "Paid" ? "رسید پرداخت بیل عامل" : "بیل پرداخت عامل")</div></div>
+        @if (!string.IsNullOrWhiteSpace(Company.LogoPath)) { <img src="@Company.LogoPath" class="receipt-logo" alt="لوگوی صرافی" /> }
+    </header>
+    @if (Bill.IsHistoricalReceipt) { <div>بابت تسویه قبلی — بدون ثبت حسابداری جدید</div><div>مرجع تسویه: @Bill.PreviousSettlementReference</div> }
+    <table class="receipt-table"><tbody>
+        <tr><th>نمبر بیل:</th><td>@Bill.Id</td></tr>
+        <tr><th>نمایندگی:</th><td>@Bill.CorrespondentName</td></tr>
+        <tr><th>@(Bill.IsHistoricalReceipt ? "تاریخ صدور رسید:" : "تاریخ:")</th><td>@DisplayDates.DateTime(Bill.PaidAt ?? Bill.CreatedAt, true, true)</td></tr>
+        <tr><th>دریافت‌کننده:</th><td>@Bill.RecipientName</td></tr>
+        @if (!string.IsNullOrWhiteSpace(Bill.RecipientPhone)) { <tr><th>شماره تماس:</th><td dir="ltr">@Bill.RecipientPhone</td></tr> }
+        <tr><th>تعداد حواله:</th><td>@Bill.Items.Count</td></tr>
+        @if (Bill.CancelledAt.HasValue) { <tr><th>تاریخ لغو:</th><td>@DisplayDates.DateTime(Bill.CancelledAt, true, true)</td></tr> }
+    </tbody></table>
+    @foreach (var row in Bill.Items)
+    {
+        <table class="receipt-table agent-bill-item"><tbody>
+            <tr><th>نمبر مسلسل/حواله:</th><td dir="ltr">@row.Number @if (!string.IsNullOrWhiteSpace(row.ReferenceNumber)) { <span> / @row.ReferenceNumber</span> }</td></tr>
+            <tr><th>گیرنده:</th><td>@row.ReceiverName</td></tr>
+            <tr><th>محل پرداخت:</th><td>@row.PaymentLocation</td></tr>
+            <tr><th>اصل:</th><td dir="ltr">@row.Amount.ToWholeMoney() @row.CurrencyCode</td></tr>
+            <tr><th>کمیشن عامل:</th><td dir="ltr">@row.AgentCommission.ToWholeMoney() @row.CommissionCurrencyCode</td></tr>
+        </tbody></table>
+    }
+    @foreach (var total in Bill.Totals)
+    {
+        <table class="receipt-table agent-bill-total"><tbody>
+            <tr><th>مجموع اصل:</th><td dir="ltr">@total.Principal.ToWholeMoney() @total.CurrencyCode</td></tr>
+            <tr><th>مجموع کمیشن:</th><td dir="ltr">@total.AgentCommission.ToWholeMoney() @total.CurrencyCode</td></tr>
+            <tr><th>@(Bill.IsHistoricalReceipt ? "مجموع سابقه:" : "مجموع پرداخت:")</th><td class="receipt-amount" dir="ltr">@total.Total.ToWholeMoney() @total.CurrencyCode</td></tr>
+        </tbody></table>
+    }
+    @if (Bill.Status == "Cancelled") { <p class="receipt-strong">این بیل لغو شده و برای دریافت پول معتبر نیست.</p> }
+    @if (Bill.IsHistoricalReceipt) { <div>مبالغ به ارز ثبت‌شده حواله‌ها هستند؛ این رسید پرداخت جدید ندارد.</div> }
+    @if (!string.IsNullOrWhiteSpace(Bill.Notes)) { <div>@Bill.Notes</div> }
+    <section class="execution-signature"><strong>امضا یا اثر انگشت دریافت‌کننده پول</strong></section>
+    <div class="receipt-company-contact">@Company.Address @Company.PhoneNumber</div>
+</article>
+@code {
+    [Parameter, EditorRequired] public AgentBillDto Bill { get; set; } = new();
+    [Parameter] public CompanySettingDto Company { get; set; } = new();
+}

@@ -60,6 +60,10 @@
                              OnViewTransactions="ViewTransactions"
                              OnViewReports="ViewReports">
             <HeaderActions>
+                @if (customerAccount != null)
+                {
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="ViewOpeningBalances"><i class="bi bi-wallet2"></i> موجودی افتتاحیه</button>
+                }
                 <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
             </HeaderActions>
             <ProfileSummary>
@@ -253,6 +257,7 @@
     private void BackToCustomers() => NavigationManager.NavigateTo("/customers");
 
     private void ViewTransactions() => NavigationManager.NavigateTo($"/customers/{CustomerId}/transactions");
+    private void ViewOpeningBalances() => NavigationManager.NavigateTo($"/customers/{CustomerId}/opening-balances");
 
     private void ViewReports() => NavigationManager.NavigateTo($"/reports/customer-activities?customerId={CustomerId}");
 

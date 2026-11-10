@@ -260,7 +260,7 @@
     {
     <div class="card shadow-sm mt-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <strong><i class="bi bi-clock-history ms-1"></i>تاریخچه تمام فایل‌های آپلودشده</strong>
+            <strong><i class="bi bi-clock-history ms-1"></i>تاریخچه آپلودهای همین نمایندگی</strong>
             <button class="btn btn-sm btn-outline-secondary" disabled="@isHistoryBusy" @onclick="LoadHistoryAsync">
                 <i class="bi bi-arrow-clockwise ms-1"></i>تازه‌سازی
             </button>
@@ -434,21 +434,13 @@
                             </tbody></table></div>
                         }
                         @if (deleteImpact.HasClosedPeriod) { <div class="alert alert-warning">حواله در دوره بسته‌شده وجود دارد؛ سوابق دوره حفظ و اصلاحیه در دوره باز ثبت می‌شود.</div> }
-                        @if (deleteImpact.HasSettlementConversion)
-                        {
-                            <div class="alert alert-warning">
-                                <strong>حذف فعلاً غیرفعال است: این فایل حواله تبدیل‌شده به ارز توافقی دارد.</strong>
-                                <ol class="mt-2 mb-0">
-                                    <li>اگر کمیشن مرتبط ثبت شده است، ابتدا آن را از تاریخچه کمیشن برگشت دهید.</li>
-                                    <li>از تاریخچه تبدیل نمایندگی، تبدیل‌های مربوط به حواله‌های این فایل را برگشت دهید. تبدیل دوره بسته قابل برگشت نیست.</li>
-                                    <li>این پنجره را ببندید، تاریخچه آپلود را بروزرسانی کنید و دوباره حذف را انتخاب کنید.</li>
-                                </ol>
-                            </div>
-                        }
+                        <div class="mb-2">تعداد حواله‌های وابسته: @deleteImpact.HawalaCount.ToString("N0")</div>
+                        @if (deleteImpact.AffectedAccounts.Count > 0) { <div class="small mb-2">حساب‌های متأثر: @string.Join("، ", deleteImpact.AffectedAccounts)</div> }
+                        @if (deleteImpact.HasSettlementConversion) { <div class="alert alert-warning">سهم حواله‌های همین فایل از تبدیل ارز توافقی حذف می‌شود؛ سهم سایر فایل‌ها و نرخ‌های تاریخی آن‌ها باقی می‌ماند.</div> }
                     }
                     <div class="alert alert-danger mb-0"><i class="bi bi-exclamation-triangle ms-1"></i>فایل و تمام <strong>@deleteBatch.RowCount.ToString("N0")</strong> ردیف از تاریخچه فعال خارج می‌شوند. حواله‌های ثبت‌شده ابطال، حسابداری برگشت و کمیشن‌های مرتبط اصلاح می‌شوند؛ سهم سایر فایل‌ها، محل‌های پرداخت و سوابق دوره بسته‌شده باقی می‌مانند.</div>
                 </div>
-                <div class="modal-footer"><button class="btn btn-secondary" disabled="@isHistoryBusy" @onclick="CancelDeleteBatch">انصراف</button><button class="btn btn-danger" disabled="@(isHistoryBusy || deleteImpact?.HasSettlementConversion == true)" @onclick="DeleteBatchAsync">حذف کامل فایل و حواله‌ها</button></div>
+                <div class="modal-footer"><button class="btn btn-secondary" disabled="@isHistoryBusy" @onclick="CancelDeleteBatch">انصراف</button><button class="btn btn-danger" disabled="@(isHistoryBusy || deleteImpact is null)" @onclick="DeleteBatchAsync">حذف کامل فایل و حواله‌ها</button></div>
             </div></div>
         </div>
         <div class="modal-backdrop fade show"></div>
@@ -458,6 +450,7 @@
 
 @code {
     private readonly CancellationTokenSource historyPollingCancellation = new();
+    private long loadedCorrespondentId;
     private bool queuedNotice;
     private string? completedNotice;
 
@@ -504,7 +497,7 @@
     private void EditImportPreview(long batchId) => NavigationManager.NavigateTo($"/correspondents/{CorrespondentId}/hawala-import/preview/{batchId}");
     private async Task RefreshPageDataAsync()
     {
-        currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); activeCorrespondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList(); await LoadHistoryAsync(); if (IsPreviewPage && PreviewBatchId.HasValue) { preview = await HawalaImportService.GetPreviewAsync(PreviewBatchId.Value); } if (selectedHistory != null) selectedHistory = await HawalaImportService.GetDetailsAsync(selectedHistory.BatchId);
+        currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync()).OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList(); activeCorrespondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList(); await LoadHistoryAsync(); if (IsPreviewPage && PreviewBatchId.HasValue) { preview = await HawalaImportService.GetPreviewAsync(PreviewBatchId.Value, correspondentId: CorrespondentId); } if (selectedHistory != null) selectedHistory = await HawalaImportService.GetDetailsAsync(selectedHistory.BatchId, correspondentId: CorrespondentId);
     }
     [Parameter] public long CorrespondentId { get; set; }
     [Parameter] public long? PreviewBatchId { get; set; }
@@ -585,8 +578,6 @@
             currencies = (await ReferenceDataCache.GetActiveCurrenciesAsync())
                 .OrderBy(x => x.QuotationPriority).ThenBy(x => x.Code).ToList();
             activeCorrespondents = (await CorrespondentService.GetActiveAsync()).OrderBy(x => x.Name).ToList();
-            if (!IsPreviewPage)
-                await LoadHistoryAsync();
         }
         catch (Exception ex)
         {
@@ -596,13 +587,20 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (loadedCorrespondentId != CorrespondentId)
+        {
+            loadedCorrespondentId = CorrespondentId;
+            preview = null; selectedHistory = null; selectedHistoryGroup = null; deleteBatch = null; deleteImpact = null;
+            baseImportHistory = [];
+            if (!IsPreviewPage) await LoadHistoryAsync();
+        }
         if (!PreviewBatchId.HasValue || preview?.BatchId == PreviewBatchId.Value)
             return;
         isBusy = true;
         progressMessage = "در حال بارگذاری پیش‌نمایش فایل...";
         try
         {
-            preview = await HawalaImportService.GetPreviewAsync(PreviewBatchId.Value)
+            preview = await HawalaImportService.GetPreviewAsync(PreviewBatchId.Value, correspondentId: CorrespondentId)
                 ?? throw new InvalidOperationException("این پیش‌نمایش پیدا نشد یا قبلاً ثبت شده است.");
             InitializePreviewState();
         }
@@ -619,7 +617,10 @@
         try
         {
             var previouslyRunning = baseImportHistory.Where(x => x.Status is "Queued" or "Running").Select(x => x.BatchId).ToHashSet();
-            importHistory = (await HawalaImportService.GetHistoryAsync()).ToList();
+            var owner = CorrespondentId;
+            var history = await HawalaImportService.GetHistoryAsync(correspondentId: owner);
+            if (CorrespondentId != owner) return;
+            importHistory = history.ToList();
             var completed = baseImportHistory.Where(x => previouslyRunning.Contains(x.BatchId) && x.Status == "Posted").ToList();
             if (completed.Count > 0)
                 completedNotice = $"ثبت گروهی تکمیل شد: {string.Join("، ", completed.Select(x => x.FileName))}";
@@ -638,9 +639,12 @@
         selectedHistoryGroup = null;
         try
         {
-            selectedHistory = await HawalaImportService.GetDetailsAsync(batchId);
-            if (selectedHistory is null)
+            selectedHistory = await HawalaImportService.GetDetailsAsync(batchId, correspondentId: CorrespondentId);
+            if (selectedHistory is null || selectedHistory.SourceCorrespondentId != CorrespondentId)
+            {
+                selectedHistory = null;
                 throw new InvalidOperationException("جزئیات این فایل آپلودشده پیدا نشد.");
+            }
         }
         catch (Exception ex)
         {
@@ -672,7 +676,7 @@
             deleteImportRow = null;
             selectedHistoryGroup = null;
             if (selectedHistory is not null)
-                selectedHistory = await HawalaImportService.GetDetailsAsync(selectedHistory.BatchId);
+                selectedHistory = await HawalaImportService.GetDetailsAsync(selectedHistory.BatchId, correspondentId: CorrespondentId);
             await LoadHistoryAsync();
         }
         catch (Exception ex)

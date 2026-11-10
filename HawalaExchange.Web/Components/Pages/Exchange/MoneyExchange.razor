@@ -100,7 +100,7 @@
                                     Value="@(MoneyFormatHelper.Format(group.Total))"
                                     Icon="bi-cash-coin"
                                     Tone="success"
-                                    Title="@($"مفاد مشتری: {MoneyFormatHelper.Format(group.Customer)} | مفاد سرمایه صراف: {MoneyFormatHelper.Format(group.Treasury)}")" />
+                                    Title="@($"مفاد مشتری: {MoneyFormatHelper.Format(group.Customer)} | مفاد سرمایه صراف: {MoneyFormatHelper.Format(group.Treasury)} | مفاد نمایندگی: {MoneyFormatHelper.Format(group.Correspondent)}")" />
                 }
             </PageHeaderStats>
             <div class="table-scroll-wrapper">
@@ -243,7 +243,7 @@
 
                                     <td>
                                         <span class="exchange-type-badge">
-                                            @(item.OperationType == "Customer" ? "مشتری" : "سرمایه")
+                                            @MoneyExchangeMode.Label(item.OperationType)
                                         </span>
                                     </td>
 
@@ -395,7 +395,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">مالک پول</span>
-                                <span class="info-value">@(selectedExchange.OperationType == "Customer" ? "مشتری" : "صراف")</span>
+                                <span class="info-value">@MoneyExchangeMode.Label(selectedExchange.OperationType)</span>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -533,7 +533,8 @@
         .Select(x => new ProfitGroup(
             x.Key.ProfitCurrencyCode,
             x.Where(y => y.OperationType == "Customer").Sum(y => y.RealizedProfit),
-            x.Where(y => y.OperationType == "Treasury").Sum(y => y.RealizedProfit)));
+            x.Where(y => y.OperationType == "Treasury").Sum(y => y.RealizedProfit),
+            x.Where(y => MoneyExchangeMode.IsCorrespondent(y.OperationType)).Sum(y => y.RealizedProfit)));
 
     private List<CurrencyDto> currencies = new();
     private List<AccountDto> accounts = new();
@@ -863,9 +864,9 @@
         _ => "محاسبه‌نشده"
     };
 
-    private sealed record ProfitGroup(string CurrencyCode, decimal Customer, decimal Treasury)
+    private sealed record ProfitGroup(string CurrencyCode, decimal Customer, decimal Treasury, decimal Correspondent)
     {
-        public decimal Total => Customer + Treasury;
+        public decimal Total => Customer + Treasury + Correspondent;
     }
 
     private void ShowDeleteConfirm(long id)

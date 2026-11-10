@@ -4,11 +4,16 @@
 @using HawalaExchange.Application.Services
 @using HawalaExchange.Web.Helpers
 @using Microsoft.AspNetCore.Components.Forms
+@using HawalaExchange.Web.Components.Shared
+@namespace HawalaExchange.Web.Components.Shared.Modals
+@inherits HawalaExchange.Web.Components.DateAwareComponent
 
 @inject IMoneyExchangeOperationService MoneyExchangeOperationService
 @inject ICurrencyService CurrencyService
 @inject IAccountService AccountService
 @inject ICompanySettingService CompanySettingService
+@inject IBalanceService BalanceService
+@inject IHawalaService HawalaService
 
 @if (IsVisible)
 {
@@ -17,7 +22,7 @@
          style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);"
          dir="rtl">
         <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content money-exchange-modal" data-live-finance="exchange" data-live-source="@(LastEditedAmount == AmountInputSource.From ? "from" : "to")">
+            <div class="modal-content money-exchange-modal" data-live-finance="exchange" data-linked-rate="@(LinkedHawalaId.HasValue ? "true" : "false")" data-live-source="@(LastEditedAmount == AmountInputSource.From ? "from" : "to")">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
                         <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
@@ -76,6 +81,8 @@
 
                             <div class="card-body">
                                 <div class="row mb-3">
+                                    @if (!IsCorrespondentContext)
+                                    {
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold">مالک پول</label>
                                         <select class="form-select"
@@ -83,8 +90,10 @@
                                                 @onchange="OnOperationTypeChanged">
                                             <option value="Treasury">سرمایه خود صراف</option>
                                             <option value="Customer">پول مشتری</option>
+                                            <option value="CorrespondentCredit">طلبکاری نمایندگی</option>
+                                            <option value="CorrespondentDebt">بدهکاری نمایندگی</option>
                                         </select>
-                                        <small class="text-muted">در تبدیل مشتری، گردش ارز در حساب مشتری و مفاد حاصل در حساب مفاد تبدیل ثبت می‌شود.</small>
+                                        <small class="text-muted">@LedgerExplanation</small>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold">گزینه خرید و فروش</label>
@@ -97,6 +106,16 @@
                                         </select>
                                         <small class="text-muted">@TradeOptionHelp</small>
                                     </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="col-12">
+                                            <div class="alert alert-info d-flex flex-wrap align-items-center gap-2 mb-0">
+                                                <span>@LedgerExplanation</span>
+                                                @if(!LinkedHawalaId.HasValue){<button type="button" class="btn btn-sm btn-outline-secondary" disabled="@IsLoading" @onclick="ReverseCorrespondentDirection">برعکس‌کردن جهت ثبت</button>}
+                                            </div>
+                                        </div>
+                                    }
                                     <div class="col-md-6 mt-3">
                                         <label class="form-label fw-bold">تاریخ و زمان تبدیل</label>
 
@@ -131,8 +150,13 @@
 
                                                  <AccountSearchSelect Accounts="@AvailableAccounts"
                                                                       @bind-Value="CurrentExchange.FromAccountId"
+                                                                      @bind-Value:after="LoadSourceBalanceAsync"
                                                                       ShowAccountCode="false"
                                                                       Placeholder="جستجوی حساب ارز فروش..." />
+                                                @if (MoneyExchangeMode.IsCorrespondent(CurrentExchange.OperationType))
+                                                {
+                                                    <div class="form-text" role="status">مانده فعلی: @(sourceBalance.HasValue ? $"{Math.Abs(sourceBalance.Value).ToWholeMoney()} {(sourceBalance > 0 ? "طلبکار" : sourceBalance < 0 ? "بدهکار" : "صفر")}" : "در حال بررسی…")؛ مبلغ تبدیل می‌تواند بیشتر از مانده خالص باشد و از صفر عبور کند.</div>
+                                                }
                                             </div>
 
                                             <div class="mb-0">
@@ -143,6 +167,7 @@
                                                 <div class="money-exchange-amount-field">
                                                     <select class="money-exchange-amount-currency"
                                                             data-live-currency="from"
+                                                            disabled="@LinkedHawalaId.HasValue"
                                                             value="@CurrentExchange.FromCurrencyId"
                                                             @onchange="OnFromCurrencyChanged">
                                                         <option value="0">انتخاب ارز</option>
@@ -160,6 +185,7 @@
                                                     </select>
                                                     <MoneyInput class="money-exchange-amount-input"
                                                                 data-live-amount="from"
+                                                                readonly="@LinkedHawalaId.HasValue"
                                                                 DecimalPlaces="@FromAmountDecimalPlaces"
                                                                 Value="CurrentExchange.FromAmount"
                                                                 ValueChanged="OnFromAmountChanged"
@@ -216,6 +242,7 @@
                                                     </select>
                                                     <MoneyInput class="money-exchange-amount-input"
                                                                 data-live-amount="to"
+                                                                readonly="@LinkedHawalaId.HasValue"
                                                                 DecimalPlaces="@ToAmountDecimalPlaces"
                                                                 Value="CurrentExchange.ToAmount"
                                                                 ValueChanged="OnToAmountChanged"
@@ -283,6 +310,7 @@
                 </div>
 
                 <div class="modal-footer">
+                    @if(LinkedHawalaId.HasValue){<label class="form-check"><input class="form-check-input" type="checkbox" @bind="CurrentExchange.ConfirmNoPreviousManualConversion" /> بررسی کردم که مبلغ این حواله قبلاً به‌صورت دستی تبدیل نشده است.</label>}
                     <button type="button"
                             class="btn-modern btn-light-modern"
                             @onclick="CloseModal">
@@ -319,6 +347,7 @@
     [Parameter] public long EditId { get; set; } = 0;
     [Parameter] public CreateMoneyExchangeOperationDto? EditData { get; set; }
     [Parameter] public long? InitialAccountId { get; set; }
+    [Parameter] public long? LinkedHawalaId { get; set; }
     [Parameter] public EventCallback<CreateMoneyExchangeOperationDto> OnSaveSuccess { get; set; }
     [Parameter] public EventCallback<long> OnEditSuccess { get; set; }
 
@@ -326,10 +355,19 @@
     private CreateMoneyExchangeOperationDto CurrentExchange { get; set; } = new();
     private List<CurrencyDto> CurrenciesList { get; set; } = new();
     private List<AccountDto> AccountsList { get; set; } = new();
-    private IEnumerable<AccountDto> AvailableAccounts =>
-        CurrentExchange.OperationType == "Customer"
-            ? AccountsList.Where(x => x.AccountType == "Customer")
-            : AccountsList.Where(x => x.AccountType is "Cash" or "Bank");
+    private IEnumerable<AccountDto> AvailableAccounts => AccountsList.Where(x => MoneyExchangeMode.Allows(CurrentExchange.OperationType,x));
+    private bool IsCorrespondentContext => LinkedHawalaId.HasValue || AccountsList.Any(x=>x.Id==InitialAccountId && x.AccountType=="Correspondent");
+    private void ReverseCorrespondentDirection()
+    {
+        if(LinkedHawalaId.HasValue) return;
+        directionRevision++;
+        if(MoneyExchangeMode.IsCorrespondent(CurrentExchange.OperationType))
+            CurrentExchange.OperationType=CurrentExchange.OperationType==MoneyExchangeMode.CorrespondentDebt
+                ? MoneyExchangeMode.CorrespondentCredit : MoneyExchangeMode.CorrespondentDebt;
+    }
+    private decimal? sourceBalance;
+    private long balanceReadVersion;
+    private long directionRevision;
 
     private List<string> ValidationErrors { get; set; } = new();
     private string SuccessMessage { get; set; } = string.Empty;
@@ -349,9 +387,13 @@
     private int ToAmountDecimalPlaces =>
         CurrenciesList.FirstOrDefault(x => x.Id == CurrentExchange.ToCurrencyId)?.DecimalPlaces ?? 2;
     private string LedgerExplanation =>
-        CurrentExchange.OperationType == "Customer"
+        CurrentExchange.OperationType==MoneyExchangeMode.CorrespondentCredit
+            ? "طلبکاری ارز فروش کاهش و طلبکاری ارز دریافت افزایش می‌یابد؛ صندوق تغییر نمی‌کند. مفاد بر اساس بهای تمام‌شده محاسبه می‌شود."
+            : CurrentExchange.OperationType=="Customer"
             ? "برای مشتری، ارز خرید طلبکار و ارز فروش بدهکار است؛ مفاد فقط در حساب مفاد تبدیل پول ثبت می‌شود."
-            : "برای سرمایه صراف، ارز خرید بدهکار و ارز فروش طلبکار ثبت می‌شود.";
+            : CurrentExchange.OperationType == MoneyExchangeMode.CorrespondentDebt
+                ? "بدهکاری ارز فروش کاهش و بدهکاری ارز دریافت افزایش می‌یابد؛ حساب صندوق تغییر نمی‌کند."
+                : "برای سرمایه صراف، ارز خرید بدهکار و ارز فروش طلبکار ثبت می‌شود.";
 
     // ===== متدهای چرخه حیات =====
 
@@ -408,6 +450,26 @@
         else if (!IsEditMode)
         {
             ResetExchange();
+        }
+
+        await LoadSourceBalanceAsync();
+
+        if(LinkedHawalaId.HasValue && !IsEditMode)
+        {
+            IsDataLoading=true;
+            try {
+                var h=await HawalaService.GetHawalaByIdAsync(LinkedHawalaId.Value) ?? throw new InvalidOperationException("حواله یافت نشد.");
+                var account=(await AccountService.GetByReferenceAsync("Correspondent",h.CorrespondentId!.Value)).FirstOrDefault(x=>!x.IsArchived) ?? throw new InvalidOperationException("حساب نمایندگی حواله یافت نشد.");
+                CurrentExchange.LinkedHawalaId=h.Id;
+                CurrentExchange.FromAccountId=CurrentExchange.ToAccountId=account.Id;
+                CurrentExchange.OperationType=h.HawalaType=="HawalaSend"?MoneyExchangeMode.CorrespondentCredit:MoneyExchangeMode.CorrespondentDebt;
+                CurrentExchange.FromCurrencyId=h.SettlementSourceCurrencyId;
+                CurrentExchange.FromAmount=h.HawalaType=="HawalaSend"?h.ToAmount??h.FromAmount:h.FromAmount;
+                if(CurrentExchange.ToCurrencyId==CurrentExchange.FromCurrencyId) CurrentExchange.ToCurrencyId=CurrenciesList.FirstOrDefault(x=>x.Id!=CurrentExchange.FromCurrencyId)?.Id??0;
+                CurrentExchange.Description=$"تبدیل مستقل حواله {h.Number}";
+                await LoadSourceBalanceAsync(false);
+            } catch(Exception ex) { ValidationErrors.Add(ex.Message); }
+            finally { IsDataLoading=false; }
         }
 
         StateHasChanged();
@@ -468,12 +530,10 @@
         var initialAccount = InitialAccountId.HasValue
             ? AccountsList.FirstOrDefault(x => x.Id == InitialAccountId.Value)
             : null;
-        var isCustomerExchange = initialAccount?.AccountType == "Customer";
         var selectedAccount =
-            isCustomerExchange ||
-            initialAccount?.AccountType is "Cash" or "Bank"
+            initialAccount?.AccountType is "Customer" or "Correspondent" or "Cash" or "Bank"
                 ? initialAccount
-                : cash;
+                : InitialAccountId.HasValue ? null : cash;
 
         CurrentExchange = new CreateMoneyExchangeOperationDto
         {
@@ -484,7 +544,7 @@
             FromAmount = 0,
             ToAmount = 0,
             ExchangeRate = 0,
-            OperationType = isCustomerExchange ? "Customer" : "Treasury",
+            OperationType = MoneyExchangeMode.ForAccount(selectedAccount?.AccountType),
             ProfitCurrencyId = DefaultProfitCurrencyId,
             CommissionAmount = 0,
             ExternalFeeAmount = 0,
@@ -577,6 +637,10 @@
 
     private void ValidateForm()
     {
+        if(LinkedHawalaId.HasValue && !CurrentExchange.ConfirmNoPreviousManualConversion)
+            ValidationErrors.Add("بررسی تبدیل‌های دستی قبلی را تأیید کنید.");
+        if(LinkedHawalaId.HasValue && CurrentExchange.LinkedHawalaId!=LinkedHawalaId)
+            ValidationErrors.Add("مشخصات حواله بارگذاری نشده است؛ فرم را دوباره باز کنید.");
         if (CurrentExchange.FromAccountId <= 0)
             ValidationErrors.Add("انتخاب حساب ارز فروش الزامی است.");
 
@@ -614,12 +678,13 @@
 
     // ===== متدهای محاسبه =====
 
-    private void OnOperationTypeChanged(ChangeEventArgs args)
+    private async Task OnOperationTypeChanged(ChangeEventArgs args)
     {
         CurrentExchange.OperationType = args.Value?.ToString() ?? "Treasury";
-        var account = AvailableAccounts.FirstOrDefault();
+        var account = AvailableAccounts.FirstOrDefault(x => x.Id==CurrentExchange.FromAccountId) ?? AvailableAccounts.FirstOrDefault(x => x.Id==InitialAccountId) ?? AvailableAccounts.FirstOrDefault();
         CurrentExchange.FromAccountId = account?.Id ?? 0;
         CurrentExchange.ToAccountId = account?.Id ?? 0;
+        await LoadSourceBalanceAsync(false);
     }
 
     private void OnTradeOptionChanged(ChangeEventArgs args)
@@ -664,10 +729,28 @@
         StateHasChanged();
     }
 
-    private void OnFromCurrencyChanged(ChangeEventArgs args)
+    private async Task OnFromCurrencyChanged(ChangeEventArgs args)
     {
         CurrentExchange.FromCurrencyId = long.TryParse(args.Value?.ToString(), out var id) ? id : 0;
         CalculateCounterAmount();
+        await LoadSourceBalanceAsync();
+    }
+
+    private Task LoadSourceBalanceAsync() => LoadSourceBalanceAsync(!IsEditMode);
+    private async Task LoadSourceBalanceAsync(bool chooseDirection)
+    {
+        var version=++balanceReadVersion; sourceBalance=null;
+        var requestedDirectionRevision=directionRevision;
+        if (!MoneyExchangeMode.IsCorrespondent(CurrentExchange.OperationType) || CurrentExchange.FromAccountId<=0 || CurrentExchange.FromCurrencyId<=0) return;
+        var accountId=CurrentExchange.FromAccountId; var currencyId=CurrentExchange.FromCurrencyId;
+        try
+        {
+            var balances=await BalanceService.GetAccountBalanceAsync(accountId);
+            if(version!=balanceReadVersion || !IsVisible || CurrentExchange.FromAccountId!=accountId || CurrentExchange.FromCurrencyId!=currencyId) return;
+            sourceBalance=balances.Where(x=>x.CurrencyId==currencyId).Select(x=>x.Balance).SingleOrDefault();
+            if(chooseDirection && requestedDirectionRevision==directionRevision && sourceBalance!=0) CurrentExchange.OperationType=sourceBalance<0 ? MoneyExchangeMode.CorrespondentDebt : MoneyExchangeMode.CorrespondentCredit;
+        }
+        catch(Exception ex) { if(version==balanceReadVersion) ValidationErrors.Add($"بررسی مانده نمایندگی ناموفق بود: {ex.Message}"); }
     }
 
     private void OnToCurrencyChanged(ChangeEventArgs args)
@@ -690,6 +773,12 @@
         }
 
         CurrencyConversionResult result;
+        if(LinkedHawalaId.HasValue)
+        {
+            CurrentExchange.ToAmount=AmountValueHelper.RoundConvertedAmount(CurrentExchange.FromAmount*CurrentExchange.ExchangeRate);
+            RateMeaning=$"هر 1 {from.Code} = {CurrentExchange.ExchangeRate} {to.Code}";
+            return;
+        }
 
         if (LastEditedAmount == AmountInputSource.From)
         {

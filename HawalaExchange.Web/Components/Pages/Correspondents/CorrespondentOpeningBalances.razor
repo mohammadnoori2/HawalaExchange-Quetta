@@ -1,0 +1,129 @@
+@page "/correspondents/{CorrespondentId:long}/opening-balances"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "TenantBusiness")]
+@rendermode InteractiveServer
+@inject ICorrespondentService CorrespondentService
+@inject ICurrencyService CurrencyService
+@inject NavigationManager Navigation
+
+<PageTitle>موجودی افتتاحیه نمایندگی</PageTitle>
+<div class="page-wrapper" dir="rtl">
+    <AppPageHeader Title="موجودی افتتاحیه نمایندگی" Subtitle="@(correspondent?.Name ?? "")" Icon="bi-wallet2">
+        <Actions>
+            <PermissionAction Module="Correspondents" Actions="Edit"><button class="btn-modern btn-primary-modern" disabled="@(busy || correspondent?.IsArchived != false)" @onclick="Add">افزودن موجودی افتتاحیه</button></PermissionAction>
+            <PageRefreshButton Refresh="Load" Disabled="@(busy || loading)" Inline="true" />
+            <button class="btn-modern btn-light-modern" @onclick="Back">بازگشت به نمایندگی</button>
+        </Actions>
+    </AppPageHeader>
+    @if (!string.IsNullOrEmpty(error)) { <div class="alert alert-danger" role="alert">@error</div> }
+    @if (!string.IsNullOrEmpty(success)) { <div class="alert alert-success" role="status">@success</div> }
+    <div class="alert alert-info">ثبت جدید موجودی افتتاحیه بین حساب نمایندگی و حساب مقابل افتتاحیه است؛ صندوق و بانک را افزایش نمی‌دهد و شامل کمیشن حواله نیست.</div>
+    @if (loading) { <div class="text-center py-4"><span class="spinner-border"></span></div> }
+    else if (correspondent is not null)
+    {
+        @if (showForm)
+        {
+            <div class="modern-card p-3 mb-3">
+                <h6>@(editingId.HasValue ? "ویرایش موجودی افتتاحیه" : "افزودن موجودی افتتاحیه")</h6>
+                @if (!string.IsNullOrEmpty(legacyCounterparty)) { <div class="alert alert-warning">ثبت قدیمی با حساب «@legacyCounterparty» انجام شده است. اصلاح، اثر ثبت قدیمی را در همان حساب برمی‌گرداند و ثبت جایگزین را با حساب افتتاحیه ایجاد می‌کند.</div> }
+                <div class="row g-3">
+                    <div class="col-md-3"><label class="form-label">ارز</label><select class="form-select" disabled="@busy" @bind="request.CurrencyId"><option value="0">انتخاب ارز</option>@foreach (var currency in currencies) { <option value="@currency.Id">@currency.Name (@currency.Code)</option> }</select></div>
+                    <div class="col-md-3"><label class="form-label">مبلغ</label><MoneyInput class="form-control" disabled="@busy" @bind-Value="request.Amount" /></div>
+                    <div class="col-md-3"><label class="form-label">وضعیت نمایندگی</label><select class="form-select" disabled="@busy" @bind="request.Direction"><option value="Debit">نمایندگی بدهکار است</option><option value="Credit">نمایندگی طلبکار است</option></select></div>
+                    <div class="col-md-3"><label class="form-label">تاریخ</label><PersianDatePicker Disabled="@(busy || editingClosed)" @bind-Value="request.OpeningDate" /></div>
+                    <div class="col-12"><label class="form-label">یادداشت (اختیاری)</label><input class="form-control" disabled="@busy" maxlength="300" @bind="request.Description" /></div>
+                </div>
+                <p class="text-muted small mt-2">اگر تاریخ در دوره بسته قرار داشته باشد، اصلاح با تاریخ جاری در دوره باز ثبت می‌شود؛ مانده ذخیره‌شده دوره بسته تغییر نمی‌کند.</p>
+                <div class="d-flex gap-2">
+                    <PermissionAction Module="Correspondents" Actions="Edit"><button class="btn btn-primary" disabled="@busy" @onclick="Save">@(busy ? "در حال ثبت..." : "تأیید و ثبت حسابداری")</button></PermissionAction>
+                    <button class="btn btn-light border" disabled="@busy" @onclick="() => showForm = false">انصراف</button>
+                </div>
+            </div>
+        }
+        @if (deletingId.HasValue)
+        {
+            <div class="modern-card border border-danger p-3 mb-3">
+                <p>اثر همین موجودی افتتاحیه معکوس می‌شود؛ سند اصلی و سایر معاملات باقی می‌مانند.</p>
+                @if (!string.IsNullOrEmpty(legacyCounterparty)) { <div class="alert alert-warning">ثبت قدیمی در حساب مقابل «@legacyCounterparty» نیز معکوس می‌شود.</div> }
+                <label class="form-label">دلیل حذف (اختیاری)</label><input class="form-control mb-2" disabled="@busy" maxlength="450" @bind="deleteReason" />
+                <PermissionAction Module="Correspondents" Actions="Delete"><button class="btn btn-danger" disabled="@busy" @onclick="Delete">تأیید حذف موجودی افتتاحیه</button></PermissionAction>
+                <button class="btn btn-light border ms-2" disabled="@busy" @onclick="() => deletingId = null">انصراف</button>
+            </div>
+        }
+        <div class="modern-card p-3">
+            <h6>ثبت‌های افتتاحیه و تاریخچه اصلاحات</h6>
+            <div class="table-responsive"><table class="table align-middle text-center">
+                <thead><tr><th>#</th><th>عملیات</th><th>تاریخ</th><th>ارز</th><th>مبلغ</th><th>وضعیت نمایندگی</th><th>طرف مقابل</th><th>وضعیت ثبت</th><th>یادداشت</th></tr></thead>
+                <tbody>
+                    @if (rows.Count == 0) { <tr><td colspan="9" class="text-muted py-4">موجودی افتتاحیه‌ای ثبت نشده است.</td></tr> }
+                    @for (var i = 0; i < rows.Count; i++)
+                    {
+                        var row = rows[i];
+                        <tr>
+                            <td>@(i + 1)</td><td>
+                                @if (row.State == "Active" && !correspondent.IsArchived)
+                                {
+                                    <PermissionAction Module="Correspondents" Actions="Edit"><button class="btn btn-sm btn-outline-primary" disabled="@busy" @onclick="() => Edit(row)">ویرایش</button></PermissionAction>
+                                    <PermissionAction Module="Correspondents" Actions="Delete"><button class="btn btn-sm btn-outline-danger" disabled="@busy" @onclick="() => AskDelete(row.Id)">حذف</button></PermissionAction>
+                                }
+                            </td>
+                            <td>@DisplayDates.TimestampDate(row.Date) @if (row.IsClosedPeriod) { <small class="d-block text-muted">دوره بسته</small> }</td>
+                            <td>@row.Currency</td><td dir="ltr">@row.Amount.ToWholeMoney()</td>
+                            <td class="@(row.Direction == "Debit" ? "text-danger" : "text-success")">@(row.Direction == "Debit" ? "بدهکار" : "طلبکار")</td>
+                            <td>@row.OppositeAccount</td>
+                            <td><span class="badge @(row.State == "Active" ? "bg-success" : row.State == "Edited" ? "bg-secondary" : "bg-danger")">@(row.State == "Active" ? "فعال" : row.State == "Edited" ? "ویرایش‌شده" : "حذف‌شده")</span></td>
+                            <td>@row.Description</td>
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public long CorrespondentId { get; set; }
+    private long loadedId;
+    private CorrespondentDto? correspondent;
+    private List<CurrencyDto> currencies = [];
+    private IReadOnlyList<CorrespondentOpeningBalanceDto> rows = [];
+    private CorrespondentOpeningBalanceRequestDto request = new();
+    private bool loading = true, busy, showForm, editingClosed;
+    private long? editingId, deletingId;
+    private string error = "", success = "", deleteReason = "", legacyCounterparty = "";
+    protected override async Task OnParametersSetAsync() { if (loadedId == CorrespondentId) return; loadedId = CorrespondentId; await Load(); }
+    private async Task Load()
+    {
+        loading = true;
+        try { correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId); currencies = (await CurrencyService.GetAllAsync()).Where(x => x.IsActive).ToList(); rows = await CorrespondentService.GetOpeningBalancesAsync(CorrespondentId); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+    private void Add() { editingId = null; deletingId = null; editingClosed = false; request = new(); showForm = true; error = success = legacyCounterparty = ""; }
+    private void Edit(CorrespondentOpeningBalanceDto row)
+    {
+        editingId = row.Id; deletingId = null; editingClosed = row.IsClosedPeriod;
+        legacyCounterparty = row.HasLegacyCounterparty ? row.OppositeAccount : "";
+        request = new() { CurrencyId = row.CurrencyId, Amount = row.Amount, Direction = row.Direction,
+            OpeningDate = row.IsClosedPeriod ? DateTime.Today : row.Date.ToLocalTime().Date, Description = row.Description };
+        showForm = true; error = success = "";
+    }
+    private void AskDelete(long id) { deletingId = id; deleteReason = ""; showForm = false; error = success = ""; var row = rows.First(x => x.Id == id); legacyCounterparty = row.HasLegacyCounterparty ? row.OppositeAccount : ""; }
+    private async Task Save()
+    {
+        if (busy) return; busy = true; error = "";
+        try { if (editingId.HasValue) await CorrespondentService.UpdateOpeningBalanceAsync(CorrespondentId, editingId.Value, request); else await CorrespondentService.AddOpeningBalanceAsync(CorrespondentId, request); showForm = false; success = "موجودی افتتاحیه ثبت شد."; await Load(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private async Task Delete()
+    {
+        if (busy || !deletingId.HasValue) return; busy = true; error = "";
+        try { await CorrespondentService.DeleteOpeningBalanceAsync(CorrespondentId, deletingId.Value, deleteReason); deletingId = null; success = "موجودی افتتاحیه با ثبت معکوس حذف شد."; await Load(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+    private void Back() => Navigation.NavigateTo($"/correspondents/{CorrespondentId}");
+}

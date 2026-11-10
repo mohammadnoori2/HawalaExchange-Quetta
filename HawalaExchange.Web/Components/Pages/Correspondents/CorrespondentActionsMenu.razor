@@ -13,6 +13,10 @@
             <PermissionView Permission="Hawalas.Export"><button type="button" class="operation-menu-item" role="menuitem" @onclick="OnRecordActions">
                 <i class="bi bi-copy text-primary"></i> کاپی و خروجی حواله‌ها
             </button></PermissionView>
+            @if (CorrespondentId > 0)
+            {
+                <PermissionView Permission="HawalaExecution.View"><a class="operation-menu-item" role="menuitem" href="@($"/correspondents/{CorrespondentId}/agent-bills")"><i class="bi bi-receipt text-primary"></i> بیل‌های پرداخت عامل</a></PermissionView>
+            }
 
             @if (CanUseFinancialActions)
             {
@@ -47,6 +51,9 @@
 
             @if (!IsArchived)
             {
+                <PermissionView Permission="Correspondents.View"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OnOpeningBalances.InvokeAsync()">
+                    <i class="bi bi-wallet2 text-primary"></i> موجودی افتتاحیه
+                </button></PermissionView>
                 <PermissionView Permission="Correspondents.Edit"><button type="button" class="operation-menu-item" role="menuitem" @onclick="EditAsync">
                     <i class="bi bi-pencil text-primary"></i>
                     ویرایش نمایندگی
@@ -70,9 +77,11 @@
 
 @code {
     [Parameter] public bool IsArchived { get; set; }
+    [Parameter] public long CorrespondentId { get; set; }
     [Parameter] public bool CanUseFinancialActions { get; set; }
     [Parameter] public string? SettlementCurrencyCode { get; set; }
     [Parameter] public EventCallback OnViewStatus { get; set; }
+    [Parameter] public EventCallback OnOpeningBalances { get; set; }
     [Parameter] public EventCallback OnRecordActions { get; set; }
     [Parameter] public EventCallback OnViewRange { get; set; }
     [Parameter] public EventCallback OnConvertBalance { get; set; }

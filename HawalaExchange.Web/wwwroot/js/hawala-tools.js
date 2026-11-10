@@ -1,6 +1,18 @@
 ﻿// ===== فقط یک بار تعریف کنید =====
 let activeHawalaOperationMenu = null;
 const operationQuickActionObservers = new WeakMap();
+const receiptImageCopies = new WeakMap();
+
+// Ready receipts print in the browser, without a Blazor/SQL round trip.
+document.addEventListener("click", function (event) {
+    const button = event.target.closest?.("[data-receipt-print-target]");
+    if (!button || button.disabled) return;
+    const id = button.getAttribute("data-receipt-print-target");
+    if (!id || !document.getElementById(id)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.hawalaTools.printElement(id, 72, true);
+}, true);
 
 function positionHawalaOperationMenu(button, menu) {
     const viewportGap = 8;
@@ -428,7 +440,7 @@ window.hawalaTools = {
     },
 
     printReceipt: function () {
-        window.print();
+        window.hawalaTools.printElement("hawalaReceiptPrintArea", 72, true);
     },
 
     printHtml: function (htmlContent) {
@@ -624,11 +636,33 @@ window.hawalaTools = {
             return;
         }
 
-        const width = paperWidthMm || 80;
-        const contentWidth = width === 58 ? 48 : 72;
+        const width = paperWidthMm || 72;
+        const contentWidth = width === 58 ? 48 : Math.max(1, width - 8);
 
         const clonedElement = element.cloneNode(true);
         clonedElement.querySelectorAll("style").forEach(style => style.remove());
+        const sourceImages = element.querySelectorAll?.("img") || [];
+        clonedElement.querySelectorAll("img").forEach((image, index) => {
+            const source = sourceImages[index];
+            image.removeAttribute("srcset");
+            image.removeAttribute("sizes");
+            image.loading = "eager";
+            if (!source?.complete || !source.naturalWidth) return;
+            try {
+                const key = source.currentSrc || source.src;
+                let cached = receiptImageCopies.get(source);
+                if (cached?.key !== key) {
+                    const canvas = document.createElement("canvas");
+                    const scale = Math.min(1, 360 / Math.max(source.naturalWidth, source.naturalHeight));
+                    canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+                    canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+                    canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+                    cached = { key, data: canvas.toDataURL("image/png") };
+                    receiptImageCopies.set(source, cached);
+                }
+                image.src = cached.data;
+            } catch { /* Cross-origin logos use the bounded readiness check below. */ }
+        });
 
         const receiptHtml = clonedElement.innerHTML;
 
@@ -657,12 +691,8 @@ window.hawalaTools = {
     <meta charset="utf-8" />
     <title>Hawala Receipt</title>
 
+    <style id="receipt-page-size">@page { size: auto; margin: 0; }</style>
     <style>
-        @page {
-            size: ${width}mm auto;
-            margin: 0;
-        }
-
         * {
             box-sizing: border-box;
         }
@@ -681,7 +711,7 @@ window.hawalaTools = {
         }
 
         body {
-            padding: 2mm 0;
+            padding: 0;
         }
 
         .print-container {
@@ -694,23 +724,23 @@ window.hawalaTools = {
         .hawala-receipt {
             width: 100% !important;
             max-width: 100% !important;
-            padding: 3mm !important;
+            padding: 0 2mm 0 !important;
             margin: 0 !important;
             border: 1.5px solid #c99a10 !important;
             border-radius: 0 !important;
             box-shadow: none !important;
             font-size: 10.5px !important;
-            line-height: 1.5 !important;
+            line-height: 1.2 !important;
             color: #000000 !important;
             background: #ffffff !important;
         }
 
         .receipt-brand {
             display: grid !important;
-            grid-template-columns: minmax(0, 1fr) 19mm !important;
+            grid-template-columns: minmax(0, 1fr) 13mm !important;
             align-items: center !important;
             gap: 2mm !important;
-            padding: 0 0 2mm !important;
+            padding: 0 0 1mm !important;
         }
 
         .receipt-brand-copy {
@@ -718,10 +748,10 @@ window.hawalaTools = {
         }
 
         .receipt-brand-copy h3 {
-            margin: 0 0 1mm !important;
+            margin: 0 0 0.5mm !important;
             font-size: 14px !important;
             font-weight: 800 !important;
-            line-height: 1.5 !important;
+            line-height: 1.25 !important;
         }
 
         .receipt-kind {
@@ -730,14 +760,14 @@ window.hawalaTools = {
         }
 
         .receipt-brand .receipt-logo {
-            width: 18mm !important;
-            height: 18mm !important;
+            width: 12mm !important;
+            height: 12mm !important;
             margin: 0 !important;
             object-fit: contain !important;
         }
 
         .receipt-heading {
-            margin: 0 0 1.5mm !important;
+            margin: 0 0 0.75mm !important;
             text-align: center !important;
             font-size: 13px !important;
             font-weight: 800 !important;
@@ -752,7 +782,7 @@ window.hawalaTools = {
         .receipt-table th,
         .receipt-table td {
             border: 1px solid #444 !important;
-            padding: 1mm 1.2mm !important;
+            padding: 0.45mm 1mm !important;
             vertical-align: middle !important;
             overflow-wrap: anywhere !important;
             background: #fff !important;
@@ -760,7 +790,7 @@ window.hawalaTools = {
         }
 
         .receipt-table th {
-            width: 31% !important;
+            width: 44% !important;
             text-align: right !important;
             font-weight: 800 !important;
             background: #faf8ef !important;
@@ -781,13 +811,13 @@ window.hawalaTools = {
         }
 
         .receipt-company-contact {
-            padding: 2mm 1mm 0 !important;
+            padding: 0 !important;
             text-align: center !important;
             font-size: 9px !important;
         }
 
         .receipt-company-address {
-            margin-bottom: 1mm !important;
+            margin-bottom: 0.5mm !important;
             font-weight: 600 !important;
         }
 
@@ -796,27 +826,29 @@ window.hawalaTools = {
         }
 
         .execution-declaration {
-            margin-top: 3mm !important;
-            padding: 2.5mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
             border: 1px solid #555 !important;
             text-align: justify !important;
             font-size: 10.5px !important;
             font-weight: 600 !important;
-            line-height: 1.9 !important;
+            line-height: 1.3 !important;
         }
 
         .execution-signature {
-            min-height: 30mm !important;
-            padding: 17mm 7mm 0 !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 1.2em 0 2.4em !important;
             text-align: center !important;
             font-size: 10px !important;
+            line-height: 1.2 !important;
         }
-
-        .execution-signature-line {
-            width: 42mm !important;
-            margin: 0 auto 1.5mm !important;
-            border-top: 1px solid #333 !important;
-        }
+        .receipt-no-logo { grid-template-columns: 1fr !important; }
+        .agent-bill-item, .agent-bill-total { border-top: 1px dashed #000 !important; break-inside: avoid; }
+        .receipt-amount { font-size: 18px !important; font-weight: 900 !important; }
+        .receipt-single-line { white-space: nowrap !important; overflow-wrap: normal !important; word-break: normal !important; }
+        .receipt-identifiers th { font-size: 8px !important; }
+        .receipt-phone-row td { font-size: 10px !important; }
 
         .receipt-contact-list {
             display: flex !important;
@@ -827,21 +859,21 @@ window.hawalaTools = {
         }
 
         .receipt-custom-note {
-            margin-top: 2mm !important;
-            padding-top: 1.5mm !important;
+            margin-top: 1mm !important;
+            padding-top: 0.75mm !important;
             border-top: 1px dashed #777 !important;
             text-align: center !important;
             font-size: 9px !important;
         }
 
         .receipt-legal-note {
-            margin-top: 2mm !important;
-            padding: 2mm 1mm 0 !important;
+            margin-top: 1mm !important;
+            padding: 1mm 1mm 0 !important;
             border-top: 1px solid #c99a10 !important;
             text-align: center !important;
             font-size: 9.5px !important;
             font-weight: 800 !important;
-            line-height: 1.7 !important;
+            line-height: 1.3 !important;
         }
 
         .receipt-header {
@@ -971,37 +1003,42 @@ window.hawalaTools = {
 
     <script>
         function printNow() {
+            // A roll has no fixed length. Use the complete laid-out receipt height,
+            // not a clipped fixed box or the invalid CSS size "72mm auto".
+            const heightMm = Math.ceil(document.body.getBoundingClientRect().height * 25.4 / 96) + 1;
+            document.getElementById('receipt-page-size').textContent =
+                '@page { size: ${width}mm ' + heightMm + 'mm; margin: 0; }';
             window.focus();
             window.print();
         }
 
-        window.onload = function () {
-            const images = document.images;
-
-            if (!images || images.length === 0) {
-                setTimeout(printNow, 800);
-                return;
-            }
-
-            let loaded = 0;
-
-            function imageDone() {
-                loaded++;
-
-                if (loaded >= images.length) {
-                    setTimeout(printNow, 800);
-                }
-            }
-
-            for (let i = 0; i < images.length; i++) {
-                if (images[i].complete) {
-                    imageDone();
-                } else {
-                    images[i].onload = imageDone;
-                    images[i].onerror = imageDone;
-                }
-            }
-        };
+        let queued = false;
+        function queuePrint() {
+            if (queued) return;
+            queued = true;
+            const images = Array.from(document.images || []);
+            const ready = Promise.all(images.map(image => {
+                if (image.complete) return Promise.resolve();
+                return new Promise(resolve => {
+                    image.addEventListener('load', resolve, { once: true });
+                    image.addEventListener('error', resolve, { once: true });
+                });
+            }));
+            let timeout;
+            Promise.race([ready, new Promise(resolve => { timeout = setTimeout(resolve, 200); })]).then(() => {
+                clearTimeout(timeout);
+                // Do not let the browser's print() wait for a stalled remote logo.
+                images.filter(image => !image.complete).forEach(image => {
+                    image.removeAttribute('src'); image.hidden = true;
+                });
+                // Geometry is forced by printNow's layout read. Off-screen iframe
+                // animation frames can be throttled, so schedule on the parent instead.
+                const visibleWindow = window.parent && window.parent !== window ? window.parent : window;
+                visibleWindow.setTimeout(printNow, 0);
+            });
+        }
+        // DOMContentLoaded does not wait for images/network requests like onload.
+        window.addEventListener('DOMContentLoaded', queuePrint, { once: true });
     <\/script>
 </body>
 </html>

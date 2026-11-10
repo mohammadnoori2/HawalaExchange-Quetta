@@ -22,7 +22,14 @@
 <div class="page-wrapper profile-page">
     <AppPageHeader Title="پروفایل من"
                    Subtitle="ویرایش مشخصات و رمز عبور"
-                   Icon="bi-person-gear" />
+                   Icon="bi-person-gear">
+        <Actions>
+            @if (currentUser?.IsPlatformUser == true)
+            {
+                <a class="btn btn-outline-secondary" href="/platform">بازگشت به مدیریت پلتفرم</a>
+            }
+        </Actions>
+    </AppPageHeader>
 
     <HawalaExchange.Web.Components.Account.Shared.StatusMessage />
 
@@ -248,9 +255,7 @@
             ? currentUser.LocalUserName
             : currentUser.FullName;
         localUserName = currentUser.LocalUserName;
-        currentEmail = HttpContext.User.FindFirstValue(ClaimTypes.Email)
-            ?? currentUser.Email
-            ?? string.Empty;
+        currentEmail = currentUser.Email ?? string.Empty;
         profileImageUrl = string.IsNullOrWhiteSpace(currentUser.ProfileImagePath)
             ? null
             : FileService.GetFileUrl(currentUser.ProfileImagePath);

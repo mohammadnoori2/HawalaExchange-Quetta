@@ -362,6 +362,20 @@
                                                             </div>
                                                         }
                                                     </div>
+                                                    @if (operation.PostingStage != null)
+                                                    {
+                                                        <div class="table-scroll-wrapper mt-2">
+                                                            <table class="table-modern table-striped-modern">
+                                                                <thead><tr><th>شماره ثبت</th><th>حساب</th><th>ارز</th><th>طلبکار</th><th>بدهکار</th><th>شرح</th></tr></thead>
+                                                                <tbody>
+                                                                    @foreach (var entry in operation.LedgerEntries)
+                                                                    {
+                                                                        <tr><td>@entry.Id</td><td>@entry.AccountName</td><td>@entry.CurrencyCode</td><td>@MoneyFormatHelper.Format(entry.TalabKar)</td><td>@MoneyFormatHelper.Format(entry.BadehKar)</td><td>@entry.Description</td></tr>
+                                                                    }
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    }
                                                 </details>
                                             }
                                             else

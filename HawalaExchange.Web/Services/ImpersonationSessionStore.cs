@@ -50,7 +50,11 @@ public sealed class ImpersonationSessionStore(IDbContextFactory<ApplicationDbCon
             throw new InvalidOperationException("صرافی یا کاربر برای ورود معتبر نیست.");
         var session=new StartedImpersonation(Guid.NewGuid(),actor,target,DateTimeOffset.UtcNow.AddMinutes(30));
         await using var tx=await db.Database.BeginTransactionAsync(ct);
-        await db.Database.ExecuteSqlInterpolatedAsync($"""
+        if(db.Database.IsNpgsql())await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO public."ImpersonationSessions"("Id","ActorUserId","TargetUserId","TenantId","ActorStamp","TargetStamp","Reason","StartedAt","ExpiresAt")
+            VALUES({session.Id},{actor.Id},{target.Id},{tenantId},{actor.SecurityStamp},{target.SecurityStamp},{reason},CURRENT_TIMESTAMP AT TIME ZONE 'UTC',CAST({session.ExpiresAt.UtcDateTime} AS timestamp))
+            """,ct);
+        else await db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT dbo.ImpersonationSessions(Id,ActorUserId,TargetUserId,TenantId,ActorStamp,TargetStamp,Reason,StartedAt,ExpiresAt)
             VALUES({session.Id},{actor.Id},{target.Id},{tenantId},{actor.SecurityStamp},{target.SecurityStamp},{reason},SYSUTCDATETIME(),{session.ExpiresAt.UtcDateTime});
             """,ct);
@@ -74,9 +78,13 @@ public sealed class ImpersonationSessionStore(IDbContextFactory<ApplicationDbCon
         if(!Guid.TryParse(returnPrincipal.FindFirstValue(ReturnSessionClaim),out var id))throw new UnauthorizedAccessException();
         await using var db=await factory.CreateDbContextAsync(ct);
         await using var tx=await db.Database.BeginTransactionAsync(ct);
-        var session=await db.Database.SqlQuery<EndSessionRow>($"SELECT TenantId,TargetUserId FROM dbo.ImpersonationSessions WHERE Id={id} AND ActorUserId={actor.Id} AND EndedAt IS NULL AND ExpiresAt>SYSUTCDATETIME()").SingleOrDefaultAsync(ct)
+        var session=await (db.Database.IsNpgsql()
+            ? db.Database.SqlQuery<EndSessionRow>($"SELECT \"TenantId\",\"TargetUserId\" FROM public.\"ImpersonationSessions\" WHERE \"Id\"={id} AND \"ActorUserId\"={actor.Id} AND \"EndedAt\" IS NULL AND \"ExpiresAt\">CURRENT_TIMESTAMP AT TIME ZONE 'UTC'")
+            : db.Database.SqlQuery<EndSessionRow>($"SELECT TenantId,TargetUserId FROM dbo.ImpersonationSessions WHERE Id={id} AND ActorUserId={actor.Id} AND EndedAt IS NULL AND ExpiresAt>SYSUTCDATETIME()")).SingleOrDefaultAsync(ct)
             ?? throw new UnauthorizedAccessException("نشست ورود به‌جای کاربر منقضی یا بسته شده است.");
-        var changed=await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.ImpersonationSessions SET EndedAt=SYSUTCDATETIME() WHERE Id={id} AND ActorUserId={actor.Id} AND EndedAt IS NULL",ct);
+        var changed=db.Database.IsNpgsql()
+            ? await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE public.\"ImpersonationSessions\" SET \"EndedAt\"=CURRENT_TIMESTAMP AT TIME ZONE 'UTC' WHERE \"Id\"={id} AND \"ActorUserId\"={actor.Id} AND \"EndedAt\" IS NULL",ct)
+            : await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.ImpersonationSessions SET EndedAt=SYSUTCDATETIME() WHERE Id={id} AND ActorUserId={actor.Id} AND EndedAt IS NULL",ct);
         if(changed!=1)throw new UnauthorizedAccessException();
         db.PlatformAuditLogs.Add(new PlatformAuditLog {ActorUserId=actor.Id,TenantId=session.TenantId,Action="Impersonation.End",EntityName="Users",EntityId=session.TargetUserId,
             Details=JsonSerializer.Serialize(new{SessionId=id,Outcome=outcome})});

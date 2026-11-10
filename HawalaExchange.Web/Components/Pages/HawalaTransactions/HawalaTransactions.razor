@@ -246,10 +246,10 @@
                             int rowIndex = (currentPage - 1) * (pageSize == 0 ? filteredHawalas.Count : pageSize) + 1;
                             @foreach (var hawala in filteredHawalas)
                             {
-                                <tr class="@(hawala.SettlementState == "Pending" ? "table-danger" : hawala.SettlementState == "Converted" ? "table-success" : null)">
+                                <tr class="@(hawala.Status == "Cancel" ? "hawala-cancelled" : hawala.HasIndependentExchange ? "table-info" : hawala.SettlementState == "Pending" ? "table-danger" : hawala.SettlementState == "Converted" ? "table-success" : null)">
                                     <RecordSelectionCell RecordId="@hawala.Id" />
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
-                                    <td><span class="fw-bold">@hawala.Number</span></td>
+                                    <td><span class="fw-bold">@hawala.Number</span>@if(hawala.HasIndependentExchange){<span class="badge bg-info text-dark d-block">تبدیل اسعار انجام شده</span>}</td>
                                     <td><span dir="ltr">@(hawala.ReferenceNumber ?? "-")</span></td>
                                     <td>
                                         <span class="badge-modern @GetTypeBadge(hawala.HawalaType)">
@@ -310,6 +310,7 @@
                                     </td>
                                     <td class="text-center operation-cell">
                                         <HawalaOperationMenu Hawala="hawala"
+                                                             OnExchangeSaved="StateHasChanged"
                                                              ShowEdit="true"
                                                              ShowPay="true"
                                                              ShowCancel="true"
@@ -369,9 +370,9 @@
                 </div>
 
                 <div class="modal-body">
+                    <label class="small d-block mb-2"><input type="checkbox" @bind="showReceiptCorrespondent" /> نمایش نمایندگی ارسال‌کننده در رسید</label>
                     <div id="hawalaReceiptPrintArea">
-                        <HawalaReceipt Hawala="receiptHawala"
-                                       Company="companySetting" />
+<HawalaReceipt Hawala="receiptHawala" Company="companySetting" ShowSendingCorrespondent="showReceiptCorrespondent" ExecutionMode="@(receiptHawala.Status == "Paid" && receiptHawala.HawalaType == "HawalaReceive")" />
                     </div>
                 </div>
 
@@ -406,7 +407,7 @@
 
                     <PermissionAction Actions="Export"><button type="button"
                             class="btn-modern btn-primary-modern"
-                            @onclick="PrintReceipt">
+                            data-receipt-print-target="hawalaReceiptPrintArea">
                         <i class="bi bi-printer"></i>
                         چاپ
                     </button></PermissionAction>
@@ -732,43 +733,7 @@
 <!-- ===== مودال تأیید لغو ===== -->
 @if (showCancelModal)
 {
-    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header modal-header-danger">
-                    <h5 class="modal-title text-white">
-                        <i class="bi bi-exclamation-triangle me-2"></i> لغو حواله
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" @onclick="() => CloseCancelModal()"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="fs-6 fw-bold mb-2">نوع لغو را انتخاب کنید:</p>
-                    <div class="d-grid gap-2 mb-3">
-                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
-                            <input type="radio" name="cancelModeAll" checked="@cancelIncludesCommission"
-                                   @onchange="() => cancelIncludesCommission = true" />
-                            <span><strong>لغو با کارمزد</strong><br /><small class="text-muted">مبلغ حواله و تمام کارمزدها در لیجر معکوس می‌شوند.</small></span>
-                        </label>
-                        <label class="border rounded p-3 d-flex gap-2 align-items-start">
-                            <input type="radio" name="cancelModeAll" checked="@(!cancelIncludesCommission)"
-                                   @onchange="() => cancelIncludesCommission = false" />
-                            <span><strong>لغو بدون کارمزد</strong><br /><small class="text-muted">فقط مبلغ حواله معکوس می‌شود و کارمزدهای ثبت‌شده باقی می‌مانند.</small></span>
-                        </label>
-                    </div>
-                    <p class="fs-6">دلیل لغو حواله را وارد کنید:</p>
-                    <textarea class="form-control" @bind="cancelReason" rows="3" placeholder="دلیل لغو ..."></textarea>
-                </div>
-                <div class="modal-footer justify-content-center">
-                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => CloseCancelModal()">
-                        <i class="bi bi-x-circle"></i> انصراف
-                    </button>
-                    <button type="button" class="btn-modern btn-danger-modern" disabled="@destructiveActionLoading" @onclick="() => ConfirmCancel()">
-                        <i class="bi bi-check-circle"></i> تأیید لغو
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <HawalaCancellationModal HawalaId="cancelId" OnClose="CloseCancelModal" OnChanged="CancellationChangedAsync" />
 }
 
 <!-- ===== مودال تأیید حذف ===== -->
@@ -804,6 +769,7 @@
 <HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
 
 @code {
+    private bool showReceiptCorrespondent;
     private HawalaDto? executedHawala;
     private async Task RefreshPageDataAsync()
     {
@@ -881,8 +847,6 @@
     private bool destructiveActionLoading;
     private long cancelId = 0;
     private long deleteId = 0;
-    private string cancelReason = "";
-    private bool cancelIncludesCommission = true;
 
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
@@ -990,6 +954,7 @@
 
     private void CloseReceipt()
     {
+        showReceiptCorrespondent = false;
         showReceiptModal = false;
         receiptHawala = null;
         StateHasChanged();
@@ -997,7 +962,7 @@
 
     private async Task PrintReceipt()
     {
-        await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", "hawalaReceiptPrintArea", 80);
+        await JS.TryInvokeUiVoidAsync("hawalaTools.printElement", "hawalaReceiptPrintArea", 72);
     }
 
     private async Task CopyHawalaInfo(long hawalaId)
@@ -1443,8 +1408,6 @@
     private void ShowCancelConfirm(long id)
     {
         cancelId = id;
-        cancelReason = "";
-        cancelIncludesCommission = true;
         showCancelModal = true;
         StateHasChanged();
     }
@@ -1452,8 +1415,6 @@
     private void CloseCancelModal()
     {
         showCancelModal = false;
-        cancelReason = "";
-        cancelIncludesCommission = true;
         StateHasChanged();
     }
 
@@ -1573,38 +1534,10 @@
         AgentCommissionCurrencyId = hawala?.AgentCommissionCurrencyId ?? hawala?.ToCurrencyId
     };
 
-    private async Task ConfirmCancel()
+    private async Task CancellationChangedAsync()
     {
-        if (destructiveActionLoading) return;
-        try
-        {
-            destructiveActionLoading = true;
-            if (string.IsNullOrWhiteSpace(cancelReason))
-            {
-                validationErrors.Add("لطفاً دلیل لغو را وارد کنید.");
-                StateHasChanged();
-                return;
-            }
-
-            await HawalaService.CancelHawalaAsync(cancelId, new CancelHawalaDto
-            {
-                CancelReason = cancelReason,
-                ReverseCommission = cancelIncludesCommission
-            });
-            successMessage = "حواله با موفقیت لغو شد.";
-            showCancelModal = false;
-            await LoadHawalas(refreshStatistics: true);
-        }
-        catch (Exception ex)
-        {
-            validationErrors.Add($"خطا در لغو: {ex.Message}");
-            showCancelModal = false;
-        }
-        finally
-        {
-            destructiveActionLoading = false;
-            StateHasChanged();
-        }
+        successMessage = "وضعیت لغو و جبران حواله به‌روزرسانی شد.";
+        await LoadHawalas(refreshStatistics: true);
     }
 
     private async Task ConfirmDelete()
@@ -1676,7 +1609,7 @@
 
     private static string GetListStatus(HawalaDto hawala) => (hawala.HawalaType, hawala.Status) switch
     {
-        (_, "Cancel" or "Cancelled") => "لغو شده",
+        (_, "Cancel" or "Cancelled") => hawala.StatusName,
         ("HawalaSend", "Paid") => "پرداخت شده",
         ("HawalaSend", "Pending") => "پرداخت نشده",
         ("HawalaReceive", "Paid") => "اجرا شده",

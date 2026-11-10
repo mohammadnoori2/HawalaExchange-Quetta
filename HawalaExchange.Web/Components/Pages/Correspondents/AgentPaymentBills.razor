@@ -1,0 +1,130 @@
+@page "/correspondents/{CorrespondentId:long}/agent-bills"
+@page "/correspondents/{CorrespondentId:long}/agent-bills/{BillId:long}"
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "TenantBusiness")]
+@rendermode InteractiveServer
+@inject IHawalaService Service
+@inject ICompanySettingService CompanySettingService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+<PageTitle>بیل‌های پرداخت عامل</PageTitle>
+<div class="page-wrapper" dir="rtl">
+    <AppPageHeader Title="بیل‌های پرداخت عامل" Subtitle="@name" Icon="bi-receipt">
+        <Actions><PageRefreshButton Refresh="Load" Disabled="@busy" Inline="true" />
+        <button class="btn-modern btn-light-modern" @onclick="Back">بازگشت به نمایندگی</button></Actions>
+    </AppPageHeader>
+    @if (!string.IsNullOrWhiteSpace(error)) { <div class="alert alert-danger" role="alert">@error</div> }
+    @if (!string.IsNullOrWhiteSpace(success)) { <div class="alert alert-success" role="status">@success</div> }
+    @if (loading) { <div class="text-center py-4" role="status">در حال بارگذاری…</div> }
+    else if (bill is not null)
+    {
+        <div class="d-flex gap-2 mb-3">
+            <button class="btn btn-outline-secondary" disabled="@busy" @onclick="List">بازگشت به بیل‌ها</button>
+            <PermissionView Permission="HawalaExecution.View"><button type="button" class="btn btn-outline-primary" data-receipt-print-target="agentBillThermalPrintArea">چاپ حرارتی / چاپ مجدد</button></PermissionView>
+        </div>
+        <div id="agentBillPrintArea"><AgentBillDetails Bill="bill" /></div>
+        <div style="position:fixed;left:-10000px;top:0;width:72mm" aria-hidden="true"><div id="agentBillThermalPrintArea"><AgentBillReceipt Bill="bill" Company="company" /></div></div>
+        @if (bill.IsHistoricalReceipt && bill.Status != "Cancelled")
+        {
+            <PermissionView Permission="HawalaExecution.Execute"><button type="button" class="btn btn-outline-danger mt-3" disabled="@busy" @onclick="() => confirmation=2">لغو رسید تسویه قبلی</button></PermissionView>
+        }
+        @if (bill.Status == "Paid" && !bill.IsHistoricalReceipt)
+        {
+            <PermissionView Permission="HawalaExecution.Execute"><button type="button" class="btn btn-outline-danger mt-3" disabled="@busy" @onclick="() => confirmation=2">لغو بیل و برگشت پرداخت</button></PermissionView>
+        }
+        @if (bill.Status == "Pending" && !bill.IsHistoricalReceipt)
+        {
+            <PermissionView Permission="HawalaExecution.Execute">
+            <div class="modern-card p-3 mt-3">
+                <h6>پرداخت توسط خزانه‌دار</h6>
+                <p class="text-muted">اصل و کمیشن از حساب نمایندگی تسویه می‌شود؛ درآمد یا مصارف کمیشن دوباره ثبت نمی‌شود.</p>
+                <div class="row g-3">
+                @foreach(var currency in bill.Totals)
+                {
+                    <div class="col-md-4"><label class="form-label">حساب پرداخت @currency.CurrencyCode — @currency.Total.ToWholeMoney()</label>
+                        <select class="form-select" disabled="@busy" @bind="paymentAccounts[currency.CurrencyId]"><option value="0">انتخاب صندوق یا بانک</option>@foreach(var account in accounts) { <option value="@account.Id">@account.AccountName (@account.AccountCode)</option> }</select></div>
+                }
+                </div>
+                <label class="form-check my-3"><input class="form-check-input" type="checkbox" disabled="@busy" @bind="executeTogether" /> تأیید اجرای حواله‌های اجرا‌نشده همراه با پرداخت</label>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" disabled="@(busy || paymentAccounts.Values.Any(x => x <= 0))" @onclick="() => confirmation=1">ثبت پرداخت</button>
+                    <button class="btn btn-outline-danger" disabled="@busy" @onclick="() => confirmation=2">لغو بیل پرداخت‌نشده</button>
+                </div>
+            </div>
+            </PermissionView>
+        }
+    }
+    else
+    {
+        <div class="modern-card p-3">
+            <p class="text-muted">برای اجرا، پرداخت و صدور بیل، در فهرست حواله‌های ارسالی نمایندگی چند حواله را انتخاب کنید. بیل‌های قبلی نیز قابل مشاهده و چاپ مجدد هستند.</p>
+            <div class="table-responsive"><table class="table text-center align-middle"><thead><tr><th>#</th><th>بیل</th><th>دریافت‌کننده پول</th><th>تاریخ</th><th>تعداد حواله</th><th>وضعیت</th><th>مجموع به تفکیک ارز</th></tr></thead>
+                <tbody>@foreach(var row in history)
+                { <tr><td>@((page-1)*20+history.IndexOf(row)+1)</td><td><a href="@($"/correspondents/{CorrespondentId}/agent-bills/{row.Id}")">#@row.Id</a></td><td>@row.RecipientName</td><td>@DisplayDates.TimestampDate(row.CreatedAt)</td><td>@row.Items.Count</td><td><span class="badge @(row.Status=="Paid" ? "bg-success" : row.Status=="Cancelled" ? "bg-danger" : row.IsHistoricalReceipt ? "bg-info text-dark" : "bg-warning text-dark")">@row.StatusLabel</span></td><td>@foreach(var total in row.Totals) { <div dir="ltr">@total.Total.ToWholeMoney() @total.CurrencyCode</div> }</td></tr> }</tbody>
+            </table></div>
+            <div class="d-flex gap-2"><button class="btn btn-outline-secondary" disabled="@(busy || page<=1)" @onclick="Previous">قبلی</button><span>صفحه @(page) از @Math.Max(1,pages)</span><button class="btn btn-outline-secondary" disabled="@(busy || page>=pages)" @onclick="Next">بعدی</button></div>
+        </div>
+    }
+</div>
+@if (confirmation>0 && bill is not null)
+{
+    <div class="modal d-block" role="dialog" aria-modal="true" aria-label="تأیید عملیات بیل"><div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h5>@(confirmation==1 ? "تأیید پرداخت بیل" : "لغو بیل") #@bill.Id</h5></div>
+        <div class="modal-body">@(confirmation==1 ? $"آیا پول به {bill.RecipientName} پرداخت شده است؟ پس از ثبت، بیل دوباره قابل پرداخت نیست." : bill.IsHistoricalReceipt ? "فقط رسید تسویه قبلی لغو می‌شود؛ هیچ مبلغی به صندوق برگشت داده نمی‌شود و سند تسویه قبلی و اجرای حواله‌ها تغییر نمی‌کند." : bill.Status == "Paid" ? "پرداخت این بیل به همان حساب‌های پرداخت برگشت داده می‌شود و حواله‌ها برای صدور بیل تازه آزاد می‌شوند. اجرای حواله‌ها تغییر نمی‌کند. برگشت را فقط پس از برگشت واقعی پول تأیید کنید." : "بیل لغو و حواله‌های آن برای صدور بیل دیگر آزاد می‌شوند. اجرای حواله‌ها تغییر نمی‌کند.")
+            @foreach(var t in bill.Totals) { <div dir="ltr"><strong>@t.Total.ToWholeMoney() @t.CurrencyCode</strong></div> }
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" disabled="@busy" @onclick="() => confirmation=0">انصراف</button><button class="btn @(confirmation==1 ? "btn-success" : "btn-danger")" disabled="@busy" @onclick="Submit">تأیید</button></div>
+    </div></div></div><div class="modal-backdrop fade show"></div>
+}
+@code {
+    [Parameter] public long CorrespondentId { get; set; }
+    [Parameter] public long? BillId { get; set; }
+    private bool busy, loading=true, executeTogether;
+    private string? error, success, name;
+    private int page=1,pages,confirmation;
+    private AgentBillDto? bill;
+    private CompanySettingDto company = new();
+    private List<AgentBillDto> history=[];
+    private List<AccountDto> accounts=[];
+    private Dictionary<long,long> paymentAccounts=[];
+    protected override Task OnParametersSetAsync() => Load();
+    private async Task Load()
+    {
+        loading=true; error=null; bill=null; confirmation=0;
+        try {
+            if(BillId.HasValue) {
+                var detail=await Service.GetAgentBillAsync(BillId.Value);
+                if(detail.CorrespondentId!=CorrespondentId) throw new InvalidOperationException("بیل متعلق به این نمایندگی نیست.");
+                bill=detail; name=bill.CorrespondentName; executeTogether=true;
+                company = await CompanySettingService.GetAsync();
+                paymentAccounts=bill.Totals.ToDictionary(x => x.CurrencyId,x => 0L);
+                accounts=[];
+                if(bill.Status=="Pending" && !bill.IsHistoricalReceipt)
+                {
+                    accounts=(await Service.GetAgentBillPaymentAccountsAsync()).ToList();
+                    var defaultCash = accounts.Where(x => x.AccountType == "Cash").OrderByDescending(x => x.AccountCode == "1001").ThenBy(x => x.Id).Select(x => x.Id).FirstOrDefault();
+                    paymentAccounts = bill.Totals.ToDictionary(x => x.CurrencyId, x => defaultCash);
+                }
+            } else {
+                var result=await Service.GetAgentBillsAsync(CorrespondentId,page);
+                history=result.Items.ToList(); pages=result.TotalPages; name=history.FirstOrDefault()?.CorrespondentName;
+            }
+        } catch(Exception ex) { error=ex.Message; } finally { loading=false; }
+    }
+    private async Task Submit()
+    {
+        if(bill is null || busy) return;
+        busy=true; error=null;
+        try {
+            if(confirmation==1) { await Service.PayAgentBillAsync(new() { BillId=bill.Id, ConfirmExecution=executeTogether, Accounts=paymentAccounts.Select(x => new AgentBillPaymentAccountDto { CurrencyId=x.Key,AccountId=x.Value }).ToList() }); success="پرداخت بیل ثبت شد؛ رسید قابل چاپ است."; }
+            else { await Service.CancelAgentBillAsync(bill.Id); success=bill.IsHistoricalReceipt ? "رسید تسویه قبلی لغو شد؛ حسابداری تغییری نکرد." : "بیل لغو شد."; }
+            await Load();
+        } catch(Exception ex) { error=ex.Message; } finally { busy=false; confirmation=0; }
+    }
+    private void Back() => Navigation.NavigateTo($"/correspondents/{CorrespondentId}");
+    private void List() => Navigation.NavigateTo($"/correspondents/{CorrespondentId}/agent-bills");
+    private async Task Previous() { if(page>1) { page--; await Load(); } }
+    private async Task Next() { if(page<pages) { page++; await Load(); } }
+}

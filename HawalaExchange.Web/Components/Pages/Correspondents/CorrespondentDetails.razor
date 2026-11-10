@@ -77,13 +77,15 @@
                         <i class="bi bi-calculator-fill me-1"></i> کمیشن پرداختی به نمایندگی‌ها
                     </button></PermissionAction>
                         <button class="btn btn-primary" @onclick="OpenOriginCommissionPage">
-                            <i class="bi bi-cash-coin me-1"></i> کمیشن ارسالی به نمایندگی‌ها
+                            <i class="bi bi-cash-coin me-1"></i> کمیشن پرداختی ولایات
                         </button>
                 }
                 <CorrespondentActionsMenu IsArchived="@correspondent.IsArchived"
+                                           CorrespondentId="CorrespondentId"
                                            CanUseFinancialActions="@(correspondentAccountId.HasValue && !correspondent.IsArchived)"
                                            SettlementCurrencyCode="@correspondent.SettlementCurrencyCode"
                                            OnViewStatus="ViewStatus"
+                                           OnOpeningBalances="() => OpenOpeningBalances(CorrespondentId)"
                                            OnViewRange="ViewRange"
                                            OnRecordActions="ToggleRecordActions"
                                            OnConvertBalance="OpenBalanceSettlement"
@@ -226,6 +228,10 @@
                             </select>
                         </div>
                         <div class="col-12">
+                            <label class="form-check"><input class="form-check-input" type="checkbox" @bind="editModel.RequiresManualExecution" /> نیاز به تأیید دستی اجرای حواله‌های ارجاع‌شده</label>
+                            <div class="form-text">فقط حواله‌های جدید ارجاع‌شده در انتظار اجرا می‌مانند؛ وضعیت حواله‌های قبلی تغییر نمی‌کند.</div>
+                        </div>
+                        <div class="col-12">
                             <label class="form-label">یادداشت</label>
                             <textarea class="form-control" rows="2" @bind="editModel.Remarks"></textarea>
                         </div>
@@ -268,6 +274,7 @@
 }
 
 @code {
+    private void OpenOpeningBalances(long id) => NavigationManager.NavigateTo($"/correspondents/{id}/opening-balances");
     private async Task RefreshPageDataAsync()
     {
         var fresh = await CorrespondentService.GetDetailsPageAsync(CorrespondentId); correspondent = fresh?.Correspondent; correspondentAccountId = fresh?.AccountId;  if (refreshHawalaPanel != null) await refreshHawalaPanel.RefreshDataAsync();
@@ -452,6 +459,7 @@
             Remarks = correspondent.Remarks,
             SettlementCurrencyId = correspondent.SettlementCurrencyId,
             CommissionMethod = correspondent.CommissionMethod,
+            RequiresManualExecution = correspondent.RequiresManualExecution,
             IsArchived = correspondent.IsArchived
         };
         showEditModal = true;

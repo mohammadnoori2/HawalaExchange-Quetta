@@ -51,15 +51,23 @@ public sealed class PlatformTenantManagement(ImpersonationSessionStore actors,Au
         if(!await db.Tenants.AnyAsync(x=>x.Id==tenantId && !x.IsArchived,ct))throw new InvalidOperationException("صرافی یافت نشد یا آرشیف شده است.");
     }
     private static Task LockUsersAsync(ApplicationDbContext db,long tenantId,CancellationToken ct) =>
+        db.Database.IsNpgsql() ? DatabaseLocks.AcquireAsync(db,"UserPermissions:"+tenantId,10000,ct) :
         db.Database.ExecuteSqlInterpolatedAsync($"DECLARE @r int; EXEC @r=sp_getapplock @Resource={"UserPermissions:"+tenantId}, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=10000; IF @r<0 THROW 51000,'User administration is busy',1;",ct);
     private static async Task<HashSet<string>> ReadPermissionsAsync(ApplicationDbContext db,long tenantId,long userId,IEnumerable<string> roles,CancellationToken ct)
     {
-        var json=await db.Database.SqlQuery<string>($"SELECT PermissionsJson AS [Value] FROM dbo.UserPermissionProfiles WHERE TenantId={tenantId} AND UserId={userId}").SingleOrDefaultAsync(ct);
+        var json=await (db.Database.IsNpgsql()
+            ? db.Database.SqlQuery<string>($"SELECT \"PermissionsJson\" AS \"Value\" FROM public.\"UserPermissionProfiles\" WHERE \"TenantId\"={tenantId} AND \"UserId\"={userId}")
+            : db.Database.SqlQuery<string>($"SELECT PermissionsJson AS [Value] FROM dbo.UserPermissionProfiles WHERE TenantId={tenantId} AND UserId={userId}")).SingleOrDefaultAsync(ct);
         return json is null?PermissionCatalog.Defaults(roles):PermissionCatalog.Normalize(JsonSerializer.Deserialize<string[]>(json)??[]);
     }
     private static Task WritePermissionsAsync(ApplicationDbContext db,long tenantId,long userId,long actorId,HashSet<string> keys,CancellationToken ct)
     {
         var json=JsonSerializer.Serialize(keys.Order());
+        if(db.Database.IsNpgsql())return db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO public."UserPermissionProfiles"("TenantId","UserId","PermissionsJson","ModifiedAt","ModifiedBy")
+            VALUES({tenantId},{userId},{json},CURRENT_TIMESTAMP AT TIME ZONE 'UTC',{actorId})
+            ON CONFLICT("TenantId","UserId") DO UPDATE SET "PermissionsJson"=EXCLUDED."PermissionsJson","ModifiedAt"=EXCLUDED."ModifiedAt","ModifiedBy"=EXCLUDED."ModifiedBy"
+            """,ct);
         return db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.UserPermissionProfiles SET PermissionsJson={json}, ModifiedAt=SYSUTCDATETIME(),ModifiedBy={actorId} WHERE TenantId={tenantId} AND UserId={userId}; IF @@ROWCOUNT=0 INSERT dbo.UserPermissionProfiles(TenantId,UserId,PermissionsJson,ModifiedAt,ModifiedBy) VALUES({tenantId},{userId},{json},SYSUTCDATETIME(),{actorId});",ct);
     }
     private static void Audit(ApplicationDbContext db,long actor,long tenant,string action,long? id=null) =>
@@ -179,7 +187,8 @@ public sealed class PlatformTenantManagement(ImpersonationSessionStore actors,Au
                 if(!await users.IsInRoleAsync(u,"Admin"))Check(await users.AddToRoleAsync(u,"Admin"));
                 await WritePermissionsAsync(db,tenantId,u.Id,actor.Id,PermissionCatalog.Defaults(["Admin"]),ct); break;
             case "ResetPermissions":
-                await db.Database.ExecuteSqlInterpolatedAsync($"DELETE dbo.UserPermissionProfiles WHERE TenantId={tenantId} AND UserId={userId}",ct); break;
+                if(db.Database.IsNpgsql()) await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM public.\"UserPermissionProfiles\" WHERE \"TenantId\"={tenantId} AND \"UserId\"={userId}",ct);
+                else await db.Database.ExecuteSqlInterpolatedAsync($"DELETE dbo.UserPermissionProfiles WHERE TenantId={tenantId} AND UserId={userId}",ct); break;
             case "CopyPermissions":
                 var source=await db.Users.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==copyFrom && x.Id!=userId,ct)
                     ??throw new InvalidOperationException("کاربر مبدا متعلق به این صرافی نیست یا همان کاربر مقصد است.");
@@ -220,7 +229,13 @@ public sealed class PlatformTenantManagement(ImpersonationSessionStore actors,Au
         await using var db=await factory.CreateDbContextAsync(ct);
         await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
         await RequireTenantAsync(db,tenantId,ct); await LockUsersAsync(db,tenantId,ct);
-        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.TenantOperationalControls SET ReadOnly={controls.ReadOnly},MaxUsers={controls.MaxUsers},DisabledFeaturesJson={json},TimeZoneId={controls.TimeZoneId},ModifiedAt=SYSUTCDATETIME() WHERE TenantId={tenantId}; IF @@ROWCOUNT=0 INSERT dbo.TenantOperationalControls(TenantId,ReadOnly,MaxUsers,DisabledFeaturesJson,TimeZoneId) VALUES({tenantId},{controls.ReadOnly},{controls.MaxUsers},{json},{controls.TimeZoneId});",ct);
+        if(db.Database.IsNpgsql()) await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO public."TenantOperationalControls"("TenantId","ReadOnly","MaxUsers","DisabledFeaturesJson","TimeZoneId","ModifiedAt")
+            VALUES({tenantId},{controls.ReadOnly},{controls.MaxUsers},{json},{controls.TimeZoneId},CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+            ON CONFLICT("TenantId") DO UPDATE SET "ReadOnly"=EXCLUDED."ReadOnly","MaxUsers"=EXCLUDED."MaxUsers",
+                "DisabledFeaturesJson"=EXCLUDED."DisabledFeaturesJson","TimeZoneId"=EXCLUDED."TimeZoneId","ModifiedAt"=EXCLUDED."ModifiedAt"
+            """,ct);
+        else await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.TenantOperationalControls SET ReadOnly={controls.ReadOnly},MaxUsers={controls.MaxUsers},DisabledFeaturesJson={json},TimeZoneId={controls.TimeZoneId},ModifiedAt=SYSUTCDATETIME() WHERE TenantId={tenantId}; IF @@ROWCOUNT=0 INSERT dbo.TenantOperationalControls(TenantId,ReadOnly,MaxUsers,DisabledFeaturesJson,TimeZoneId) VALUES({tenantId},{controls.ReadOnly},{controls.MaxUsers},{json},{controls.TimeZoneId});",ct);
         Audit(db,actor.Id,tenantId,"Tenant.ControlsUpdated"); await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         var ids=await db.Users.IgnoreQueryFilters().Where(x=>x.TenantId==tenantId && !x.IsPlatformUser).Select(x=>x.Id).ToListAsync(ct);
         foreach(var id in ids)changes.Publish(tenantId,id);
@@ -249,7 +264,9 @@ public sealed class PlatformTenantManagement(ImpersonationSessionStore actors,Au
         await RequireTenantAsync(db,tenantId,ct); await db.EnsureCurrentTenantWriteAccessAsync(ct);
         var job=await db.HawalaImportJobs.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==jobId,ct)??throw new InvalidOperationException("عملیات متعلق به این صرافی نیست.");
         await using var tx=await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
-        var batch=await db.HawalaImportBatches.FromSqlInterpolated($"SELECT * FROM dbo.HawalaImportBatches WITH(UPDLOCK,HOLDLOCK) WHERE TenantId={tenantId} AND Id={job.BatchId}").AsNoTracking().SingleAsync(ct);
+        var batch=await (db.Database.IsNpgsql()
+            ? db.HawalaImportBatches.FromSqlInterpolated($"SELECT * FROM public.\"HawalaImportBatches\" WHERE \"TenantId\"={tenantId} AND \"Id\"={job.BatchId} FOR UPDATE")
+            : db.HawalaImportBatches.FromSqlInterpolated($"SELECT * FROM dbo.HawalaImportBatches WITH(UPDLOCK,HOLDLOCK) WHERE TenantId={tenantId} AND Id={job.BatchId}")).AsNoTracking().SingleAsync(ct);
         job=await db.HawalaImportJobs.AsNoTracking().SingleAsync(x=>x.Id==jobId,ct);
         if(batch.Status!="Preview" || job.Status!="Failed")throw new InvalidOperationException("فقط فایل ناموفق و ثبت‌نشده قابل تلاش مجدد است.");
         HawalaExchange.Application.DTOs.ConfirmHawalaImportDto? request;
@@ -293,7 +310,7 @@ public sealed class PlatformTenantManagement(ImpersonationSessionStore actors,Au
         await using var db=await factory.CreateDbContextAsync(ct);db.Database.SetCommandTimeout(5);
         var connected=await db.Database.CanConnectAsync(ct);
         var backup="نامشخص؛ دسترسی به تاریخچه بک‌آپ میزبان فراهم نیست.";
-        if(connected)
+        if(connected && !db.Database.IsNpgsql())
         {
             try
             {

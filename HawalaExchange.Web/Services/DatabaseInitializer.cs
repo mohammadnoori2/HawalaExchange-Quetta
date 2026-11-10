@@ -21,6 +21,13 @@ public static class DatabaseInitializer
         {
             var context = services.GetRequiredService<ApplicationDbContext>();
 
+            if (context.Database.IsNpgsql())
+            {
+                await PostgresSchema.ValidateApplicationReadyAsync(context, cancellationToken);
+                logger.LogInformation("Verified PostgreSQL application schema. SQL Server initialization is not applicable.");
+                return;
+            }
+
             logger.LogInformation("Applying pending database migrations.");
             await context.Database.MigrateAsync(cancellationToken);
             await context.EnsureApplicationSchemaAsync(cancellationToken);

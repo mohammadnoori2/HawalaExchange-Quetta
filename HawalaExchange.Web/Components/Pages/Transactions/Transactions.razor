@@ -48,6 +48,7 @@
                 <option value="Pending">در انتظار</option>
                 <option value="Paid">پرداخت شده</option>
                 <option value="Cancel">لغو شده</option>
+                <option value="Recorded">ثبت حسابداری حواله</option>
             </select>
             <select class="form-select compact-quick-filter" @bind="filterType" @bind:event="oninput">
                 <option value="">همه انواع</option>
@@ -75,7 +76,7 @@
         </div>
 
         <div class="table-card-body">
-            <SelectedRecordsToolbar ScopeId="transaction-record-selection" VisibleIds="@pagedTransactions.Select(x => x.Id)" Transactions="true" />
+            <SelectedRecordsToolbar ScopeId="transaction-record-selection" VisibleIds="@pagedTransactions.Where(x => !x.IsLedgerPosting).Select(x => x.Id)" Transactions="true" />
             <div class="table-scroll-wrapper">
                 <GlobalDataGrid id="transaction-record-selection" class="table-modern table-striped-modern">
                     <thead>
@@ -165,10 +166,14 @@
                             @foreach (var transaction in pagedTransactions)
                             {
                                 <tr>
-                                    <RecordSelectionCell RecordId="@transaction.Id" />
+                                    @if (!transaction.IsLedgerPosting) { <RecordSelectionCell RecordId="@transaction.Id" /> } else { <td></td> }
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
                                     <td>
                                         <span class="customer-code">@transaction.TransactionNo</span>
+                                        @if (transaction.IsLedgerPosting)
+                                        {
+                                            <div class="small text-muted">@transaction.Remarks</div>
+                                        }
                                     </td>
                                     <td>
                                         <span class="badge-modern @GetTypeBadge(transaction.TransactionType)">
@@ -191,7 +196,7 @@
                                             <button class="action-btn action-btn-view" @onclick="() => ViewTransaction(transaction.Id)" title="مشاهده">
                                                 <i class="bi bi-eye"></i>
                                             </button>
-                                            @if (transaction.Status == "Pending")
+                                            @if (!transaction.IsLedgerPosting && transaction.Status == "Pending")
                                             {
                                                 <button class="action-btn action-btn-unarchive" @onclick="() => MarkAsPaid(transaction.Id)" title="پرداخت">
                                                     <i class="bi bi-check-circle"></i>
@@ -200,7 +205,7 @@
                                                     <i class="bi bi-x-circle"></i>
                                                 </button>
                                             }
-                                            @if (transaction.Status != "Cancel")
+                                            @if (!transaction.IsLedgerPosting && transaction.Status != "Cancel")
                                             {
                                                 <button class="action-btn action-btn-print" @onclick="() => ShowReverseModal(transaction.Id)" title="برگشت">
                                                     <i class="bi bi-arrow-counterclockwise"></i>
@@ -558,7 +563,22 @@
                         <i class="bi bi-list-ul me-2"></i> جزئیات تراکنش
                     </h6>
 
-                    @if (selectedTransaction.TransactionDetails != null && selectedTransaction.TransactionDetails.Any())
+                    @if (selectedTransaction.IsLedgerPosting)
+                    {
+                        <div class="alert alert-info">@selectedTransaction.Remarks — این ثبت بخشی از تاریخچه حواله است؛ برای اصلاح، خود حواله را ویرایش کنید.</div>
+                        <div class="table-scroll-wrapper">
+                            <table class="table-modern table-striped-modern">
+                                <thead><tr><th>شماره ثبت</th><th>حساب</th><th>ارز</th><th>طلبکار</th><th>بدهکار</th><th>شرح</th></tr></thead>
+                                <tbody>
+                                    @foreach (var entry in selectedTransaction.LedgerEntries ?? [])
+                                    {
+                                        <tr><td>@entry.Id</td><td>@entry.AccountName</td><td>@entry.CurrencyCode</td><td>@MoneyFormatHelper.Format(entry.TalabKar)</td><td>@MoneyFormatHelper.Format(entry.BadehKar)</td><td>@entry.Description</td></tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else if (selectedTransaction.TransactionDetails != null && selectedTransaction.TransactionDetails.Any())
                     {
                         <div class="table-scroll-wrapper">
                             <GlobalDataGrid class="table-modern table-striped-modern">
@@ -1115,7 +1135,7 @@
 
     private string GetTransactionTypeName(string type) => AppDisplayText.TransactionType(type);
 
-    private string GetStatusName(string status) => AppDisplayText.Status(status);
+    private string GetStatusName(string status) => status == "Recorded" ? "ثبت حسابداری" : AppDisplayText.Status(status);
 
     private string GetTypeBadge(string type)
     {

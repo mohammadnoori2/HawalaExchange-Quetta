@@ -11,10 +11,13 @@
 @attribute [Authorize(Policy = "TenantBusiness")]
 @rendermode InteractiveServer
 
-<PageTitle>@(isOrigin ? "کمیشن ارسالی به نمایندگی‌ها" : isOutgoing ? "کمیشن پرداختی به نمایندگی‌ها" : "کمیشن حواله‌های دریافتی")</PageTitle>
+<PageTitle>@(isOrigin ? "کمیشن پرداختی ولایات" : isOutgoing ? "کمیشن پرداختی به نمایندگی‌ها" : "کمیشن حواله‌های دریافتی")</PageTitle>
 
-<div class="page-wrapper" dir="rtl">
-    <AppPageHeader Title="@(isOrigin ? "کمیشن ارسالی به نمایندگی‌ها" : isOutgoing ? "کمیشن پرداختی به نمایندگی‌ها" : "کمیشن حواله‌های دریافتی")"
+<div class="page-wrapper" dir="rtl" data-commission-form
+     data-commission-preview-version="@previewGeneration"
+     data-commission-busy="@(busy ? "true" : "false")"
+     data-commission-can-post="@(CanPost ? "true" : "false")">
+    <AppPageHeader Title="@(isOrigin ? "کمیشن پرداختی ولایات" : isOutgoing ? "کمیشن پرداختی به نمایندگی‌ها" : "کمیشن حواله‌های دریافتی")"
                    Subtitle="@(isOrigin ? "درآمد ارسال مجدد به تفکیک محل پرداخت در حساب نمایندگی فرستنده" : isOutgoing ? "هزینه شرکت و طلب نمایندگی مقصد، به تفکیک محل پرداخت و ارز" : "درآمد دریافت حواله با نرخ پایان روز نمایندگی فرستنده")"
                    Icon="bi-calculator">
         <Actions>
@@ -48,14 +51,25 @@
             <div class="card-header"><h6 class="text-primary mb-0"><i class="bi bi-building me-2"></i>@correspondent.Name (@correspondent.Code)</h6></div>
             <div class="card-body">
                 <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-check-label d-inline-flex align-items-center gap-2">
+                            <input class="form-check-input" type="checkbox" disabled="@busy"
+                                   @bind="request.AllUncalculated" @bind:after="InvalidatePreview" />
+                            تمام حواله‌های دارای کمیشن محاسبه‌نشده (بدون محدودیت تاریخ)
+                        </label>
+                        <div class="text-muted small mt-1">حواله‌های ثبت‌شده با تاریخ قدیمی هم شامل‌اند؛ کمیشن ثبت‌شده دوباره محاسبه نمی‌شود. برای تعیین بازه تاریخ، تیک را بردارید.</div>
+                    </div>
+                    @if (!request.AllUncalculated)
+                    {
                     <div class="col-md-3">
                         <label class="form-label fw-bold">از تاریخ</label>
-                        <PersianDatePicker @bind-Value="request.PeriodFrom" @bind-Value:after="InvalidatePreview" />
+                        <PersianDatePicker Disabled="@(busy || request.AllUncalculated)" @bind-Value="request.PeriodFrom" @bind-Value:after="InvalidatePreview" />
                     </div>
                     <div class="col-md-3">
                         <label class="form-label fw-bold">تا تاریخ</label>
-                        <PersianDatePicker @bind-Value="request.PeriodTo" @bind-Value:after="InvalidatePreview" />
+                        <PersianDatePicker Disabled="@(busy || request.AllUncalculated)" @bind-Value="request.PeriodTo" @bind-Value:after="InvalidatePreview" />
                     </div>
+                    }
                     @if (!isOrigin && !isOutgoing)
                     {
                     <div class="col-md-3">
@@ -79,7 +93,7 @@
                     }
                 </div>
                 <div class="mt-3">
-                    <PermissionAction Actions="Calculate"><button class="btn-modern btn-primary-modern" disabled="@(busy || calculating)" @onclick="LoadPreview">
+                    <PermissionAction Actions="Calculate"><button data-commission-recalculate class="btn-modern btn-primary-modern" disabled="@(busy || calculating || ((isOutgoing || isOrigin) && CanPost))" @onclick="LoadPreview">
                         @if (calculating)
                         { <span class="spinner-border spinner-border-sm ms-1" aria-hidden="true"></span><span>در حال محاسبه...</span> }
                         else
@@ -89,7 +103,7 @@
             </div>
         </div>
 
-        @if (isOutgoing && request.LocationCurrencyRates.Count > 0)
+        @if (isOutgoing && preview is not null && request.LocationCurrencyRates.Count > 0)
         {
             <div class="modern-card mb-4 p-3">
                 <h6 class="fw-bold">کمیشن هر لک به تفکیک محل پرداخت و ارز در نمایندگی مقصد</h6>
@@ -101,14 +115,14 @@
                         <tr><td><RecordDetailsLink Kind="PaymentLocation" Id="currencyRate.PaymentLocationId" Text="@currencyRate.PaymentLocationName" /></td><td>@currencyRate.CurrencyCode</td><td>@currencyRate.HawalaCount</td>
                             <td dir="ltr">@currencyRate.TotalAmount.ToWholeMoney() @currencyRate.CurrencyCode</td>
                             <td style="width:180px"><input type="number" lang="en" min="0.0001" step="0.0001" class="form-control"
-                                   @bind="currencyRate.PerLakhRate" @bind:after="InvalidatePreview" /></td>
+                                   data-commission-rate disabled="@busy" @bind="currencyRate.PerLakhRate" @bind:after="InvalidatePreview" @oninput="InvalidatePreview" /></td>
                             <td dir="ltr">@(calculated ? currencyRate.CommissionAmount.ToWholeMoney() : "—") @currencyRate.CurrencyCode</td></tr>
                     }</tbody>
                 </table></div>
             </div>
         }
 
-        @if (isOrigin && request.PaymentLocationRates.Count > 0)
+        @if (isOrigin && preview is not null && request.PaymentLocationRates.Count > 0)
         {
             var amountsByLocation = preview?.Items
                 .GroupBy(x => x.PaymentLocationId ?? 0)
@@ -118,12 +132,12 @@
                     Usd = group.Where(x => x.CurrencyCode == "USD").Sum(x => x.SourceAmount)
                 });
             <div class="modern-card mb-4 p-3">
-                <h6 class="fw-bold">کمیشن ارسالی به نمایندگی‌ها به تفکیک محل پرداخت</h6>
+                <h6 class="fw-bold">کمیشن پرداختی ولایات به تفکیک محل پرداخت</h6>
                 <p class="text-muted small">مبلغ دلاری هر لک را برای هر محل وارد کرده و سپس باز‌محاسبه کنید.</p>
                 <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
                     <div>
                         <label class="form-label" for="origin-rate-for-all">کمیشن USD هر لک برای همه</label>
-                        <input id="origin-rate-for-all" type="number" lang="en" min="0.0001" step="0.0001" class="form-control" @bind="originRateForAll" />
+                        <input id="origin-rate-for-all" type="number" lang="en" min="0.0001" step="0.0001" class="form-control" disabled="@busy" @bind="originRateForAll" />
                     </div>
                     <button class="btn btn-outline-primary" disabled="@busy" @onclick="ApplyOriginRateToAll">اعمال به همه</button>
                 </div>
@@ -136,7 +150,7 @@
                             <td dir="ltr">@((amounts?.Afn ?? 0m).ToWholeMoney()) AFN</td>
                             <td dir="ltr">@((amounts?.Usd ?? 0m).ToWholeMoney()) USD</td>
                             <td dir="ltr">@locationRate.TotalDebitUsd.ToWholeMoney()</td>
-                            <td><input type="number" lang="en" min="0.0001" step="0.0001" class="form-control" @bind="locationRate.PerLakhRate" @bind:after="InvalidatePreview" /></td>
+                            <td><input type="number" lang="en" min="0.0001" step="0.0001" class="form-control" data-commission-rate disabled="@busy" @bind="locationRate.PerLakhRate" @bind:after="InvalidatePreview" @oninput="InvalidatePreview" /></td>
                             <td dir="ltr">@(calculated ? locationRate.TotalCommissionUsd.ToWholeMoney() : "—")</td></tr>
                     }</tbody>
                 </table></div>
@@ -149,11 +163,15 @@
             { <div class="alert alert-info">حواله‌های لغوشده با سهم کمیشن ثبت‌شدهٔ قبلی کسر می‌شوند؛ نرخ جدید روی آن‌ها اعمال نمی‌شود.</div> }
             @if (preview.HawalaCount == 0)
             {
-                <div class="modern-card mb-4 p-4 text-muted">@(isOrigin ? "حوالهٔ واجد شرایط برای کمیشن ارسالی وجود ندارد؛ محل پرداخت خود صرافی شامل نیست." : "در این دوره حواله محاسبه‌نشده‌ای وجود ندارد.")</div>
+                <div class="modern-card mb-4 p-4 text-muted">@(isOrigin ? "حوالهٔ واجد شرایط برای کمیشن پرداختی ولایات وجود ندارد؛ محل پرداخت خود صرافی شامل نیست." : "در این دوره حواله محاسبه‌نشده‌ای وجود ندارد.")</div>
             }
 
-            @if (calculated && preview.HawalaCount > 0)
+            @if (preview.HawalaCount > 0 && (calculated || isOutgoing || isOrigin))
             {
+                @if (!calculated)
+                {
+                    <div class="alert alert-warning" role="status">این پیش‌نمایش قابل ثبت نیست. ابتدا کمیشن را با نرخ‌های واردشده باز‌محاسبه کنید؛ مبالغ زیر مربوط به محاسبه قبلی‌اند.</div>
+                }
                 @if (!isOutgoing)
                 {
                     <CommissionCurrencySummary Items="preview.Items" />
@@ -227,7 +245,7 @@
                     <span>@(isOutgoing
                         ? $"پس از تأیید، مقصد {string.Join(" / ",preview.Items.GroupBy(x=>x.CurrencyCode).Select(g=>$"{g.Sum(x=>x.CommissionAfn).ToWholeMoney()} {g.Key}"))} طلبکار و هزینه شرکت ثبت می‌شود؛ فرستنده بدهکار نمی‌شود."
                         : $"پس از تأیید، نمایندگی فرستنده {preview.TotalCommissionUsd.ToWholeMoney()} USD بدهکار و درآمد کمیشن ثبت می‌شود.")</span>
-                    <PermissionAction Actions="Calculate"><button class="btn-modern btn-success-modern" disabled="@busy" @onclick="PostBatch">
+                    <PermissionAction Actions="Calculate"><button data-commission-post class="btn-modern btn-success-modern" disabled="@(!CanPost)" @onclick="PostBatch">
                         <i class="bi bi-check2-circle"></i> تأیید و ثبت حسابداری
                     </button></PermissionAction>
                 </div>
@@ -296,7 +314,7 @@
             </div>
             <div class="modal-body">
                 <div class="row g-3 mb-4">
-                    <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">نوع محاسبه</small><div class="fw-bold">@(detailsOrigin ? "کمیشن ارسالی به نمایندگی‌ها" : detailsOutgoing ? "کمیشن پرداختی به نمایندگی‌ها" : "کمیشن حواله‌های دریافتی")</div></div></div>
+                    <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">نوع محاسبه</small><div class="fw-bold">@(detailsOrigin ? "کمیشن پرداختی ولایات" : detailsOutgoing ? "کمیشن پرداختی به نمایندگی‌ها" : "کمیشن حواله‌های دریافتی")</div></div></div>
                     <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">تعداد حواله</small><div class="fw-bold">@selectedDetails.HawalaCount</div></div></div>
                     @if (selectedDetails.CommissionScope == "Standard")
                     { <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">کمیشن هر لک</small><div class="fw-bold">@selectedDetails.CommissionPerLakhAfn.ToWholeMoney()</div></div></div> }
@@ -444,11 +462,12 @@
 @code {
     private async Task RefreshPageDataAsync()
     {
-        correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId); await LoadHistory(); if (selectedDetails != null) selectedDetails = await CommissionService.GetDetailsAsync(selectedDetails.Id); if (preview != null) preview = await CommissionService.PreviewReadOnlyAsync(request);
+        correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId); await LoadHistory(); if (selectedDetails != null) selectedDetails = await CommissionService.GetDetailsAsync(selectedDetails.Id); if (preview != null) await LoadPreview();
     }
     [Parameter] public long CorrespondentId { get; set; }
     private CorrespondentDto? correspondent;
     private CorrespondentCommissionPreviewRequestDto request = new();
+    private CorrespondentCommissionDefaultsDto savedDefaults = new();
     private CorrespondentCommissionPreviewDto? preview;
     private readonly RecordFilterSet historyFilters = new();
     private List<CorrespondentCommissionBatchDto> baseHistory = [];
@@ -457,6 +476,10 @@
     private bool busy;
     private bool calculating;
     private bool calculated;
+    private readonly CommissionPreviewState previewState = new();
+    private long inputRevision;
+    private long previewGeneration;
+    private bool CanPost => !busy && !calculating && calculated && preview is { HawalaCount: > 0 } && previewState.IsCurrent(request);
     private string error = string.Empty;
     private string success = string.Empty;
     private CorrespondentCommissionBatchDto? selectedDetails;
@@ -477,17 +500,18 @@
         loadedPage = pageKey;
         loadingPage = true;
         preview = null;
-        calculated = false;
+        InvalidatePreview();
         selectedDetails = null;
         error = success = string.Empty;
         correspondent = await CorrespondentService.GetByIdAsync(CorrespondentId);
         request = new CorrespondentCommissionPreviewRequestDto
         {
-            CorrespondentId = CorrespondentId, PeriodFrom = DateTime.Today.AddMonths(-1),
+            CorrespondentId = CorrespondentId, AllUncalculated = true, PeriodFrom = DateTime.Today.AddMonths(-1),
             PeriodTo = DateTime.Today, CommissionPerLakhAfn = isOutgoing ? 200m : 400m,
             HawalaType = isOutgoing || isOrigin ? "HawalaSend" : "HawalaReceive",
             CommissionScope = isOrigin ? "Forwarding" : isOutgoing ? "Destination" : "Incoming"
         };
+        await LoadDefaultRates();
         await LoadHistory();
         loadingPage = false;
     }
@@ -503,16 +527,28 @@
         await Task.Yield();
         try
         {
-            calculated = false;
+            InvalidatePreview();
+            // Keep edited values, filling absent locations/currencies from saved history.
+            request.PaymentLocationRates = request.PaymentLocationRates
+                .UnionBy(savedDefaults.PaymentLocationRates, x => x.PaymentLocationId).ToList();
+            request.LocationCurrencyRates = request.LocationCurrencyRates
+                .UnionBy(savedDefaults.LocationCurrencyRates, x => (x.PaymentLocationId, x.CurrencyId)).ToList();
+            request = CommissionPreviewState.Copy(request);
+            var revision = inputRevision;
+            var calculationRequest = CommissionPreviewState.Copy(request);
             var previousCurrencyRates = request.LocationCurrencyRates
                 .ToDictionary(x => (x.PaymentLocationId, x.CurrencyId), x => x.PerLakhRate);
             var previousLocationRates = request.PaymentLocationRates.ToDictionary(x => x.PaymentLocationId, x => x.PerLakhRate);
-            preview = await CommissionService.PreviewAsync(request);
+            var result = await CommissionPreviewCalculator.CalculateAsync(calculationRequest,
+                (input, token) => CommissionService.PreviewAsync(input, token));
+            // Ignore a result if navigation or an input changed while SQL was running.
+            if (revision != inputRevision) return;
+            preview = result;
             request.Rates = preview.Rates;
             if (isOutgoing)
                 request.LocationCurrencyRates = preview.LocationCurrencyRates.Select(x =>
                 {
-                    x.PerLakhRate = previousCurrencyRates.GetValueOrDefault((x.PaymentLocationId, x.CurrencyId));
+                    x.PerLakhRate = previousCurrencyRates.GetValueOrDefault((x.PaymentLocationId, x.CurrencyId), request.CommissionPerLakhAfn);
                     return x;
                 }).ToList();
             if (isOrigin)
@@ -526,6 +562,11 @@
             calculated = isOutgoing ? request.LocationCurrencyRates.All(x => x.PerLakhRate > 0) && request.LocationCurrencyRates.Count > 0
                 : isOrigin ? request.PaymentLocationRates.All(x => x.PerLakhRate > 0) && request.PaymentLocationRates.Count > 0
                 : true;
+            if (calculated)
+            {
+                previewState.Accept(request);
+                previewGeneration++;
+            }
         }
         catch (Exception ex) { error = ex.Message; }
         finally
@@ -537,18 +578,39 @@
 
     private async Task PostBatch()
     {
+        if (!CanPost)
+        {
+            error = "ابتدا کمیشن را با نرخ‌های واردشده باز‌محاسبه کنید.";
+            return;
+        }
+        var postingRequest = previewState.ForPosting(request);
         await Execute(async () =>
         {
-            var result = await CommissionService.PostAsync(request);
+            if (!calculated || !previewState.IsCurrent(request))
+                throw new InvalidOperationException("نرخ‌ها تغییر کرده‌اند؛ ابتدا کمیشن را باز‌محاسبه کنید.");
+            var result = await CommissionService.PostAsync(postingRequest);
             success = $"کمیشن دوره‌ای با شماره {result.Id} با موفقیت ثبت شد.";
-            preview = null; calculated = false;
+            preview = null; InvalidatePreview();
             await LoadHistory();
+            await LoadDefaultRates();
         });
     }
 
     private void SelectReverse(long id) { reverseBatchId = id; reverseReason = string.Empty; }
+    private async Task LoadDefaultRates()
+    {
+        savedDefaults = await CommissionService.GetDefaultRatesAsync(CorrespondentId, request.CommissionScope);
+        request.CommissionPerLakhAfn = savedDefaults.CommissionPerLakhAfn;
+        // Copy the lists: editing a proposed rate must not mutate the saved defaults.
+        request.PaymentLocationRates = savedDefaults.PaymentLocationRates.Select(x => new PaymentLocationCommissionRateDto
+            { PaymentLocationId = x.PaymentLocationId, PerLakhRate = x.PerLakhRate }).ToList();
+        request.LocationCurrencyRates = savedDefaults.LocationCurrencyRates.Select(x => new LocationCurrencyCommissionRateDto
+            { PaymentLocationId = x.PaymentLocationId, CurrencyId = x.CurrencyId, PerLakhRate = x.PerLakhRate }).ToList();
+        originRateForAll = savedDefaults.CommissionPerLakhAfn;
+    }
     private void ApplyOriginRateToAll()
     {
+        if (busy) return;
         if (originRateForAll <= 0)
         {
             error = "کمیشن هر لک باید بزرگ‌تر از صفر باشد.";
@@ -560,7 +622,12 @@
             location.PerLakhRate = originRateForAll;
         InvalidatePreview();
     }
-    private void InvalidatePreview() { calculated = false; }
+    private void InvalidatePreview()
+    {
+        calculated = false;
+        previewState.Invalidate();
+        inputRevision++;
+    }
     private async Task ShowDetails(long id) => await Execute(async () =>
         selectedDetails = await CommissionService.GetDetailsAsync(id));
     private void CloseDetails() => selectedDetails = null;

@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces;
 using HawalaExchange.Application.Interfaces.Services;
@@ -24,6 +24,7 @@ public partial class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(TunnelProxy.Configure);
 
         var numericCulture = CultureInfo.GetCultureInfo("en-US");
         var uiCulture = CultureInfo.CurrentUICulture;
@@ -62,7 +63,24 @@ public partial class Program
         // 2. Database Context
         // ============================================================
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+            DatabaseProvider.Configure(options, builder.Configuration));
+
+        builder.Services.AddOptions<DatabaseBackupOptions>()
+            .Bind(builder.Configuration.GetSection("DatabaseBackup"))
+            .PostConfigure(options =>
+            {
+                options.Directory = Path.GetFullPath(options.Directory, builder.Environment.ContentRootPath);
+                var webRoot = Path.GetFullPath(builder.Environment.WebRootPath
+                    ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"));
+                var relative = Path.GetRelativePath(webRoot, options.Directory);
+                if (relative == "." || (!Path.IsPathRooted(relative) && relative != ".."
+                    && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
+                    throw new InvalidOperationException("Database backups must be stored outside wwwroot.");
+                _ = TimeZoneInfo.FindSystemTimeZoneById(options.TimeZoneId);
+            })
+            .ValidateOnStart();
+        builder.Services.AddSingleton<IDatabaseBackupRunner, DatabaseBackupRunner>();
+        builder.Services.AddHostedService<DatabaseBackupWorker>();
 
         // ============================================================
         // 3. Identity Configuration
@@ -206,7 +224,8 @@ public partial class Program
         builder.Services.AddScoped<IHawalaImportJobExecutor>(sp=>sp.GetRequiredService<HawalaImportService>());
         builder.Services.AddScoped<HawalaImportQueue>();
         builder.Services.AddScoped<IHawalaImportQueue>(sp => sp.GetRequiredService<HawalaImportQueue>());
-        builder.Services.AddHostedService<HawalaImportWorker>();
+        if (builder.Configuration.GetValue("BackgroundWorkers:Enabled", true))
+            builder.Services.AddHostedService<HawalaImportWorker>();
         builder.Services.AddScoped<ICapitalInvestmentService, CapitalInvestmentService>();
         builder.Services.AddScoped<IPaymentLocationService, PaymentLocationService>();
         builder.Services.AddScoped<IPaymentLocationAssignmentService, PaymentLocationAssignmentService>();
@@ -230,7 +249,8 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
         builder.Services.AddScoped<ISaasReportingService, SaasReportingService>();
         builder.Services.AddScoped<IPlatformAuditService, PlatformAuditService>();
         builder.Services.AddSingleton<IPlatformMessageSender, SmtpPlatformMessageSender>();
-        builder.Services.AddHostedService<SaasAutomationWorker>();
+        if (builder.Configuration.GetValue("BackgroundWorkers:Enabled", true))
+            builder.Services.AddHostedService<SaasAutomationWorker>();
 
         // Export services (customer activities Excel/PDF)
         builder.Services.AddScoped<IExportService, ExportService>();
@@ -248,6 +268,7 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
 
         builder.Services.ProtectTenantServices();
         var app = builder.Build();
+        app.UseForwardedHeaders();
 
         // ============================================================
         // 9. Configure HTTP Request Pipeline

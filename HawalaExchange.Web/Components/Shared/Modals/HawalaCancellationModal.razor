@@ -1,0 +1,140 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using System.Globalization
+@using Microsoft.AspNetCore.Components
+@namespace HawalaExchange.Web.Components.Shared.Modals
+@inherits ComponentBase
+@inject IHawalaService HawalaService
+
+<div class="modal show d-block hawala-cancellation-overlay" tabindex="-1" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="cancellation-title">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 id="cancellation-title" class="modal-title">لغو و جبران حواله</h5>
+                <button type="button" class="btn-close" disabled="@busy" aria-label="بستن" @onclick="Close"></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(error)) { <div class="alert alert-danger" role="alert">@error</div> }
+                @if (loading) { <div class="text-center p-4"><span class="spinner-border"></span> بارگذاری پیش‌نمایش...</div> }
+                else if (preview is not null)
+                {
+                    <div class="row g-2 mb-3">
+                        <div class="col-sm-4"><small class="text-muted">نمبر مسلسل</small><div>@preview.Number.ToString(CultureInfo.InvariantCulture)</div></div>
+                        <div class="col-sm-4"><small class="text-muted">فرستنده ← گیرنده</small><div>@preview.Sender ← @preview.Receiver</div></div>
+                        <div class="col-sm-4"><small class="text-muted">محل پرداخت</small><div>@preview.PaymentLocation</div></div>
+                    </div>
+                    @if (preview.IsClosedPeriod)
+                    { <div class="alert alert-info">دوره اصلی بسته است؛ اصلاح در زمان جاری ثبت می‌شود و مانده ذخیره‌شده دوره بسته تغییر نمی‌کند.</div> }
+                    @if (preview.HasCommission)
+                    { <div class="alert alert-info">کمیشن‌های ثبت‌شده حفظ می‌شوند و از محاسبه دوره بعد کسر نخواهند شد.</div> }
+                    @if (preview.RequiresCompensation)
+                    {
+                        <div class="alert alert-warning">لغو فقط حواله اصلی و ارسالی مرتبط را سرخ می‌کند؛ ثبت‌های زیر تنها هنگام ثبت حواله جبرانی انجام می‌شوند.</div>
+                        @if (preview.UsdAmount is > 0) { <p class="fw-bold">مبلغ دالری حواله جبرانی: <bdi>@Money(preview.UsdAmount.Value) USD</bdi></p> }
+                        <p>حواله جبرانی — فرستنده: <strong>@preview.Receiver</strong>؛ گیرنده: <strong>@(preview.IsCancelled && mode == "Manual" ? receiver : preview.Sender)</strong></p>
+                    }
+                    else
+                    { <div class="alert alert-warning">ثبت‌های زیر اصل مبلغ و اثر تبدیل مرتبط را خنثی می‌کنند. برگشت حسابداری به معنی برگشت واقعی وجه پرداخت‌شده نیست.</div> }
+
+                    @if (preview.Rates.Count > 0)
+                    {
+                        <h6>نرخ‌ها و مبالغ تبدیل اصلی</h6>
+                        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>نمایندگی</th><th>مبلغ اصلی</th><th>نرخ ثبت‌شده</th><th>مبلغ تبدیل</th></tr></thead><tbody>
+                            @foreach (var rate in preview.Rates)
+                            { <tr><td>@rate.Correspondent</td><td><bdi>@Money(rate.SourceAmount) @rate.SourceCurrency</bdi></td><td><bdi>@rate.Rate.ToString("0.########", CultureInfo.InvariantCulture)</bdi></td><td><bdi>@Money(rate.TargetAmount) @rate.TargetCurrency</bdi></td></tr> }
+                        </tbody></table></div>
+                    }
+                    <h6>پیش‌نمایش ثبت اصلاحی در همان حساب‌ها و ارزها</h6>
+                    <div class="table-responsive"><table class="table table-sm"><thead><tr><th>حساب</th><th>ارز</th><th>بدهکار</th><th>طلبکار</th></tr></thead><tbody>
+                        @foreach (var row in preview.Entries)
+                        { <tr><td>@row.Account</td><td>@row.Currency</td><td><bdi>@Money(row.BadehKar)</bdi></td><td><bdi>@Money(row.TalabKar)</bdi></td></tr> }
+                    </tbody></table></div>
+                    @if (!preview.IsCancelled)
+                    {
+                        <label class="form-label" for="cancellation-reason">دلیل لغو</label>
+                        <textarea id="cancellation-reason" class="form-control mb-3" maxlength="450" rows="2" disabled="@busy" @bind="reason"></textarea>
+                    }
+                    @if (preview.RequiresCompensation && preview.CompensationHawalaId is null)
+                    {
+                        <label class="form-label" for="compensation-mode">روش ثبت حواله جبرانی</label>
+                        <select id="compensation-mode" class="form-select mb-3" disabled="@busy" @bind="mode">
+                            <option value="Manual">ثبت دستی مشخصات حواله جبرانی</option>
+                            <option value="Automatic">ایجاد خودکار با مشخصات حواله اصلی</option>
+                        </select>
+                        @if (preview.IsCancelled && mode == "Manual")
+                        {
+                            <div class="row g-3">
+                                <div class="col-sm-6"><label class="form-label">نمبر مسلسل</label><input class="form-control" type="number" min="1" step="1" disabled="@busy" @bind="number" /></div>
+                                <div class="col-sm-6"><label class="form-label">نمبر حواله</label><input class="form-control" maxlength="100" disabled="@busy" @bind="reference" /></div>
+                                <div class="col-sm-6"><label class="form-label">گیرنده</label><input class="form-control" maxlength="200" disabled="@busy" @bind="receiver" /></div>
+                                <div class="col-sm-6"><label class="form-label">یادداشت</label><input class="form-control" maxlength="800" disabled="@busy" @bind="notes" /></div>
+                            </div>
+                            <p class="text-muted small mt-2">حساب‌ها، ارزها و مبالغ همان پیش‌نمایش بالا هستند؛ کمیشن جدیدی ایجاد نمی‌شود.</p>
+                        }
+                    }
+                    @if (preview.IsCancelled && preview.CompensationHawalaId is not null)
+                    { <div class="alert alert-success">حواله جبرانی قبلاً ثبت شده است؛ شناسه: @preview.CompensationHawalaId</div> }
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-light border" disabled="@busy" @onclick="Close">بستن</button>
+                @if (preview is not null && !loading && (!preview.IsCancelled || preview.AccountingMode == "ManualPending"))
+                {
+                    <button class="btn btn-danger" disabled="@busy" @onclick="Submit">
+                        @if (busy) { <span class="spinner-border spinner-border-sm ms-1"></span> }
+                        @(preview.IsCancelled ? "تأیید و ثبت حواله جبرانی" : preview.RequiresCompensation ? mode == "Automatic" ? "تأیید لغو و ایجاد حواله جبرانی" : "تأیید لغو و ادامه ثبت دستی" : "تأیید لغو و ثبت اصلاح")
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public long HawalaId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    private HawalaCancellationPreviewDto? preview;
+    private bool loading = true, busy;
+    private long loadedId;
+    private string error = "", reason = "", mode = "Manual", receiver = "", reference = "", notes = "";
+    private long? number;
+    private static string Money(decimal amount) => decimal.Round(amount, 0, MidpointRounding.AwayFromZero).ToString("N0", CultureInfo.InvariantCulture);
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loadedId == HawalaId) return;
+        loadedId = HawalaId;
+        await Load();
+    }
+    private async Task Load()
+    {
+        loading = true;
+        try { preview = await HawalaService.GetCancellationPreviewAsync(HawalaId); receiver = preview.Sender; }
+        catch (Exception ex) { error = ex.Message; preview = null; }
+        finally { loading = false; }
+    }
+    private Task Close() => busy ? Task.CompletedTask : OnClose.InvokeAsync();
+    private async Task Submit()
+    {
+        if (busy || preview is null) return;
+        busy = true; error = "";
+        try
+        {
+            if (preview.IsCancelled)
+            {
+                await HawalaService.CompleteCancellationAsync(HawalaId, new() { ConfirmationToken = preview.ConfirmationToken,
+                    Manual = mode == "Manual", Number = number, ReferenceNumber = reference, ReceiverName = receiver, Notes = notes });
+                await OnChanged.InvokeAsync(); await OnClose.InvokeAsync();
+            }
+            else
+            {
+                await HawalaService.CancelHawalaAsync(HawalaId, new() { CancelReason = reason, ConfirmationToken = preview.ConfirmationToken, CompensationMode = mode });
+                await OnChanged.InvokeAsync();
+                if (preview.RequiresCompensation && mode == "Manual") await Load();
+                else await OnClose.InvokeAsync();
+            }
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+}

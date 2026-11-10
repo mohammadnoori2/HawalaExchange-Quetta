@@ -1,24 +1,24 @@
 .hawala-receipt {
-        width: 80mm;
+        width: 72mm;
         max-width: 100%;
         margin: 0 auto;
-        padding: 4.5mm;
+        padding: 0 2mm 0;
         background: #fff;
         color: #171717;
         border: 1.5px solid #c99a10;
         border-radius: 2px;
         font-family: Tahoma, Arial, sans-serif;
-        font-size: 12px;
-        line-height: 1.55;
+        font-size: 11px;
+        line-height: 1.25;
         box-sizing: border-box;
     }
 
     .receipt-brand {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 24mm;
+        grid-template-columns: minmax(0, 1fr) 15mm;
         align-items: center;
-        gap: 3mm;
-        padding: 1mm 1mm 2.5mm;
+        gap: 2mm;
+        padding: 0 0 1mm;
     }
 
     .receipt-brand-copy {
@@ -26,10 +26,10 @@
     }
 
     .receipt-brand-copy h3 {
-        margin: 0 0 1.5mm;
-        font-size: 17px;
+        margin: 0 0 .5mm;
+        font-size: 15px;
         font-weight: 800;
-        line-height: 1.65;
+        line-height: 1.25;
     }
 
     .receipt-kind {
@@ -38,13 +38,13 @@
     }
 
     .receipt-logo {
-        width: 22mm;
-        height: 22mm;
+        width: 14mm;
+        height: 14mm;
         object-fit: contain;
     }
 
     .receipt-heading {
-        margin: 0 0 2mm;
+        margin: 0 0 1mm;
         text-align: center;
         font-size: 15px;
         font-weight: 800;
@@ -59,13 +59,13 @@
     .receipt-table th,
     .receipt-table td {
         border: 1px solid #555;
-        padding: 1.3mm 1.6mm;
+        padding: .55mm 1mm;
         vertical-align: middle;
         overflow-wrap: anywhere;
     }
 
     .receipt-table th {
-        width: 31%;
+        width: 44%;
         text-align: right;
         font-weight: 800;
         background: #faf8ef;
@@ -93,13 +93,13 @@
     }
 
     .receipt-company-contact {
-        padding: 3mm 1.5mm 1mm;
+        padding: 0;
         text-align: center;
         font-size: 11px;
     }
 
     .receipt-company-address {
-        margin-bottom: 1.5mm;
+        margin-bottom: .5mm;
         font-weight: 600;
     }
 
@@ -108,27 +108,35 @@
     }
 
     .receipt-custom-note {
-        margin-top: 2.5mm;
-        padding-top: 2mm;
+        margin-top: 1mm;
+        padding-top: 1mm;
         border-top: 1px dashed #aaa;
         text-align: center;
         font-size: 10px;
     }
 
     .receipt-legal-note {
-        margin-top: 3mm;
-        padding: 2.5mm 2mm 0;
+        margin-top: 1mm;
+        padding: 1mm 1mm 0;
         border-top: 1px solid #c99a10;
         text-align: center;
         font-size: 11px;
         font-weight: 800;
-        line-height: 1.8;
+        line-height: 1.3;
     }
+
+    .receipt-no-logo { grid-template-columns: 1fr; }
+    .receipt-amount { font-size: 18px; font-weight: 900; }
+    .receipt-single-line { white-space: nowrap; overflow-wrap: normal; word-break: normal; }
+    .receipt-identifiers th { font-size: 8px; }
+    .receipt-phone-row td { font-size: 10px; }
+    .execution-declaration { margin: 0; padding: 0; font-size: 10px; }
+    .execution-signature { min-height: 0; margin: 0; padding: 1.2em 0 2.4em; text-align: center; font-size: 10px; line-height: 1.2; }
 
     @media print {
         .hawala-receipt {
-            width: 80mm;
-            max-width: 80mm;
+            width: 72mm;
+            max-width: 72mm;
             margin: 0;
             box-shadow: none;
             break-inside: avoid;

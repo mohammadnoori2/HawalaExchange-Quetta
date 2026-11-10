@@ -1,0 +1,34 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Services
+@namespace HawalaExchange.Web.Components.Shared
+@inherits HawalaExchange.Web.Components.DateAwareComponent
+@if (Bill is not null)
+{
+    <section dir="rtl" class="modern-card p-3">
+        <h5 class="text-center">@(Bill.IsHistoricalReceipt ? "رسید تسویه قبلی عامل" : "بیل پرداخت به عامل") @(Bill.Id > 0 ? $"#{Bill.Id}" : "— پیش‌نمایش")</h5>
+        @if (Bill.IsHistoricalReceipt) { <p class="text-center">بابت تسویه قبلی — بدون ثبت حسابداری جدید<br />مرجع تسویه: @Bill.PreviousSettlementReference</p> }
+        <div class="row g-2 mb-3">
+            <div class="col-sm-6">نمایندگی: <strong>@Bill.CorrespondentName</strong></div>
+            <div class="col-sm-6">تاریخ صدور: @DisplayDates.DateTime(Bill.CreatedAt)</div>
+            <div class="col-sm-6">دریافت‌کننده پول: <strong>@Bill.RecipientName</strong> @Bill.RecipientPhone</div>
+            <div class="col-sm-6">وضعیت: <strong>@Bill.StatusLabel</strong></div>
+            @if (Bill.PaidAt.HasValue) { <div>تاریخ پرداخت: @DisplayDates.DateTime(Bill.PaidAt)</div> }
+        </div>
+        <div class="table-responsive"><table class="table table-bordered text-center align-middle">
+            <thead><tr><th>#</th><th>نمبر مسلسل / نمبر حواله</th><th>گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>کمیشن عامل</th></tr></thead>
+            <tbody>
+            @{ var n = 0; }
+            @foreach(var row in Bill.Items)
+            { <tr><td>@(++n)</td><td>@row.Number / @row.ReferenceNumber</td><td>@row.ReceiverName</td><td>@row.PaymentLocation</td><td dir="ltr">@row.Amount.ToWholeMoney() @row.CurrencyCode</td><td dir="ltr">@row.AgentCommission.ToWholeMoney() @row.CommissionCurrencyCode</td></tr> }
+            </tbody>
+        </table></div>
+        <table class="table table-bordered text-center">
+            <thead><tr><th>ارز</th><th>مجموع اصل حواله‌ها</th><th>مجموع کمیشن عامل</th><th>@(Bill.IsHistoricalReceipt ? "مجموع سابقه حواله‌ها" : "مجموع قابل پرداخت")</th></tr></thead>
+            <tbody>@foreach(var total in Bill.Totals) { <tr><td>@total.CurrencyCode</td><td>@total.Principal.ToWholeMoney()</td><td>@total.AgentCommission.ToWholeMoney()</td><td><strong>@total.Total.ToWholeMoney()</strong></td></tr> }</tbody>
+        </table>
+        @if (!string.IsNullOrWhiteSpace(Bill.Notes)) { <p>توضیحات: @Bill.Notes</p> }
+        <p class="small text-muted">@(Bill.IsHistoricalReceipt ? "مبالغ به ارز ثبت‌شده حواله‌ها نمایش داده شده‌اند؛ این رسید پرداخت یا تبدیل ارز جدید نیست. لغو رسید نیز سند مالی قبلی را برگشت نمی‌دهد." : "صدور یا چاپ بیل به‌تنهایی به معنی پرداخت پول نیست. وضعیت پرداخت در سیستم بررسی شود.")</p>
+        <div class="d-flex justify-content-between py-4"><span>امضای خزانه‌دار: ………………</span><span>امضا یا اثر انگشت دریافت‌کننده: ………………</span></div>
+    </section>
+}
+@code { [Parameter] public AgentBillDto? Bill { get; set; } }

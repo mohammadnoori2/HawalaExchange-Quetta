@@ -1,187 +1,69 @@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Services
 @using HawalaExchange.Web.Helpers
+@using Microsoft.AspNetCore.Components
+@namespace HawalaExchange.Web.Components.Shared
+@inherits HawalaExchange.Web.Components.DateAwareComponent
 
-<article class="hawala-receipt" dir="rtl">
+<article class="hawala-receipt execution-receipt" dir="rtl">
     @if (ShowCompanyHeader)
     {
-        <header class="receipt-brand">
+        <header class="receipt-brand @(string.IsNullOrWhiteSpace(Company.LogoPath) ? "receipt-no-logo" : "")">
             <div class="receipt-brand-copy">
-                @if (!string.IsNullOrWhiteSpace(Company.CompanyName))
-                {
-                    <h3>@Company.CompanyName</h3>
-                }
-                <div class="receipt-kind">@GetReceiptTitle()</div>
+                @if (!string.IsNullOrWhiteSpace(Company.CompanyName)) { <h3>@Company.CompanyName</h3> }
+                <div class="receipt-kind">@(ExecutionMode ? "رسید اجرای حواله" : Hawala.HawalaType == "HawalaSend" ? "رسید حواله ارسالی" : "رسید حواله دریافتی")</div>
             </div>
-
-            @if (!string.IsNullOrWhiteSpace(Company.LogoPath))
-            {
-                <img src="@Company.LogoPath" class="receipt-logo" alt="لوگوی صرافی" />
-            }
+            @if (!string.IsNullOrWhiteSpace(Company.LogoPath)) { <img src="@Company.LogoPath" class="receipt-logo" alt="لوگوی صرافی" /> }
         </header>
     }
-
-    <h4 class="receipt-heading">مشخصات حواله</h4>
-
     <table class="receipt-table">
         <tbody>
-            <tr>
-                <th>تاریخ حواله:</th>
-                <td>
-                    <span>@DisplayDates.Date(Hawala.CreatedAt)</span>
-                    <span class="receipt-time" dir="ltr">@Hawala.CreatedAt.ToLocalTime().ToString("HH:mm")</span>
-                </td>
+            <tr><th>@(ExecutionMode ? "تاریخ اجرا:" : "تاریخ حواله:")</th><td>@DisplayDates.DateTime(ReceiptTime, true, ExecutionMode)</td></tr>
+            <tr class="receipt-identifiers">
+                <th class="receipt-single-line">@(string.IsNullOrWhiteSpace(Hawala.ReferenceNumber) ? "نمبر مسلسل:" : "نمبر مسلسل/نمبر حواله:")</th>
+                <td class="receipt-strong receipt-single-line" dir="ltr"><bdi>@Hawala.Number</bdi>@if (!string.IsNullOrWhiteSpace(Hawala.ReferenceNumber)) { <span> / </span><bdi>@Hawala.ReferenceNumber</bdi> }</td>
             </tr>
-            <tr>
-                <th>نمبر مسلسل:</th>
-                <td class="receipt-strong">
-                    <span>@Hawala.Number</span>
-                    @if (!string.IsNullOrWhiteSpace(Hawala.ReferenceNumber))
-                    {
-                        <span class="receipt-reference">@Hawala.ReferenceNumber</span>
-                    }
-                </td>
-            </tr>
-            @if (!string.IsNullOrWhiteSpace(Hawala.SenderName))
-            {
-                <tr><th>فرستنده:</th><td>@Hawala.SenderName</td></tr>
-            }
-            @if (!string.IsNullOrWhiteSpace(Hawala.SenderFatherName))
-            {
-                <tr><th>پدر فرستنده:</th><td>@Hawala.SenderFatherName</td></tr>
-            }
-            @if (!string.IsNullOrWhiteSpace(Hawala.ReceiverName))
-            {
-                <tr>
-                    <th>گیرنده:</th>
-                    <td>
-                        @Hawala.ReceiverName
-                        @if (!string.IsNullOrWhiteSpace(Hawala.ReceiverFatherName))
-                        {
-                            <span> ولد @Hawala.ReceiverFatherName</span>
-                        }
-                    </td>
-                </tr>
-            }
-            @if (!string.IsNullOrWhiteSpace(Hawala.ReceiverPhone))
-            {
-                <tr><th>شماره تماس:</th><td dir="ltr">@Hawala.ReceiverPhone</td></tr>
-            }
-            @if (!string.IsNullOrWhiteSpace(Hawala.ReceiverTazkiraNumber))
-            {
-                <tr><th>شماره تذکره:</th><td>@Hawala.ReceiverTazkiraNumber</td></tr>
-            }
-            @if (Hawala.ToAmount.HasValue)
-            {
-                <tr>
-                    <th>مبلغ پرداختی:</th>
-                    <td class="receipt-amount" dir="ltr">
-                        @MoneyFormatHelper.Format(Hawala.ToAmount.Value)
-                        @GetCurrencyName(Hawala.ToCurrencyName, Hawala.ToCurrencyCode)
-                    </td>
-                </tr>
-                <tr>
-                    <th>مبلغ به حروف:</th>
-                    <td>
-                        @DariNumberToWords.ToWords(Hawala.ToAmount.Value)
-                        @GetCurrencyName(Hawala.ToCurrencyName, Hawala.ToCurrencyCode)
-                    </td>
-                </tr>
-            }
-            @if (Hawala.CommissionAmount is > 0)
-            {
-                <tr>
-                    <th>کارمزد:</th>
-                    <td dir="ltr">
-                        @MoneyFormatHelper.Format(Hawala.CommissionAmount.Value)
-                        @GetCurrencyName(Hawala.CommissionCurrencyName, Hawala.CommissionCurrencyCode)
-                    </td>
-                </tr>
-            }
-            @if (HasPaymentLocation())
-            {
-                <tr><th>محل پرداخت:</th><td>@GetPaymentLocation()</td></tr>
-            }
-            @if (!string.IsNullOrWhiteSpace(Hawala.ReceiverAddress))
-            {
-                <tr><th>آدرس گیرنده:</th><td>@Hawala.ReceiverAddress</td></tr>
-            }
-            @if (HasUserNote())
-            {
-                <tr><th>یادداشت:</th><td>@Hawala.Notes</td></tr>
-            }
+            <tr><th>فرستنده:</th><td>@FullName(Hawala.SenderName, Hawala.SenderFatherName)</td></tr>
+            <tr><th>گیرنده:</th><td>@ReceiverName</td></tr>
+            @if (!string.IsNullOrWhiteSpace(Phone)) { <tr class="receipt-phone-row"><th class="receipt-single-line">شماره تماس:</th><td class="receipt-single-line" dir="ltr">@Phone</td></tr> }
+            @if (!string.IsNullOrWhiteSpace(Tazkira)) { <tr><th>شماره تذکره:</th><td dir="ltr">@Tazkira</td></tr> }
+            @if (!string.IsNullOrWhiteSpace(Address)) { <tr><th>آدرس گیرنده:</th><td>@Address</td></tr> }
+            <tr><th>مبلغ:</th><td class="receipt-amount" dir="ltr">@MoneyFormatHelper.Format(Hawala.ToAmount ?? Hawala.FromAmount) @PaymentCurrency</td></tr>
+            @if (Hawala.CommissionAmount is > 0) { <tr><th>کارمزد:</th><td dir="ltr">@MoneyFormatHelper.Format(Hawala.CommissionAmount.Value) @FeeCurrency</td></tr> }
+            @if (ShowSendingCorrespondent && !string.IsNullOrWhiteSpace(Hawala.CorrespondentName)) { <tr><th>نمایندگی ارسال‌کننده:</th><td>@Hawala.CorrespondentName</td></tr> }
+            @if (!string.IsNullOrWhiteSpace(Hawala.Notes) && !Hawala.Notes.StartsWith("حواله ارسالی خودکار بابت پرداخت حواله دریافتی شماره")) { <tr><th>یادداشت:</th><td>@Hawala.Notes</td></tr> }
         </tbody>
     </table>
-
-    @if (HasCompanyContactInformation())
+    @if (ExecutionMode)
+    {
+        <section class="execution-declaration">اینجانب @ReceiverName، حواله با مشخصات فوق را از خدمات پولی @Company.CompanyName دریافت کردم.</section>
+    }
+    <section class="execution-signature"><strong>امضاء یا اثر انگشت گیرنده</strong></section>
+    @if (!string.IsNullOrWhiteSpace(Company.Address) || !string.IsNullOrWhiteSpace(Company.PhoneNumber))
     {
         <section class="receipt-company-contact">
-            @if (!string.IsNullOrWhiteSpace(Company.Address))
-            {
-                <div class="receipt-company-address">آدرس: @Company.Address</div>
-            }
-            @if (!string.IsNullOrWhiteSpace(Company.PhoneNumber))
-            {
-                <div class="receipt-company-phone">شماره تلفون: <span dir="ltr">@Company.PhoneNumber</span></div>
-            }
+            @if (!string.IsNullOrWhiteSpace(Company.Address)) { <div class="receipt-company-address">آدرس: @Company.Address</div> }
+            @if (!string.IsNullOrWhiteSpace(Company.PhoneNumber)) { <div class="receipt-company-phone receipt-single-line">شماره تلفون: <bdi>@Company.PhoneNumber</bdi></div> }
         </section>
     }
-
-    @if (!string.IsNullOrWhiteSpace(Company.FooterNote))
-    {
-        <div class="receipt-custom-note">@Company.FooterNote</div>
-    }
-
-    <footer class="receipt-legal-note">
-        این رسید فقط جهت اطلاع مشتری میباشد و هیچ سند پولی شده نمی تواند.
-    </footer>
+    @if (!string.IsNullOrWhiteSpace(Company.FooterNote)) { <div class="receipt-custom-note">@Company.FooterNote</div> }
 </article>
 
 @code {
     [Parameter] public HawalaDto Hawala { get; set; } = new();
-
     [Parameter] public CompanySettingDto Company { get; set; } = new();
-
+    [Parameter] public PayHawalaDto? Payment { get; set; }
     [Parameter] public bool ShowCompanyHeader { get; set; } = true;
-
-    private string GetReceiptTitle() => Hawala.HawalaType switch
-    {
-        "HawalaSend" => "رسید حواله ارسالی",
-        "HawalaReceive" => "رسید حواله دریافتی",
-        "HawalaOther" => "رسید حواله متفرقه",
-        _ => "رسید حواله"
-    };
-
-    private string GetPaymentLocation()
-    {
-        if (!string.IsNullOrWhiteSpace(Hawala.PaymentLocationName) &&
-            !string.IsNullOrWhiteSpace(Hawala.PaymentLocationAddress))
-        {
-            return $"{Hawala.PaymentLocationName} - {Hawala.PaymentLocationAddress}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(Hawala.PaymentLocationName))
-            return Hawala.PaymentLocationName;
-
-        return Hawala.PaymentLocationAddress ?? string.Empty;
-    }
-
-    private bool HasPaymentLocation() =>
-        !string.IsNullOrWhiteSpace(Hawala.PaymentLocationName) ||
-        !string.IsNullOrWhiteSpace(Hawala.PaymentLocationAddress);
-
-    private bool HasCompanyContactInformation() =>
-        !string.IsNullOrWhiteSpace(Company.Address) ||
-        !string.IsNullOrWhiteSpace(Company.PhoneNumber);
-
-    private bool HasUserNote() =>
-        !string.IsNullOrWhiteSpace(Hawala.Notes) &&
-        !(Hawala.IsSystemGenerated &&
-          Hawala.SourceHawalaId.HasValue &&
-          Hawala.Notes.StartsWith(
-              "حواله ارسالی خودکار بابت پرداخت حواله دریافتی شماره",
-              StringComparison.Ordinal));
-
-    private static string GetCurrencyName(string? name, string? code) =>
-        !string.IsNullOrWhiteSpace(name) ? name : code ?? string.Empty;
+    [Parameter] public bool ShowSendingCorrespondent { get; set; }
+    [Parameter] public bool ExecutionMode { get; set; }
+    [Parameter] public DateTime? ExecutionAt { get; set; }
+    private DateTime ReceiptTime => ExecutionMode ? Hawala.PaidAt ?? ExecutionAt ?? Hawala.CreatedAt : Hawala.CreatedAt;
+    private string ReceiverName => FullName(Detail(Payment?.ReceiverName, Hawala.ReceiverName), Detail(Payment?.ReceiverFatherName, Hawala.ReceiverFatherName));
+    private string? Phone => Detail(Payment?.ReceiverPhone, Hawala.ReceiverPhone);
+    private string? Tazkira => Detail(Payment?.ReceiverTazkiraNumber, Hawala.ReceiverTazkiraNumber);
+    private string? Address => Detail(Payment?.ReceiverAddress, Hawala.ReceiverAddress);
+    private string PaymentCurrency => new[] { Hawala.ToCurrencyName, Hawala.ToCurrencyCode, Hawala.FromCurrencyName, Hawala.FromCurrencyCode }.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";
+    private string FeeCurrency => new[] { Hawala.CommissionCurrencyName, Hawala.CommissionCurrencyCode, Hawala.FromCurrencyName, Hawala.FromCurrencyCode }.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";
+    private static string? Detail(string? draft, string? saved) => string.IsNullOrWhiteSpace(draft) ? saved?.Trim() : draft.Trim();
+    private static string FullName(string? name, string? father) => string.IsNullOrWhiteSpace(father) ? string.IsNullOrWhiteSpace(name) ? "—" : name : $"{name} ولد {father}";
 }

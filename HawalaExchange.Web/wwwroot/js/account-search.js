@@ -76,7 +76,7 @@ function render(s) {
         add(option.id, option.name, option.code && s.root.dataset.accountShowCode !== 'false' ? `${option.code} - ${option.type}` : option.type);
     if (!s.matches.length) {
         const empty = document.createElement('div'); empty.className = 'searchable-dropdown-item text-muted';
-        empty.textContent = 'حسابی یافت نشد'; fragment.appendChild(empty);
+        empty.textContent = s.root.dataset.accountEmptyText || 'حسابی یافت نشد'; fragment.appendChild(empty);
     }
     s.menu.replaceChildren(fragment);
     window.hawalaTools.openFloatingDropdown(s.root, s.menu);

@@ -12,7 +12,7 @@ namespace HawalaExchange.PerformanceTests;
 public sealed class AgentBillReceiptTests
 {
     [Fact]
-    public async Task Thermal_receipt_keeps_all_hawalas_and_separate_currency_totals_and_escapes_user_text()
+    public async Task Thermal_receipt_summarizes_only_details_and_preserves_header_totals_and_signature()
     {
         using var provider = new ServiceCollection().AddLogging().AddSingleton(new AppDateDisplay(
             new DbContextOptionsBuilder<ApplicationDbContext>().Options, new TestCurrentTenant { TenantId = 0 })).BuildServiceProvider();
@@ -21,12 +21,22 @@ public sealed class AgentBillReceiptTests
         {
             var component = await renderer.RenderComponentAsync<AgentBillReceipt>(ParameterView.FromDictionary(new Dictionary<string, object?> {
                 ["Bill"] = new AgentBillDto { Id = 42, Status = "Paid", RecipientName = "<script>Agent</script>", CorrespondentName = "Misc Kabul", CreatedAt = DateTime.UtcNow,
-                    Items = Enumerable.Range(1, 120).Select(i => new HawalaPaymentBatchItemDto { Number = i, ReceiverName = "Receiver-" + i, Amount = 100, CurrencyCode = "USD", AgentCommission = 8, CommissionCurrencyCode = "AFN" }).ToList(),
+                    Items = Enumerable.Range(1, 120).Select(i => new HawalaPaymentBatchItemDto { Number = i, ReferenceNumber = "REF-" + i, PaymentLocation = "Location-" + i, ReceiverName = "Receiver-" + i, Amount = 100, CurrencyCode = "USD", AgentCommission = 8, CommissionCurrencyCode = "AFN" }).ToList(),
                     Totals = [new() { CurrencyCode = "USD", Principal = 12000 }, new() { CurrencyCode = "AFN", AgentCommission = 960 }] },
                 ["Company"] = new CompanySettingDto { CompanyName = "Test exchange" } }));
             var html = component.ToHtmlString(); var text = WebUtility.HtmlDecode(html);
             Assert.Contains("hawala-receipt agent-bill-receipt", html);
-            Assert.Contains("Receiver-120", text); Assert.Contains("12,000", text); Assert.Contains("960", text);
+            Assert.DoesNotContain("Receiver-", text);
+            foreach (var i in Enumerable.Range(1,120)) { Assert.Contains($"REF-{i}",text); Assert.Contains($"Location-{i}",text); }
+            Assert.Contains("تاریخ:",text); Assert.Contains("تعداد حواله:</th><td>120</td>",text);
+            Assert.Contains("receipt-table agent-bill-summary",html); Assert.Contains("<bdi dir=\"ltr\">120 / REF-120</bdi>",html);
+            Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(html, "agent-bill-summary").Count);
+            Assert.Contains("<header",html); Assert.Contains("Test exchange",text);
+            Assert.DoesNotContain("Misc Kabul",text); Assert.Contains("امضا یا اثر انگشت",text);
+            Assert.DoesNotContain("نمبر بیل:",text); Assert.DoesNotContain("دریافت‌کننده:",text); Assert.DoesNotContain("شماره تماس:",text);
+            Assert.Contains("مبلغ قابل پرداخت:",text);
+            Assert.DoesNotContain("agent-bill-item",html);
+            Assert.Contains("12,000", text); Assert.Contains("960", text);
             Assert.Contains("AFN", text); Assert.Contains("USD", text); Assert.DoesNotContain("<script>", html);
         });
     }

@@ -10,6 +10,8 @@ namespace HawalaExchange.Domain.Entities
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
+        [MaxLength(24)] public string? CancellationAccountingMode { get; set; }
+        public long? CompensatesHawalaId { get; set; }
 
         public long TenantId { get; set; }
 
@@ -125,6 +127,7 @@ namespace HawalaExchange.Domain.Entities
         public long? SourceHawalaId { get; set; }
 
         public bool IsSystemGenerated { get; set; }
+        public bool IsDeleted { get; set; }
 
         public DateTime? CancelledAt { get; set; }
 

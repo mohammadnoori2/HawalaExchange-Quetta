@@ -1,4 +1,6 @@
 using System.Data;
+using System.Data.Common;
+using Npgsql;
 using System.Text.Json;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
@@ -65,8 +67,9 @@ public sealed class HawalaImportQueue(
     }
 
     private static Task<HawalaImportBatch?> LockBatchAsync(ApplicationDbContext database, long batchId, CancellationToken cancellationToken) =>
-        database.HawalaImportBatches
-            .FromSqlInterpolated($"SELECT * FROM dbo.HawalaImportBatches WITH (UPDLOCK, HOLDLOCK) WHERE TenantId = {database.CurrentTenantId} AND Id = {batchId}")
+        (database.Database.IsNpgsql()
+            ? database.HawalaImportBatches.FromSqlInterpolated($"SELECT * FROM public.\"HawalaImportBatches\" WHERE \"TenantId\"={database.CurrentTenantId} AND \"Id\"={batchId} FOR UPDATE")
+            : database.HawalaImportBatches.FromSqlInterpolated($"SELECT * FROM dbo.HawalaImportBatches WITH (UPDLOCK, HOLDLOCK) WHERE TenantId = {database.CurrentTenantId} AND Id = {batchId}"))
             .AsNoTracking().SingleOrDefaultAsync(cancellationToken);
 
     /// <summary>Called only by the worker in a fresh scope with the persisted tenant/user identity.</summary>
@@ -74,10 +77,11 @@ public sealed class HawalaImportQueue(
     {
         // A database-wide session lock also serializes different IIS processes during recycle.
         // No transaction or row locks are held by this lease connection.
-        await using var lease = new SqlConnection(context.Database.GetConnectionString());
+        await using DbConnection lease = context.Database.IsNpgsql()?new NpgsqlConnection(context.Database.GetConnectionString()):new SqlConnection(context.Database.GetConnectionString());
         await lease.OpenAsync(cancellationToken);
         await using var acquire = lease.CreateCommand();
-        acquire.CommandText = "DECLARE @r int; EXEC @r = sys.sp_getapplock @Resource=N'HawalaImportWorker:v1', @LockMode=N'Exclusive', @LockOwner=N'Session', @LockTimeout=0; SELECT @r;";
+        acquire.CommandText = context.Database.IsNpgsql()?"SELECT CASE WHEN pg_try_advisory_lock(hashtextextended('HawalaImportWorker:v1',0)) THEN 0 ELSE -1 END"
+            : "DECLARE @r int; EXEC @r = sys.sp_getapplock @Resource=N'HawalaImportWorker:v1', @LockMode=N'Exclusive', @LockOwner=N'Session', @LockTimeout=0; SELECT @r;";
         if (Convert.ToInt32(await acquire.ExecuteScalarAsync(cancellationToken)) < 0) return false;
         try
         {
@@ -108,6 +112,11 @@ public sealed class HawalaImportQueue(
                     ?? throw new InvalidOperationException("تنظیمات ثبت گروهی قابل خواندن نیست.");
                 if (request.BatchId != job.BatchId) throw new InvalidOperationException("شناسه فایل با درخواست ثبت مطابقت ندارد.");
                 await jobExecutor.ConfirmQueuedAsync(request, new JobProgress(contextFactory, job.Id), cancellationToken);
+                if (context.Database.IsNpgsql())
+                    await context.HawalaImportJobs.Where(x => x.Id == jobId && x.Status == "Running")
+                        .ExecuteUpdateAsync(update => update.SetProperty(x => x.Status, "Completed")
+                            .SetProperty(x => x.ProgressPercent, 100).SetProperty(x => x.ProgressMessage, "ثبت گروهی تکمیل شد.")
+                            .SetProperty(x => x.CompletedAt, DateTime.UtcNow).SetProperty(x => x.ErrorMessage, (string?)null), cancellationToken);
             }
             catch (Exception error)
             {
@@ -133,7 +142,8 @@ public sealed class HawalaImportQueue(
         {
             // Closing pooled connections does not guarantee a session app-lock is released.
             await using var release = lease.CreateCommand();
-            release.CommandText = "EXEC sys.sp_releaseapplock @Resource=N'HawalaImportWorker:v1', @LockOwner=N'Session';";
+            release.CommandText = context.Database.IsNpgsql()?"SELECT pg_advisory_unlock(hashtextextended('HawalaImportWorker:v1',0))"
+                : "EXEC sys.sp_releaseapplock @Resource=N'HawalaImportWorker:v1', @LockOwner=N'Session';";
             await release.ExecuteNonQueryAsync(CancellationToken.None);
         }
     }
@@ -144,7 +154,7 @@ public sealed class HawalaImportQueue(
         {
             // Deliberately synchronous: no fire-and-forget tasks or shared DbContext use.
             // Job rows are separate from the batch row locked by the import transaction.
-            if (value.Percent >= 100) return; // Completion is committed atomically with the import.
+            if (value.Percent >= 100) return; // Completion uses the durable Posted batch as its commit marker.
             try
             {
                 using var progressContext = factory.CreateDbContext();
@@ -154,6 +164,7 @@ public sealed class HawalaImportQueue(
                         .SetProperty(x => x.ProgressMessage, value.Message));
             }
             catch (SqlException) { /* A progress refresh failure must not cancel financial posting. */ }
+            catch (NpgsqlException) { /* A progress refresh failure must not cancel financial posting. */ }
         }
     }
 }

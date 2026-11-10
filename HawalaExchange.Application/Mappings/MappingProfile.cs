@@ -342,6 +342,7 @@ namespace HawalaSystem.Mappings
 
             // CreateHawalaDto -> Hawala
             CreateMap<CreateHawalaDto, Hawala>()
+                .ForMember(dest => dest.IsDeleted, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedBy, opt => opt.Ignore())
                 .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status ?? "Pending"))
@@ -350,6 +351,7 @@ namespace HawalaSystem.Mappings
 
             // UpdateHawalaDto -> Hawala
             CreateMap<UpdateHawalaDto, Hawala>()
+                .ForMember(dest => dest.IsDeleted, opt => opt.Ignore())
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
 
             // در MappingProfile.cs

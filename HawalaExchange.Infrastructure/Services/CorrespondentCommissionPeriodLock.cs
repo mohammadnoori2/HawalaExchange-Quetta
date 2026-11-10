@@ -8,6 +8,7 @@ internal static class CorrespondentCommissionPeriodLock
     internal static Task AcquireAsync(ApplicationDbContext context, long correspondentId, CancellationToken cancellationToken = default)
     {
         var resource = $"CorrespondentCommissionPeriod:{context.CurrentTenantId}:{correspondentId}";
+        if(context.Database.IsNpgsql())return DatabaseLocks.AcquireAsync(context,resource,5000,cancellationToken);
         return context.Database.ExecuteSqlInterpolatedAsync($"""
             DECLARE @result int;
             EXEC @result = sp_getapplock @Resource = {resource}, @LockMode = N'Exclusive',

@@ -6,7 +6,7 @@ public sealed class HawalaExtraFilter
         !string.IsNullOrWhiteSpace(Sender), !string.IsNullOrWhiteSpace(Receiver), !string.IsNullOrWhiteSpace(Reference),
         !string.IsNullOrWhiteSpace(Registration), !string.IsNullOrWhiteSpace(Commission), MinNumber.HasValue, MaxNumber.HasValue,
         CorrespondentId.HasValue, PaymentLocationId.HasValue, CurrencyId.HasValue, MinAmount.HasValue, MaxAmount.HasValue,
-        From != DateTime.MinValue, To != DateTime.MinValue
+        From != DateTime.MinValue, To != DateTime.MinValue, !string.IsNullOrWhiteSpace(IndependentExchange)
     }.Count(x => x);
     public HawalaExtraFilter Copy() => (HawalaExtraFilter)MemberwiseClone();
     public string Sender { get; set; } = "";
@@ -14,6 +14,7 @@ public sealed class HawalaExtraFilter
     public string Reference { get; set; } = "";
     public string Registration { get; set; } = "";
     public string Commission { get; set; } = "";
+    public string IndependentExchange { get; set; } = "";
     public long? MinNumber { get; set; }
     public long? MaxNumber { get; set; }
     public long? CorrespondentId { get; set; }

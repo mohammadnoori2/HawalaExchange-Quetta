@@ -18,7 +18,7 @@ namespace HawalaExchange.Infrastructure
 
             // Register DbContext
             services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(connectionString));
+                DatabaseProvider.Configure(options, configuration));
 
             // ===== Register All Services =====
 

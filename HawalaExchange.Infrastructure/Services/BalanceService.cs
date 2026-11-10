@@ -1,4 +1,6 @@
 using System.Data;
+using System.Data.Common;
+using Npgsql;
 using AutoMapper;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
@@ -217,20 +219,19 @@ namespace HawalaExchange.Application.Services
             string? ownerType = null, string? accountType = null, DateTime? asOfDate = null,
             CancellationToken cancellationToken = default)
         {
-            var connection = (SqlConnection)context.Database.GetDbConnection();
+            var connection = context.Database.GetDbConnection();
             var shouldClose = connection.State != ConnectionState.Open;
             if (shouldClose)
                 await connection.OpenAsync(cancellationToken);
 
             try
             {
-                var transaction = context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction;
-                await using var command = new SqlCommand("[dbo].[usp_GetAccountBalances_v1]", connection, transaction)
-                {
-                    CommandType = CommandType.StoredProcedure,
-                    CommandTimeout = 30
-                };
-                command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = context.CurrentTenantId;
+                var transaction = context.Database.CurrentTransaction?.GetDbTransaction();
+                await using DbCommand command = connection is NpgsqlConnection pg
+                    ? new NpgsqlCommand("SELECT * FROM hawala.account_balances(@TenantId,@AccountId,@CustomerId,@CorrespondentId,@OwnerType,@AccountType,@AsOfDate)",pg,transaction as NpgsqlTransaction)
+                    : new SqlCommand("[dbo].[usp_GetAccountBalances_v1]",(SqlConnection)connection,transaction as SqlTransaction){CommandType=CommandType.StoredProcedure};
+                command.CommandTimeout=30;
+                RelationalParameters.Add(command,"@TenantId",SqlDbType.BigInt,context.CurrentTenantId);
                 AddNullable(command, "@AccountId", SqlDbType.BigInt, accountId);
                 AddNullable(command, "@CustomerId", SqlDbType.BigInt, customerId);
                 AddNullable(command, "@CorrespondentId", SqlDbType.BigInt, correspondentId);
@@ -259,12 +260,9 @@ namespace HawalaExchange.Application.Services
             }
         }
 
-        private static void AddNullable(SqlCommand command, string name, SqlDbType type, object? value, int? size = null)
+        private static void AddNullable(DbCommand command, string name, SqlDbType type, object? value, int? size = null)
         {
-            var parameter = size.HasValue
-                ? command.Parameters.Add(name, type, size.Value)
-                : command.Parameters.Add(name, type);
-            parameter.Value = value ?? DBNull.Value;
+            RelationalParameters.Add(command,name,type,value,size);
         }
 
         private static List<BalanceDto> BuildBalances(IEnumerable<AccountBalanceRow> rows) => rows

@@ -4,6 +4,7 @@ namespace HawalaExchange.Application.Interfaces.Services;
 
 public interface IMoneyExchangeOperationService
 {
+        Task<MoneyExchangeOperationDto?> GetByLinkedHawalaAsync(long hawalaId);
     Task<IEnumerable<MoneyExchangeOperationDto>> GetAllAsync();
 
     Task<MoneyExchangeOperationDto?> GetByIdAsync(long id);

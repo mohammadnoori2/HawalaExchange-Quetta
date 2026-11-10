@@ -1,18 +1,30 @@
 using System.Text.Json;
+using HawalaExchange.Infrastructure.Data;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NpgsqlTypes;
 
 namespace HawalaExchange.Infrastructure.Services;
 
 public sealed partial class CorrespondentSettlementService
 {
     internal Task CaptureAsync(long conversionId, DateTime? rateDate, bool confirmDifferentRate, CancellationToken token = default)
-        => context.Database.ExecuteSqlInterpolatedAsync($"EXEC dbo.usp_CaptureCorrespondentSettlement_v1 @TenantId={context.CurrentTenantId},@ConversionId={conversionId},@UserId={context.RequireCurrentUserId()},@RateDate={rateDate},@UtcOffsetMinutes={(int)TimeZoneInfo.Local.BaseUtcOffset.TotalMinutes},@ConfirmDifferentDailyRate={confirmDifferentRate}", token);
+        => context.Database.IsNpgsql()
+            ? PostgresSettlementHistory.CaptureAsync(context,conversionId,rateDate,confirmDifferentRate,token)
+            : context.Database.ExecuteSqlInterpolatedAsync($"EXEC dbo.usp_CaptureCorrespondentSettlement_v1 @TenantId={context.CurrentTenantId},@ConversionId={conversionId},@UserId={context.RequireCurrentUserId()},@RateDate={rateDate},@UtcOffsetMinutes={(int)TimeZoneInfo.Local.BaseUtcOffset.TotalMinutes},@ConfirmDifferentDailyRate={confirmDifferentRate}", token);
 
     public async Task<IReadOnlyList<CorrespondentSettlementDailyRateDto>> GetRatesAsync(long correspondentId, DateTime? from = null, DateTime? to = null, CancellationToken cancellationToken = default)
     {
         using var scope = PinCurrentTenant();
+        if(context.Database.IsNpgsql())return await context.Database.SqlQueryRaw<CorrespondentSettlementDailyRateDto>("""
+            SELECT r."RateDate"::timestamp AS "RateDate",r."SourceCurrencyId",r."TargetCurrencyId",s."Code" AS "SourceCurrencyCode",t."Code" AS "TargetCurrencyCode",r."ExchangeRate",r."ModifiedAt"
+            FROM public."CorrespondentSettlementDailyRates" r JOIN public."Currencies" s ON s."TenantId"=r."TenantId" AND s."Id"=r."SourceCurrencyId"
+            JOIN public."Currencies" t ON t."TenantId"=r."TenantId" AND t."Id"=r."TargetCurrencyId"
+            WHERE r."TenantId"=@tenant AND r."CorrespondentId"=@owner AND(@from IS NULL OR r."RateDate">=@from) AND(@to IS NULL OR r."RateDate"<=@to)
+            ORDER BY r."RateDate" DESC,s."Code",t."Code"
+            """,Pg("tenant",NpgsqlDbType.Bigint,context.CurrentTenantId),Pg("owner",NpgsqlDbType.Bigint,correspondentId),PgDate("from",from),PgDate("to",to)).ToListAsync(cancellationToken);
         return await context.Database.SqlQuery<CorrespondentSettlementDailyRateDto>($"""
             SELECT r.RateDate,r.SourceCurrencyId,r.TargetCurrencyId,s.Code SourceCurrencyCode,t.Code TargetCurrencyCode,r.ExchangeRate,r.ModifiedAt
             FROM dbo.CorrespondentSettlementDailyRates r
@@ -36,12 +48,18 @@ public sealed partial class CorrespondentSettlementService
         using var scope = PinCurrentTenant();
         var rows = await ReadHistoryRowsAsync(new() { CorrespondentId = correspondentId }, conversionId, cancellationToken);
         var details = MapHistory(rows.SingleOrDefault() ?? throw new KeyNotFoundException("تبدیل نمایندگی یافت نشد."));
-        var revisions = await context.Database.SqlQuery<SettlementRevisionRow>($"""
+        var revisions = await (context.Database.IsNpgsql()
+            ? context.Database.SqlQuery<SettlementRevisionRow>($"""
+                SELECT s."CreatedAt",u."FullName" AS "UserName",s."SnapshotJson" FROM public."CorrespondentSettlementHistorySnapshots" s
+                JOIN public."Users" u ON u."TenantId"=s."TenantId" AND u."Id"=s."CreatedBy"
+                WHERE s."TenantId"={context.CurrentTenantId} AND s."CorrespondentId"={correspondentId} AND s."ConversionId"={conversionId} ORDER BY s."Id"
+                """)
+            : context.Database.SqlQuery<SettlementRevisionRow>($"""
             SELECT s.CreatedAt,u.FullName UserName,s.SnapshotJson FROM dbo.CorrespondentSettlementHistorySnapshots s
             JOIN dbo.Users u ON u.TenantId=s.TenantId AND u.Id=s.CreatedBy
             WHERE s.TenantId={context.CurrentTenantId} AND s.CorrespondentId={correspondentId} AND s.ConversionId={conversionId}
             ORDER BY s.Id
-            """).ToListAsync(cancellationToken);
+            """)).ToListAsync(cancellationToken);
         details.Revisions = revisions.Select(x => new CorrespondentSettlementHistoryRevisionDto
         { CreatedAt = x.CreatedAt, UserName = x.UserName, Items = ReadItems(x.SnapshotJson) }).ToList();
         // Older immutable snapshots stored only the location label. Resolve navigation
@@ -65,6 +83,10 @@ public sealed partial class CorrespondentSettlementService
         var size = Math.Clamp(filter.PageSize, 1, 100);
         var skip = (Math.Clamp(filter.Page, 1, 100000) - 1) * size;
         var from = filter.FromDate?.Date; var to = filter.ToDate?.Date;
+        if(context.Database.IsNpgsql())return context.Database.SqlQueryRaw<SettlementHistoryRow>(PostgresSql.Read("SettlementHistoryQuery"),
+            Pg("tenant",NpgsqlDbType.Bigint,context.CurrentTenantId),Pg("owner",NpgsqlDbType.Bigint,filter.CorrespondentId),Pg("id",NpgsqlDbType.Bigint,id),
+            Pg("status",NpgsqlDbType.Text,filter.Status),PgDate("from",from),PgDate("to",to),Pg("currency",NpgsqlDbType.Bigint,filter.CurrencyId),
+            Pg("skip",NpgsqlDbType.Integer,skip),Pg("size",NpgsqlDbType.Integer,size)).ToListAsync(token);
         return context.Database.SqlQuery<SettlementHistoryRow>($"""
             SELECT c.Id ConversionId,c.CreatedAt,u.FullName UserName,c.SourceMode,c.Note,t.Code TargetCurrencyCode,
                 latest.Status,
@@ -90,6 +112,8 @@ public sealed partial class CorrespondentSettlementService
 
     private static IReadOnlyList<CorrespondentSettlementHistoryItemDto> ReadItems(string json)
         => JsonSerializer.Deserialize<List<CorrespondentSettlementHistoryItemDto>>(json) ?? [];
+    private static NpgsqlParameter Pg(string name,NpgsqlDbType type,object? value)=>new(name,type){Value=value??DBNull.Value};
+    private static NpgsqlParameter PgDate(string name,DateTime? value)=>Pg(name,NpgsqlDbType.Date,value.HasValue?DateOnly.FromDateTime(value.Value):null);
     private static CorrespondentSettlementHistoryDto MapHistory(SettlementHistoryRow x) => new()
     { ConversionId = x.ConversionId, CreatedAt = x.CreatedAt, UserName = x.UserName, SourceMode = x.SourceMode, Status = x.Status,
         Note = x.Note, TargetCurrencyCode = x.TargetCurrencyCode, HawalaCount = x.HawalaCount, Items = ReadItems(x.SnapshotJson) };
@@ -108,7 +132,8 @@ public sealed partial class CorrespondentSettlementService
     {
         using var scope = PinCurrentTenant();
         if (string.IsNullOrWhiteSpace(reason) || reason.Length > 500) throw new InvalidOperationException("دلیل برگشت را وارد کنید (حداکثر 500 حرف).");
-        await using var transaction = await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+        await using var transaction = context.Database.CurrentTransaction is null
+            ? await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken) : null;
         try
         {
             await context.EnsureCurrentTenantWriteAccessAsync(cancellationToken);
@@ -133,18 +158,21 @@ public sealed partial class CorrespondentSettlementService
                 .ExecuteUpdateAsync(x => x.SetProperty(e => e.SettlementHawalaItemId, (long?)null), cancellationToken);
             await context.CorrespondentSettlementConversionHawalaItems.Where(x => x.ConversionId == conversionId).ExecuteDeleteAsync(cancellationToken);
             await context.CorrespondentSettlementConversionHawalas.Where(x => x.ConversionId == conversionId).ExecuteDeleteAsync(cancellationToken);
-            await context.Database.ExecuteSqlInterpolatedAsync($"DELETE dbo.CorrespondentSettlementValuations WHERE TenantId={context.CurrentTenantId} AND ConversionId={conversionId}; UPDATE dbo.CorrespondentSettlementHistorySnapshots SET Status=N'Reversed' WHERE TenantId={context.CurrentTenantId} AND ConversionId={conversionId} AND Status IN(N'Active',N'Adjusted');", cancellationToken);
+            if(context.Database.IsNpgsql())await context.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM public.\"CorrespondentSettlementValuations\" WHERE \"TenantId\"={context.CurrentTenantId} AND \"ConversionId\"={conversionId}; UPDATE public.\"CorrespondentSettlementHistorySnapshots\" SET \"Status\"='Reversed' WHERE \"TenantId\"={context.CurrentTenantId} AND \"ConversionId\"={conversionId} AND \"Status\" IN('Active','Adjusted');",cancellationToken);
+            else await context.Database.ExecuteSqlInterpolatedAsync($"DELETE dbo.CorrespondentSettlementValuations WHERE TenantId={context.CurrentTenantId} AND ConversionId={conversionId}; UPDATE dbo.CorrespondentSettlementHistorySnapshots SET Status=N'Reversed' WHERE TenantId={context.CurrentTenantId} AND ConversionId={conversionId} AND Status IN(N'Active',N'Adjusted');", cancellationToken);
             context.AuditLogs.Add(new AuditLog { Action = "REVERSE_SETTLEMENT", TableName = "CorrespondentSettlementConversions", RecordId = conversionId,
                 UserId = context.RequireCurrentUserId(), NewValue = reason.Trim() });
-            await context.SaveChangesAsync(cancellationToken); await transaction.CommitAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken); if(transaction is not null)await transaction.CommitAsync(cancellationToken);
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch { if(transaction is not null)await transaction.RollbackAsync(CancellationToken.None); throw; }
         finally { context.ChangeTracker.Clear(); }
     }
 
     internal async Task EnsureConversionCanChangeAsync(CorrespondentSettlementConversion conversion, CancellationToken token = default)
     {
         var ids = await context.CorrespondentSettlementConversionHawalas.Where(x => x.ConversionId == conversion.Id).Select(x => x.HawalaId).ToArrayAsync(token);
+        if (await context.Hawalas.AnyAsync(x => ids.Contains(x.Id) && x.Status == "Cancel" && x.CancellationAccountingMode != null, token))
+            throw new InvalidOperationException("بخشی از این تبدیل در روند لغو حواله خنثی یا جبران شده است؛ برگشت دوباره تبدیل مجاز نیست.");
         if (await context.CorrespondentCommissionBatchItems.AnyAsync(x => x.IsActive && x.Batch.Status == "Posted" &&
             (ids.Contains(x.HawalaId) || x.Hawala.SourceHawalaId.HasValue && ids.Contains(x.Hawala.SourceHawalaId.Value)), token))
             throw new InvalidOperationException("کمیشن این حواله‌ها قبلاً ثبت شده است؛ ابتدا کمیشن مرتبط را برگشت دهید. محاسبه مجدد خودکار انجام نمی‌شود.");
@@ -154,5 +182,7 @@ public sealed partial class CorrespondentSettlementService
     }
 
     internal Task MarkDetachedAsync(long conversionId, long hawalaId, CancellationToken token = default)
-        => context.Database.ExecuteSqlInterpolatedAsync($"DELETE dbo.CorrespondentSettlementValuations WHERE TenantId={context.CurrentTenantId} AND HawalaId={hawalaId}; UPDATE dbo.CorrespondentSettlementHistorySnapshots SET Status=N'Adjusted' WHERE TenantId={context.CurrentTenantId} AND ConversionId={conversionId} AND Status=N'Active';", token);
+        => context.Database.IsNpgsql()
+            ? context.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM public.\"CorrespondentSettlementValuations\" WHERE \"TenantId\"={context.CurrentTenantId} AND \"HawalaId\"={hawalaId}; UPDATE public.\"CorrespondentSettlementHistorySnapshots\" SET \"Status\"='Adjusted' WHERE \"TenantId\"={context.CurrentTenantId} AND \"ConversionId\"={conversionId} AND \"Status\"='Active';",token)
+            : context.Database.ExecuteSqlInterpolatedAsync($"DELETE dbo.CorrespondentSettlementValuations WHERE TenantId={context.CurrentTenantId} AND HawalaId={hawalaId}; UPDATE dbo.CorrespondentSettlementHistorySnapshots SET Status=N'Adjusted' WHERE TenantId={context.CurrentTenantId} AND ConversionId={conversionId} AND Status=N'Active';", token);
 }

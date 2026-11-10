@@ -37,7 +37,7 @@ public sealed class SelectedRecordsService(ApplicationDbContext context) : ISele
                     }).ToList()
                 }).ToListAsync(cancellationToken);
         else
-            rows = await context.Hawalas.AsNoTracking().Where(x => keys.Contains(x.Id))
+            rows = await context.Hawalas.AsNoTracking().Where(x => !x.IsDeleted && keys.Contains(x.Id))
                 .Select(x => new SelectedRecordDto
                 {
                     Id = x.Id, Number = x.Number.ToString(), Kind = x.HawalaType,

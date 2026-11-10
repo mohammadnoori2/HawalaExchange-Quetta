@@ -176,7 +176,13 @@ public sealed class SaasAutomationService(
     {
         var entity = await context.SaasAutomationSettings.SingleOrDefaultAsync(x => x.Id == 1, ct);
         if (entity != null) return entity;
-        await context.Database.ExecuteSqlRawAsync("""
+        if (context.Database.IsNpgsql())
+            await context.Database.ExecuteSqlRawAsync("""
+                INSERT INTO public."SaasAutomationSettings"
+                    ("Id","IsEnabled","AutoCreateInvoices","SendEmailNotifications","RunIntervalMinutes","ExpiryWarningDays","GracePeriodDays","GraceWarningDays","InvoiceLeadDays","InvoiceDueDays","QuotaWarningPercent")
+                VALUES (1,true,true,false,360,30,7,2,7,7,80) ON CONFLICT ("Id") DO NOTHING
+                """, ct);
+        else await context.Database.ExecuteSqlRawAsync("""
             SET IDENTITY_INSERT [SaasAutomationSettings] ON;
             IF NOT EXISTS (SELECT 1 FROM [SaasAutomationSettings] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = 1)
                 INSERT INTO [SaasAutomationSettings]

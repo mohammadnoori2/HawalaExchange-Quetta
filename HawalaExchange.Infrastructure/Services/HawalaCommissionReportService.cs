@@ -61,15 +61,26 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
             PerLakhRate = x.PerLakhRate ?? x.Batch.CommissionPerLakhAfn, RateDate = x.ValuationDate,
             LocationId = x.PaymentLocationId, Location = x.PaymentLocationName
         }).ToListAsync(cancellationToken);
-        var recognized = await context.Database.SqlQuery<Recognition>($"""
+        var recognized = await (context.Database.IsNpgsql() ? context.Database.SqlQuery<Recognition>($"""
+            SELECT r."TransactionId", a."CorrespondentId" FROM public."CorrespondentCommissionRecognitions" r
+            JOIN public."Accounts" a ON a."Id" = r."AccountId" AND a."TenantId" = r."TenantId"
+            WHERE r."TenantId" = {context.CurrentTenantId} AND a."CorrespondentId" IS NOT NULL
+            """) :
+context.Database.SqlQuery<Recognition>($"""
             SELECT r.TransactionId, a.CorrespondentId FROM dbo.CorrespondentCommissionRecognitions r
             JOIN dbo.Accounts a ON a.Id = r.AccountId AND a.TenantId = r.TenantId
             WHERE r.TenantId = {context.CurrentTenantId} AND a.CorrespondentId IS NOT NULL
-            """).ToListAsync(cancellationToken);
+            """)).ToListAsync(cancellationToken);
+
         var recognitionKeys = recognized.Select(x => (x.TransactionId, x.CorrespondentId)).ToHashSet();
         var ownLocation = await context.CompanySettings.AsNoTracking().Select(x => x.OwnPaymentLocationId).FirstOrDefaultAsync(cancellationToken);
         var valuationIds=System.Text.Json.JsonSerializer.Serialize(transfers.SelectMany(x=>new[]{x.Id,x.ParentHawalaId??0}).Where(x=>x>0).Distinct());
-        var valuations=filter.Estimate?await context.Database.SqlQuery<Valuation>($"SELECT v.HawalaId,v.SourceCurrencyId,v.SourceAmount,v.UsdAmount FROM dbo.CorrespondentSettlementValuations v WHERE v.TenantId={context.CurrentTenantId} AND v.HawalaId IN(SELECT CONVERT(bigint,[value]) FROM OPENJSON({valuationIds}))").ToListAsync(cancellationToken):[];
+        var valuations=filter.Estimate?await (context.Database.IsNpgsql()
+            ? context.Database.SqlQuery<Valuation>($"""
+                SELECT v."HawalaId",v."SourceCurrencyId",v."SourceAmount",v."UsdAmount" FROM public."CorrespondentSettlementValuations" v
+                WHERE v."TenantId"={context.CurrentTenantId} AND v."HawalaId" IN(SELECT value::bigint FROM jsonb_array_elements_text({valuationIds}::jsonb))
+                """)
+            : context.Database.SqlQuery<Valuation>($"SELECT v.HawalaId,v.SourceCurrencyId,v.SourceAmount,v.UsdAmount FROM dbo.CorrespondentSettlementValuations v WHERE v.TenantId={context.CurrentTenantId} AND v.HawalaId IN(SELECT CONVERT(bigint,[value]) FROM OPENJSON({valuationIds}))")).ToListAsync(cancellationToken):[];
         var valuationMap=valuations.ToDictionary(x=>x.HawalaId);
         var byTransfer = saved.ToLookup(x => x.HawalaId);
         var rows = new List<HawalaCommissionReportRow>();
@@ -98,7 +109,11 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
                 row.CommissionStatus = transfer.Status == "Cancel" ? "Reversed" : "Direct";
                 row.Note = "کمیشن ثبت‌شده در خود حواله؛ مستقل از محاسبات دوره‌ای"; rows.Add(row);
             }
-            if (transfer.DirectAmount is > 0) AddDirect("Direct", transfer.DirectAmount.Value, transfer.DirectCurrency);
+            // The direct-fee report is a register of all matching transfers, including
+            // those with no fee. Do not add zero placeholders to other report modes.
+            if (transfer.DirectAmount is > 0 || filter.CommissionType == "Direct")
+                AddDirect("Direct", transfer.DirectAmount ?? 0,
+                    string.IsNullOrWhiteSpace(transfer.DirectCurrency) ? transfer.Currency : transfer.DirectCurrency);
             if (transfer.Type == "HawalaSend" && transfer.AgentAmount is > 0) AddDirect("Destination", transfer.AgentAmount.Value, transfer.AgentCurrency);
             var types = transfer.Type == "HawalaReceive" ? new[] { "Incoming" } : transfer.Type == "HawalaSend" ? new[] { "Destination", "Forwarding" } : [];
             foreach (var type in types)

@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
@@ -9,10 +9,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using System.Data;
+using System.Data.Common;
+using System.Diagnostics;
 
 namespace HawalaExchange.Application.Services
 {
-    public class CorrespondentService : BaseService<Correspondent, CorrespondentDto, CreateCorrespondentDto, UpdateCorrespondentDto>, ICorrespondentService
+    public partial class CorrespondentService : BaseService<Correspondent, CorrespondentDto, CreateCorrespondentDto, UpdateCorrespondentDto>, ICorrespondentService
     {
         private readonly IAccountService _accountService;
         private readonly ILedgerService _ledgerService;
@@ -69,6 +71,7 @@ namespace HawalaExchange.Application.Services
                             ? null
                             : x.SettlementCurrency.Code,
                         CommissionMethod = x.CommissionMethod,
+                        RequiresManualExecution = x.RequiresManualExecution,
                         CreatedAt = x.CreatedAt
                     },
                     AccountId = _context.Accounts
@@ -82,13 +85,31 @@ namespace HawalaExchange.Application.Services
             long id,
             CancellationToken cancellationToken = default)
         {
+            if(_context.Database.IsNpgsql())
+            {
+                await using var native=await PostgresProcedures.AccountOperationsAsync(_context,new()
+                {
+                    ["AccountId"]=null,["PageNumber"]=1,["PageSize"]=10,["CorrespondentId"]=id,["IncludeStatusHeader"]=true,["IncludeBalances"]=true
+                },cancellationToken);
+                return await ReadStatusPageAsync(native,cancellationToken);
+            }
             var connection = (SqlConnection)_context.Database.GetDbConnection();
             var shouldClose = connection.State != ConnectionState.Open;
-            if (shouldClose)
-                await connection.OpenAsync(cancellationToken);
-
+            var timer = Stopwatch.StartNew();
+            var stage = "Connect";
+            long previous = 0;
+            void RecordStage(string completed)
+            {
+                var elapsed = timer.ElapsedMilliseconds;
+                _logger.LogInformation("Correspondent status Tenant={TenantId} Correspondent={CorrespondentId} Stage={Stage} DurationMs={DurationMs} TotalMs={TotalMs}",
+                    _context.CurrentTenantId, id, completed, elapsed - previous, elapsed);
+                previous = elapsed;
+            }
             try
             {
+                if (shouldClose) await connection.OpenAsync(cancellationToken);
+                RecordStage(stage);
+                stage = "ExecuteProcedure";
                 await using var command = connection.CreateCommand();
                 command.CommandText = "[dbo].[usp_GetAccountOperationsPage_v1]";
                 command.CommandType = CommandType.StoredProcedure;
@@ -104,6 +125,29 @@ namespace HawalaExchange.Application.Services
                     command.Transaction = transaction;
 
                 await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                RecordStage(stage);
+                stage = "ReadResults";
+                return await ReadStatusPageAsync(reader,cancellationToken, RecordStage);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogDebug("Correspondent status cancelled Tenant={TenantId} Correspondent={CorrespondentId} Stage={Stage} TotalMs={TotalMs}", _context.CurrentTenantId, id, stage, timer.ElapsedMilliseconds);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Correspondent status failed Tenant={TenantId} Correspondent={CorrespondentId} Stage={Stage} TotalMs={TotalMs}", _context.CurrentTenantId, id, stage, timer.ElapsedMilliseconds);
+                throw;
+            }
+            finally
+            {
+                if (shouldClose)
+                    await connection.CloseAsync();
+            }
+        }
+
+        private static async Task<CorrespondentStatusPageDto?> ReadStatusPageAsync(DbDataReader reader,CancellationToken cancellationToken, Action<string>? recordStage = null)
+        {
                 if (!await reader.ReadAsync(cancellationToken))
                     return null;
 
@@ -128,6 +172,7 @@ namespace HawalaExchange.Application.Services
                     AccountId = reader.IsDBNull(13) ? null : reader.GetInt64(13)
                 };
 
+                recordStage?.Invoke("Header");
                 await reader.NextResultAsync(cancellationToken);
                 while (await reader.ReadAsync(cancellationToken))
                 {
@@ -141,19 +186,15 @@ namespace HawalaExchange.Application.Services
                     });
                 }
 
+                recordStage?.Invoke("Balances");
                 await reader.NextResultAsync(cancellationToken);
                 result.Operations = await JournalService.ReadAccountOperationsPageAsync(
                     reader, 1, 10, cancellationToken);
+                recordStage?.Invoke("Operations");
                 return result;
-            }
-            finally
-            {
-                if (shouldClose)
-                    await connection.CloseAsync();
-            }
         }
 
-        private static string? ReadNullableString(SqlDataReader reader, int ordinal) =>
+        private static string? ReadNullableString(DbDataReader reader, int ordinal) =>
             reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
 
         public override async Task<IEnumerable<CorrespondentDto>> GetAllAsync()
@@ -263,11 +304,11 @@ namespace HawalaExchange.Application.Services
                 var accountDto = await CreateCorrespondentAccountAsync(correspondentDto.Id, correspondentDto.Name);
 
                 // ۳. ثبت موجودی اولیه (در صورت وجود)
-                if (createDto.HasInitialBalance && createDto.InitialBalances != null && createDto.InitialBalances.Any())
+                if (createDto.HasInitialBalance)
                 {
                     await CreateInitialBalancesAsync(
                         accountDto.Id,
-                        createDto.InitialBalances,
+                        createDto.InitialBalances ?? [],
                         correspondentDto.Name,
                         correspondentDto.Code
                     );
@@ -339,105 +380,20 @@ namespace HawalaExchange.Application.Services
             return accountDto;
         }
 
-        private async Task CreateInitialBalancesAsync(
-            long accountId,
-            List<InitialBalanceDto> initialBalances,
-            string correspondentName,
-            string correspondentCode)
+        private async Task CreateInitialBalancesAsync(long accountId, List<InitialBalanceDto> initialBalances, string correspondentName, string correspondentCode)
         {
-            // ایجاد تراکنش OpeningBalance
-            var openingTransaction = new Transaction
+            if (initialBalances.Count == 0 || initialBalances.Select(x => x.CurrencyId).Distinct().Count() != initialBalances.Count)
+                throw new InvalidOperationException("برای هر ارز فقط یک موجودی افتتاحیه معتبر وارد کنید.");
+            var account = await _context.Accounts.SingleAsync(x => x.Id == accountId && x.CorrespondentId != null);
+            await CorrespondentCommissionPeriodLock.AcquireAsync(_context, account.CorrespondentId!.Value);
+            foreach (var item in initialBalances)
             {
-                TransactionNo = await GenerateOpeningTransactionNumberAsync(),
-                TransactionType = "OpeningBalance",
-                BranchId = await _context.GetDefaultBranchIdAsync(),
-                Status = "Paid",
-                Remarks = $"موجودی اولیه برای نماینده {correspondentName} (کد: {correspondentCode})",
-                CreatedBy = _context.RequireCurrentUserId(),
-                CreatedAt = DateTime.UtcNow
-            };
-
-            await _context.Transactions.AddAsync(openingTransaction);
-            await _context.SaveChangesAsync();
-
-            foreach (var initialBalance in initialBalances)
-            {
-                // اعتبارسنجی حساب طرف مقابل
-                var oppositeAccount = await _context.Accounts.FindAsync(initialBalance.OppositeAccountId);
-                if (oppositeAccount == null)
-                    throw new InvalidOperationException($"حساب طرف مقابل با شناسه {initialBalance.OppositeAccountId} یافت نشد");
-
-                decimal correspondentTalabKar = 0, correspondentBadehKar = 0;
-                decimal oppositeTalabKar = 0, oppositeBadehKar = 0;
-
-                // منطق مشابه CustomerService
-                if (initialBalance.Direction == "Debit") // بدهکار
-                {
-                    correspondentTalabKar = 0;
-                    correspondentBadehKar = initialBalance.Amount;
-                    oppositeTalabKar = initialBalance.Amount;
-                    oppositeBadehKar = 0;
-                }
-                else // Credit (بستانکار)
-                {
-                    correspondentTalabKar = initialBalance.Amount;
-                    correspondentBadehKar = 0;
-                    oppositeTalabKar = 0;
-                    oppositeBadehKar = initialBalance.Amount;
-                }
-
-                // ثبت برای حساب نماینده
-                await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
-                {
-                    TransactionId = openingTransaction.Id,
-                    AccountId = accountId,
-                    CurrencyId = initialBalance.CurrencyId,
-                    TalabKar = correspondentTalabKar,
-                    BadehKar = correspondentBadehKar,
-                    Description = $"موجودی اولیه نماینده: {initialBalance.Description ?? "بدون توضیح"}"
-                });
-
-                // ثبت برای حساب طرف مقابل
-                await _ledgerService.CreateLedgerEntryAsync(new CreateLedgerEntryDto
-                {
-                    TransactionId = openingTransaction.Id,
-                    AccountId = initialBalance.OppositeAccountId,
-                    CurrencyId = initialBalance.CurrencyId,
-                    TalabKar = oppositeTalabKar,
-                    BadehKar = oppositeBadehKar,
-                    Description = $"طرف مقابل موجودی اولیه نماینده {correspondentName}"
-                });
+                var request = new CorrespondentOpeningBalanceRequestDto { CurrencyId = item.CurrencyId, Amount = item.Amount,
+                    Direction = item.Direction, Description = item.Description };
+                ValidateOpening(request);
+                await EnsureOpeningCurrencyAvailableAsync(accountId, item.CurrencyId);
+                await PostOpeningAsync(account, request, DateTime.UtcNow);
             }
-
-            // ثبت لاگ
-            await _auditLogService.LogAsync(
-                action: "CREATE",
-                tableName: "Transactions",
-                recordId: openingTransaction.Id,
-                oldValue: null,
-                newValue: $"تراکنش موجودی اولیه برای نماینده {correspondentName} با {initialBalances.Count} رکورد ایجاد شد"
-            );
-        }
-
-        private async Task<string> GenerateOpeningTransactionNumberAsync()
-        {
-            var datePart = DateTime.Now.ToString("yyyyMMdd");
-            var lastTransaction = await _context.Transactions
-                .Where(t => t.TransactionNo.StartsWith($"OP-{datePart}"))
-                .OrderByDescending(t => t.TransactionNo)
-                .FirstOrDefaultAsync();
-
-            int nextNumber = 1;
-            if (lastTransaction != null)
-            {
-                var parts = lastTransaction.TransactionNo.Split('-');
-                if (parts.Length == 3 && int.TryParse(parts[2], out int lastNumber))
-                {
-                    nextNumber = lastNumber + 1;
-                }
-            }
-
-            return $"OP-{datePart}-{nextNumber:D4}";
         }
 
         public async Task<CorrespondentPeriodClosePreviewDto> GetPeriodClosePreviewAsync(long id)
@@ -537,6 +493,20 @@ namespace HawalaExchange.Application.Services
             await _context.SaveChangesAsync();
             // Recognize the exact journal documents present at close, not merely their dates.
             // Subsequent backdated calculations and reversals remain pending for the next close.
+            if (_context.Database.IsNpgsql()) await _context.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO public."CorrespondentCommissionRecognitions" ("TenantId", "AccountId", "TransactionId", "PeriodId")
+                SELECT e."TenantId", e."AccountId", e."TransactionId", {period.Id}
+                FROM public."LedgerEntries" e
+                JOIN public."Transactions" t ON t."TenantId" = e."TenantId" AND t."Id" = e."TransactionId"
+                WHERE e."TenantId" = {_context.CurrentTenantId} AND e."AccountId" = {accountId}
+                  AND e."CreatedAt" <= {new Npgsql.NpgsqlParameter("periodTo", NpgsqlTypes.NpgsqlDbType.Timestamp) { Value=DateTime.SpecifyKind(periodTo, DateTimeKind.Unspecified) }}
+                  AND t."TransactionType" IN ('PeriodicCorrespondentCommission', 'PeriodicOutgoingCommission',
+                      'PeriodicForwardingCommission', 'PeriodicCorrespondentCommissionReversal')
+                  AND NOT EXISTS (SELECT 1 FROM public."CorrespondentCommissionRecognitions" r
+                      WHERE r."TenantId" = e."TenantId" AND r."AccountId" = e."AccountId" AND r."TransactionId" = e."TransactionId")
+                GROUP BY e."TenantId", e."AccountId", e."TransactionId";
+                """);
+            else
             await _context.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO [dbo].[CorrespondentCommissionRecognitions] ([TenantId], [AccountId], [TransactionId], [PeriodId])
                 SELECT e.[TenantId], e.[AccountId], e.[TransactionId], {period.Id}

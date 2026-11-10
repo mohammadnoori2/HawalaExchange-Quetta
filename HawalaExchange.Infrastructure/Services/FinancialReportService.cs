@@ -1,4 +1,6 @@
 using System.Data;
+using System.Data.Common;
+using Npgsql;
 using System.Globalization;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
@@ -91,7 +93,7 @@ public class FinancialReportService : IFinancialReportService
 
     private async Task<DashboardData> ReadDashboardDataAsync(DateTime fromDate, DateTime toDateExclusive)
     {
-        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var connection = _context.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose)
             await connection.OpenAsync();
@@ -99,15 +101,14 @@ public class FinancialReportService : IFinancialReportService
         try
         {
             await using var command = connection.CreateCommand();
-            command.CommandText = "[dbo].[usp_GetDashboardData_v1]";
-            command.CommandType = CommandType.StoredProcedure;
+            command.CommandText = _context.Database.IsNpgsql()?PostgresSql.Read("DashboardQuery"):"[dbo].[usp_GetDashboardData_v1]";
+            command.CommandType = _context.Database.IsNpgsql()?CommandType.Text:CommandType.StoredProcedure;
             command.CommandTimeout = 120;
-            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
-            command.Parameters.Add("@FromDate", SqlDbType.DateTime2).Value = fromDate;
-            command.Parameters.Add("@ToDateExclusive", SqlDbType.DateTime2).Value = toDateExclusive;
+            RelationalParameters.Add(command,"@TenantId",SqlDbType.BigInt,_context.CurrentTenantId);
+            RelationalParameters.Add(command,"@FromDate",SqlDbType.DateTime2,fromDate);
+            RelationalParameters.Add(command,"@ToDateExclusive",SqlDbType.DateTime2,toDateExclusive);
             var transaction = _context.Database.CurrentTransaction?.GetDbTransaction();
-            if (transaction is SqlTransaction sqlTransaction)
-                command.Transaction = sqlTransaction;
+            command.Transaction = transaction;
 
             var data = new DashboardData();
             await using var reader = await command.ExecuteReaderAsync();
@@ -135,7 +136,7 @@ public class FinancialReportService : IFinancialReportService
         }
     }
 
-    private static LedgerEntry ReadAggregateLedgerEntry(SqlDataReader reader, bool hasDate)
+    private static LedgerEntry ReadAggregateLedgerEntry(DbDataReader reader, bool hasDate)
     {
         var offset = hasDate ? 1 : 0;
         var accountId = reader.GetInt64(offset);

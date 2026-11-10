@@ -81,6 +81,6 @@ public sealed class HawalaCommissionReportResult
 
 public static class HawalaReportLabels
 {
-    public static string Type(string type) => type switch { "Incoming" => "کمیشن دریافتی", "Destination" => "کمیشن پرداختی به مقصد", "Forwarding" => "کمیشن ارسالی از فرستنده", "Direct" => "کارمزد تک‌حواله", "None" => "بدون کمیشن دوره‌ای", _ => type };
+    public static string Type(string type) => type switch { "Incoming" => "کمیشن دریافتی", "Destination" => "کمیشن پرداختی به مقصد", "Forwarding" => "کمیشن پرداختی ولایات", "Direct" => "کارمزد تک‌حواله", "None" => "بدون کمیشن دوره‌ای", _ => type };
     public static string State(string state) => state switch { "Calculated" => "محاسبه‌شده / منتظر بستن دوره", "Recognized" => "منظورشده در بستن دوره", "Reversed" => "برگشت‌شده", "Pending" => "محاسبه‌نشده", "Direct" => "ثبت تک‌حواله", "None" => "بدون محاسبه دوره‌ای", _ => state };
 }

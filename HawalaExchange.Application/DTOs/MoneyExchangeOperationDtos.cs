@@ -2,6 +2,7 @@
 
 public class MoneyExchangeOperationDto
 {
+    public long? LinkedHawalaId { get; set; }
     public long Id { get; set; }
 
     public DateTime ExchangeDate { get; set; }
@@ -52,6 +53,8 @@ public class MoneyExchangeOperationDto
 
 public class CreateMoneyExchangeOperationDto
 {
+    public bool ConfirmNoPreviousManualConversion { get; set; }
+    public long? LinkedHawalaId { get; set; }
     public DateTime ExchangeDate { get; set; } = DateTime.UtcNow;
 
     public long FromAccountId { get; set; }
@@ -119,6 +122,7 @@ public class MoneyExchangeProfitSummaryDto
 {
     public decimal CustomerRealizedProfit { get; set; }
     public decimal TreasuryRealizedProfit { get; set; }
-    public decimal TotalRealizedProfit => CustomerRealizedProfit + TreasuryRealizedProfit;
+    public decimal CorrespondentRealizedProfit { get; set; }
+    public decimal TotalRealizedProfit => CustomerRealizedProfit + TreasuryRealizedProfit + CorrespondentRealizedProfit;
     public int DeferredOperationCount { get; set; }
 }

@@ -5,6 +5,10 @@ namespace HawalaExchange.Application.Interfaces.Services
 {
     public interface ICorrespondentService : IBaseService<Correspondent, CorrespondentDto, CreateCorrespondentDto, UpdateCorrespondentDto>
     {
+        Task<IReadOnlyList<CorrespondentOpeningBalanceDto>> GetOpeningBalancesAsync(long id);
+        Task AddOpeningBalanceAsync(long id, CorrespondentOpeningBalanceRequestDto request);
+        Task UpdateOpeningBalanceAsync(long id, long openingId, CorrespondentOpeningBalanceRequestDto request);
+        Task DeleteOpeningBalanceAsync(long id, long openingId, string? reason = null);
         Task<CorrespondentDto?> GetByCodeAsync(string code);
         Task<CorrespondentDetailsPageDto?> GetDetailsPageAsync(long id, CancellationToken cancellationToken = default);
         Task<CorrespondentStatusPageDto?> GetStatusPageAsync(long id, CancellationToken cancellationToken = default);

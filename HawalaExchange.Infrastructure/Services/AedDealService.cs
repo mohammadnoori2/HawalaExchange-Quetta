@@ -176,6 +176,8 @@ public sealed class AedDealService(ApplicationDbContext context) : IAedDealServi
         CancellationToken cancellationToken)
     {
         context.ChangeTracker.Clear();
+        if(context.Database.IsNpgsql())
+            return await PostgresProcedures.AedAsync(context,procedureName,configure,cancellationToken);
         var connection = (SqlConnection)context.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose)

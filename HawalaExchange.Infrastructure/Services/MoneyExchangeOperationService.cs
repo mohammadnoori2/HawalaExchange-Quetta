@@ -10,6 +10,10 @@ namespace HawalaExchange.Application.Services;
 
 public class MoneyExchangeOperationService : IMoneyExchangeOperationService
 {
+    public async Task<MoneyExchangeOperationDto?> GetByLinkedHawalaAsync(long hawalaId) {
+        var id=await _context.MoneyExchangeOperations.Where(x=>x.LinkedHawalaId==hawalaId && !x.IsDeleted).Select(x=>(long?)x.Id).SingleOrDefaultAsync();
+        return id.HasValue?await GetByIdAsync(id.Value):null;
+    }
     private readonly ApplicationDbContext _context;
     private readonly IMapper _mapper;
     private readonly ICurrencyCostService _currencyCostService;
@@ -59,6 +63,8 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
 
     public async Task<MoneyExchangeOperationDto> CreateAsync(CreateMoneyExchangeOperationDto dto)
     {
+        if(dto.LinkedHawalaId.HasValue && !dto.ConfirmNoPreviousManualConversion)
+            throw new InvalidOperationException("ابتدا بررسی و تأیید کنید که مبلغ حواله قبلاً به‌صورت دستی تبدیل نشده است.");
         dto.ProfitCurrencyId = await ResolveDefaultProfitCurrencyIdAsync();
         ValidateCreateDto(dto);
 
@@ -66,10 +72,20 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
 
         try
         {
+            await LockCorrespondentAccountsAsync(dto.OperationType, dto.FromAccountId, dto.ToAccountId);
             await ValidateAccountsAndCurrenciesAsync(dto.FromAccountId, dto.ToAccountId, dto.FromCurrencyId, dto.ToCurrencyId, dto.OperationType);
             await ValidateProfitCurrencyAsync(dto.ProfitCurrencyId);
 
+            await ValidateLinkedHawalaAsync(dto.LinkedHawalaId,dto.FromAccountId,dto.ToAccountId,dto.FromCurrencyId,dto.FromAmount,dto.OperationType);
+
             var exchange = _mapper.Map<MoneyExchangeOperation>(dto);
+            if(dto.LinkedHawalaId.HasValue) {
+                exchange.ToAmount=AmountValueHelper.RoundConvertedAmount(dto.FromAmount*dto.ExchangeRate);
+                if(exchange.ToAmount<=0) throw new InvalidOperationException("مبلغ تبدیل‌شده باید بیشتر از صفر باشد.");
+                var pair=await _context.Currencies.Where(x=>x.Id==dto.FromCurrencyId || x.Id==dto.ToCurrencyId).ToDictionaryAsync(x=>x.Id);
+                var a=pair[dto.FromCurrencyId]; var b=pair[dto.ToCurrencyId];
+                exchange.ExchangeRate=CurrencyQuotationCalculator.Calculate(a.Id,a.Code,a.QuotationPriority,exchange.FromAmount,b.Id,b.Code,b.QuotationPriority,exchange.ToAmount).Rate;
+            }
 
             exchange.ExchangeDate = dto.ExchangeDate == DateTime.MinValue
                 ? DateTime.UtcNow
@@ -87,6 +103,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
 
             await _context.MoneyExchangeOperations.AddAsync(exchange);
             await _context.SaveChangesAsync();
+            await ValidateCorrespondentPeriodAsync(exchange);
 
             await _currencyCostService.RebuildAsync();
 
@@ -102,6 +119,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         catch
         {
             await dbTransaction.RollbackAsync();
+            _context.ChangeTracker.Clear();
             throw;
         }
     }
@@ -124,6 +142,11 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
                 ?? await ResolveDefaultProfitCurrencyIdAsync();
             ValidateUpdateDto(dto);
 
+            await LockCorrespondentAccountsAsync(MoneyExchangeMode.IsCorrespondent(exchange.OperationType) ? exchange.OperationType : dto.OperationType,
+                exchange.FromAccountId, exchange.ToAccountId, dto.FromAccountId, dto.ToAccountId);
+            await ValidateCorrespondentPeriodAsync(exchange);
+
+            await ValidateLinkedHawalaAsync(exchange.LinkedHawalaId,dto.FromAccountId,dto.ToAccountId,dto.FromCurrencyId,dto.FromAmount,dto.OperationType,exchange.Id);
             await ValidateAccountsAndCurrenciesAsync(dto.FromAccountId, dto.ToAccountId, dto.FromCurrencyId, dto.ToCurrencyId, dto.OperationType);
             await ValidateProfitCurrencyAsync(dto.ProfitCurrencyId);
 
@@ -145,6 +168,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             exchange.ModifiedBy = GetCurrentUserId();
 
             await _context.SaveChangesAsync();
+            await ValidateCorrespondentPeriodAsync(exchange);
             await _currencyCostService.RebuildAsync();
 
             await dbTransaction.CommitAsync();
@@ -159,6 +183,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         catch
         {
             await dbTransaction.RollbackAsync();
+            _context.ChangeTracker.Clear();
             throw;
         }
     }
@@ -175,6 +200,8 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             if (exchange == null)
                 throw new KeyNotFoundException($"تبدیل پول با شناسه {id} یافت نشد.");
 
+            await LockCorrespondentAccountsAsync(exchange.OperationType, exchange.FromAccountId, exchange.ToAccountId);
+            await ValidateCorrespondentPeriodAsync(exchange);
             await DeleteLedgerEntriesAsync(exchange.Id);
 
             exchange.IsDeleted = true;
@@ -189,6 +216,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         catch
         {
             await dbTransaction.RollbackAsync();
+            _context.ChangeTracker.Clear();
             throw;
         }
     }
@@ -198,7 +226,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
     {
         var description = await BuildPrimaryLedgerDescriptionAsync(context, exchange);
 
-        var isCustomerExchange = exchange.OperationType == "Customer";
+        var isCustomerExchange = MoneyExchangeMode.UsesPartyLedger(exchange.OperationType);
         var ledgerEntries = new List<LedgerEntry>
         {
             NewPrimaryLedgerEntry(
@@ -291,7 +319,7 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
     {
         var description = $"{exchange.Description} با شماره {exchange.Id}";
 
-        if (exchange.OperationType != "Customer")
+        if (!MoneyExchangeMode.UsesPartyLedger(exchange.OperationType) && !MoneyExchangeMode.IsCorrespondent(exchange.OperationType))
             return description;
 
         CurrencyQuotationResult quotation;
@@ -447,6 +475,15 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
         if (operationType == "Treasury" &&
             (!IsTreasuryAccount(fromAccount.AccountType) || !IsTreasuryAccount(toAccount.AccountType)))
             throw new InvalidOperationException("برای تبدیل سرمایه صراف فقط حساب نقدی یا بانکی قابل انتخاب است.");
+        if (MoneyExchangeMode.IsCorrespondent(operationType) &&
+            (fromAccount.AccountType != "Correspondent" || toAccount.AccountType != "Correspondent"))
+            throw new InvalidOperationException("برای تبدیل مانده نمایندگی، حساب فروش و دریافت باید حساب نمایندگی فعال باشد.");
+        if (MoneyExchangeMode.IsCorrespondent(operationType) &&
+            !await _context.Correspondents.AnyAsync(x => x.Id==fromAccount.CorrespondentId && !x.IsArchived))
+            throw new InvalidOperationException("نمایندگی مبدأ معتبر و فعال نیست.");
+        if (MoneyExchangeMode.IsCorrespondent(operationType) &&
+            !await _context.Correspondents.AnyAsync(x => x.Id==toAccount.CorrespondentId && !x.IsArchived))
+            throw new InvalidOperationException("نمایندگی مقصد معتبر و فعال نیست.");
 
         var fromCurrencyExists = await _context.Currencies
             .AnyAsync(x => x.Id == fromCurrencyId && x.IsActive);
@@ -466,6 +503,51 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
 
     private static bool IsTreasuryAccount(string accountType) =>
         accountType is "Cash" or "Bank";
+
+    private async Task ValidateLinkedHawalaAsync(long? id,long fromAccount,long toAccount,long currency,decimal amount,string mode,long? exchangeId=null)
+    {
+        if(!id.HasValue) return;
+        var h=await (_context.Database.IsNpgsql()
+            ? _context.Hawalas.FromSqlInterpolated($"SELECT * FROM public.\"Hawalas\" WHERE \"TenantId\"={_context.CurrentTenantId} AND \"Id\"={id} FOR UPDATE")
+            : _context.Hawalas.FromSqlInterpolated($"SELECT * FROM dbo.Hawalas WITH(UPDLOCK,HOLDLOCK) WHERE TenantId={_context.CurrentTenantId} AND Id={id}"))
+            .AsNoTracking().SingleOrDefaultAsync(x=>!x.IsDeleted && x.Status!="Cancel");
+        if(h==null || h.HawalaType is not ("HawalaReceive" or "HawalaSend") || !h.CorrespondentId.HasValue || !MoneyExchangeMode.IsCorrespondent(mode)) throw new InvalidOperationException("حواله دریافتی یا ارسالی معتبر نمایندگی انتخاب کنید.");
+        var expectedCurrency=h.HawalaType=="HawalaSend"?h.ToCurrencyId:h.FromCurrencyId;
+        var expectedAmount=h.HawalaType=="HawalaSend"?h.ToAmount??h.FromAmount:h.FromAmount;
+        var expectedMode=h.HawalaType=="HawalaSend"?MoneyExchangeMode.CorrespondentCredit:MoneyExchangeMode.CorrespondentDebt;
+        if(currency!=expectedCurrency || amount!=expectedAmount || mode!=expectedMode || await _context.Accounts.CountAsync(x=>(x.Id==fromAccount || x.Id==toAccount) && x.CorrespondentId==h.CorrespondentId && !x.IsArchived)!=(fromAccount==toAccount?1:2))
+            throw new InvalidOperationException("ارز، مبلغ، جهت و حساب‌های تبدیل باید مطابق حواله انتخاب‌شده باشند.");
+        if(await _context.MoneyExchangeOperations.AnyAsync(x=>x.LinkedHawalaId==id && !x.IsDeleted && x.Id!=exchangeId)) throw new InvalidOperationException("این حواله قبلاً تبدیل شده؛ ابتدا تبدیل قبلی را حذف کنید.");
+        if(await _context.CorrespondentSettlementConversionHawalas.AnyAsync(x=>x.HawalaId==id)) throw new InvalidOperationException("این حواله به ارز توافقی تبدیل شده؛ ابتدا آن تبدیل را برگشت دهید تا حسابداری تکراری ثبت نشود.");
+        if(await _context.AgentPaymentBillItems.AnyAsync(x=>x.HawalaId==id && x.IsActive)) throw new InvalidOperationException("حواله در بیل پرداخت عامل قرار دارد؛ ابتدا بیل پرداخت‌نشده را لغو کنید.");
+        // Invalidate any in-flight editor's old rowversion without changing the remittance.
+        if(_context.Database.IsNpgsql())await _context.Database.ExecuteSqlInterpolatedAsync($"UPDATE public.\"Hawalas\" SET \"Status\"=\"Status\" WHERE \"TenantId\"={_context.CurrentTenantId} AND \"Id\"={id}");
+        else await _context.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.Hawalas SET Status=Status WHERE TenantId={_context.CurrentTenantId} AND Id={id}");
+        var tracked=_context.ChangeTracker.Entries<Hawala>().FirstOrDefault(x=>x.Entity.Id==id && x.State==EntityState.Unchanged);
+        if(tracked!=null) await tracked.ReloadAsync();
+    }
+
+    private async Task LockCorrespondentAccountsAsync(string mode, params long[] accountIds)
+    {
+        if (!MoneyExchangeMode.IsCorrespondent(mode)) return;
+        var ids=accountIds.Distinct().OrderBy(x=>x).ToArray();
+        var owners=await _context.Accounts.AsNoTracking().Where(x=>ids.Contains(x.Id) && x.CorrespondentId.HasValue)
+            .Select(x=>x.CorrespondentId!.Value).Distinct().OrderBy(x=>x).ToListAsync();
+        foreach(var owner in owners) await HawalaExchange.Infrastructure.Services.CorrespondentCommissionPeriodLock.AcquireAsync(_context,owner);
+        foreach(var id in ids) await (_context.Database.IsNpgsql()
+            ? _context.Accounts.FromSqlInterpolated($"SELECT * FROM public.\"Accounts\" WHERE \"TenantId\"={_context.CurrentTenantId} AND \"Id\"={id} FOR UPDATE")
+            : _context.Accounts.FromSqlRaw("SELECT * FROM dbo.Accounts WITH(UPDLOCK,HOLDLOCK)"))
+            .AsNoTracking().Where(x=>x.Id==id).Select(x=>x.Id).FirstOrDefaultAsync();
+    }
+
+    private async Task ValidateCorrespondentPeriodAsync(MoneyExchangeOperation exchange)
+    {
+        if (!MoneyExchangeMode.IsCorrespondent(exchange.OperationType)) return;
+        var owners=_context.Accounts.Where(x=>x.Id==exchange.FromAccountId || x.Id==exchange.ToAccountId)
+            .Where(x=>x.CorrespondentId.HasValue).Select(x=>x.CorrespondentId!.Value);
+        if(await _context.CorrespondentAccountPeriods.AnyAsync(x=>owners.Contains(x.CorrespondentId) && x.PeriodTo>=exchange.ExchangeDate))
+            throw new InvalidOperationException("ثبت یا تغییر تبدیل در دوره بسته مجاز نیست؛ تبدیل جدید را در دوره باز ثبت کنید.");
+    }
 
     private async Task ValidateProfitCurrencyAsync(long profitCurrencyId)
     {
@@ -556,8 +638,8 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
     private static void ValidateProfitFields(
         string operationType, long profitCurrencyId, decimal commission, decimal externalFee)
     {
-        if (operationType is not ("Customer" or "Treasury"))
-            throw new InvalidOperationException("نوع تبدیل باید مشتری یا سرمایه صراف باشد.");
+        if (operationType is not ("Customer" or "Treasury") && !MoneyExchangeMode.IsCorrespondent(operationType))
+            throw new InvalidOperationException("نوع تبدیل باید مشتری، نمایندگی یا سرمایه صراف باشد.");
         if (profitCurrencyId <= 0)
             throw new InvalidOperationException("ارز اصلی محاسبه مفاد و ضرر در تنظیمات مشخص نشده است.");
         if (commission < 0 || externalFee < 0)
@@ -579,6 +661,8 @@ public class MoneyExchangeOperationService : IMoneyExchangeOperationService
             CustomerRealizedProfit = await query.Where(x => x.OperationType == "Customer")
                 .SumAsync(x => x.RealizedProfit),
             TreasuryRealizedProfit = await query.Where(x => x.OperationType == "Treasury")
+                .SumAsync(x => x.RealizedProfit),
+            CorrespondentRealizedProfit = await query.Where(x => x.OperationType == MoneyExchangeMode.CorrespondentCredit || x.OperationType == MoneyExchangeMode.CorrespondentDebt)
                 .SumAsync(x => x.RealizedProfit),
             DeferredOperationCount = await query.CountAsync(x =>
                 x.ProfitStatus == "Deferred" || x.ProfitStatus == "PartiallyDeferred")

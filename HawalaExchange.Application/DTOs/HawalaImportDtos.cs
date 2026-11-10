@@ -130,6 +130,8 @@ namespace HawalaExchange.Application.DTOs
 
     public sealed class HawalaImportDeletionPreviewDto
     {
+        public int HawalaCount { get; set; }
+        public List<string> AffectedAccounts { get; set; } = [];
         public List<HawalaImportTotalDto> Totals { get; set; } = [];
         public bool HasClosedPeriod { get; set; }
         public bool HasSettlementConversion { get; set; }

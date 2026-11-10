@@ -46,6 +46,7 @@ public sealed class LocationCurrencyCommissionRateDto
 
 public sealed class CorrespondentCommissionPreviewRequestDto
 {
+    public bool AllUncalculated { get; set; }
     public string HawalaType { get; set; } = "HawalaReceive";
     public string CommissionScope { get; set; } = "Standard";
     public long CorrespondentId { get; set; }
@@ -56,6 +57,13 @@ public sealed class CorrespondentCommissionPreviewRequestDto
     public List<CorrespondentCommissionRateDto> Rates { get; set; } = [];
     public List<PaymentLocationCommissionRateDto> PaymentLocationRates { get; set; } = [];
     public List<CurrencyCommissionRateDto> CurrencyRates { get; set; } = [];
+    public List<LocationCurrencyCommissionRateDto> LocationCurrencyRates { get; set; } = [];
+}
+
+public sealed class CorrespondentCommissionDefaultsDto
+{
+    public decimal CommissionPerLakhAfn { get; set; }
+    public List<PaymentLocationCommissionRateDto> PaymentLocationRates { get; set; } = [];
     public List<LocationCurrencyCommissionRateDto> LocationCurrencyRates { get; set; } = [];
 }
 

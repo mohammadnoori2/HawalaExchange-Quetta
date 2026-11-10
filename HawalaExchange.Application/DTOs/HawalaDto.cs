@@ -17,6 +17,9 @@ namespace HawalaExchange.Application.DTOs
 
     public class HawalaDto
     {
+        public bool HasIndependentExchange { get; set; }
+        public string? CancellationAccountingMode { get; set; }
+        public long? CompensatesHawalaId { get; set; }
         public long Id { get; set; }
         public long Number { get; set; }
         public string HawalaType { get; set; } = string.Empty;
@@ -67,7 +70,9 @@ namespace HawalaExchange.Application.DTOs
         public string? ReferenceNumber { get; set; }
         public string? Notes { get; set; }
         public string Status { get; set; } = "Pending";
-        public string StatusName => AppDisplayText.Status(Status, HawalaType);
+        public string StatusName => Status == "Cancel" && CancellationAccountingMode == "ManualPending" ? "لغوشده — در انتظار حواله جبرانی"
+            : Status == "Cancel" && CancellationAccountingMode == "Compensated" ? "لغوشده — جبران‌شده"
+            : AppDisplayText.Status(Status, HawalaType);
         public DateTime CreatedAt { get; set; }
         public long CreatedBy { get; set; }
         public string? CreatedByName { get; set; }
@@ -200,9 +205,18 @@ namespace HawalaExchange.Application.DTOs
         public long CurrencyId { get; set; }
     }
 
+    public class UpdateHawalaAgentCommissionDto : AddHawalaAgentCommissionDto
+    {
+        public decimal PreviousAmount { get; set; }
+        public long? PreviousCurrencyId { get; set; }
+    }
+
     public class CancelHawalaDto
     {
+        public string ConfirmationToken { get; set; } = string.Empty;
+        public string CompensationMode { get; set; } = "Manual";
         public string CancelReason { get; set; } = string.Empty;
+        // Compatibility field: the cancellation workflow always preserves registered commissions.
         public bool ReverseCommission { get; set; } = true;
     }
 
@@ -226,14 +240,24 @@ namespace HawalaExchange.Application.DTOs
         public string SortColumn { get; set; } = "CreatedAt";
         public string SortDirection { get; set; } = "desc";
         public bool IncludeTotalAmount { get; set; }
+        public bool IncludeDirectCommissionTotals { get; set; }
     }
 
     public class HawalaListResultDto
     {
+        public List<HawalaDirectCommissionTotalDto> DirectCommissionTotals { get; set; } = [];
         public List<HawalaDto> Items { get; set; } = new();
         public int TotalCount { get; set; }
         public int TotalPages { get; set; }
         public decimal TotalFromAmount { get; set; }
+    }
+
+    public class HawalaDirectCommissionTotalDto
+    {
+        public long CurrencyId { get; set; }
+        public string Currency { get; set; } = "";
+        public decimal Received { get; set; }
+        public decimal Paid { get; set; }
     }
 
     public class HawalaStatisticsDto

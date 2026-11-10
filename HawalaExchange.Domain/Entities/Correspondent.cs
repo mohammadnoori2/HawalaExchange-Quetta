@@ -34,6 +34,7 @@ namespace HawalaExchange.Domain.Entities
         public string? Address { get; set; }
 
         public bool IsArchived { get; set; } = false;
+        public bool RequiresManualExecution { get; set; }
 
         public long? SettlementCurrencyId { get; set; }
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -7,6 +7,7 @@ namespace HawalaExchange.Application.DTOs
     public class TransactionDto
     {
         public long Id { get; set; }
+        public bool IsLedgerPosting => Id < 0;
         public string TransactionNo { get; set; }
         public string TransactionType { get; set; }
         public long BranchId { get; set; }

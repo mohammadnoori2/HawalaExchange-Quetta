@@ -1,4 +1,4 @@
-﻿namespace HawalaExchange.Application.DTOs;
+namespace HawalaExchange.Application.DTOs;
 
 public class DailyJournalDto
 {
@@ -85,6 +85,7 @@ public class CurrentCashBalanceDto
 public class JournalOperationDto
 {
     public string OperationKey { get; set; } = string.Empty;
+    public string? PostingStage { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

@@ -1,4 +1,6 @@
+using HawalaExchange.Infrastructure.Services;
 using System.Data;
+using System.Data.Common;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Helpers;
 using HawalaExchange.Application.Interfaces.Services;
@@ -38,6 +40,7 @@ public class JournalService : IJournalService
 
         var ledgerEntries = await ReadJournalEntriesAsync(utcStart, utcEnd);
 
+        await HawalaPostingHistoryReader.DecorateAsync(_context, ledgerEntries);
         var entries = ledgerEntries.Select(ToEntryDto).ToList();
         var operations = ledgerEntries
             .GroupBy(GetOperationKey)
@@ -82,6 +85,7 @@ public class JournalService : IJournalService
         if (accountEntries.Count == 0)
             return Array.Empty<JournalOperationDto>();
 
+        await HawalaPostingHistoryReader.DecorateAsync(_context, accountEntries);
         var operationKeys = accountEntries
             .Select(GetOperationKey)
             .ToHashSet(StringComparer.Ordinal);
@@ -142,6 +146,7 @@ public class JournalService : IJournalService
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
+        await HawalaPostingHistoryReader.DecorateAsync(_context, relatedEntries);
         var operations = relatedEntries
             .Where(x => operationKeys.Contains(GetOperationKey(x)))
             .GroupBy(GetOperationKey)
@@ -162,6 +167,17 @@ public class JournalService : IJournalService
         if (filter.FromDate?.Date > filter.ToDate?.Date || filter.MinAmount < 0 || filter.MaxAmount < 0 || filter.MinAmount > filter.MaxAmount)
             throw new InvalidOperationException("بازه تاریخ یا مبلغ معتبر نیست.");
         var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        if(_context.Database.IsNpgsql())
+        {
+            await using var native=await PostgresProcedures.AccountOperationsAsync(_context,new()
+            {
+                ["AccountId"]=filter.AccountId,["PageNumber"]=pageNumber,["PageSize"]=pageSize,["SearchTerm"]=filter.SearchTerm,["SourceType"]=filter.SourceType,
+                ["CurrencyCode"]=filter.CurrencyCode,["MinAmount"]=filter.MinAmount,["MaxAmount"]=filter.MaxAmount,["Direction"]=filter.Direction,
+                ["FromDate"]=filter.FromDate?.Date.ToUniversalTime(),["ToDateExclusive"]=filter.ToDate?.Date.AddDays(1).ToUniversalTime()
+            },cancellationToken);
+            var page=await ReadAccountOperationsPageAsync(native,pageNumber,pageSize,cancellationToken);
+            await PopulateAccountOperationDetailsAsync(page.Items);return page;
+        }
         var connection = (SqlConnection)_context.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose)
@@ -214,6 +230,19 @@ public class JournalService : IJournalService
             return null;
 
         var kind = operationKey[..separator];
+        if (kind == "HawalaPosting")
+        {
+            var anchor = await _context.LedgerEntries.AsNoTracking().Where(x => x.Id == operationId).Select(x => x.HawalaId).FirstOrDefaultAsync(cancellationToken);
+            if (!anchor.HasValue) return null;
+            var postingEntries = await _context.LedgerEntries.AsNoTracking().Include(x => x.Account).Include(x => x.Currency)
+                .Where(x => x.HawalaId == anchor.Value).ToListAsync(cancellationToken);
+            await HawalaPostingHistoryReader.DecorateAsync(_context, postingEntries, cancellationToken);
+            postingEntries = postingEntries.Where(x => x.ReportingPostingId == operationId).ToList();
+            if (!postingEntries.Any(x => x.AccountId == accountId)) return null;
+            var posting = BuildOperation(operationKey, postingEntries);
+            await PopulateSourceDetailsAsync([posting]);
+            return posting;
+        }
         Expression<Func<LedgerEntry, bool>> belongsToOperation = kind switch
         {
             "Hawala" => entry => entry.HawalaId == operationId,
@@ -263,7 +292,7 @@ public class JournalService : IJournalService
     }
 
     internal static async Task<AccountOperationsPageDto> ReadAccountOperationsPageAsync(
-        SqlDataReader reader,
+        DbDataReader reader,
         int pageNumber,
         int pageSize,
         CancellationToken cancellationToken = default)
@@ -287,6 +316,7 @@ public class JournalService : IJournalService
                 {
                     OperationKey = key,
                     CreatedAt = reader.GetDateTime(1),
+                    PostingStage = reader.IsDBNull(11) ? null : reader.GetString(11),
                     SourceType = reader.GetString(2),
                     SourceId = reader.IsDBNull(3) ? null : reader.GetInt64(3),
                     DocumentNumber = reader.GetString(4),
@@ -324,6 +354,7 @@ public class JournalService : IJournalService
         if (balances.Count == 0)
             return Array.Empty<CashDailyBalanceDto>();
 
+        var effectiveOpenings = await ReadEffectiveCashOpeningsAsync(balances, date);
         var movements = await GetCashMovementsAsync(
             balances.Select(x => x.AccountId).Distinct().ToList(),
             date,
@@ -334,6 +365,8 @@ public class JournalService : IJournalService
             {
                 var key = (balance.AccountId, balance.CurrencyId);
                 var movement = movements.GetValueOrDefault(key);
+                var opening = effectiveOpenings[key];
+                var closing = balance.IsClosed ? balance.ClosingBalance : null;
                 return new CashDailyBalanceDto
                 {
                     Id = balance.Id,
@@ -344,9 +377,9 @@ public class JournalService : IJournalService
                     CurrencyId = balance.CurrencyId,
                     CurrencyCode = balance.Currency.Code,
                     DecimalPlaces = balance.Currency.DecimalPlaces,
-                    OpeningBalance = balance.OpeningBalance,
-                    DailyMovement = movement,
-                    CurrentBalance = balance.OpeningBalance + movement,
+                    OpeningBalance = opening,
+                    DailyMovement = closing.HasValue ? closing.Value - opening : movement,
+                    CurrentBalance = closing ?? opening + movement,
                     ClosingBalance = balance.ClosingBalance,
                     IsClosed = balance.IsClosed
                 };
@@ -462,8 +495,10 @@ public class JournalService : IJournalService
             date,
             date.AddDays(1));
         var closedAt = DateTime.UtcNow;
+        var effectiveOpenings = await ReadEffectiveCashOpeningsAsync(balances, date);
         foreach (var balance in balances)
         {
+            balance.OpeningBalance = effectiveOpenings[(balance.AccountId, balance.CurrencyId)];
             balance.ClosingBalance =
                 balance.OpeningBalance +
                 movements.GetValueOrDefault((balance.AccountId, balance.CurrencyId));
@@ -667,7 +702,7 @@ public class JournalService : IJournalService
 
     private async Task<List<LedgerEntry>> ReadJournalEntriesAsync(DateTime utcStart, DateTime utcEnd)
     {
-        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var connection = _context.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose)
             await connection.OpenAsync();
@@ -675,15 +710,14 @@ public class JournalService : IJournalService
         try
         {
             await using var command = connection.CreateCommand();
-            command.CommandText = "[dbo].[usp_GetDailyJournal_v1]";
-            command.CommandType = CommandType.StoredProcedure;
+            command.CommandText = _context.Database.IsNpgsql()?PostgresSql.Read("DailyJournalQuery"):"[dbo].[usp_GetDailyJournal_v1]";
+            command.CommandType = _context.Database.IsNpgsql()?CommandType.Text:CommandType.StoredProcedure;
             command.CommandTimeout = 120;
-            command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = _context.CurrentTenantId;
-            command.Parameters.Add("@FromDate", SqlDbType.DateTime2).Value = utcStart;
-            command.Parameters.Add("@ToDateExclusive", SqlDbType.DateTime2).Value = utcEnd;
+            RelationalParameters.Add(command,"@TenantId",SqlDbType.BigInt,_context.CurrentTenantId);
+            RelationalParameters.Add(command,"@FromDate",SqlDbType.DateTime2,utcStart);
+            RelationalParameters.Add(command,"@ToDateExclusive",SqlDbType.DateTime2,utcEnd);
             var transaction = _context.Database.CurrentTransaction?.GetDbTransaction();
-            if (transaction is SqlTransaction sqlTransaction)
-                command.Transaction = sqlTransaction;
+            command.Transaction = transaction;
 
             var rows = new List<LedgerEntry>();
             await using var reader = await command.ExecuteReaderAsync();
@@ -730,6 +764,46 @@ public class JournalService : IJournalService
             if (shouldClose)
                 await connection.CloseAsync();
         }
+    }
+
+
+    private async Task<Dictionary<(long AccountId,long CurrencyId),decimal>> ReadEffectiveCashOpeningsAsync(
+        IReadOnlyList<CashDailyBalance> balances, DateTime date)
+    {
+        // Automatic openings are derived values. Re-read prior postings rather than
+        // reusing a stale cache after an old document is edited. Manual counts and
+        // closed cash days are explicit anchors and must keep their saved values.
+        var result=balances.ToDictionary(x=>(x.AccountId,x.CurrencyId),x=>x.OpeningBalance);
+        var automatic=balances.Where(x=>!x.IsClosed && x.ModifiedAt==null).ToList();
+        if(automatic.Count==0) return result;
+        var accountIds=automatic.Select(x=>x.AccountId).Distinct().ToArray();
+        var currencyIds=automatic.Select(x=>x.CurrencyId).Distinct().ToArray();
+        var anchors=(await _context.CashDailyBalances.AsNoTracking()
+            .Where(x=>x.JournalDate<date && (x.IsClosed || x.ModifiedAt!=null) &&
+                accountIds.Contains(x.AccountId) && currencyIds.Contains(x.CurrencyId))
+            .OrderByDescending(x=>x.JournalDate).ToListAsync())
+            .GroupBy(x=>(x.AccountId,x.CurrencyId)).ToDictionary(g=>g.Key,g=>g.First());
+        var plans=automatic.Select(row=>{
+            var anchor=anchors.GetValueOrDefault((row.AccountId,row.CurrencyId));
+            var closed=anchor is { IsClosed:true, ClosingBalance:not null };
+            DateTime? start=anchor==null ? null : (closed ? anchor.JournalDate.Date.AddDays(1) : anchor.JournalDate.Date).ToUniversalTime();
+            var amount=anchor==null ? 0 : closed ? anchor.ClosingBalance!.Value : anchor.OpeningBalance;
+            return new {row.AccountId,row.CurrencyId,Start=start,Base=amount};
+        }).ToList();
+        var end=date.Date.ToUniversalTime();
+        foreach(var group in plans.GroupBy(x=>x.Start))
+        {
+            var owners=group.Select(x=>x.AccountId).Distinct().ToArray();
+            var currencies=group.Select(x=>x.CurrencyId).Distinct().ToArray();
+            var query=_context.LedgerEntries.AsNoTracking().Where(x=>owners.Contains(x.AccountId) &&
+                currencies.Contains(x.CurrencyId) && x.CreatedAt<end);
+            if(group.Key.HasValue) { var start=group.Key.Value; query=query.Where(x=>x.CreatedAt>=start); }
+            var movements=(await query.GroupBy(x=>new {x.AccountId,x.CurrencyId})
+                .Select(g=>new {g.Key.AccountId,g.Key.CurrencyId,Amount=g.Sum(x=>x.BadehKar-x.TalabKar)}).ToListAsync())
+                .ToDictionary(x=>(x.AccountId,x.CurrencyId),x=>x.Amount);
+            foreach(var row in group) result[(row.AccountId,row.CurrencyId)]=row.Base+movements.GetValueOrDefault((row.AccountId,row.CurrencyId));
+        }
+        return result;
     }
 
     private async Task<List<CashDailyBalance>> EnsureCashDailyBalancesAsync(DateTime date)
@@ -787,7 +861,7 @@ public class JournalService : IJournalService
             var priorSnapshots = await _context.CashDailyBalances
                 .AsNoTracking()
                 .Where(x =>
-                    x.JournalDate < date &&
+                    x.JournalDate < date && (x.IsClosed || x.ModifiedAt != null) &&
                     accountIds.Contains(x.AccountId) &&
                     currencyIds.Contains(x.CurrencyId))
                 .OrderByDescending(x => x.JournalDate)
@@ -821,8 +895,9 @@ public class JournalService : IJournalService
                 decimal openingBalance;
                 if (latestPriorByKey.TryGetValue(key, out var prior))
                 {
-                    var priorUtcStart = prior.JournalDate.Date.ToUniversalTime();
-                    openingBalance = prior.OpeningBalance + priorLedgerEntries
+                    var hasClosing = prior.IsClosed && prior.ClosingBalance.HasValue;
+                    var priorUtcStart = (hasClosing ? prior.JournalDate.Date.AddDays(1) : prior.JournalDate.Date).ToUniversalTime();
+                    openingBalance = (hasClosing ? prior.ClosingBalance!.Value : prior.OpeningBalance) + priorLedgerEntries
                         .Where(x =>
                             x.AccountId == key.AccountId &&
                             x.CurrencyId == key.CurrencyId &&
@@ -930,6 +1005,7 @@ public class JournalService : IJournalService
 
         return new JournalOperationDto
         {
+            PostingStage = sourceEntries.First().ReportingPostingStage,
             OperationKey = operationKey,
             CreatedAt = entries.Min(x => x.CreatedAt),
             SourceType = first.SourceType,
@@ -976,7 +1052,16 @@ public class JournalService : IJournalService
         }
 
         foreach (var operation in operations)
+        {
+            if (operation.PostingStage != null)
+            {
+                operation.Description = $"{HawalaPostingHistoryReader.StageLabel(operation.PostingStage)}؛ {operation.Description}";
+                Add(operation, "مرحله ثبت حسابداری", HawalaPostingHistoryReader.StageLabel(operation.PostingStage));
+                // Current hawala fields cannot describe a superseded posting reliably.
+                operation.SourceDetails.RemoveAll(x => x.Label is not ("شماره حواله" or "نوع حواله" or "مرحله ثبت حسابداری"));
+            }
             operation.SummarySentence = BuildSummarySentence(operation);
+        }
     }
 
     private async Task PopulateHawalaDetailsAsync(List<JournalOperationDto> operations)
@@ -1048,7 +1133,7 @@ public class JournalService : IJournalService
                 !sources.TryGetValue(operation.SourceId.Value, out var source))
                 continue;
 
-            Add(operation, "نوع عملیات", source.OperationType == "Customer" ? "تبدیل پول مشتری" : "تبدیل پول خود صرافی");
+            Add(operation, "نوع عملیات", MoneyExchangeMode.IsCorrespondent(source.OperationType) ? MoneyExchangeMode.Label(source.OperationType) : source.OperationType=="Customer" ? "تبدیل پول مشتری" : "تبدیل پول خود صرافی");
             Add(operation, "تاریخ تبدیل", displayDates.DateTime(source.ExchangeDate, true));
             Add(operation, "حساب ارز فروش", source.FromAccount.AccountName);
             Add(operation, "ارز فروش / مبلغ پرداختی", Money(source.FromAmount, source.FromCurrency.Code));
@@ -1352,6 +1437,7 @@ public class JournalService : IJournalService
 
     private static string BuildSummarySentence(JournalOperationDto operation)
     {
+        if (operation.PostingStage != null) return $"{HawalaPostingHistoryReader.StageLabel(operation.PostingStage)}؛ حواله شماره {operation.DocumentNumber}؛ {CurrencyMovement(operation)}؛ حساب‌ها: {string.Join("، ",operation.AccountNames)}.";
         if (operation.MoneyOperationType is "Deposit" or "Withdraw") return operation.SummarySentence;
         var accounts = operation.AccountNames.Count == 0
             ? "حساب نامشخص"
@@ -1406,6 +1492,7 @@ public class JournalService : IJournalService
 
     private static string BuildAccountPageSummarySentence(JournalOperationDto operation)
     {
+        if (operation.PostingStage != null) return $"{HawalaPostingHistoryReader.StageLabel(operation.PostingStage)}؛ حواله شماره {operation.DocumentNumber}؛ {CurrencyMovement(operation)}.";
         var account = operation.AccountNames.FirstOrDefault() ?? "حساب نامشخص";
         return $"{operation.SourceType} شماره {operation.DocumentNumber} در حساب {account} با گردش {CurrencyMovement(operation)} ثبت شد.";
     }
@@ -1454,6 +1541,7 @@ public class JournalService : IJournalService
 
     private static string GetOperationKey(LedgerEntry entry)
     {
+        if (entry.ReportingPostingId.HasValue) return $"HawalaPosting:{entry.ReportingPostingId}";
         if (entry.HawalaId.HasValue)
             return $"Hawala:{entry.HawalaId.Value}";
         if (entry.CapitalInvestmentId.HasValue)

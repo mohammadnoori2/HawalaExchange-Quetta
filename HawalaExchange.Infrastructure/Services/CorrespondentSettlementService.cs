@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Application.Services;
@@ -109,6 +110,8 @@ public sealed partial class CorrespondentSettlementService(
         await CorrespondentCommissionPeriodLock.AcquireAsync(context, correspondentId, cancellationToken);
         await GetConfiguredCorrespondentAsync(correspondentId, cancellationToken);
         var ids = hawalaIds.Rows.Cast<DataRow>().Select(x => (long)x["Id"]).ToArray();
+        if(sourceMode=="Hawalas" && await context.MoneyExchangeOperations.AnyAsync(x=>x.LinkedHawalaId.HasValue && ids.Contains(x.LinkedHawalaId.Value) && !x.IsDeleted,cancellationToken))
+            throw new InvalidOperationException("حواله دارای تبدیل مستقل اسعار است؛ ابتدا آن تبدیل را حذف کنید.");
         var dates = sourceMode == "Hawalas"
             ? await context.Hawalas.AsNoTracking().Where(x => ids.Contains(x.Id) && x.CorrespondentId == correspondentId)
                 .Select(x => new { x.Id, x.CreatedAt }).ToDictionaryAsync(x => x.Id, x => x.CreatedAt, cancellationToken)
@@ -132,6 +135,11 @@ public sealed partial class CorrespondentSettlementService(
         DataTable rates,
         CancellationToken cancellationToken)
     {
+        if(context.Database.IsNpgsql())
+        {
+            await using var native=await PostgresProcedures.SettlementAsync(context,sourceMode,correspondentId,note,hawalaIds,rates,cancellationToken);
+            return await ReadConversionResultAsync(native,cancellationToken);
+        }
         var connection = (SqlConnection)context.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose)
@@ -155,6 +163,17 @@ public sealed partial class CorrespondentSettlementService(
                 { TypeName = "dbo.SettlementRateTableType_v1", Value = rates });
 
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            return await ReadConversionResultAsync(reader,cancellationToken);
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    private static async Task<CorrespondentSettlementResultDto> ReadConversionResultAsync(DbDataReader reader,CancellationToken cancellationToken)
+    {
             if (!await reader.ReadAsync(cancellationToken))
                 throw new InvalidOperationException("نتیجه تبدیل مانده از دیتابیس دریافت نشد.");
             var result = new CorrespondentSettlementResultDto
@@ -180,12 +199,6 @@ public sealed partial class CorrespondentSettlementService(
                 });
             result.Items = items;
             return result;
-        }
-        finally
-        {
-            if (shouldClose)
-                await connection.CloseAsync();
-        }
     }
 
     private static DataTable CreateIdTable(IEnumerable<long> values)

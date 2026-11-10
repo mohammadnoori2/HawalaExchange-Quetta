@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -11,6 +11,10 @@ namespace HawalaExchange.Domain.Entities
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public long Id { get; set; }
         public long TenantId { get; set; }
+        // Read-only grouping metadata; never persisted or used for balances.
+        [NotMapped] public long? ReportingPostingId { get; set; }
+        [NotMapped] public string? ReportingPostingStage { get; set; }
+
         public long? TransferId { get; set; }
         //[Required]
         public long? HawalaId { get; set; }

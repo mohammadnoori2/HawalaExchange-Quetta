@@ -13,30 +13,36 @@ public sealed class UserPermissionService(IDbContextFactory<ApplicationDbContext
 {
     private readonly SemaphoreSlim gate = new(1);
     private readonly CancellationTokenSource stop = new();
+    private static readonly IReadOnlySet<string> EmptyPermissions = new HashSet<string>(StringComparer.Ordinal);
     private HashSet<string> current = new(StringComparer.Ordinal);
     private DateTime checkedAt;
     private bool watching;
     public event Action? Changed;
     public bool IsPlatformUser { get; private set; }
-    public IReadOnlySet<string> CurrentPermissions => current;
-    public bool Can(string permission) => current.Contains(permission);
+    public IReadOnlySet<string> CurrentPermissions => stop.IsCancellationRequested ? EmptyPermissions : current;
+    public bool Can(string permission) => !stop.IsCancellationRequested && current.Contains(permission);
 
     internal static async Task<HashSet<string>> ReadAsync(ApplicationDbContext db,long id,CancellationToken ct,bool includeInactive=false)
     {
         var user=await db.Users.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==id,ct);
         if(user is null || (!includeInactive && !user.IsActive) || user.IsPlatformUser)return [];
-        var profiles=await db.Database.SqlQuery<string>($"SELECT PermissionsJson AS [Value] FROM dbo.UserPermissionProfiles WHERE TenantId={db.CurrentTenantId} AND UserId={id}").ToListAsync(ct);
+        var profiles=await ProfileQuery(db,db.CurrentTenantId,id).ToListAsync(ct);
         if(profiles.Count>0)return PermissionCatalog.Normalize(JsonSerializer.Deserialize<string[]>(profiles[0]) ?? []);
         var roles=await (from ur in db.UserRoles join r in db.Roles on ur.RoleId equals r.Id where ur.UserId==id select r.Name!).ToListAsync(ct);
         return PermissionCatalog.Defaults(roles);
     }
     public async Task RefreshAsync(bool force=false,CancellationToken cancellationToken=default)
     {
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stop.Token);
+        cancellationToken = operation.Token;
+        cancellationToken.ThrowIfCancellationRequested();
         await gate.WaitAsync(cancellationToken);
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if(!force && DateTime.UtcNow-checkedAt<TimeSpan.FromSeconds(5))return;
             await using var db=await factory.CreateDbContextAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             var next=tenant.UserId>0 && tenant.TenantId>0 ? await ReadAsync(db,tenant.UserId,cancellationToken):[];
             if(tenant.TenantId>0)
                 next=TenantOperationalAccess.Apply(next,await TenantOperationalAccess.ReadAsync(db,tenant.TenantId,cancellationToken));
@@ -46,9 +52,16 @@ public sealed class UserPermissionService(IDbContextFactory<ApplicationDbContext
             if (tenant.ImpersonationSessionId is Guid session &&
                 (tenant.OriginalActorUserId is not long actor || !await ImpersonationSessionAccess.IsValidAsync(db,session,actor,tenant.UserId,tenant.TenantId,cancellationToken)))
                 next=[];
+            cancellationToken.ThrowIfCancellationRequested();
             var changed=!current.SetEquals(next);
             current=next; checkedAt=DateTime.UtcNow;
-            if(changed)Changed?.Invoke();
+            if(changed && !stop.IsCancellationRequested)Changed?.Invoke();
+        }
+        catch(ObjectDisposedException ex) when(stop.IsCancellationRequested)
+        {
+            // The owning HTTP/circuit scope ended while an awaited refresh was
+            // resuming. Never authorize from cached permissions in this case.
+            throw new OperationCanceledException("Permission scope has ended.",ex,stop.Token);
         }
         finally { gate.Release(); }
     }
@@ -97,6 +110,7 @@ public sealed class UserPermissionService(IDbContextFactory<ApplicationDbContext
     internal async Task LockAsync(ApplicationDbContext db,CancellationToken ct)
     {
         var resource=$"UserPermissions:{tenant.TenantId}";
+        if(db.Database.IsNpgsql()){await DatabaseLocks.AcquireAsync(db,resource,10000,ct);return;}
         await db.Database.ExecuteSqlInterpolatedAsync($"DECLARE @r int; EXEC @r=sp_getapplock @Resource={resource}, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=10000; IF @r<0 THROW 51000, 'Permission update lock failed', 1;",ct);
     }
     internal void Notify(long userId)=>bus.Publish(tenant.TenantId,userId);
@@ -111,11 +125,20 @@ public sealed class UserPermissionService(IDbContextFactory<ApplicationDbContext
         if(!await db.Users.AnyAsync(x=>x.Id==userId && !x.IsPlatformUser,cancellationToken))throw new InvalidOperationException("کاربر صرافی جاری یافت نشد.");
         await EnsureAdministratorAsync(db,userId,keys,cancellationToken);
         var json=JsonSerializer.Serialize(keys.Order());
-        var old=await db.Database.SqlQuery<string>($"SELECT PermissionsJson AS [Value] FROM dbo.UserPermissionProfiles WHERE TenantId={tenant.TenantId} AND UserId={userId}").ToListAsync(cancellationToken);
-        await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.UserPermissionProfiles SET PermissionsJson={json}, ModifiedAt=SYSUTCDATETIME(), ModifiedBy={tenant.UserId} WHERE TenantId={tenant.TenantId} AND UserId={userId}; IF @@ROWCOUNT=0 INSERT dbo.UserPermissionProfiles(TenantId,UserId,PermissionsJson,ModifiedAt,ModifiedBy) VALUES({tenant.TenantId},{userId},{json},SYSUTCDATETIME(),{tenant.UserId});",cancellationToken);
+        var old=await ProfileQuery(db,tenant.TenantId,userId).ToListAsync(cancellationToken);
+        if(db.Database.IsNpgsql())
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO public."UserPermissionProfiles"("TenantId","UserId","PermissionsJson","ModifiedAt","ModifiedBy")
+                VALUES({tenant.TenantId},{userId},{json},CURRENT_TIMESTAMP AT TIME ZONE 'UTC',{tenant.UserId})
+                ON CONFLICT("TenantId","UserId") DO UPDATE SET "PermissionsJson"=EXCLUDED."PermissionsJson","ModifiedAt"=EXCLUDED."ModifiedAt","ModifiedBy"=EXCLUDED."ModifiedBy"
+                """,cancellationToken);
+        else await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.UserPermissionProfiles SET PermissionsJson={json}, ModifiedAt=SYSUTCDATETIME(), ModifiedBy={tenant.UserId} WHERE TenantId={tenant.TenantId} AND UserId={userId}; IF @@ROWCOUNT=0 INSERT dbo.UserPermissionProfiles(TenantId,UserId,PermissionsJson,ModifiedAt,ModifiedBy) VALUES({tenant.TenantId},{userId},{json},SYSUTCDATETIME(),{tenant.UserId});",cancellationToken);
         db.AuditLogs.Add(new HawalaExchange.Domain.Entities.AuditLog { TenantId=tenant.TenantId,UserId=tenant.UserId,ProcessId=Guid.NewGuid(),Action="PermissionsChanged",TableName="UserPermissionProfiles",RecordId=userId,OldValue=old.FirstOrDefault(),NewValue=json });
         await db.SaveChangesAsync(cancellationToken);
     }
+    private static IQueryable<string> ProfileQuery(ApplicationDbContext db,long tenantId,long userId)=>db.Database.IsNpgsql()
+        ? db.Database.SqlQuery<string>($"SELECT \"PermissionsJson\" AS \"Value\" FROM public.\"UserPermissionProfiles\" WHERE \"TenantId\"={tenantId} AND \"UserId\"={userId}")
+        : db.Database.SqlQuery<string>($"SELECT PermissionsJson AS [Value] FROM dbo.UserPermissionProfiles WHERE TenantId={tenantId} AND UserId={userId}");
     public async Task EnsureUserCanBeDisabledAsync(long userId,CancellationToken cancellationToken=default)
     {
         await RequireAsync("Users.Delete",cancellationToken);
@@ -124,7 +147,7 @@ public sealed class UserPermissionService(IDbContextFactory<ApplicationDbContext
     }
     public void StartWatching()
     {
-        if(watching)return;
+        if(watching || stop.IsCancellationRequested)return;
         watching=true; bus.Changed+=OnChanged; _=WatchAsync();
     }
     private void OnChanged(long tenantId,long userId)
@@ -133,7 +156,7 @@ public sealed class UserPermissionService(IDbContextFactory<ApplicationDbContext
     {
         try { await RefreshAsync(true,stop.Token); }
         catch(OperationCanceledException) when(stop.IsCancellationRequested) { }
-        catch(Exception ex) { current=[]; Changed?.Invoke(); logger.LogWarning(ex,"Permission refresh failed; access denied"); }
+        catch(Exception ex) { current=[]; if(!stop.IsCancellationRequested)Changed?.Invoke(); logger.LogWarning(ex,"Permission refresh failed; access denied"); }
     }
     private async Task WatchAsync()
     {
@@ -141,5 +164,5 @@ public sealed class UserPermissionService(IDbContextFactory<ApplicationDbContext
         try { while(await timer.WaitForNextTickAsync(stop.Token))await SafeRefreshAsync(); }
         catch(OperationCanceledException) when(stop.IsCancellationRequested) { }
     }
-    public void Dispose() { bus.Changed-=OnChanged; stop.Cancel(); }
+    public void Dispose() { bus.Changed-=OnChanged; stop.Cancel(); current=[]; Changed=null; }
 }

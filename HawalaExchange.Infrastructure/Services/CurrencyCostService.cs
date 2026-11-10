@@ -93,7 +93,7 @@ public sealed class CurrencyCostService : ICurrencyCostService
         {
             if (item.Capital is not null) ApplyCapital(item.Capital, positions, item.IsCancellation);
             else if (item.Transfer is not null) ApplyTransfer(item.Transfer, positions);
-            else if (item.Exchange!.OperationType == "Customer")
+            else if (MoneyExchangeMode.UsesPartyLedger(item.Exchange!.OperationType))
                 ApplyCustomer(item.Exchange, positions, updateOperation: false);
             else
                 ApplyTreasury(item.Exchange, positions, updateOperation: false);
@@ -217,7 +217,7 @@ public sealed class CurrencyCostService : ICurrencyCostService
         exchange.DeferredAmount = 0;
         exchange.ProfitStatus = "Realized";
 
-        if (exchange.OperationType == "Customer")
+        if (MoneyExchangeMode.UsesPartyLedger(exchange.OperationType))
             ApplyCustomer(exchange, positions, updateOperation: true);
         else
             ApplyTreasury(exchange, positions, updateOperation: true);

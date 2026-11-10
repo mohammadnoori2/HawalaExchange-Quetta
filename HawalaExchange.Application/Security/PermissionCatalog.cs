@@ -17,7 +17,7 @@ public static class PermissionCatalog
         new("Journal","روزنامچه",["View","Edit","Close","Export"]),
         new("Periods","بستن دوره نمایندگی",["View","Close","Export"]),
         new("IncomingCommission","کمیشن دریافتی",["View","Calculate","Reverse","Export"]),
-        new("ForwardingCommission","کمیشن ارسالی",["View","Calculate","Reverse","Export"]),
+        new("ForwardingCommission","کمیشن پرداختی ولایات",["View","Calculate","Reverse","Export"]),
         new("DestinationCommission","کمیشن پرداختی",["View","Calculate","Reverse","Export"]),
         new("Settlement","تبدیل به ارز توافقی و نرخ‌های نمایندگی",["View","Create","Edit","Reverse","Export"]),
         new("Reports","گزارش‌های عمومی",["View","Export"]),
@@ -57,6 +57,7 @@ public static class PermissionCatalog
         if(path.StartsWith("correspondents/")||path.StartsWith("commissions/"))
         {
             if(path.Contains("hawala-import"))return "BulkImports.View";
+            if(path.Contains("agent-bills"))return "HawalaExecution.View";
             if(path.EndsWith("outgoing-commission"))return "DestinationCommission.View";
             if(path.EndsWith("forwarding-commission"))return "ForwardingCommission.View";
             if(path.EndsWith("commission")||path.StartsWith("commissions/"))return "IncomingCommission.View";

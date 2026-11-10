@@ -25,14 +25,14 @@ namespace HawalaExchange.Application.Interfaces.Services
 
         Task<HawalaImportPreviewDto?> GetPreviewAsync(
             long batchId,
-            CancellationToken cancellationToken = default);
+            CancellationToken cancellationToken = default, long? correspondentId = null);
 
         Task<IReadOnlyList<HawalaImportHistoryDto>> GetHistoryAsync(
-            CancellationToken cancellationToken = default);
+            CancellationToken cancellationToken = default, long? correspondentId = null);
 
         Task<HawalaImportDetailsDto?> GetDetailsAsync(
             long batchId,
-            CancellationToken cancellationToken = default);
+            CancellationToken cancellationToken = default, long? correspondentId = null);
 
         Task DeleteBatchAsync(
             long batchId,

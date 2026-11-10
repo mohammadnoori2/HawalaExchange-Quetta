@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace HawalaExchange.Application.Services
 {
-    public class CustomerService : BaseService<Customer, CustomerDto, CreateCustomerDto, UpdateCustomerDto>, ICustomerService
+    public partial class CustomerService : BaseService<Customer, CustomerDto, CreateCustomerDto, UpdateCustomerDto>, ICustomerService
     {
         private readonly IAccountService _accountService;
         private readonly ILedgerService _ledgerService;
@@ -135,11 +135,14 @@ namespace HawalaExchange.Application.Services
                     await _debtLimitService.SetForAccountAsync(accountDto.Id, debtLimits);
                 }
 
-                // ۳. ثبت موجودی اولیه (در صورت وجود)
-                if (createDto.HasInitialBalance && createDto.InitialBalances != null && createDto.InitialBalances.Any())
+                // ثبت موجودی افتتاحیه در حساب مقابل افتتاحیه
+                if (createDto.HasInitialBalance)
                 {
                     if (accountDto == null)
-                        throw new InvalidOperationException("برای ثبت موجودی اولیه، گزینه افتتاح حساب را انتخاب کنید.");
+                        throw new InvalidOperationException("برای ثبت موجودی افتتاحیه، گزینه افتتاح حساب را انتخاب کنید.");
+
+                    if (createDto.InitialBalances is not { Count: > 0 })
+                        throw new InvalidOperationException("حداقل یک موجودی افتتاحیه وارد کنید.");
 
                     await CreateInitialBalancesAsync(
                         accountDto.Id,
@@ -167,6 +170,7 @@ namespace HawalaExchange.Application.Services
             {
                 // برگرداندن تراکنش در صورت بروز خطا
                 await transaction.RollbackAsync();
+                _context.ChangeTracker.Clear();
                 _logger.LogError(ex, "خطا در ایجاد مشتری و حساب مرتبط");
                 throw;
             }
@@ -222,114 +226,20 @@ namespace HawalaExchange.Application.Services
             return accountDto;
         }
 
-        private async Task CreateInitialBalancesAsync(
-    long accountId,                  // حساب مشتری
-    List<InitialBalanceDto> initialBalances,
-    string customerName,
-    string customerCode)
+        private async Task CreateInitialBalancesAsync(long accountId, List<InitialBalanceDto> initialBalances,
+            string customerName, string customerCode)
         {
-            // ایجاد یک تراکنش از نوع OpeningBalance
-            var openingTransaction = new Transaction
+            var account = await _context.Accounts.SingleAsync(x => x.Id == accountId && x.CustomerId != null && !x.IsArchived);
+            if (initialBalances.GroupBy(x => x.CurrencyId).Any(x => x.Count() > 1))
+                throw new InvalidOperationException("برای هر ارز فقط یک موجودی افتتاحیه ثبت کنید.");
+            foreach (var balance in initialBalances)
             {
-                TransactionNo = await GenerateOpeningTransactionNumberAsync(),
-                TransactionType = "OpeningBalance",
-                BranchId = await _context.GetDefaultBranchIdAsync(),
-                Status = "Paid",
-                Remarks = $"موجودی اولیه برای مشتری {customerName} (کد: {customerCode})",
-                CreatedBy = _context.RequireCurrentUserId(),
-                CreatedAt = DateTime.UtcNow
-            };
-
-            await _context.Transactions.AddAsync(openingTransaction);
-            await _context.SaveChangesAsync();
-
-            foreach (var initialBalance in initialBalances)
-            {
-                // اعتبارسنجی: حساب طرف مقابل باید وجود داشته باشد
-                var oppositeAccount = await _context.Accounts.FindAsync(initialBalance.OppositeAccountId);
-                if (oppositeAccount == null)
-                    throw new InvalidOperationException($"حساب طرف مقابل با شناسه {initialBalance.OppositeAccountId} یافت نشد");
-
-                // ✅ اصلاح: تعیین جهت‌ها بر اساس انتخاب کاربر
-                // اگر کاربر "بدهکار" انتخاب کند → مشتری بدهکار (TalabKar)
-                // اگر کاربر "بستانکار" انتخاب کند → مشتری بستانکار (BadehKar)
-                decimal customerTalabKar = 0, customerBadehKar = 0;
-                decimal oppositeTalabKar = 0, oppositeBadehKar = 0;
-
-                if (initialBalance.Direction == "Debit") // بدهکار
-                {
-                    // مشتری بدهکار است → حساب مشتری بدهکار، حساب طرف مقابل بستانکار
-
-                    customerTalabKar = 0;
-                    customerBadehKar = initialBalance.Amount;
-                    oppositeTalabKar = initialBalance.Amount;
-                    oppositeBadehKar = 0;
-                }
-                else // Credit (بستانکار)
-                {
-                    // مشتری بستانکار است → حساب مشتری بستانکار، حساب طرف مقابل بدهکار
-
-
-                    customerTalabKar = initialBalance.Amount;
-                    customerBadehKar = 0;
-                    oppositeTalabKar = 0;
-                    oppositeBadehKar = initialBalance.Amount;
-                }
-
-                // ثبت ورودی برای حساب مشتری
-                var customerLedgerEntry = new CreateLedgerEntryDto
-                {
-                    TransactionId = openingTransaction.Id,
-                    AccountId = accountId,
-                    CurrencyId = initialBalance.CurrencyId,
-                    TalabKar = customerTalabKar,    // ✅ بدهکار
-                    BadehKar = customerBadehKar,    // ✅ بستانکار
-                    Description = $"موجودی اولیه مشتری: {initialBalance.Description ?? "بدون توضیح"}"
-                };
-                await _ledgerService.CreateLedgerEntryAsync(customerLedgerEntry);
-
-                // ثبت ورودی برای حساب طرف مقابل (برعکس)
-                var oppositeLedgerEntry = new CreateLedgerEntryDto
-                {
-                    TransactionId = openingTransaction.Id,
-                    AccountId = initialBalance.OppositeAccountId,
-                    CurrencyId = initialBalance.CurrencyId,
-                    TalabKar = oppositeTalabKar,
-                    BadehKar = oppositeBadehKar,
-                    Description = $"طرف مقابل موجودی اولیه مشتری {customerName}"
-                };
-                await _ledgerService.CreateLedgerEntryAsync(oppositeLedgerEntry);
+                var request = new CustomerOpeningBalanceRequestDto { CurrencyId = balance.CurrencyId,
+                    Amount = balance.Amount, Direction = balance.Direction, Description = balance.Description };
+                ValidateOpening(request);
+                await EnsureOpeningCurrencyAvailableAsync(account.Id, request.CurrencyId);
+                await PostOpeningAsync(account, request, await OpeningPostingDateAsync(account.CustomerId!.Value, request.OpeningDate));
             }
-
-            // ثبت لاگ
-            await _auditLogService.LogAsync(
-                action: "CREATE",
-                tableName: "Transactions",
-                recordId: openingTransaction.Id,
-                oldValue: null,
-                newValue: $"تراکنش موجودی اولیه برای مشتری {customerName} با {initialBalances.Count} رکورد ایجاد شد"
-            );
-        }
-
-        private async Task<string> GenerateOpeningTransactionNumberAsync()
-        {
-            var datePart = DateTime.Now.ToString("yyyyMMdd");
-            var lastTransaction = await _context.Transactions
-                .Where(t => t.TransactionNo.StartsWith($"OP-{datePart}"))
-                .OrderByDescending(t => t.TransactionNo)
-                .FirstOrDefaultAsync();
-
-            int nextNumber = 1;
-            if (lastTransaction != null)
-            {
-                var parts = lastTransaction.TransactionNo.Split('-');
-                if (parts.Length == 3 && int.TryParse(parts[2], out int lastNumber))
-                {
-                    nextNumber = lastNumber + 1;
-                }
-            }
-
-            return $"OP-{datePart}-{nextNumber:D4}";
         }
 
     }

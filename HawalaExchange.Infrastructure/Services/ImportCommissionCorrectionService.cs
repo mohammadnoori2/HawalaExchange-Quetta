@@ -8,12 +8,12 @@ namespace HawalaExchange.Infrastructure.Services;
 // Corrections append journals and replacement snapshots; closed-period journals are never rewritten.
 internal sealed class ImportCommissionCorrectionService(ApplicationDbContext context)
 {
-    internal async Task<List<CorrespondentCommissionBatch>> ReverseAsync(long[] ids, CancellationToken token = default)
+    internal async Task<List<CorrespondentCommissionBatch>> ReverseAsync(long[] ids, CancellationToken token = default, string? scope = null)
     {
         if (context.Database.CurrentTransaction == null)
             throw new InvalidOperationException("اصلاح کمیشن باید در تراکنش حواله انجام شود.");
         var batchIds = await context.CorrespondentCommissionBatchItems.AsNoTracking()
-            .Where(x => ids.Contains(x.HawalaId) && x.IsActive && x.Batch.Status == "Posted")
+            .Where(x => ids.Contains(x.HawalaId) && x.IsActive && x.Batch.Status == "Posted" && (scope == null || x.CommissionScope == scope))
             .Select(x => x.BatchId).Distinct().ToArrayAsync(token);
         var batchOwners = await context.CorrespondentCommissionBatches.AsNoTracking()
             .Where(x => batchIds.Contains(x.Id)).Select(x => x.CorrespondentId).ToListAsync(token);
@@ -23,7 +23,7 @@ internal sealed class ImportCommissionCorrectionService(ApplicationDbContext con
             await CorrespondentCommissionPeriodLock.AcquireAsync(context, owner, token);
         // A calculation may have completed while we were waiting for its lock.
         batchIds = await context.CorrespondentCommissionBatchItems.AsNoTracking()
-            .Where(x => ids.Contains(x.HawalaId) && x.IsActive && x.Batch.Status == "Posted")
+            .Where(x => ids.Contains(x.HawalaId) && x.IsActive && x.Batch.Status == "Posted" && (scope == null || x.CommissionScope == scope))
             .Select(x => x.BatchId).Distinct().ToArrayAsync(token);
         var originals = await context.CorrespondentCommissionBatches.AsNoTracking().AsSplitQuery()
             .Include(x => x.Items).ThenInclude(x => x.Hawala)
@@ -34,7 +34,7 @@ internal sealed class ImportCommissionCorrectionService(ApplicationDbContext con
         return originals;
     }
 
-    internal async Task RepostAsync(List<CorrespondentCommissionBatch> originals, long[] affectedIds, bool deleting, CancellationToken token = default)
+    internal async Task RepostAsync(List<CorrespondentCommissionBatch> originals, long[] affectedIds, bool deleting, CancellationToken token = default, bool resolveLocationRates = false)
     {
         if (originals.Count == 0) return;
         var affectedSet = affectedIds.ToHashSet();
@@ -76,10 +76,29 @@ internal sealed class ImportCommissionCorrectionService(ApplicationDbContext con
                     item.SourceCurrencyId = currencyId;
                     item.SourceAmount = (outgoing ? hawala.ToAmount ?? hawala.FromAmount : hawala.FromAmount) * (snapshot.SourceAmount < 0 ? -1 : 1);
                     item.SourceToAfnRate = original.CommissionScope == "Destination" && currencies[currencyId] == "AFN" ? 0 : rate;
-                    if ((hawala.PaymentLocationId != snapshot.PaymentLocationId && original.CommissionScope is "Forwarding" or "Destination") ||
-                        (currencyId != snapshot.SourceCurrencyId && original.CommissionScope == "Destination"))
+                    if ((hawala.PaymentLocationId != snapshot.PaymentLocationId && (original.CommissionScope is "Forwarding" or "Destination" || resolveLocationRates && original.CommissionScope == "Origin")) ||
+                        (currencyId != snapshot.SourceCurrencyId && original.CommissionScope == "Destination") ||
+                        (resolveLocationRates && owner != original.CorrespondentId && original.CommissionScope == "Destination"))
                     {
-                        item.PerLakhRate = original.Items.Where(x => x.PaymentLocationId == hawala.PaymentLocationId &&
+                        var historicalRate = owner == original.CorrespondentId ? original.Items.Where(x => x.PaymentLocationId == hawala.PaymentLocationId &&
+                                (original.CommissionScope != "Destination" || x.SourceCurrencyId == currencyId)).Select(x => x.PerLakhRate).FirstOrDefault() : null;
+                        if (resolveLocationRates && historicalRate.HasValue) item.PerLakhRate = historicalRate;
+                        else if (resolveLocationRates && original.CommissionScope == "Origin")
+                        {
+                            item.PerLakhRate = await context.CorrespondentCommissionBatchItems.AsNoTracking()
+                                .Where(x => x.Batch.CorrespondentId == owner && x.CommissionScope == "Origin" && x.Batch.Status == "Posted" &&
+                                    x.PaymentLocationId == hawala.PaymentLocationId && x.PerLakhRate > 0)
+                                .OrderByDescending(x => x.Batch.CreatedAt).ThenByDescending(x => x.Id).Select(x => x.PerLakhRate).FirstOrDefaultAsync(token)
+                                ?? original.CommissionPerLakhAfn;
+                        }
+                        else if (resolveLocationRates && original.CommissionScope is "Destination" or "Forwarding")
+                        {
+                            var defaults = await new CorrespondentCommissionService(context).GetDefaultRatesAsync(owner, original.CommissionScope, token);
+                            item.PerLakhRate = original.CommissionScope == "Destination"
+                                ? defaults.LocationCurrencyRates.FirstOrDefault(x => x.PaymentLocationId == hawala.PaymentLocationId && x.CurrencyId == currencyId)?.PerLakhRate ?? (owner == original.CorrespondentId ? original.CommissionPerLakhAfn : defaults.CommissionPerLakhAfn)
+                                : defaults.PaymentLocationRates.FirstOrDefault(x => x.PaymentLocationId == hawala.PaymentLocationId)?.PerLakhRate ?? original.CommissionPerLakhAfn;
+                        }
+                        else item.PerLakhRate = original.Items.Where(x => x.PaymentLocationId == hawala.PaymentLocationId &&
                                 (original.CommissionScope != "Destination" || x.SourceCurrencyId == currencyId))
                             .Select(x => x.PerLakhRate).FirstOrDefault()
                             ?? throw new InvalidOperationException("نرخ تاریخی کمیشن محل پرداخت جدید در این محاسبه موجود نیست؛ ابتدا کمیشن مربوط را برگشت دهید.");
@@ -159,7 +178,7 @@ internal sealed class ImportCommissionCorrectionService(ApplicationDbContext con
         }
     }
 
-    internal Task ReverseHawalaLedgerAsync(long[] ids, CancellationToken token = default) => context.Database.ExecuteSqlInterpolatedAsync($"EXEC dbo.usp_ReverseImportedHawalaLedger_v1 @TenantId={context.CurrentTenantId}, @UserId={context.RequireCurrentUserId()}, @HawalaIds={JsonSerializer.Serialize(ids)}", token);
+    internal Task ReverseHawalaLedgerAsync(long[] ids, CancellationToken token = default) => context.Database.IsNpgsql() ? PostgresImportDeletion.ReverseLedgerAsync(context, ids, token) : context.Database.ExecuteSqlInterpolatedAsync($"EXEC dbo.usp_ReverseImportedHawalaLedger_v1 @TenantId={context.CurrentTenantId}, @UserId={context.RequireCurrentUserId()}, @HawalaIds={JsonSerializer.Serialize(ids)}", token);
     internal static (decimal Afn, decimal Usd) Totals(CorrespondentCommissionBatch batch, IReadOnlyCollection<CorrespondentCommissionBatchItem> items, IReadOnlyDictionary<long, string> currencies)
     {
         if (batch.CommissionScope == "Destination" || batch.CommissionScope == "Standard" && batch.Items.First().Hawala.HawalaType == "HawalaSend")

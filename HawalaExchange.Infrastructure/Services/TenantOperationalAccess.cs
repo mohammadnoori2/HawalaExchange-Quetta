@@ -20,7 +20,9 @@ public static class TenantOperationalAccess
         ["Documents"]="اسناد", ["Settlement"]="تبدیل به ارز توافقی", ["HawalaExecution"]="اجرای حواله"
     };
     public static async Task<TenantControlSettings> ReadAsync(ApplicationDbContext db,long tenantId,CancellationToken ct=default) =>
-        await db.Database.SqlQuery<TenantControlSettings>($"SELECT ReadOnly,MaxUsers,DisabledFeaturesJson,TimeZoneId FROM dbo.TenantOperationalControls WHERE TenantId={tenantId}")
+        await (db.Database.IsNpgsql()
+            ? db.Database.SqlQuery<TenantControlSettings>($"SELECT \"ReadOnly\",\"MaxUsers\",\"DisabledFeaturesJson\",\"TimeZoneId\" FROM public.\"TenantOperationalControls\" WHERE \"TenantId\"={tenantId}")
+            : db.Database.SqlQuery<TenantControlSettings>($"SELECT ReadOnly,MaxUsers,DisabledFeaturesJson,TimeZoneId FROM dbo.TenantOperationalControls WHERE TenantId={tenantId}"))
             .SingleOrDefaultAsync(ct).ConfigureAwait(false) ?? new();
 
     public static HashSet<string> Disabled(TenantControlSettings settings) =>

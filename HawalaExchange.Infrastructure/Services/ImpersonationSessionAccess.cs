@@ -9,6 +9,18 @@ public static class ImpersonationSessionAccess
     public static async Task<bool> IsValidAsync(ApplicationDbContext db, Guid id, long actorId, long targetId, long tenantId, CancellationToken ct = default)
     {
         var owner = PlatformRoles.Owner; var super = PlatformRoles.SuperAdmin;
+        if(db.Database.IsNpgsql())return await db.Database.SqlQuery<int>($"""
+            SELECT COUNT(*)::integer AS "Value" FROM public."ImpersonationSessions" s
+            JOIN public."Users" a ON a."Id"=s."ActorUserId" JOIN public."Users" u ON u."Id"=s."TargetUserId"
+            JOIN public."Tenants" t ON t."Id"=s."TenantId"
+            WHERE s."Id"={id} AND s."ActorUserId"={actorId} AND s."TargetUserId"={targetId} AND s."TenantId"={tenantId}
+              AND s."EndedAt" IS NULL AND s."ExpiresAt">CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
+              AND a."IsActive" AND a."IsPlatformUser" AND a."SecurityStamp"=s."ActorStamp"
+              AND u."IsActive" AND NOT u."IsPlatformUser" AND u."TenantId"=s."TenantId" AND u."SecurityStamp"=s."TargetStamp"
+              AND t."IsActive" AND NOT t."IsArchived"
+              AND EXISTS(SELECT 1 FROM public."UserRoles" ur JOIN public."Roles" r ON r."Id"=ur."RoleId"
+                WHERE ur."UserId"=a."Id" AND r."Name" IN ({owner},{super}))
+            """).SingleAsync(ct).ConfigureAwait(false)==1;
         return await db.Database.SqlQuery<int>($"""
             SELECT COUNT(*) AS [Value] FROM dbo.ImpersonationSessions s
             JOIN dbo.Users a ON a.Id=s.ActorUserId JOIN dbo.Users u ON u.Id=s.TargetUserId

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using System.Text.Json;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
@@ -13,6 +14,59 @@ namespace HawalaExchange.Infrastructure.Services;
 public sealed class CorrespondentCommissionService(ApplicationDbContext context)
     : ICorrespondentCommissionService
 {
+    public async Task<CorrespondentCommissionDefaultsDto> GetDefaultRatesAsync(
+        long correspondentId, string commissionScope, CancellationToken cancellationToken = default)
+    {
+        if (correspondentId <= 0 || commissionScope is not ("Incoming" or "Destination" or "Forwarding"))
+            throw new InvalidOperationException("نوع کمیشن یا نمایندگی معتبر نیست.");
+        var batches = context.CorrespondentCommissionBatches.AsNoTracking()
+            .Where(x => x.CorrespondentId == correspondentId && x.CommissionScope == commissionScope && x.Status == "Posted");
+        var defaultRate = await batches.OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .Select(x => (decimal?)x.CommissionPerLakhAfn).FirstOrDefaultAsync(cancellationToken);
+        var result = new CorrespondentCommissionDefaultsDto
+        {
+            CommissionPerLakhAfn = defaultRate ?? (commissionScope == "Destination" ? 200m : 400m)
+        };
+        var items = context.CorrespondentCommissionBatchItems.AsNoTracking()
+            .Where(x => x.Batch.CorrespondentId == correspondentId && x.Batch.CommissionScope == commissionScope &&
+                        x.Batch.Status == "Posted" && x.SourceAmount > 0 && x.PaymentLocationId != null && x.PerLakhRate > 0);
+        if (commissionScope == "Destination")
+            result.LocationCurrencyRates = await items.GroupBy(x => new { x.PaymentLocationId, x.SourceCurrencyId })
+                .Select(g => g.OrderByDescending(x => x.Batch.CreatedAt).ThenByDescending(x => x.BatchId).ThenByDescending(x => x.Id)
+                    .Select(x => new LocationCurrencyCommissionRateDto { PaymentLocationId = x.PaymentLocationId!.Value,
+                        CurrencyId = x.SourceCurrencyId, PerLakhRate = x.PerLakhRate!.Value }).First()).ToListAsync(cancellationToken);
+        if (commissionScope == "Forwarding")
+            result.PaymentLocationRates = await items.GroupBy(x => x.PaymentLocationId)
+                .Select(g => g.OrderByDescending(x => x.Batch.CreatedAt).ThenByDescending(x => x.BatchId).ThenByDescending(x => x.Id)
+                    .Select(x => new PaymentLocationCommissionRateDto { PaymentLocationId = x.PaymentLocationId!.Value,
+                        PerLakhRate = x.PerLakhRate!.Value }).First()).ToListAsync(cancellationToken);
+        return result;
+    }
+
+    private async Task<CorrespondentCommissionPreviewRequestDto> ResolvePeriodAsync(
+        CorrespondentCommissionPreviewRequestDto request, CancellationToken token)
+    {
+        if (!request.AllUncalculated) return request;
+        // The stored procedure remains authoritative for eligibility and duplicate protection.
+        // Only widen its date window, including newly entered backdated transactions.
+        var dates = await context.Hawalas.AsNoTracking()
+            .Where(x => x.HawalaType == request.HawalaType && x.Status != "Cancel" &&
+                (request.CommissionScope == "Forwarding"
+                    ? x.SourceHawala != null && x.SourceHawala.CorrespondentId == request.CorrespondentId
+                    : x.CorrespondentId == request.CorrespondentId))
+            .Where(x => !context.CorrespondentCommissionBatchItems.Any(item => item.HawalaId == x.Id && item.IsActive &&
+                (item.CommissionScope == request.CommissionScope ||
+                 (request.CommissionScope == "Incoming" && item.CommissionScope == "Standard"))) &&
+                (request.CommissionScope != "Forwarding" || !context.CorrespondentCommissionBatchItems.Any(item =>
+                    item.HawalaId == x.SourceHawalaId && item.IsActive && item.CommissionScope == "Origin")))
+            .GroupBy(x => 1).Select(g => new { First = g.Min(x => x.CreatedAt), Last = g.Max(x => x.CreatedAt) })
+            .SingleOrDefaultAsync(token);
+        var copy = JsonSerializer.Deserialize<CorrespondentCommissionPreviewRequestDto>(JsonSerializer.Serialize(request))!;
+        copy.PeriodFrom = dates is null ? DateTime.Today : DateTime.SpecifyKind(dates.First, DateTimeKind.Utc).ToLocalTime().Date;
+        copy.PeriodTo = dates is null ? DateTime.Today : DateTime.SpecifyKind(dates.Last, DateTimeKind.Utc).ToLocalTime().Date;
+        return copy;
+    }
+
     public Task<CorrespondentCommissionPreviewDto> PreviewAsync(
         CorrespondentCommissionPreviewRequestDto request,
         CancellationToken cancellationToken = default)
@@ -28,6 +82,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         ValidateRequest(request);
         using var budget = CreateCalculationBudget(request, cancellationToken);
         cancellationToken = budget.Token;
+        request = await ResolvePeriodAsync(request, cancellationToken);
         if (persistValuations) await EnsureCommissionUsdValuationsAsync(request, cancellationToken);
         var preview = await ExecutePreviewAsync(request, cancellationToken);
         var deductions = await GetPendingCancellationDeductionsAsync(
@@ -70,6 +125,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         ValidateRequest(request);
         using var budget = CreateCalculationBudget(request, cancellationToken);
         cancellationToken = budget.Token;
+        request = await ResolvePeriodAsync(request, cancellationToken);
         if (request.CommissionScope == "Destination" && request.LocationCurrencyRates.Count == 0)
             throw new InvalidOperationException("نرخ کمیشن هر محل پرداخت و ارز را وارد و پیش‌نمایش را باز‌محاسبه کنید.");
         if (request.CommissionScope is "Origin" or "Forwarding" && request.PaymentLocationRates.Count == 0)
@@ -803,9 +859,18 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
         string mode,
         CorrespondentCommissionPreviewRequestDto request,
         DataTable rates,
-        Func<SqlDataReader, Task<T>> readResult,
+        Func<DbDataReader, Task<T>> readResult,
         CancellationToken cancellationToken)
     {
+        if(context.Database.IsNpgsql())
+        {
+            await using var result=await PostgresProcedures.CommissionAsync(context,parameters=>
+            {
+                using var configuration=new SqlCommand();ConfigureCommand(configuration,mode,request,rates);
+                foreach(SqlParameter parameter in configuration.Parameters)parameters.Add((SqlParameter)((ICloneable)parameter).Clone());
+            },cancellationToken);
+            return await readResult(result);
+        }
         var connection = (SqlConnection)context.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose)
@@ -895,7 +960,7 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
     {
         if (request.CorrespondentId <= 0)
             throw new InvalidOperationException("نمایندگی معتبر انتخاب نشده است.");
-        if (request.PeriodTo.Date < request.PeriodFrom.Date)
+        if (!request.AllUncalculated && request.PeriodTo.Date < request.PeriodFrom.Date)
             throw new InvalidOperationException("تاریخ پایان نمی‌تواند قبل از تاریخ آغاز باشد.");
         if (request.CommissionPerLakhAfn <= 0)
             throw new InvalidOperationException("کمیشن هر لک باید بزرگ‌تر از صفر باشد.");
@@ -1121,7 +1186,15 @@ public sealed class CorrespondentCommissionService(ApplicationDbContext context)
             """;
         foreach (var chunk in pending.Chunk(1000))
         {
-            await context.Database.ExecuteSqlRawAsync(sql,
+            if (context.Database.IsNpgsql())
+                await context.Database.ExecuteSqlRawAsync("""
+                    UPDATE public."Hawalas" h SET "CommissionBaseUsdAmount"=v."BaseUsd", "CommissionUsdToAfnRate"=v."Rate",
+                        "CommissionValuationDate"=v."ValuationDate", "CommissionValuedAt"=CURRENT_TIMESTAMP AT TIME ZONE 'UTC'
+                    FROM jsonb_to_recordset(@valuations) v("Id" bigint,"BaseUsd" numeric(18,8),"Rate" numeric(18,8),"ValuationDate" date)
+                    WHERE h."Id"=v."Id" AND h."TenantId"=@tenantId
+                    """, [new Npgsql.NpgsqlParameter("valuations", NpgsqlTypes.NpgsqlDbType.Jsonb) { Value=JsonSerializer.Serialize(chunk) },
+                        new Npgsql.NpgsqlParameter("tenantId",context.CurrentTenantId)], cancellationToken);
+            else await context.Database.ExecuteSqlRawAsync(sql,
                 [new SqlParameter("@valuations", SqlDbType.NVarChar, -1)
                     { Value = JsonSerializer.Serialize(chunk) },
                  new SqlParameter("@tenantId", SqlDbType.BigInt)

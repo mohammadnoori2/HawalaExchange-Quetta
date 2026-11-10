@@ -4,6 +4,7 @@ public class MoneyExchangeOperation : ITenantEntity
 {
     public long Id { get; set; }
     public long TenantId { get; set; }
+    public long? LinkedHawalaId { get; set; }
 
     public DateTime ExchangeDate { get; set; }
 
@@ -25,7 +26,7 @@ public class MoneyExchangeOperation : ITenantEntity
 
     public long? RateQuoteCurrencyId { get; set; }
 
-    /// <summary>Customer: exchange performed for a customer. Treasury: exchange of the exchange office's own funds.</summary>
+    /// <summary>Customer, Treasury, CorrespondentCredit or CorrespondentDebt. The agency direction is stored with each document.</summary>
     public string OperationType { get; set; } = "Treasury";
 
     /// <summary>The reporting currency in which cost and profit are measured.</summary>

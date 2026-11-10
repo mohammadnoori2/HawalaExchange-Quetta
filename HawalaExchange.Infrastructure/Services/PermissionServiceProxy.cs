@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.ExceptionServices;
+using System.Runtime.CompilerServices;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Infrastructure.Data;
@@ -14,6 +15,11 @@ internal static class AuthorizedServiceCall
 }
 public class PermissionServiceProxy : DispatchProxy, IDisposable
 {
+    // All business services in a circuit/request share its scoped DbContext.
+    // Serialize top-level operations across services, never across user scopes.
+    // Weak keys let completed DI scopes and their gates be collected normally.
+    private static readonly ConditionalWeakTable<IServiceProvider, SemaphoreSlim> ScopeGates = new();
+    private SemaphoreSlim operationGate = null!;
     private object target=null!;
     private string service="";
     private IUserPermissionService permissions=null!;
@@ -24,6 +30,7 @@ public class PermissionServiceProxy : DispatchProxy, IDisposable
         proxy.target=target; proxy.service=type.Name;
         proxy.permissions=sp.GetRequiredService<IUserPermissionService>();
         proxy.factory=sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+        proxy.operationGate=ScopeGates.GetValue(sp,static _=>new SemaphoreSlim(1,1));
         return proxy;
     }
     protected override object? Invoke(MethodInfo? method,object?[]? args)
@@ -51,6 +58,16 @@ public class PermissionServiceProxy : DispatchProxy, IDisposable
         if(service=="ICorrespondentCommissionService")
         {
             if(args.FirstOrDefault() is CorrespondentCommissionPreviewRequestDto request)module=CommissionModule(request.CommissionScope,request.HawalaType);
+            else if(name=="GetDefaultRatesAsync")
+            {
+                module=args.ElementAtOrDefault(1) as string switch
+                {
+                    "Incoming"=>"IncomingCommission",
+                    "Destination"=>"DestinationCommission",
+                    "Forwarding"=>"ForwardingCommission",
+                    _=>throw new UnauthorizedAccessException("Unknown commission scope")
+                };
+            }
             else if(name is "ReverseAsync" or "GetDetailsAsync")
             {
                 await using var db=await factory.CreateDbContextAsync();
@@ -111,6 +128,8 @@ public class PermissionServiceProxy : DispatchProxy, IDisposable
         }
         if(service=="IHawalaService")
         {
+            if(name=="CompleteCancellationAsync" || name=="CancelHawalaAsync" && args[1] is CancelHawalaDto { CompensationMode: "Automatic" })
+                await permissions.RequireAsync("Hawalas.Create");
             if(args[0] is CreateHawalaDto {Status:"Paid",HawalaType:"HawalaReceive"}
                 || args.Any(x=>x is UpdateHawalaDto {Status:"Paid"}))await permissions.RequireAsync("HawalaExecution.Execute");
             if(args[0] is IReadOnlyCollection<CreateHawalaDto> items && items.Any(x=>x.Status=="Paid" && x.HawalaType=="HawalaReceive"))await permissions.RequireAsync("HawalaExecution.Execute");
@@ -126,21 +145,39 @@ public class PermissionServiceProxy : DispatchProxy, IDisposable
     }
     private async Task RunAsync(MethodInfo method,object?[] args)
     {
-        await AuthorizeAsync(method,args); AuthorizedServiceCall.Depth.Value++;
-        try { await (Task)Call(method,args)!; }
-        finally { AuthorizedServiceCall.Depth.Value--; }
+        var ownsGate=await EnterOperationAsync(args);
+        try
+        {
+            await AuthorizeAsync(method,args); AuthorizedServiceCall.Depth.Value++;
+            try { await (Task)Call(method,args)!; }
+            finally { AuthorizedServiceCall.Depth.Value--; }
+        }
+        finally { if(ownsGate)operationGate.Release(); }
     }
     private async Task<T> RunResultAsync<T>(MethodInfo method,object?[] args)
     {
-        await AuthorizeAsync(method,args); AuthorizedServiceCall.Depth.Value++;
+        var ownsGate=await EnterOperationAsync(args);
         try
         {
-            var result=await (Task<T>)Call(method,args)!;
-            if(service=="ICorrespondentCommissionService" && method.Name=="GetHistoryAsync" && result is IReadOnlyList<CorrespondentCommissionBatchDto> batches)
-                return (T)(object)batches.Where(x=>permissions.Can(CommissionModule(x.CommissionScope,x.HawalaType)+".View")).ToArray();
-            return result;
+            await AuthorizeAsync(method,args); AuthorizedServiceCall.Depth.Value++;
+            try
+            {
+                var result=await (Task<T>)Call(method,args)!;
+                if(service=="ICorrespondentCommissionService" && method.Name=="GetHistoryAsync" && result is IReadOnlyList<CorrespondentCommissionBatchDto> batches)
+                    return (T)(object)batches.Where(x=>permissions.Can(CommissionModule(x.CommissionScope,x.HawalaType)+".View")).ToArray();
+                return result;
+            }
+            finally { AuthorizedServiceCall.Depth.Value--; }
         }
-        finally { AuthorizedServiceCall.Depth.Value--; }
+        finally { if(ownsGate)operationGate.Release(); }
+    }
+    private async Task<bool> EnterOperationAsync(object?[] args)
+    {
+        // Nested consequences must retain the same transaction/context and may
+        // re-enter another protected service without waiting on their own gate.
+        if(AuthorizedServiceCall.Depth.Value>0)return false;
+        await operationGate.WaitAsync(args.OfType<CancellationToken>().FirstOrDefault());
+        return true;
     }
     public void Dispose() { if(target is IDisposable disposable)disposable.Dispose(); }
 }

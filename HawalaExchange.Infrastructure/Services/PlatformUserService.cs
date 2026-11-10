@@ -138,7 +138,9 @@ public sealed class PlatformUserService(
         await transaction.CommitAsync(cancellationToken);
     }
 
-    private Task LockAdministrationAsync(CancellationToken ct) => context.Database.ExecuteSqlRawAsync(
+    private Task LockAdministrationAsync(CancellationToken ct) => context.Database.IsNpgsql()
+        ? DatabaseLocks.AcquireAsync(context,"PlatformUserAdministration",10000,ct)
+        : context.Database.ExecuteSqlRawAsync(
         "DECLARE @r int; EXEC @r=sp_getapplock @Resource=N'PlatformUserAdministration', @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=10000; IF @r<0 THROW 51000,'Platform administration is busy',1;",ct);
 
     private async Task RequireWriterAsync(bool privileged, CancellationToken ct)

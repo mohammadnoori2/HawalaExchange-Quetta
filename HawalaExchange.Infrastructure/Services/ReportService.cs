@@ -1,4 +1,5 @@
 using System.Data;
+using System.Data.Common;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Infrastructure.Data;
@@ -116,7 +117,7 @@ public sealed class ReportService(ApplicationDbContext context) : IReportService
             command =>
             {
                 AddCommonReportParameters(command, range, branchId, currencyId);
-                command.Parameters.Add("@UtcOffsetMinutes", SqlDbType.Int).Value = range.UtcOffsetMinutes;
+                RelationalParameters.Add(command,"@UtcOffsetMinutes",SqlDbType.Int,range.UtcOffsetMinutes);
             },
             async reader =>
             {
@@ -159,9 +160,9 @@ public sealed class ReportService(ApplicationDbContext context) : IReportService
             command =>
             {
                 AddCommonReportParameters(command, range, branchId, currencyId);
-                command.Parameters.Add("@Status", SqlDbType.NVarChar, 20).Value = Db(status);
-                command.Parameters.Add("@CustomerId", SqlDbType.BigInt).Value = Db(customerId);
-                command.Parameters.Add("@CorrespondentId", SqlDbType.BigInt).Value = Db(correspondentId);
+                RelationalParameters.Add(command,"@Status",SqlDbType.NVarChar,status,20);
+                RelationalParameters.Add(command,"@CustomerId",SqlDbType.BigInt,customerId);
+                RelationalParameters.Add(command,"@CorrespondentId",SqlDbType.BigInt,correspondentId);
             },
             async reader =>
             {
@@ -214,7 +215,7 @@ public sealed class ReportService(ApplicationDbContext context) : IReportService
             command =>
             {
                 AddCommonReportParameters(command, range, branchId, currencyId);
-                command.Parameters.Add("@UtcOffsetMinutes", SqlDbType.Int).Value = range.UtcOffsetMinutes;
+                RelationalParameters.Add(command,"@UtcOffsetMinutes",SqlDbType.Int,range.UtcOffsetMinutes);
             },
             async reader =>
             {
@@ -240,22 +241,27 @@ public sealed class ReportService(ApplicationDbContext context) : IReportService
 
     private async Task<T> WithCommandAsync<T>(
         string procedure,
-        Action<SqlCommand> configure,
-        Func<SqlDataReader, Task<T>> read)
+        Action<DbCommand> configure,
+        Func<DbDataReader, Task<T>> read)
     {
-        var connection = (SqlConnection)context.Database.GetDbConnection();
+        var connection = context.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
         if (shouldClose)
             await connection.OpenAsync();
 
         try
         {
-            var transaction = context.Database.CurrentTransaction?.GetDbTransaction() as SqlTransaction;
-            await using var command = new SqlCommand(procedure, connection, transaction)
+            await using var command=connection.CreateCommand();
+            command.Transaction=context.Database.CurrentTransaction?.GetDbTransaction();
+            command.CommandText=context.Database.IsNpgsql()?PostgresSql.Read(procedure switch
             {
-                CommandType = CommandType.StoredProcedure,
-                CommandTimeout = 60
-            };
+                "[dbo].[usp_GetDailyOperationalReport_v1]"=>"DailyOperationalReportQuery",
+                "[dbo].[usp_GetTransactionReport_v1]"=>"TransactionReportQuery",
+                "[dbo].[usp_GetCommissionReport_v1]"=>"CommissionReportQuery",
+                _=>throw new InvalidOperationException("Unknown PostgreSQL report.")
+            }):procedure;
+            command.CommandType=context.Database.IsNpgsql()?CommandType.Text:CommandType.StoredProcedure;
+            command.CommandTimeout=60;
             configure(command);
             await using var reader = await command.ExecuteReaderAsync();
             return await read(reader);
@@ -268,16 +274,16 @@ public sealed class ReportService(ApplicationDbContext context) : IReportService
     }
 
     private void AddCommonReportParameters(
-        SqlCommand command,
+        DbCommand command,
         ReportRange range,
         long? branchId,
         long? currencyId)
     {
-        command.Parameters.Add("@TenantId", SqlDbType.BigInt).Value = context.CurrentTenantId;
-        command.Parameters.Add("@FromUtc", SqlDbType.DateTime2).Value = range.FromUtc;
-        command.Parameters.Add("@ToUtcExclusive", SqlDbType.DateTime2).Value = range.ToUtcExclusive;
-        command.Parameters.Add("@BranchId", SqlDbType.BigInt).Value = Db(branchId);
-        command.Parameters.Add("@CurrencyId", SqlDbType.BigInt).Value = Db(currencyId);
+        RelationalParameters.Add(command,"@TenantId",SqlDbType.BigInt,context.CurrentTenantId);
+        RelationalParameters.Add(command,"@FromUtc",SqlDbType.DateTime2,range.FromUtc);
+        RelationalParameters.Add(command,"@ToUtcExclusive",SqlDbType.DateTime2,range.ToUtcExclusive);
+        RelationalParameters.Add(command,"@BranchId",SqlDbType.BigInt,branchId);
+        RelationalParameters.Add(command,"@CurrencyId",SqlDbType.BigInt,currencyId);
     }
 
     private static ReportRange CreateRange(DateTime fromDate, DateTime toDate)

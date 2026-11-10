@@ -110,6 +110,8 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<Document> Documents { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<Hawala> Hawalas { get; set; }
+        public DbSet<AgentPaymentBill> AgentPaymentBills { get; set; }
+        public DbSet<AgentPaymentBillItem> AgentPaymentBillItems { get; set; }
         public DbSet<HawalaImportBatch> HawalaImportBatches { get; set; }
         public DbSet<HawalaImportRow> HawalaImportRows { get; set; }
         public DbSet<HawalaImportJob> HawalaImportJobs { get; set; }
@@ -124,6 +126,8 @@ namespace HawalaExchange.Infrastructure.Data
         public DbSet<HawalaPaymentBatchItem> HawalaPaymentBatchItems { get; set; }
         public DbSet<CorrespondentCommissionBatchItem> CorrespondentCommissionBatchItems { get; set; }
         public DbSet<CorrespondentAccountPeriod> CorrespondentAccountPeriods { get; set; }
+        public DbSet<CorrespondentOpeningBalanceChange> CorrespondentOpeningBalanceChanges { get; set; }
+        public DbSet<CustomerOpeningBalanceChange> CustomerOpeningBalanceChanges { get; set; }
         public DbSet<CorrespondentAccountPeriodBalance> CorrespondentAccountPeriodBalances { get; set; }
         public DbSet<CorrespondentAccountPeriodHawala> CorrespondentAccountPeriodHawalas { get; set; }
         public DbSet<AccountCurrencyBalance> AccountCurrencyBalances { get; set; }
@@ -1220,6 +1224,13 @@ namespace HawalaExchange.Infrastructure.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.Entity<MoneyExchangeOperation>().HasIndex(x=>new {x.TenantId,x.LinkedHawalaId}).IsUnique().HasFilter("[LinkedHawalaId] IS NOT NULL AND [IsDeleted] = 0");
+            modelBuilder.Entity<MoneyExchangeOperation>().HasOne<Hawala>().WithMany().HasForeignKey(x=>new {x.TenantId,x.LinkedHawalaId}).HasPrincipalKey(x=>new {x.TenantId,x.Id}).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<AgentPaymentBill>().HasIndex(x => new { x.TenantId, x.CorrespondentId, x.CreatedAt });
+            modelBuilder.Entity<AgentPaymentBill>().HasOne(x => x.Correspondent).WithMany().HasForeignKey(x => x.CorrespondentId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<AgentPaymentBillItem>().HasIndex(x => new { x.TenantId, x.HawalaId }).IsUnique().HasFilter("[IsActive] = 1");
+            modelBuilder.Entity<AgentPaymentBillItem>().HasOne(x => x.Bill).WithMany(x => x.Items).HasForeignKey(x => x.BillId).OnDelete(DeleteBehavior.Restrict);
+            modelBuilder.Entity<AgentPaymentBillItem>().HasOne(x => x.Hawala).WithMany().HasForeignKey(x => x.HawalaId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<HawalaPaymentBatch>().HasIndex(x => new { x.TenantId, x.ExecutedAt });
             modelBuilder.Entity<HawalaPaymentBatchItem>().HasIndex(x => new { x.TenantId, x.BatchId, x.HawalaId }).IsUnique();
 
@@ -1231,6 +1242,31 @@ namespace HawalaExchange.Infrastructure.Data
             ConfigureLedgerConstraints(modelBuilder);
             ConfigureRelationships(modelBuilder);
             ConfigureHawalaEntity(modelBuilder);
+            modelBuilder.Entity<CustomerOpeningBalanceChange>(entity =>
+            {
+                entity.HasIndex(x => new { x.TenantId, x.OriginalLedgerEntryId }).IsUnique();
+                entity.HasOne<LedgerEntry>().WithMany().HasForeignKey(x => new { x.TenantId, x.OriginalLedgerEntryId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Transaction>().WithMany().HasForeignKey(x => new { x.TenantId, x.ReversalTransactionId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Transaction>().WithMany().HasForeignKey(x => new { x.TenantId, x.ReplacementTransactionId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<CorrespondentOpeningBalanceChange>(entity =>
+            {
+                entity.HasIndex(x => new { x.TenantId, x.OriginalLedgerEntryId }).IsUnique();
+                entity.HasOne<LedgerEntry>().WithMany().HasForeignKey(x => new { x.TenantId, x.OriginalLedgerEntryId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Transaction>().WithMany().HasForeignKey(x => new { x.TenantId, x.ReversalTransactionId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Transaction>().WithMany().HasForeignKey(x => new { x.TenantId, x.ReplacementTransactionId })
+                    .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+            });
+            modelBuilder.Entity<Hawala>().HasIndex(x => new { x.TenantId, x.CompensatesHawalaId })
+                .IsUnique().HasFilter("[CompensatesHawalaId] IS NOT NULL");
+            modelBuilder.Entity<Hawala>().HasOne<Hawala>().WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.CompensatesHawalaId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
             ConfigureSaasManagement(modelBuilder);
             SeedData(modelBuilder);
             ConfigureTenantFilters(modelBuilder);
@@ -1272,6 +1308,7 @@ namespace HawalaExchange.Infrastructure.Data
 
             // Must run after every relationship has been configured.
             ConfigureTenantForeignKeys(modelBuilder);
+            if (Database.IsNpgsql()) PostgresModel.Configure(modelBuilder);
         }
 
         private void ValidateSubscriptionWriteAccess()
@@ -1282,7 +1319,9 @@ namespace HawalaExchange.Infrastructure.Data
             {
                 if(!Tenants.AsNoTracking().Any(x=>x.Id==tenantId && x.IsActive && !x.IsArchived))
                     throw new InvalidOperationException("صرافی غیرفعال یا آرشیف شده است.");
-                var locked=Database.SqlQuery<bool>($"SELECT ReadOnly AS [Value] FROM dbo.TenantOperationalControls WHERE TenantId={tenantId}").FirstOrDefault();
+                var locked=(Database.IsNpgsql()
+                    ? Database.SqlQuery<bool>($"SELECT \"ReadOnly\" AS \"Value\" FROM public.\"TenantOperationalControls\" WHERE \"TenantId\"={tenantId}")
+                    : Database.SqlQuery<bool>($"SELECT ReadOnly AS [Value] FROM dbo.TenantOperationalControls WHERE TenantId={tenantId}")).FirstOrDefault();
                 if(locked)throw new InvalidOperationException("عملیات صرافی موقتاً قفل شده است.");
                 var subscription = TenantSubscriptions.AsNoTracking()
                     .Where(x => x.TenantId == tenantId)

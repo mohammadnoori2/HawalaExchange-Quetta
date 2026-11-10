@@ -29,22 +29,32 @@ public static class PermissionOperationMap
     {
         Add("View","GetByIdAsync GetAllAsync FindAsync ExistsAsync CountAsync GetByCodeAsync GetActiveAsync GetActiveBranchesAsync GetActiveCurrenciesAsync GetActiveAccountsAsync GetByCustomerCodeAsync SearchAsync GetArchivedAsync GetByAccountCodeAsync GetByAccountTypeAsync GetByReferenceAsync GetAccountBalanceAsync GetAllAccountBalancesAsync GetNextAccountCodeAsync GetByCountryAsync GetDetailsPageAsync GetStatusPageAsync GetByTransactionNoAsync GetByBranchAsync GetByCustomerAsync GetByDateRangeAsync GetByStatusAsync GetPendingTransactionsAsync GenerateTransactionNumberAsync GetHawalaByIdAsync GetHawalasAsync GetStatisticsAsync GetCorrespondentRangeAsync GetNextNumberAsync GetHistoryAsync GetDetailsAsync GetPreviewAsync GetHawalaPreviewAsync GetRatesAsync GetHistoryDetailsAsync PreviewReadOnlyAsync PreviewConversionAsync GetAsync GetImpactAsync GetPositionsAsync GetCostPositionsAsync GetProfitSummaryAsync GetTransfersByAccountAsync GetTransfersByMethodAsync GetTransferByIdAsync GetTransfersByDateRangeAsync GetExpensesByDateRangeAsync GetExpensesByCurrencyAsync GetTotalExpensesByCurrencyAsync GetLatestRateAsync ConvertAsync GetRateByDateAsync GetRateHistoryAsync GetCurrentBuyRateAsync GetCurrentSellRateAsync GetDocumentsByEntityAsync GetDocumentByIdAsync GetDocumentsByTypeAsync GetEntriesByTransactionAsync GetEntriesByAccountAsync GetEntriesByDateRangeAsync GetAccountBalancesAsync GetCustomerLedgerAsync GetCorrespondentLedgerAsync GetTrialBalanceAsync GetDailyReportAsync GetDailyReportRangeAsync GetTransactionReportAsync GetCommissionReportAsync GetCustomerTransactionReportAsync GetCorrespondentTransactionReportAsync GetTotalCommissionAsync GetTotalExpensesAsync GetNetProfitAsync GetBalanceSheetAsync GetProfitLossStatementAsync GetDashboardSummaryAsync GetByAccountAndCurrencyAsync GetByAccountAsync GetByCurrencyAsync GetActiveLimitsAsync GetSettingsAsync GetSettingAsync GetActiveAlertsAsync GetRecipientUsersAsync GetLogsByTableAsync GetLogsByUserAsync GetLogsByDateRangeAsync GetLogsByActionAsync GetAllLogsAsync GetFilteredLogsAsync GetFilteredLogsNoPagingAsync GetDistinctActionsAsync GetDistinctTablesAsync GetAllCustomerBalancesAsync GetCustomerBalanceAsync GetAllCorrespondentBalancesAsync GetCorrespondentBalanceAsync GetAllCashBalancesAsync GetCashBalanceAsync GetBranchBalanceAsync ValidateBadehkarLimitAsync GetAccountsWithLimitsAsync GetDailyJournalAsync GetJournalAsync GetAccountOperationsAsync GetAccountOperationsPageAsync GetAccountOperationDetailsAsync GetCashDailyBalancesAsync GetCurrentCashBalancesAsync GetDailyCommissionRateAsync FindByNameOrAliasAsync GetCustomerActivitiesPreviewAsync ReadAsync");
         Add("Create","CreateAsync CreateHawalaAsync CreateHawalasAsync CreateExpenseAsync CreateTransferAsync CreateLedgerEntryAsync UploadDocumentAsync ProcessHawalaSendAsync ProcessHawalaReceiveAsync ProcessExchangeAsync EnqueueAsync RetryAsync SaveDraftAsync ConfirmAsync PrepareLocationsAsync");
-        Add("Edit","UpdateAsync UpdateHawalaAsync UpdateExpenseAsync UpdateTransferAsync ArchiveAsync UnarchiveAsync ActivateAsync DeactivateAsync SetActiveAsync ToggleActiveAsync SetForAccountAsync AddOpeningBalancesAsync SaveAsync SaveConfirmedAsync UpdateHawalaRateAsync AssignAsync SaveCashOpeningBalancesAsync SaveDailyCommissionRateAsync AddAgentCommissionAsync");
+        Add("Edit","UpdateAsync UpdateHawalaAsync ChangePaymentLocationAsync UpdateExpenseAsync UpdateTransferAsync ArchiveAsync UnarchiveAsync ActivateAsync DeactivateAsync SetActiveAsync ToggleActiveAsync SetForAccountAsync AddOpeningBalancesAsync SaveAsync SaveConfirmedAsync UpdateHawalaRateAsync AssignAsync SaveCashOpeningBalancesAsync SaveDailyCommissionRateAsync AddAgentCommissionAsync UpdateAgentCommissionAsync");
         Add("Delete","DeleteAsync DeleteHawalaAsync DeleteExpenseAsync DeleteTransferAsync DeleteDocumentAsync DeleteBatchAsync CancelHawalaAsync CancelTransactionAsync ReverseTransactionAsync CancelAsync");
         Add("Reverse","ReverseAsync ReverseConversionAsync");
         Add("Export","ExportAsync ExportInputFormatAsync DownloadDocumentAsync ExportCustomerActivitiesAsync ExportCustomerActivitiesPreviewAsync");
         Actions["ReadAsync"]="Export";
         Actions["GetDeletionPreviewAsync"]="Delete";
         Actions["ConfirmQueuedAsync"]="Create";
+        Actions["GetCancellationPreviewAsync"]="Delete";
+        Actions["CompleteCancellationAsync"]="Delete";
+        Actions["GetOpeningBalancesAsync"]="View";
+        Actions["AddOpeningBalanceAsync"]="Edit";
+        Actions["UpdateOpeningBalanceAsync"]="Edit";
+        Actions["DeleteOpeningBalanceAsync"]="Delete";
     }
     private static void Add(string action,string names) { foreach(var name in names.Split(' '))Actions.Add(name,action); }
     public static string Resolve(string service,string method,string? overrideModule=null)
     {
         var module=overrideModule ?? Modules.GetValueOrDefault(service) ?? throw new UnauthorizedAccessException("Unmapped service");
         var action=Actions.GetValueOrDefault(method);
+        if(service=="IMoneyExchangeOperationService" && method=="GetByLinkedHawalaAsync") action="View";
+        if(service=="IHawalaService" && method is "PreviewAgentBillAsync" or "GetAgentBillAsync" or "GetAgentBillsAsync" or "GetAgentBillsForHawalasAsync" or "GetAgentBillPaymentAccountsAsync") { module="HawalaExecution"; action="View"; }
+        if(service=="IHawalaService" && method is "CreateHistoricalAgentReceiptAsync" or "ExecuteAndCreateAgentBillAsync" or "CreateAgentBillAsync" or "PayAgentBillAsync" or "ConfirmAgentExecutionAsync" or "CancelAgentBillAsync") { module="HawalaExecution"; action="Execute"; }
         if(service=="ICompanySettingService" && method=="SaveAsync")action="Edit";
         if(service=="IHawalaImportService" && method=="PreviewAsync")action="Create";
         if(service=="ICorrespondentCommissionService" && method is "PostAsync" or "PreviewAsync")action="Calculate";
+        if(service=="ICorrespondentCommissionService" && method=="GetDefaultRatesAsync")action="View";
         if(service=="ICorrespondentSettlementService" && method is "ConvertHawalasAsync" or "ConvertBalanceAsync")action="Create";
         if(service=="IAedDealService" && method=="ConvertAsync")action="Edit";
         if(service=="IHawalaService" && method is "MarkAsPaidAsync" or "PreviewBulkPaymentAsync" or "PayBulkAsync") { module="HawalaExecution"; action="Execute"; }

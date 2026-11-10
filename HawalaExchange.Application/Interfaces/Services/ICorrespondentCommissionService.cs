@@ -4,6 +4,7 @@ namespace HawalaExchange.Application.Interfaces.Services;
 
 public interface ICorrespondentCommissionService
 {
+    Task<CorrespondentCommissionDefaultsDto> GetDefaultRatesAsync(long correspondentId, string commissionScope, CancellationToken cancellationToken = default);
     Task<CorrespondentCommissionPreviewDto> PreviewAsync(CorrespondentCommissionPreviewRequestDto request, CancellationToken cancellationToken = default);
     Task<CorrespondentCommissionPreviewDto> PreviewReadOnlyAsync(CorrespondentCommissionPreviewRequestDto request, CancellationToken cancellationToken = default);
     Task<CorrespondentCommissionBatchDto> PostAsync(CorrespondentCommissionPreviewRequestDto request, CancellationToken cancellationToken = default);

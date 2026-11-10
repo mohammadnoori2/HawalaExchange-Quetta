@@ -2,6 +2,8 @@ using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using NpgsqlTypes;
 
 namespace HawalaExchange.Infrastructure.Services;
 
@@ -20,7 +22,11 @@ public sealed class AccountStatementService(ApplicationDbContext context, bool o
         var start = filter.From.Date.ToUniversalTime(); var end = filter.To.Date.AddDays(1).ToUniversalTime();
         // Recognized commission affects operational balance on the period's closing
         // boundary, not on its older posting date. This preserves opening + movement = closing.
-        var query = context.Database.SqlQuery<AccountStatementEntry>($"""
+        var query = context.Database.IsNpgsql()
+            ? context.Database.SqlQueryRaw<AccountStatementEntry>(PostgresSql.Read("AccountStatementQuery"),
+                new NpgsqlParameter("tenant",context.CurrentTenantId),new NpgsqlParameter("account",filter.AccountId),
+                new NpgsqlParameter("end",NpgsqlDbType.Timestamp){Value=DateTime.SpecifyKind(end,DateTimeKind.Unspecified)})
+            : context.Database.SqlQuery<AccountStatementEntry>($"""
             SELECT e.Id, e.HawalaId, e.AccountMoneyOperationId,
                 CASE WHEN a.CorrespondentId IS NOT NULL AND t.TransactionType IN
                     (N'PeriodicCorrespondentCommission', N'PeriodicOutgoingCommission', N'PeriodicForwardingCommission', N'PeriodicCorrespondentCommissionReversal')
@@ -45,7 +51,11 @@ public sealed class AccountStatementService(ApplicationDbContext context, bool o
         var opening = await query.Where(x => !x.Pending && x.Date < start).GroupBy(x => x.Currency)
             .Select(g => new { Currency = g.Key, Amount = g.Sum(x => x.Credit - x.Debit) }).ToListAsync(cancellationToken);
         var asOf = end.AddTicks(-1);
-        var pendingQuery = context.Database.SqlQuery<PendingRow>($"""
+        var pendingQuery = context.Database.IsNpgsql()
+            ? context.Database.SqlQueryRaw<PendingRow>(PostgresSql.Read("PendingStatementQuery"),
+                new NpgsqlParameter("tenant",context.CurrentTenantId),new NpgsqlParameter("account",filter.AccountId),
+                new NpgsqlParameter("asof",NpgsqlDbType.Timestamp){Value=DateTime.SpecifyKind(asOf,DateTimeKind.Unspecified)})
+            : context.Database.SqlQuery<PendingRow>($"""
             SELECT c.Code AS Currency, p.PendingCommissionCredit AS Credit, p.PendingCommissionDebit AS Debit
             FROM dbo.ufn_PendingCorrespondentCommissions_v1({context.CurrentTenantId}, {filter.AccountId}, {asOf}) p
             JOIN dbo.Currencies c ON c.Id = p.CurrencyId AND c.TenantId = {context.CurrentTenantId}

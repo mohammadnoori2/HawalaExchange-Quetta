@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+using HawalaExchange.Infrastructure.Services;
+using AutoMapper;
 using HawalaExchange.Application.DTOs;
 using HawalaExchange.Application.Interfaces.Services;
 using HawalaExchange.Domain.Entities;
@@ -31,6 +32,47 @@ namespace HawalaExchange.Application.Services
             _exchangeRateService = exchangeRateService;
             _auditLogService = auditLogService;
             _subscriptionAccess = subscriptionAccess;
+        }
+
+        public override async Task<IEnumerable<TransactionDto>> GetAllAsync()
+        {
+            var transactions = (await base.GetAllAsync()).ToList();
+            transactions.AddRange(await HawalaPostingHistoryReader.ReadTransactionsAsync(_context));
+            return transactions.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).ToList();
+        }
+
+        public override async Task<TransactionDto?> GetByIdAsync(long id)
+        {
+            if (id == long.MinValue) return null;
+            return id < 0 ? (await HawalaPostingHistoryReader.ReadTransactionsAsync(_context, -id)).SingleOrDefault()
+                : await base.GetByIdAsync(id);
+        }
+
+        private static void RequireEditableDocument(long id)
+        {
+            if (id <= 0) throw new InvalidOperationException("این ردیف تاریخچه حسابداری حواله است؛ اصلاح آن فقط از مسیر ویرایش حواله انجام می‌شود.");
+        }
+
+        public override async Task<TransactionDto> UpdateAsync(long id, UpdateTransactionDto dto)
+        {
+            RequireEditableDocument(id);
+            await EnsureNotCorrespondentOpeningAsync(id);
+            return await base.UpdateAsync(id, dto);
+        }
+
+        public override async Task DeleteAsync(long id)
+        {
+            RequireEditableDocument(id);
+            await EnsureNotCorrespondentOpeningAsync(id);
+            await base.DeleteAsync(id);
+        }
+
+        private async Task EnsureNotCorrespondentOpeningAsync(long id)
+        {
+            if (await _context.LedgerEntries.AnyAsync(x => x.TransactionId == id && (x.Account!.CorrespondentId != null || x.Account.CustomerId != null) &&
+                (x.Description == null || !x.Description.StartsWith("طرف مقابل")) &&
+                x.Transaction != null && (x.Transaction.TransactionType == "OpeningBalance" || x.Transaction.TransactionType == "OpeningBalanceReversal")))
+                throw new InvalidOperationException("اصلاح این سند فقط از بخش موجودی افتتاحیه مشتری یا نمایندگی انجام می‌شود.");
         }
 
         // ✅ Override CreateAsync to set CreatedBy
@@ -125,6 +167,7 @@ namespace HawalaExchange.Application.Services
         // ===== Business Operations =====
         public async Task<TransactionDto> MarkAsPaidAsync(long id)
         {
+            RequireEditableDocument(id);
             var transaction = await _dbSet.FindAsync(id);
             if (transaction == null)
                 throw new KeyNotFoundException($"Transaction with ID {id} not found.");
@@ -140,6 +183,8 @@ namespace HawalaExchange.Application.Services
 
         public async Task<TransactionDto> CancelTransactionAsync(long id, CancelTransactionDto cancelDto)
         {
+            RequireEditableDocument(id);
+            await EnsureNotCorrespondentOpeningAsync(id);
             var transaction = await _dbSet.FindAsync(id);
             if (transaction == null)
                 throw new KeyNotFoundException($"Transaction with ID {id} not found.");
@@ -158,6 +203,8 @@ namespace HawalaExchange.Application.Services
 
         public async Task<TransactionDto> ReverseTransactionAsync(long id, CancelTransactionDto cancelDto)
         {
+            RequireEditableDocument(id);
+            await EnsureNotCorrespondentOpeningAsync(id);
             await using var dbTransaction = await _context.Database.BeginTransactionAsync();
             var transaction = await _dbSet.FindAsync(id);
             if (transaction == null)

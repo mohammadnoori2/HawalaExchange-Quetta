@@ -27,8 +27,9 @@ public partial class HawalaService
             // Keep the existing destination numbering lock order before locking received rows.
             await LockRequestedOutgoingNumberAsync(null, request.PaidFromAccountId);
             await LockPaymentAccountAsync(request.PaidFromAccountId);
-            var hawalas = await _context.Hawalas
-                .FromSqlRaw("SELECT * FROM dbo.Hawalas WITH (UPDLOCK, HOLDLOCK)")
+            var hawalas = await (_context.Database.IsNpgsql()
+                ? _context.Hawalas.FromSqlInterpolated($"SELECT * FROM public.\"Hawalas\" WHERE \"TenantId\"={_context.CurrentTenantId} AND \"Id\"=ANY({ids}) FOR UPDATE")
+                : _context.Hawalas.FromSqlRaw("SELECT * FROM dbo.Hawalas WITH (UPDLOCK, HOLDLOCK)"))
                 .AsNoTracking().Where(x => ids.Contains(x.Id)).OrderBy(x => x.Id).ToListAsync();
             var preview = await BuildBulkPaymentPreviewAsync(ids, hawalas, request.PaidFromAccountId);
             if (!preview.CanExecute)
@@ -60,7 +61,7 @@ public partial class HawalaService
             await transaction.RollbackAsync();
             // Saved changes were rolled back too; do not retain Paid entities or generated entries in memory.
             _context.ChangeTracker.Clear();
-            if (ex is Microsoft.Data.SqlClient.SqlException { Number: 1205 })
+            if (ex is Microsoft.Data.SqlClient.SqlException { Number: 1205 } or Npgsql.PostgresException { SqlState: "40P01" or "40001" })
                 throw new InvalidOperationException("عملیات هم‌زمان روی این حواله‌ها یا حساب انجام شد؛ دوباره پیش‌نمایش بگیرید.", ex);
             throw;
         }
@@ -69,7 +70,9 @@ public partial class HawalaService
     private async Task LockPaymentAccountAsync(long accountId)
     {
         // Serialize payments sharing an account before checking balances or locking hawalas.
-        await _context.Accounts.FromSqlRaw("SELECT * FROM dbo.Accounts WITH (UPDLOCK, HOLDLOCK)")
+        await (_context.Database.IsNpgsql()
+            ? _context.Accounts.FromSqlInterpolated($"SELECT * FROM public.\"Accounts\" WHERE \"TenantId\"={_context.CurrentTenantId} AND \"Id\"={accountId} FOR UPDATE")
+            : _context.Accounts.FromSqlRaw("SELECT * FROM dbo.Accounts WITH (UPDLOCK, HOLDLOCK)"))
             .AsNoTracking().Where(x => x.Id == accountId).Select(x => x.Id).FirstOrDefaultAsync();
     }
 

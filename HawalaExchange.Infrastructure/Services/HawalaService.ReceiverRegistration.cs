@@ -15,6 +15,10 @@ public partial class HawalaService
         // cannot both insert the same receiver; a rollback removes both payment and customer.
         if (_context.CurrentTenantId <= 0 || _context.Database.CurrentTransaction is null)
             throw new InvalidOperationException("ثبت گیرنده باید در تراکنش صرافی جاری انجام شود.");
+        if(_context.Database.IsNpgsql())
+            await HawalaExchange.Infrastructure.Data.DatabaseLocks.AcquireAsync(_context,$"RegisteredReceiver:{_context.CurrentTenantId}",30000);
+        else
+        {
         var connection = (SqlConnection)_context.Database.GetDbConnection();
         await using var command = connection.CreateCommand();
         command.Transaction = (SqlTransaction)_context.Database.CurrentTransaction.GetDbTransaction();
@@ -24,6 +28,7 @@ public partial class HawalaService
         { Value = $"RegisteredReceiver:{_context.CurrentTenantId}" });
         if (Convert.ToInt32(await command.ExecuteScalarAsync()) < 0)
             throw new InvalidOperationException("ثبت گیرنده در حال انجام است؛ لطفاً دوباره تلاش کنید.");
+        }
 
         var name = payment.ReceiverName.Trim();
         var father = EmptyToNull(payment.ReceiverFatherName);

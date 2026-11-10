@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -26,6 +26,10 @@
     <EmbeddedResource Include="Sql\ConsolidatedDatabaseObjects.sql" />
     <EmbeddedResource Include="Sql\DeferredCorrespondentCommissions.sql" />
     <EmbeddedResource Include="Sql\SettlementCommissionWorkflow.sql" />
+    <EmbeddedResource Include="Sql\HawalaPostingHistory.sql" />
+    <EmbeddedResource Include="Sql\AccountOperationsOptimized.sql" />
+    <EmbeddedResource Include="Sql\DeleteImportedHawalaAccounting.sql" />
+    <EmbeddedResource Include="Sql\PostgreSql\*.sql" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,6 +40,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

@@ -6,6 +6,7 @@ namespace HawalaExchange.Application.DTOs
 {
     public class CorrespondentDto
     {
+        public bool RequiresManualExecution { get; set; }
         public long Id { get; set; }
         public string Code { get; set; }
         public string Name { get; set; }
@@ -37,6 +38,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class CreateCorrespondentDto
     {
+        public bool RequiresManualExecution { get; set; }
         public string Name { get; set; }
         public string? Country { get; set; }
         public string? City { get; set; }
@@ -51,6 +53,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class UpdateCorrespondentDto
     {
+        public bool RequiresManualExecution { get; set; }
         public string Code { get; set; }
         public string Name { get; set; }
         public string? Country { get; set; }

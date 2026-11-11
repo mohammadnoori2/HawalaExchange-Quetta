@@ -2,7 +2,24 @@
 .hawala-cancellation-overlay .modal-content { max-height: calc(100dvh - 2rem); }
 .hawala-cancellation-overlay .modal-body { overflow-y: auto; }
 .hawala-cancellation-overlay :is(th, td) { text-align: center; vertical-align: middle; }
+tr.hawala-cancelled {
+    --bs-table-bg: #7f1d1d;
+    --bs-table-color: #fff;
+    --bs-table-striped-bg: #7f1d1d;
+    --bs-table-striped-color: #fff;
+    --bs-table-hover-bg: #991b1b;
+    --bs-table-hover-color: #fff;
+    --bs-table-active-bg: #991b1b;
+    --bs-table-active-color: #fff;
+}
 tr.hawala-cancelled > td {
-    background-color: var(--bs-danger-bg-subtle, #f8d7da) !important;
-    color: var(--bs-danger-text-emphasis, #842029) !important;
+    background-color: #7f1d1d !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+tr.hawala-cancelled:hover > td {
+    background-color: #991b1b !important;
+}
+tr.hawala-cancelled > td :is(a, .text-muted, .text-secondary, .text-primary, .text-danger, .text-success):not(.btn):not(.badge):not(.dropdown-menu *) {
+    color: #fff !important;
 }

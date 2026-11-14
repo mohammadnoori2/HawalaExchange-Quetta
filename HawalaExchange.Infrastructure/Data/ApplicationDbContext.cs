@@ -667,6 +667,7 @@ namespace HawalaExchange.Infrastructure.Data
         {
             ChangeTracker.DetectChanges();
             var entries = new List<PendingAuditEntry>();
+            var unchangedReplacements = FindUnchangedExchangeLedgerReplacements();
 
             foreach (var entry in ChangeTracker.Entries()
                          .Where(x => x.Entity is ITenantEntity &&
@@ -674,6 +675,7 @@ namespace HawalaExchange.Infrastructure.Data
                                      x.Entity is not AuditLog &&
                                      x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
             {
+                if (unchangedReplacements.Contains(entry.Entity)) continue;
                 var oldValues = new Dictionary<string, object?>();
                 var newValues = new Dictionary<string, object?>();
 
@@ -732,6 +734,50 @@ namespace HawalaExchange.Infrastructure.Data
 
             return entries;
         }
+
+        // Currency-cost rebuilds replace ledger rows even when their economic content is
+        // unchanged. Omit only exact old/new pairs from the audit payload, not from SaveChanges.
+        // Multiplicity matters: an extra or missing duplicate must still be audited.
+        private HashSet<object> FindUnchangedExchangeLedgerReplacements()
+        {
+            var ignored = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            var deleted = new Dictionary<string, Queue<object>>(StringComparer.Ordinal);
+            var candidates = ChangeTracker.Entries<LedgerEntry>()
+                .Where(x => x.State is EntityState.Added or EntityState.Deleted).ToList();
+            foreach (var entry in candidates.Where(x => x.State == EntityState.Deleted &&
+                         x.OriginalValues.GetValue<long?>(nameof(LedgerEntry.MoneyExchangeOperationId)) != null))
+            {
+                var key = LedgerReplacementAuditKey(entry, original: true);
+                if (!deleted.TryGetValue(key, out var rows)) deleted[key] = rows = new();
+                rows.Enqueue(entry.Entity);
+            }
+            if (deleted.Count == 0) return ignored;
+            foreach (var entry in candidates.Where(x => x.State == EntityState.Added &&
+                         x.Entity.MoneyExchangeOperationId != null))
+            {
+                var key = LedgerReplacementAuditKey(entry, original: false);
+                if (!deleted.TryGetValue(key, out var rows) || rows.Count == 0) continue;
+                ignored.Add(rows.Dequeue());
+                ignored.Add(entry.Entity);
+            }
+            return ignored;
+        }
+
+        private static string LedgerReplacementAuditKey(
+            Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<LedgerEntry> entry, bool original)
+            => JsonSerializer.Serialize(entry.Properties
+                .Where(x => !x.Metadata.IsPrimaryKey() && !x.Metadata.IsConcurrencyToken)
+                .OrderBy(x => x.Metadata.Name, StringComparer.Ordinal)
+                .Select(x => new KeyValuePair<string, object?>(x.Metadata.Name,
+                    NormalizeLedgerComparisonValue(original ? x.OriginalValue : x.CurrentValue))));
+
+        private static object? NormalizeLedgerComparisonValue(object? value) => value switch
+        {
+            // SQL decimal scale and datetime2 Kind differ from newly constructed CLR values.
+            decimal amount => amount.ToString("G29", System.Globalization.CultureInfo.InvariantCulture),
+            DateTime date => date.Ticks,
+            _ => value
+        };
 
         private long? GetTenantAuditUserId(long tenantId)
         {

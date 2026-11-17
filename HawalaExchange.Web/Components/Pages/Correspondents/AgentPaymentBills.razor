@@ -43,7 +43,7 @@
                 <div class="row g-3">
                 @foreach(var currency in bill.Totals)
                 {
-                    <div class="col-md-4"><label class="form-label">حساب پرداخت @currency.CurrencyCode — @currency.Total.ToWholeMoney()</label>
+                    <div class="col-md-4"><label class="form-label">حساب پرداخت <CurrencyBadge Code="@currency.CurrencyCode" /> — @currency.Total.ToWholeMoney()</label>
                         <select class="form-select" disabled="@busy" @bind="paymentAccounts[currency.CurrencyId]"><option value="0">انتخاب صندوق یا بانک</option>@foreach(var account in accounts) { <option value="@account.Id">@account.AccountName (@account.AccountCode)</option> }</select></div>
                 }
                 </div>
@@ -62,7 +62,7 @@
             <p class="text-muted">برای اجرا، پرداخت و صدور بیل، در فهرست حواله‌های ارسالی نمایندگی چند حواله را انتخاب کنید. بیل‌های قبلی نیز قابل مشاهده و چاپ مجدد هستند.</p>
             <div class="table-responsive"><table class="table text-center align-middle"><thead><tr><th>#</th><th>بیل</th><th>دریافت‌کننده پول</th><th>تاریخ</th><th>تعداد حواله</th><th>وضعیت</th><th>مجموع به تفکیک ارز</th></tr></thead>
                 <tbody>@foreach(var row in history)
-                { <tr><td>@((page-1)*20+history.IndexOf(row)+1)</td><td><a href="@($"/correspondents/{CorrespondentId}/agent-bills/{row.Id}")">#@row.Id</a></td><td>@row.RecipientName</td><td>@DisplayDates.TimestampDate(row.CreatedAt)</td><td>@row.Items.Count</td><td><span class="badge @(row.Status=="Paid" ? "bg-success" : row.Status=="Cancelled" ? "bg-danger" : row.IsHistoricalReceipt ? "bg-info text-dark" : "bg-warning text-dark")">@row.StatusLabel</span></td><td>@foreach(var total in row.Totals) { <div dir="ltr">@total.Total.ToWholeMoney() @total.CurrencyCode</div> }</td></tr> }</tbody>
+                { <tr><td>@((page-1)*20+history.IndexOf(row)+1)</td><td><a href="@($"/correspondents/{CorrespondentId}/agent-bills/{row.Id}")">#@row.Id</a></td><td>@row.RecipientName</td><td>@DisplayDates.TimestampDate(row.CreatedAt)</td><td>@row.Items.Count</td><td><span class="badge @(row.Status=="Paid" ? "bg-success" : row.Status=="Cancelled" ? "bg-danger" : row.IsHistoricalReceipt ? "bg-info text-dark" : "bg-warning text-dark")">@row.StatusLabel</span></td><td>@foreach(var total in row.Totals) { <div dir="ltr">@total.Total.ToWholeMoney() <CurrencyBadge Code="@total.CurrencyCode" /></div> }</td></tr> }</tbody>
             </table></div>
             <div class="d-flex gap-2"><button class="btn btn-outline-secondary" disabled="@(busy || page<=1)" @onclick="Previous">قبلی</button><span>صفحه @(page) از @Math.Max(1,pages)</span><button class="btn btn-outline-secondary" disabled="@(busy || page>=pages)" @onclick="Next">بعدی</button></div>
         </div>
@@ -73,7 +73,7 @@
     <div class="modal d-block" role="dialog" aria-modal="true" aria-label="تأیید عملیات بیل"><div class="modal-dialog"><div class="modal-content">
         <div class="modal-header"><h5>@(confirmation==1 ? "تأیید پرداخت بیل" : "لغو بیل") #@bill.Id</h5></div>
         <div class="modal-body">@(confirmation==1 ? $"آیا پول به {bill.RecipientName} پرداخت شده است؟ پس از ثبت، بیل دوباره قابل پرداخت نیست." : bill.IsHistoricalReceipt ? "فقط رسید تسویه قبلی لغو می‌شود؛ هیچ مبلغی به صندوق برگشت داده نمی‌شود و سند تسویه قبلی و اجرای حواله‌ها تغییر نمی‌کند." : bill.Status == "Paid" ? "پرداخت این بیل به همان حساب‌های پرداخت برگشت داده می‌شود و حواله‌ها برای صدور بیل تازه آزاد می‌شوند. اجرای حواله‌ها تغییر نمی‌کند. برگشت را فقط پس از برگشت واقعی پول تأیید کنید." : "بیل لغو و حواله‌های آن برای صدور بیل دیگر آزاد می‌شوند. اجرای حواله‌ها تغییر نمی‌کند.")
-            @foreach(var t in bill.Totals) { <div dir="ltr"><strong>@t.Total.ToWholeMoney() @t.CurrencyCode</strong></div> }
+            @foreach(var t in bill.Totals) { <div dir="ltr"><strong>@t.Total.ToWholeMoney() <CurrencyBadge Code="@t.CurrencyCode" /></strong></div> }
         </div>
         <div class="modal-footer"><button class="btn btn-secondary" disabled="@busy" @onclick="() => confirmation=0">انصراف</button><button class="btn @(confirmation==1 ? "btn-success" : "btn-danger")" disabled="@busy" @onclick="Submit">تأیید</button></div>
     </div></div></div><div class="modal-backdrop fade show"></div>

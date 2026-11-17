@@ -1,4 +1,4 @@
-﻿@* Components/Shared/Modals/AccountDetailsModal.razor *@
+@* Components/Shared/Modals/AccountDetailsModal.razor *@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @inject IBalanceService BalanceService
@@ -182,7 +182,7 @@
                                         var status = item.Balance > 0 ? "طلبکار" : (item.Balance < 0 ? "بدهکار" : "تسویه");
                                         var valueClass = item.Balance > 0 ? "text-success" : (item.Balance < 0 ? "text-danger" : "text-muted");
                                         <div class="account-balance-item @(Account.AccountType == "Correspondent" ? "account-balance-item--correspondent" : null)">
-                                            <strong>@item.CurrencyCode</strong>
+                                            <strong><CurrencyBadge Code="@item.CurrencyCode" /></strong>
                                             @if (Account.AccountType == "Correspondent")
                                             {
                                                 <small>ماندهٔ جاری بدون کمیشن منتظر</small>
@@ -370,7 +370,7 @@
                                                                 <tbody>
                                                                     @foreach (var entry in operation.LedgerEntries)
                                                                     {
-                                                                        <tr><td>@entry.Id</td><td>@entry.AccountName</td><td>@entry.CurrencyCode</td><td>@MoneyFormatHelper.Format(entry.TalabKar)</td><td>@MoneyFormatHelper.Format(entry.BadehKar)</td><td>@entry.Description</td></tr>
+                                                                        <tr><td>@entry.Id</td><td>@entry.AccountName</td><td><CurrencyBadge Code="@entry.CurrencyCode" /></td><td>@MoneyFormatHelper.Format(entry.TalabKar)</td><td>@MoneyFormatHelper.Format(entry.BadehKar)</td><td>@entry.Description</td></tr>
                                                                     }
                                                                 </tbody>
                                                             </table>

@@ -105,12 +105,12 @@
                                 <td><strong>@deal.DealNumber</strong><div class="small text-muted">@DisplayDates.DateTime(deal.CreatedAt, true)</div></td>
                                 <td><RecordDetailsLink Kind="Correspondent" Id="deal.SourceCorrespondentId" Text="@deal.SourceCorrespondentName" /></td>
                                 <td><RecordDetailsLink Kind="Correspondent" Id="deal.DubaiCorrespondentId" Text="@deal.DubaiCorrespondentName" /></td>
-                                <td>@Money(deal.OriginalAmount) @deal.SourceCurrencyCode</td>
-                                <td>@Money(deal.ConvertedAmount) @deal.SourceCurrencyCode</td>
-                                <td><strong>@Money(deal.RemainingAmount) @deal.SourceCurrencyCode</strong></td>
-                                <td>@Money(deal.TotalFinalUsd) USD</td>
-                                <td><strong>@Money(deal.TotalDeclaredUsd) USD</strong></td>
-                                <td class="@(deal.TotalProfitUsd >= 0 ? "text-success" : "text-danger")">@SignedMoney(deal.TotalProfitUsd) USD</td>
+                                <td>@Money(deal.OriginalAmount) <CurrencyBadge Code="@deal.SourceCurrencyCode" /></td>
+                                <td>@Money(deal.ConvertedAmount) <CurrencyBadge Code="@deal.SourceCurrencyCode" /></td>
+                                <td><strong>@Money(deal.RemainingAmount) <CurrencyBadge Code="@deal.SourceCurrencyCode" /></strong></td>
+                                <td>@Money(deal.TotalFinalUsd) <CurrencyBadge Code="USD" /></td>
+                                <td><strong>@Money(deal.TotalDeclaredUsd) <CurrencyBadge Code="USD" /></strong></td>
+                                <td class="@(deal.TotalProfitUsd >= 0 ? "text-success" : "text-danger")">@SignedMoney(deal.TotalProfitUsd) <CurrencyBadge Code="USD" /></td>
                                 <td><span class="badge @StatusClass(deal.Status)">@StatusText(deal.Status)</span></td>
                                 <td>
                                     <div class="d-flex flex-wrap gap-1">
@@ -150,10 +150,10 @@
                                                             {
                                                                 <tr>
                                                                     <td>@DisplayDates.DateTime(conversion.CreatedAt, true)</td>
-                                                                    <td>@Money(conversion.SourceAmount) @deal.SourceCurrencyCode</td>
-                                                                    <td>@Money(conversion.FinalUsdAmount) USD</td>
-                                                                    <td><strong>@Money(conversion.DeclaredUsdAmount) USD</strong></td>
-                                                                    <td class="@(conversion.ProfitUsd >= 0 ? "text-success" : "text-danger")">@SignedMoney(conversion.ProfitUsd) USD</td>
+                                                                    <td>@Money(conversion.SourceAmount) <CurrencyBadge Code="@deal.SourceCurrencyCode" /></td>
+                                                                    <td>@Money(conversion.FinalUsdAmount) <CurrencyBadge Code="USD" /></td>
+                                                                    <td><strong>@Money(conversion.DeclaredUsdAmount) <CurrencyBadge Code="USD" /></strong></td>
+                                                                    <td class="@(conversion.ProfitUsd >= 0 ? "text-success" : "text-danger")">@SignedMoney(conversion.ProfitUsd) <CurrencyBadge Code="USD" /></td>
                                                                     <td>@(conversion.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</td>
                                                                     <td>
                                                                         @if (conversion.Status == "Posted")
@@ -245,7 +245,7 @@
                         <RecordDetailsLink Kind="Account" Id="sourceAccountId" Text="@SelectedSourceAccountName" Class="fw-bold" />
                         <i class="bi bi-arrow-left mx-2"></i>
                         <RecordDetailsLink Kind="Account" Id="dubaiAccountId" Text="@SelectedDubaiAccountName" Class="fw-bold" />
-                        <div class="mt-1">مبلغ: <strong>@Money(createModel.Amount) @SelectedCurrencyCode</strong> · نمبر: <strong>@createModel.DealNumber.Trim()</strong></div>
+                        <div class="mt-1">مبلغ: <strong>@Money(createModel.Amount) <CurrencyBadge Code="@SelectedCurrencyCode" /></strong> · نمبر: <strong>@createModel.DealNumber.Trim()</strong></div>
                     </div>
                 }
                 else
@@ -262,16 +262,16 @@
 {
     <div class="modal show d-block" style="background:rgba(0,0,0,.5)" tabindex="-1" dir="rtl">
         <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
-            <div class="modal-header"><div><h5 class="modal-title">تبدیل معامله @selectedDeal.DealNumber</h5><small class="text-muted">باقی‌مانده: @Money(selectedDeal.RemainingAmount) @selectedDeal.SourceCurrencyCode</small></div><button class="btn-close" @onclick="CloseConvert"></button></div>
+            <div class="modal-header"><div><h5 class="modal-title">تبدیل معامله @selectedDeal.DealNumber</h5><small class="text-muted">باقی‌مانده: @Money(selectedDeal.RemainingAmount) <CurrencyBadge Code="@selectedDeal.SourceCurrencyCode" /></small></div><button class="btn-close" @onclick="CloseConvert"></button></div>
             <div class="modal-body">
                 <div class="alert alert-light border d-flex flex-wrap justify-content-between gap-2 py-2">
                     <span>مبلغ باقی‌مانده</span>
-                    <strong dir="ltr">@Money(selectedDeal.RemainingAmount) @selectedDeal.SourceCurrencyCode</strong>
+                    <strong dir="ltr">@Money(selectedDeal.RemainingAmount) <CurrencyBadge Code="@selectedDeal.SourceCurrencyCode" /></strong>
                 </div>
                 <div class="row g-3">
-                    <div class="col-md-4"><label class="form-label fw-semibold">مبلغ قابل تبدیل <span class="text-danger">*</span></label><div class="input-group" dir="ltr"><MoneyInput class="form-control" DecimalPlaces="4" Value="@conversionModel.SourceAmount" ValueChanged="OnConversionAmountChanged" /><span class="input-group-text">@selectedDeal.SourceCurrencyCode</span></div></div>
-                    <div class="col-md-4"><label class="form-label fw-semibold">مشخصه معامله</label><div class="input-group" dir="ltr"><MoneyInput class="form-control" DecimalPlaces="4" Value="@conversionModel.ActualMarker" ValueChanged="OnActualMarkerChanged" /><span class="input-group-text">@selectedDeal.SourceCurrencyCode</span></div></div>
-                    <div class="col-md-4"><label class="form-label fw-semibold">مشخصه اعلامی به کویته</label><div class="input-group" dir="ltr"><MoneyInput class="form-control" DecimalPlaces="4" Value="@conversionModel.DeclaredMarker" ValueChanged="OnDeclaredMarkerChanged" /><span class="input-group-text">@selectedDeal.SourceCurrencyCode</span></div></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold">مبلغ قابل تبدیل <span class="text-danger">*</span></label><div class="input-group" dir="ltr"><MoneyInput class="form-control" DecimalPlaces="4" Value="@conversionModel.SourceAmount" ValueChanged="OnConversionAmountChanged" /><span class="input-group-text"><CurrencyBadge Code="@selectedDeal.SourceCurrencyCode" /></span></div></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold">مشخصه معامله</label><div class="input-group" dir="ltr"><MoneyInput class="form-control" DecimalPlaces="4" Value="@conversionModel.ActualMarker" ValueChanged="OnActualMarkerChanged" /><span class="input-group-text"><CurrencyBadge Code="@selectedDeal.SourceCurrencyCode" /></span></div></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold">مشخصه اعلامی به کویته</label><div class="input-group" dir="ltr"><MoneyInput class="form-control" DecimalPlaces="4" Value="@conversionModel.DeclaredMarker" ValueChanged="OnDeclaredMarkerChanged" /><span class="input-group-text"><CurrencyBadge Code="@selectedDeal.SourceCurrencyCode" /></span></div></div>
                     <div class="col-12"><label class="form-label">یادداشت</label><textarea class="form-control" rows="2" maxlength="500" @bind="conversionModel.Note"></textarea></div>
                 </div>
                 <div class="form-text mt-2">مشخصه مثبت: <span dir="ltr" class="fw-semibold">200</span> · مشخصه منفی: <span dir="ltr" class="fw-semibold">-150</span>. مشخصه بر اساس هر 100,000 واحد ارز معامله محاسبه می‌شود.</div>
@@ -282,9 +282,9 @@
                 @if (preview != null)
                 {
                     <div class="row g-2 mt-3">
-                        <div class="col-md-4"><div class="alert alert-primary mb-0"><small>مبلغ نهایی قابل دریافت</small><div class="fs-5 fw-bold">@Money(preview.FinalUsdAmount) USD</div></div></div>
-                        <div class="col-md-4"><div class="alert alert-warning mb-0"><small>مبلغ اعلامی به کویته</small><div class="fs-5 fw-bold">@Money(preview.DeclaredUsdAmount) USD</div></div></div>
-                        <div class="col-md-4"><div class="alert @(preview.ProfitUsd >= 0 ? "alert-success" : "alert-danger") mb-0"><small>@(preview.ProfitUsd >= 0 ? "مفاد" : "زیان")</small><div class="fs-5 fw-bold">@Money(Math.Abs(preview.ProfitUsd)) USD</div></div></div>
+                        <div class="col-md-4"><div class="alert alert-primary mb-0"><small>مبلغ نهایی قابل دریافت</small><div class="fs-5 fw-bold">@Money(preview.FinalUsdAmount) <CurrencyBadge Code="USD" /></div></div></div>
+                        <div class="col-md-4"><div class="alert alert-warning mb-0"><small>مبلغ اعلامی به کویته</small><div class="fs-5 fw-bold">@Money(preview.DeclaredUsdAmount) <CurrencyBadge Code="USD" /></div></div></div>
+                        <div class="col-md-4"><div class="alert @(preview.ProfitUsd >= 0 ? "alert-success" : "alert-danger") mb-0"><small>@(preview.ProfitUsd >= 0 ? "مفاد" : "زیان")</small><div class="fs-5 fw-bold">@Money(Math.Abs(preview.ProfitUsd)) <CurrencyBadge Code="USD" /></div></div></div>
                     </div>
                 }
             </div>

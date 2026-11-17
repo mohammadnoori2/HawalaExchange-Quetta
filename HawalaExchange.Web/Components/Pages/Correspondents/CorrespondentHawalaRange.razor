@@ -159,7 +159,7 @@
                                                 <td>@GetFullName(hawala.ReceiverName, hawala.ReceiverFatherName)</td>
                                                 <td><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@GetPaymentLocation(hawala)" /></td>
                                                 <td class="fw-bold" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount)</td>
-                                                <td>@hawala.FromCurrencyCode</td>
+                                                <td><CurrencyBadge Code="@hawala.FromCurrencyCode" /></td>
                                                 <td dir="ltr">@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "—")</td>
                                                 <td>@(hawala.CommissionCurrencyCode ?? "—")</td>
                                                 <td dir="ltr">@(hawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) : "—")</td>
@@ -193,7 +193,7 @@
                                         @foreach (var summary in rangeResult.Summaries)
                                         {
                                             <tr>
-                                                <td class="fw-bold">@summary.CurrencyCode</td>
+                                                <td class="fw-bold"><CurrencyBadge Code="@summary.CurrencyCode" /></td>
                                                 <td class="text-danger fw-bold" dir="ltr">@MoneyFormatHelper.Format(summary.TotalDebit)</td>
                                                 <td class="text-success fw-bold" dir="ltr">@MoneyFormatHelper.Format(summary.TotalCredit)</td>
                                                 <td class="fw-bold @(summary.Balance < 0 ? "text-danger" : "text-primary")" dir="ltr">@MoneyFormatHelper.Format(summary.Balance)</td>

@@ -39,7 +39,7 @@ else if(ratesView)
 {
     <div class="table-responsive"><GlobalDataGrid class="table table-hover"><thead><tr><th>تاریخ حواله</th><th>ارز مبدأ</th><th>ارز توافقی</th><th>نرخ استفاده‌شده</th><th>آخرین ثبت</th></tr></thead><tbody>
         @foreach(var rate in rates.Where(x=>(currencyId==0 || x.SourceCurrencyId==currencyId) && Matches($"{x.SourceCurrencyCode} {x.TargetCurrencyCode} {x.ExchangeRate}")))
-        {<tr><td>@DisplayDates.Date(rate.RateDate)</td><td>@rate.SourceCurrencyCode</td><td>@rate.TargetCurrencyCode</td><td dir="ltr">@Rate(rate.ExchangeRate)</td><td>@DisplayDates.DateTime(rate.ModifiedAt.ToLocalTime())</td></tr>}
+        {<tr><td>@DisplayDates.Date(rate.RateDate)</td><td><CurrencyBadge Code="@rate.SourceCurrencyCode" /></td><td><CurrencyBadge Code="@rate.TargetCurrencyCode" /></td><td dir="ltr">@Rate(rate.ExchangeRate)</td><td>@DisplayDates.DateTime(rate.ModifiedAt.ToLocalTime())</td></tr>}
     </tbody></GlobalDataGrid></div>
 }
 else
@@ -47,7 +47,7 @@ else
     <div class="table-responsive"><GlobalDataGrid class="table table-hover"><thead><tr><th>شماره عملیات</th><th>تاریخ اجرا</th><th>روزهای حواله</th><th>کاربر</th><th>حواله</th><th>مبالغ و نرخ‌ها</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>
         @foreach(var item in history.Where(x=>Matches($"{x.ConversionId} {x.UserName} {x.Note} {string.Join(" ",x.Items.Select(i=>i.SourceCurrencyCode))}")))
         {<tr><td>@item.ConversionId</td><td>@DisplayDates.DateTime(item.CreatedAt.ToLocalTime())</td><td>@string.Join("، ",item.Items.Select(x=>x.RateDate).Distinct().Select(x=>DisplayDates.Date(x)))</td><td>@item.UserName</td><td>@item.HawalaCount</td>
-            <td>@foreach(var total in item.Items.GroupBy(x=>new{x.SourceCurrencyCode,x.ExchangeRate})){<div dir="ltr">@Money(total.Sum(x=>x.SourceAmount)) @total.Key.SourceCurrencyCode → @Money(total.Sum(x=>x.TargetAmount)) @item.TargetCurrencyCode (@Rate(total.Key.ExchangeRate))</div>}</td>
+            <td>@foreach(var total in item.Items.GroupBy(x=>new{x.SourceCurrencyCode,x.ExchangeRate})){<div dir="ltr">@Money(total.Sum(x=>x.SourceAmount)) <CurrencyBadge Code="@total.Key.SourceCurrencyCode" /> → @Money(total.Sum(x=>x.TargetAmount)) <CurrencyBadge Code="@item.TargetCurrencyCode" /> (@Rate(total.Key.ExchangeRate))</div>}</td>
             <td>@Status(item.Status)</td><td><button class="btn btn-sm btn-outline-primary" @onclick="()=>DetailsAsync(item.ConversionId)">جزئیات</button></td></tr>}
     </tbody></GlobalDataGrid></div>
     <div class="d-flex gap-2 align-items-center mt-2"><button class="btn btn-outline-secondary" disabled="@(page<=1)" @onclick="PreviousAsync">قبلی</button><span>صفحه @(page)</span><button class="btn btn-outline-secondary" disabled="@(history.Count<20)" @onclick="NextAsync">بعدی</button></div>
@@ -57,20 +57,20 @@ else
     <div class="modal show d-block" dir="rtl" style="background:rgba(15,23,42,.6)"><div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered"><div class="modal-content">
         <div class="modal-header"><h5>جزئیات تبدیل #@details.ConversionId — @Status(details.Status)</h5><button class="btn-close" disabled="@busy" @onclick="()=>details=null"></button></div>
         <div class="modal-body">
-            <p>ارز توافقی: @details.TargetCurrencyCode · کاربر: @details.UserName · @DisplayDates.DateTime(details.CreatedAt.ToLocalTime())</p>
+            <p>ارز توافقی: <CurrencyBadge Code="@details.TargetCurrencyCode" /> · کاربر: @details.UserName · @DisplayDates.DateTime(details.CreatedAt.ToLocalTime())</p>
             @foreach(var day in details.Items.GroupBy(x=>x.RateDate).OrderBy(x=>x.Key))
             {
                 <h6>@DisplayDates.Date(day.Key)</h6>
-                <div class="d-flex flex-wrap gap-2 mb-2">@foreach(var group in day.GroupBy(x=>x.SourceCurrencyCode)){<span class="badge bg-light text-dark border" dir="ltr">@Money(group.Sum(x=>x.SourceAmount)) @group.Key → @Money(group.Sum(x=>x.TargetAmount)) @details.TargetCurrencyCode</span>}</div>
+                <div class="d-flex flex-wrap gap-2 mb-2">@foreach(var group in day.GroupBy(x=>x.SourceCurrencyCode)){<span class="badge bg-light text-dark border" dir="ltr">@Money(group.Sum(x=>x.SourceAmount)) @group.Key → @Money(group.Sum(x=>x.TargetAmount)) <CurrencyBadge Code="@details.TargetCurrencyCode" /></span>}</div>
                 <div class="table-responsive"><GlobalDataGrid class="table table-sm"><thead><tr><th>نمبر مسلسل</th><th>نمبر حواله</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>اصل/مانده قبل تبدیل</th><th>نرخ</th><th>مبلغ تبدیل حسابداری</th><th>اصل حواله به ارز توافقی</th><th>مبنای USD کمیشن</th></tr></thead><tbody>
-                    @foreach(var row in day){<tr><td>@row.HawalaNumber</td><td>@row.ReferenceNumber</td><td>@row.SenderName</td><td>@row.ReceiverName</td><td><RecordDetailsLink Kind="PaymentLocation" Id="row.PaymentLocationId" Text="@row.PaymentLocationName" /></td><td dir="ltr">@Money(row.SourceAmount) @row.SourceCurrencyCode</td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) @details.TargetCurrencyCode</td><td dir="ltr">@(row.PrincipalTargetAmount.HasValue?Money(row.PrincipalTargetAmount.Value):"—")</td><td dir="ltr">@(row.UsdAmount.HasValue?Money(row.UsdAmount.Value):"—")</td></tr>}
+                    @foreach(var row in day){<tr><td>@row.HawalaNumber</td><td>@row.ReferenceNumber</td><td>@row.SenderName</td><td>@row.ReceiverName</td><td><RecordDetailsLink Kind="PaymentLocation" Id="row.PaymentLocationId" Text="@row.PaymentLocationName" /></td><td dir="ltr">@Money(row.SourceAmount) <CurrencyBadge Code="@row.SourceCurrencyCode" /></td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) <CurrencyBadge Code="@details.TargetCurrencyCode" /></td><td dir="ltr">@(row.PrincipalTargetAmount.HasValue?Money(row.PrincipalTargetAmount.Value):"—")</td><td dir="ltr">@(row.UsdAmount.HasValue?Money(row.UsdAmount.Value):"—")</td></tr>}
                 </tbody></GlobalDataGrid></div>
             }
             @if(details.Revisions.Count>1)
             {
                 <h6>سوابق نرخ و مبالغ قبلی</h6>
                 @foreach(var revision in details.Revisions.Take(details.Revisions.Count-1))
-                {<details class="mb-2"><summary>@DisplayDates.DateTime(revision.CreatedAt.ToLocalTime()) · @revision.UserName</summary><table class="table table-sm"><thead><tr><th>روز</th><th>حواله</th><th>ارز</th><th>نرخ قبلی</th><th>مبلغ قبلی</th></tr></thead><tbody>@foreach(var row in revision.Items){<tr><td>@DisplayDates.Date(row.RateDate)</td><td>@row.HawalaNumber</td><td>@row.SourceCurrencyCode</td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) @details.TargetCurrencyCode</td></tr>}</tbody></table></details>}
+                {<details class="mb-2"><summary>@DisplayDates.DateTime(revision.CreatedAt.ToLocalTime()) · @revision.UserName</summary><table class="table table-sm"><thead><tr><th>روز</th><th>حواله</th><th>ارز</th><th>نرخ قبلی</th><th>مبلغ قبلی</th></tr></thead><tbody>@foreach(var row in revision.Items){<tr><td>@DisplayDates.Date(row.RateDate)</td><td>@row.HawalaNumber</td><td><CurrencyBadge Code="@row.SourceCurrencyCode" /></td><td dir="ltr">@Rate(row.ExchangeRate)</td><td dir="ltr">@Money(row.TargetAmount) <CurrencyBadge Code="@details.TargetCurrencyCode" /></td></tr>}</tbody></table></details>}
             }
             @if(details.Status is "Active" or "Adjusted")
             {

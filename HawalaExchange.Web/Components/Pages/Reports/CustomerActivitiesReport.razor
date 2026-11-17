@@ -55,7 +55,7 @@
                         @foreach (var b in customerBalance)
                         {
                             <span class="badge-modern @(b.Balance > 0 ? "badge-success" : (b.Balance < 0 ? "badge-danger" : "badge-secondary")) ms-1">
-                                @b.CurrencyCode: @MoneyFormatHelper.Format(Math.Abs(b.Balance)) (@BalanceStatus(b.Balance))
+                                <CurrencyBadge Code="@b.CurrencyCode" />: @MoneyFormatHelper.Format(Math.Abs(b.Balance)) (@BalanceStatus(b.Balance))
                             </span>
                         }
                     </div>

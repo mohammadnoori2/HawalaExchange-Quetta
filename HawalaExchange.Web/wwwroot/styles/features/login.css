@@ -1,4 +1,4 @@
-﻿/* =========================================
+/* =========================================
    VARIABLES & RESET
 ========================================= */
 :root {
@@ -241,7 +241,7 @@
     font-weight: 800;
     margin: 0;
     letter-spacing: -0.5px;
-    background: linear-gradient(135deg, #FFFFFF 0%, #C7D2FE 100%);
+    background: linear-gradient(135deg, var(--surface, #FFFFFF) 0%, #C7D2FE 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     text-align: right; /* اضافه شد */
@@ -690,8 +690,8 @@
 }
 
 .alert-danger {
-    background: #FEF2F2;
-    color: #991B1B;
+    background: var(--tone-danger-bg, #FEF2F2);
+    color: var(--tone-danger-ink, #991B1B);
     border-right: 4px solid #EF4444;
 }
 
@@ -709,7 +709,7 @@
         opacity: 1;
     }
 
-.text-danger {
+.login-page .text-danger {
     color: #DC2626;
     font-size: 0.8rem;
     margin-top: 4px;
@@ -927,8 +927,8 @@
 .alert-success-custom {
     padding: 12px 16px;
     border-radius: var(--radius-md, 12px);
-    background: #D1FAE5;
-    color: #065F46;
+    background: var(--tone-success-bg, #D1FAE5);
+    color: var(--tone-success-ink, #065F46);
     border-right: 4px solid #10B981;
     margin-bottom: 20px;
     display: flex;
@@ -947,10 +947,10 @@
 .back-link {
     text-align: center;
     font-size: 0.85rem;
-    color: var(--text-secondary, #6B7280);
+    color: var(--text-secondary, var(--app-muted, #6B7280));
     margin-top: 20px;
     padding-top: 16px;
-    border-top: 1px solid var(--border-color, #E5E7EB);
+    border-top: 1px solid var(--border-color, var(--app-border, #E5E7EB));
 }
 
     .back-link a {
@@ -997,12 +997,12 @@
 
 .recovery-status-icon.success {
     color: #047857;
-    background: #d1fae5;
+    background: var(--tone-success-bg, #d1fae5);
 }
 
 .recovery-status-icon.danger {
-    color: #b91c1c;
-    background: #fee2e2;
+    color: var(--tone-danger-ink, #b91c1c);
+    background: var(--tone-danger-bg, #fee2e2);
 }
 
 @media (max-width: 576px) {

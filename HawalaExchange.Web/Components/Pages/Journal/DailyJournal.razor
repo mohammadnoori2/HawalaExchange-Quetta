@@ -147,7 +147,7 @@
                     <div class="card-body">
                         <div class="row g-3 align-items-end">
                             <div class="col-md-4">
-                                <label class="form-label fw-bold">نرخ پایان روز USD به AFN</label>
+                                <label class="form-label fw-bold">نرخ پایان روز USD به <CurrencyBadge Code="AFN" /></label>
                                 <MoneyInput class="form-control"
                                             DecimalPlaces="8"
                                             @bind-Value="dailyCommissionRateInput"
@@ -226,7 +226,7 @@
                                         <RecordDetailsLink Kind="Account" Id="balance.AccountId" Text="@balance.AccountName" Class="fw-bold" />
                                         <small class="d-block text-muted" dir="ltr">@balance.AccountCode</small>
                                     </td>
-                                    <td><span class="badge-modern badge-info">@balance.CurrencyCode</span></td>
+                                    <td><span class="badge-modern badge-info"><CurrencyBadge Code="@balance.CurrencyCode" /></span></td>
                                     <td class="cash-opening-input">
                                         <MoneyInput class="form-control form-control-sm"
                                                     DecimalPlaces="@balance.DecimalPlaces"
@@ -317,7 +317,7 @@
                             {
                                 <tr>
                                     <td>@summaryIndex</td>
-                                    <td><span class="badge-modern badge-info">@item.CurrencyCode</span></td>
+                                    <td><span class="badge-modern badge-info"><CurrencyBadge Code="@item.CurrencyCode" /></span></td>
                                     <td>@item.EntriesCount</td>
                                     <td dir="ltr" class="fw-bold text-success">@MoneyFormatHelper.Format(item.TotalTalabKar)</td>
                                     <td dir="ltr" class="fw-bold text-danger">@MoneyFormatHelper.Format(item.TotalBadehKar)</td>
@@ -411,7 +411,7 @@
                                         @foreach (var amount in operation.CurrencySummaries)
                                         {
                                             <span dir="ltr">
-                                                <strong>@MoneyFormatHelper.Format(GetDocumentAmount(amount))</strong> @amount.CurrencyCode
+                                                <strong>@MoneyFormatHelper.Format(GetDocumentAmount(amount))</strong> <CurrencyBadge Code="@amount.CurrencyCode" />
                                             </span>
                                         }
                                     </td>
@@ -498,7 +498,7 @@
                                         <td class="journal-movement-amount">
                                             @foreach (var amount in row.Amounts)
                                             {
-                                                <span dir="ltr"><strong>@MoneyFormatHelper.Format(amount.Amount)</strong> @amount.CurrencyCode</span>
+                                                <span dir="ltr"><strong>@MoneyFormatHelper.Format(amount.Amount)</strong> <CurrencyBadge Code="@amount.CurrencyCode" /></span>
                                             }
                                         </td>
                                         <td>
@@ -585,7 +585,7 @@
                                         <td class="journal-movement-amount">
                                             @foreach (var amount in row.Amounts)
                                             {
-                                                <span dir="ltr"><strong>@MoneyFormatHelper.Format(amount.Amount)</strong> @amount.CurrencyCode</span>
+                                                <span dir="ltr"><strong>@MoneyFormatHelper.Format(amount.Amount)</strong> <CurrencyBadge Code="@amount.CurrencyCode" /></span>
                                             }
                                         </td>
                                         <td>
@@ -680,7 +680,7 @@
                             @foreach (var currency in selectedOperation.CurrencySummaries)
                             {
                                 <tr>
-                                    <td><span class="badge-modern badge-info">@currency.CurrencyCode</span></td>
+                                    <td><span class="badge-modern badge-info"><CurrencyBadge Code="@currency.CurrencyCode" /></span></td>
                                     <td dir="ltr" class="text-success fw-bold">@MoneyFormatHelper.Format(currency.TotalTalabKar)</td>
                                     <td dir="ltr" class="text-danger fw-bold">@MoneyFormatHelper.Format(currency.TotalBadehKar)</td>
                                     <td>
@@ -715,7 +715,7 @@
                                     <td dir="ltr">@entry.Id</td>
                                     <td><AppDateTime Value="@entry.CreatedAt" ShowSeconds="true" /></td>
                                     <td><RecordDetailsLink Kind="Account" Id="entry.AccountId" Text="@entry.AccountName" /></td>
-                                    <td>@entry.CurrencyCode</td>
+                                    <td><CurrencyBadge Code="@entry.CurrencyCode" /></td>
                                     <td dir="ltr" class="text-success">
                                         @(entry.TalabKar > 0 ? MoneyFormatHelper.Format(entry.TalabKar) : "-")
                                     </td>

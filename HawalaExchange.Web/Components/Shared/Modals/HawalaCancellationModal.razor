@@ -30,7 +30,7 @@
                     @if (preview.RequiresCompensation)
                     {
                         <div class="alert alert-warning">لغو فقط حواله اصلی و ارسالی مرتبط را سرخ می‌کند؛ ثبت‌های زیر تنها هنگام ثبت حواله جبرانی انجام می‌شوند.</div>
-                        @if (preview.UsdAmount is > 0) { <p class="fw-bold">مبلغ دالری حواله جبرانی: <bdi>@Money(preview.UsdAmount.Value) USD</bdi></p> }
+                        @if (preview.UsdAmount is > 0) { <p class="fw-bold">مبلغ دالری حواله جبرانی: <bdi>@Money(preview.UsdAmount.Value) <CurrencyBadge Code="USD" /></bdi></p> }
                         <p>حواله جبرانی — فرستنده: <strong>@preview.Receiver</strong>؛ گیرنده: <strong>@(preview.IsCancelled && mode == "Manual" ? receiver : preview.Sender)</strong></p>
                     }
                     else

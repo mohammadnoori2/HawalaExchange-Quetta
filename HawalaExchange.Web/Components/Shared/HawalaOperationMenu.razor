@@ -81,7 +81,7 @@
 <MoneyExchangeModal IsVisible="showExchange" IsVisibleChanged="value => showExchange=value" LinkedHawalaId="Hawala.Id" OnSaveSuccess="ExchangeSaved" />
 @if(exchangeDetails!=null){
 <div class="modal d-block" role="dialog" aria-modal="true"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5>تبدیل مستقل حواله @Hawala.Number</h5></div><div class="modal-body">
-<div dir="ltr">@exchangeDetails.FromAmount @exchangeDetails.FromCurrencyCode → @exchangeDetails.ToAmount @exchangeDetails.ToCurrencyCode</div>
+<div dir="ltr">@exchangeDetails.FromAmount <CurrencyBadge Code="@exchangeDetails.FromCurrencyCode" /> → @exchangeDetails.ToAmount <CurrencyBadge Code="@exchangeDetails.ToCurrencyCode" /></div>
 <div>نرخ هر 1 واحد ارز مبدأ: @(exchangeDetails.ToAmount/exchangeDetails.FromAmount)</div><div>@DisplayDates.DateTime(exchangeDetails.ExchangeDate)</div><p>@exchangeDetails.Description</p>
 @if(exchangeError!=null){<div class="alert alert-danger">@exchangeError</div>}
 </div><div class="modal-footer"><button class="btn btn-secondary" @onclick="()=>exchangeDetails=null">بستن</button><PermissionView Permission="Exchanges.Delete"><button class="btn btn-outline-danger" @onclick="()=>confirmRemove=true">حذف تبدیل</button>@if(confirmRemove){<button class="btn btn-danger" @onclick="RemoveExchange">تأیید حذف و برگشت اثر تبدیل</button>}</PermissionView></div></div></div></div><div class="modal-backdrop fade show"></div>

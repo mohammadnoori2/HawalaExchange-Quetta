@@ -19,12 +19,12 @@
             <tbody>
             @{ var n = 0; }
             @foreach(var row in Bill.Items)
-            { <tr><td>@(++n)</td><td>@row.Number / @row.ReferenceNumber</td><td>@row.ReceiverName</td><td>@row.PaymentLocation</td><td dir="ltr">@row.Amount.ToWholeMoney() @row.CurrencyCode</td><td dir="ltr">@row.AgentCommission.ToWholeMoney() @row.CommissionCurrencyCode</td></tr> }
+            { <tr><td>@(++n)</td><td>@row.Number / @row.ReferenceNumber</td><td>@row.ReceiverName</td><td>@row.PaymentLocation</td><td dir="ltr">@row.Amount.ToWholeMoney() <CurrencyBadge Code="@row.CurrencyCode" /></td><td dir="ltr">@row.AgentCommission.ToWholeMoney() <CurrencyBadge Code="@row.CommissionCurrencyCode" /></td></tr> }
             </tbody>
         </table></div>
         <table class="table table-bordered text-center">
             <thead><tr><th>ارز</th><th>مجموع اصل حواله‌ها</th><th>مجموع کمیشن عامل</th><th>@(Bill.IsHistoricalReceipt ? "مجموع سابقه حواله‌ها" : "مجموع قابل پرداخت")</th></tr></thead>
-            <tbody>@foreach(var total in Bill.Totals) { <tr><td>@total.CurrencyCode</td><td>@total.Principal.ToWholeMoney()</td><td>@total.AgentCommission.ToWholeMoney()</td><td><strong>@total.Total.ToWholeMoney()</strong></td></tr> }</tbody>
+            <tbody>@foreach(var total in Bill.Totals) { <tr><td><CurrencyBadge Code="@total.CurrencyCode" /></td><td>@total.Principal.ToWholeMoney()</td><td>@total.AgentCommission.ToWholeMoney()</td><td><strong>@total.Total.ToWholeMoney()</strong></td></tr> }</tbody>
         </table>
         @if (!string.IsNullOrWhiteSpace(Bill.Notes)) { <p>توضیحات: @Bill.Notes</p> }
         <p class="small text-muted">@(Bill.IsHistoricalReceipt ? "مبالغ به ارز ثبت‌شده حواله‌ها نمایش داده شده‌اند؛ این رسید پرداخت یا تبدیل ارز جدید نیست. لغو رسید نیز سند مالی قبلی را برگشت نمی‌دهد." : "صدور یا چاپ بیل به‌تنهایی به معنی پرداخت پول نیست. وضعیت پرداخت در سیستم بررسی شود.")</p>

@@ -9,7 +9,7 @@
 
 .customer-type-tabs button {
     padding: .42rem .8rem;
-    color: #64748b;
+    color: var(--app-muted, #64748b);
     background: transparent;
     border: 0;
     border-radius: .48rem;
@@ -19,7 +19,7 @@
 
 .customer-type-tabs button.active {
     color: #1d4ed8;
-    background: #fff;
+    background: var(--surface, #fff);
     box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
 }
 
@@ -48,9 +48,9 @@
     display: grid;
     grid-template-columns: minmax(90px, .8fr) minmax(110px, 1fr) minmax(82px, .75fr) minmax(170px, 1.45fr);
     overflow: visible;
-    border: 1px solid var(--border-color, #cbd5e1);
+    border: 1px solid var(--border-color, var(--app-border, #cbd5e1));
     border-radius: .35rem;
-    background: var(--card-bg, #fff);
+    background: var(--card-bg, var(--surface, #fff));
     transition: border-color .15s ease, box-shadow .15s ease;
 }
 
@@ -72,8 +72,8 @@
     outline: 0;
 }
 
-.customer-initial-balance-currency { border-left: 1px solid var(--border-color, #e2e8f0); }
-.customer-initial-balance-direction { border-right: 1px solid var(--border-color, #e2e8f0); text-align: center; }
+.customer-initial-balance-currency { border-left: 1px solid var(--border-color, var(--app-border, #e2e8f0)); }
+.customer-initial-balance-direction { border-right: 1px solid var(--border-color, var(--app-border, #e2e8f0)); text-align: center; }
 .customer-initial-balance-direction.is-debit { color: var(--danger-color, #dc3545); }
 .customer-initial-balance-direction.is-credit { color: var(--primary-color, #2563eb); }
 
@@ -93,7 +93,7 @@
 
 .customer-initial-balance-account {
     min-width: 0;
-    border-right: 1px solid var(--border-color, #e2e8f0);
+    border-right: 1px solid var(--border-color, var(--app-border, #e2e8f0));
 }
 
 .customer-initial-balance-account .form-control,
@@ -113,7 +113,7 @@
     margin-top: .12rem;
     padding-inline: .2rem;
     overflow: hidden;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--app-muted, #6b7280));
     font-size: .64rem;
     line-height: 1.25;
     text-align: center;
@@ -141,8 +141,8 @@
 }
 
 .customer-initial-balance-delete {
-    border-color: var(--border-color, #cbd5e1);
-    color: var(--text-muted, #64748b);
+    border-color: var(--border-color, var(--app-border, #cbd5e1));
+    color: var(--text-muted, var(--app-muted, #64748b));
 }
 
 .customer-initial-balance-delete:hover {
@@ -153,5 +153,5 @@
 @media (max-width: 575.98px) {
     .customer-initial-balance-item { flex-basis: 100%; min-width: 0; max-width: none; }
     .customer-initial-balance-controls { grid-template-columns: minmax(80px, .8fr) minmax(95px, 1fr) minmax(75px, .75fr); }
-    .customer-initial-balance-account { grid-column: 1 / -1; border-top: 1px solid var(--border-color, #e2e8f0); border-right: 0; }
+    .customer-initial-balance-account { grid-column: 1 / -1; border-top: 1px solid var(--border-color, var(--app-border, #e2e8f0)); border-right: 0; }
 }

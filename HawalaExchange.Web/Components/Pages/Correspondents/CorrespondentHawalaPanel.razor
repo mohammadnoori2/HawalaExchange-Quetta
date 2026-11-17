@@ -161,13 +161,13 @@
                             <td>@(hawala.SenderName ?? "—")</td>
                             <td>@(hawala.ReceiverName ?? "—")</td>
                             <td title="@GetPaymentLocation(hawala)"><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@GetPaymentLocationName(hawala)" /></td>
-                            <td class="fw-bold text-primary" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount) @hawala.FromCurrencyCode</td>
+                            <td class="fw-bold text-primary" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount) <CurrencyBadge Code="@hawala.FromCurrencyCode" /></td>
                             <td dir="ltr">
                                 @if (HawalaType == "HawalaSend")
                                 {
                                     @if (hawala.AgentCommissionAmount is > 0)
                                     {
-                                        <span>@MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) @hawala.AgentCommissionCurrencyCode</span>
+                                        <span>@MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) <CurrencyBadge Code="@hawala.AgentCommissionCurrencyCode" /></span>
                                         @if (hawala.Status != "Cancel")
                                         {
                                             <PermissionView Permission="Hawalas.Edit"><button type="button" class="btn btn-link btn-sm p-0 ms-1" title="ویرایش کمیشن نمایندگی" aria-label="ویرایش کمیشن نمایندگی حواله @hawala.Number" @onclick="() => OpenAddCommissionAsync(hawala)"><i class="bi bi-pencil-square" aria-hidden="true"></i></button></PermissionView>
@@ -184,13 +184,13 @@
                                 }
                                 else
                                 {
-                                    <span>@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "—") @hawala.CommissionCurrencyCode</span>
+                                    <span>@(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "—") <CurrencyBadge Code="@hawala.CommissionCurrencyCode" /></span>
                                 }
                             </td>
                             <td dir="ltr">
                                 @if (hawala.PeriodicCommissionAfn.HasValue)
                                 {
-                                    <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) @hawala.PeriodicCommissionCurrencyCode</span>
+                                    <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) <CurrencyBadge Code="@hawala.PeriodicCommissionCurrencyCode" /></span>
                                 }
                                 else { <span>—</span> }
                             </td>
@@ -200,7 +200,7 @@
                                     @foreach (var rateInfo in hawala.SettlementRates)
                                     {
                                         <div class="d-flex align-items-center gap-1" dir="ltr">
-                                            <span>@AmountValueHelper.Format(rateInfo.ExchangeRate, 8) @rateInfo.SourceCurrencyCode</span>
+                                            <span>@AmountValueHelper.Format(rateInfo.ExchangeRate, 8) <CurrencyBadge Code="@rateInfo.SourceCurrencyCode" /></span>
                                             @if (hawala.CanEditSettlementRate)
                                             {
                                                 <PermissionView Permission="Settlement.Edit"><button type="button" class="btn btn-link btn-sm p-0" title="تغییر نرخ" @onclick="() => OpenRateEdit(hawala, rateInfo)">
@@ -298,16 +298,16 @@
                         <div><span>گیرنده</span><strong>@(selectedHawala.ReceiverName ?? "—")</strong></div>
                         <div><span>نام پدر گیرنده</span><strong>@(selectedHawala.ReceiverFatherName ?? "—")</strong></div>
                         <div><span>تلفن گیرنده</span><strong dir="ltr">@(selectedHawala.ReceiverPhone ?? "—")</strong></div>
-                        <div><span>مبلغ حواله</span><strong dir="ltr">@MoneyFormatHelper.Format(selectedHawala.FromAmount) @selectedHawala.FromCurrencyCode</strong></div>
+                        <div><span>مبلغ حواله</span><strong dir="ltr">@MoneyFormatHelper.Format(selectedHawala.FromAmount) <CurrencyBadge Code="@selectedHawala.FromCurrencyCode" /></strong></div>
                         @if (selectedHawala.CommissionBaseUsdAmount.HasValue)
                         {
-                            <div><span>معادل دالری کمیشن</span><strong dir="ltr">@MoneyFormatHelper.Format(selectedHawala.CommissionBaseUsdAmount.Value) USD</strong></div>
+                            <div><span>معادل دالری کمیشن</span><strong dir="ltr">@MoneyFormatHelper.Format(selectedHawala.CommissionBaseUsdAmount.Value) <CurrencyBadge Code="USD" /></strong></div>
                             <div><span>نرخ پایان روز</span><strong dir="ltr">@(selectedHawala.CommissionUsdToAfnRate?.ToString("N8").TrimEnd('0').TrimEnd('.') ?? "—")</strong></div>
                         }
-                        <div><span>مبلغ تبدیل‌شده</span><strong dir="ltr">@(selectedHawala.ToAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.ToAmount.Value) : "—") @selectedHawala.ToCurrencyCode</strong></div>
+                        <div><span>مبلغ تبدیل‌شده</span><strong dir="ltr">@(selectedHawala.ToAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.ToAmount.Value) : "—") <CurrencyBadge Code="@selectedHawala.ToCurrencyCode" /></strong></div>
                         <div><span>نرخ تبدیل</span><strong dir="ltr">@(selectedHawala.ExchangeRate.HasValue ? MoneyFormatHelper.Format(selectedHawala.ExchangeRate.Value, 8) : "—")</strong></div>
-                        <div><span>کارمزد حواله</span><strong dir="ltr">@(selectedHawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.CommissionAmount.Value) : "—") @selectedHawala.CommissionCurrencyCode</strong></div>
-                        <div><span>کارمزد نمایندگی</span><strong dir="ltr">@(selectedHawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.AgentCommissionAmount.Value) : "—") @selectedHawala.AgentCommissionCurrencyCode</strong></div>
+                        <div><span>کارمزد حواله</span><strong dir="ltr">@(selectedHawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.CommissionAmount.Value) : "—") <CurrencyBadge Code="@selectedHawala.CommissionCurrencyCode" /></strong></div>
+                        <div><span>کارمزد نمایندگی</span><strong dir="ltr">@(selectedHawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.AgentCommissionAmount.Value) : "—") <CurrencyBadge Code="@selectedHawala.AgentCommissionCurrencyCode" /></strong></div>
                         <div><span>محل پرداخت</span><strong>@GetPaymentLocation(selectedHawala)</strong></div>
                         <div><span>نمبر حواله</span><strong>@(selectedHawala.ReferenceNumber ?? "—")</strong></div>
                         <div><span>یادداشت</span><strong>@(selectedHawala.Notes ?? "—")</strong></div>

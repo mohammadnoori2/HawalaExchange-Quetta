@@ -37,7 +37,7 @@
                 <div class="table-responsive mt-3"><table class="table table-bordered text-center">
                     <thead><tr><th>ارز</th><th>مجموع اصل حواله</th><th>کمیشن عامل پرداخت</th><th>مجموع پرداخت</th></tr></thead>
                     <tbody>@foreach (var total in selected.Totals)
-                    { <tr><td>@total.CurrencyCode</td><td dir="ltr">@MoneyFormatHelper.Format(total.Principal)</td><td dir="ltr">@MoneyFormatHelper.Format(total.AgentCommission)</td><td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(total.Total)</td></tr> }</tbody>
+                    { <tr><td><CurrencyBadge Code="@total.CurrencyCode" /></td><td dir="ltr">@MoneyFormatHelper.Format(total.Principal)</td><td dir="ltr">@MoneyFormatHelper.Format(total.AgentCommission)</td><td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(total.Total)</td></tr> }</tbody>
                 </table></div>
                 @foreach (var group in selected.Items.GroupBy(x => x.CurrencyCode))
                 {
@@ -45,7 +45,7 @@
                     <div class="table-responsive"><table class="table table-striped text-center">
                         <thead><tr><th>نمبر مسلسل</th><th>نمبر حواله</th><th>فرستنده</th><th>گیرنده</th><th>نمایندگی</th><th>محل پرداخت</th><th>مبلغ پرداخت</th><th>کمیشن عامل پرداخت</th><th>تاریخ ثبت</th></tr></thead>
                         <tbody>@foreach (var item in group)
-                        { <tr><td>@item.Number</td><td>@item.ReferenceNumber</td><td>@item.SenderName</td><td>@item.ReceiverName</td><td>@item.CorrespondentName</td><td>@item.PaymentLocation</td><td dir="ltr">@MoneyFormatHelper.Format(item.Amount) @item.CurrencyCode</td><td dir="ltr">@MoneyFormatHelper.Format(item.AgentCommission) @item.CommissionCurrencyCode</td><td><AppDateTime Value="item.RegisteredAt" /></td></tr> }</tbody>
+                        { <tr><td>@item.Number</td><td>@item.ReferenceNumber</td><td>@item.SenderName</td><td>@item.ReceiverName</td><td>@item.CorrespondentName</td><td>@item.PaymentLocation</td><td dir="ltr">@MoneyFormatHelper.Format(item.Amount) <CurrencyBadge Code="@item.CurrencyCode" /></td><td dir="ltr">@MoneyFormatHelper.Format(item.AgentCommission) <CurrencyBadge Code="@item.CommissionCurrencyCode" /></td><td><AppDateTime Value="item.RegisteredAt" /></td></tr> }</tbody>
                     </table></div>
                 }
             </div>

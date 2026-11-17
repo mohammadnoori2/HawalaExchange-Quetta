@@ -1,0 +1,15 @@
+@inherits ComponentBase
+@if (!string.IsNullOrWhiteSpace(Code))
+{
+    <bdi class="currency-badge currency-tone-@Tone" data-currency="@NormalizedCode" dir="ltr">@NormalizedCode</bdi>
+}
+@code {
+    [Parameter] public string? Code { get; set; }
+    private string NormalizedCode => Code?.Trim().ToUpperInvariant() ?? string.Empty;
+    private int Tone => NormalizedCode switch
+    {
+        "USD" => 0, "AFN" => 1, "PKR" => 2, "EUR" => 3, "AED" => 4,
+        "IRR" or "IRT" => 5, "GBP" => 6, "SAR" => 7,
+        _ => NormalizedCode.Aggregate(0, (hash, c) => (hash * 31 + c) % 8)
+    };
+}

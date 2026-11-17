@@ -13,18 +13,18 @@
 }
 <div class="table-responsive mb-4">
     <table class="table table-sm table-bordered align-middle">
-        <thead><tr><th>تاریخ</th><th>تعداد حواله</th><th>مجموع AFN</th><th>مجموع USD</th><th>سایر ارزها</th><th>مبنای USD</th><th>کمیشن USD</th></tr></thead>
+        <thead><tr><th>تاریخ</th><th>تعداد حواله</th><th>مجموع <CurrencyBadge Code="AFN" /></th><th>مجموع <CurrencyBadge Code="USD" /></th><th>سایر ارزها</th><th>مبنای <CurrencyBadge Code="USD" /></th><th>کمیشن <CurrencyBadge Code="USD" /></th></tr></thead>
         <tbody>
         @foreach (var day in days)
         {
             <tr @key="day.Date" class="@(selectedDay == day.Date ? "table-primary" : null)">
                 <td><button type="button" class="btn btn-link p-0" aria-expanded="@(selectedDay == day.Date ? "true" : "false")" @onclick="() => ToggleDay(day.Date)">@DisplayDates.Date(day.Date)</button></td>
                 <td dir="ltr">@day.Items.Count.ToString(CultureInfo.InvariantCulture)</td>
-                <td dir="ltr">@Money(Total(day.Items, "AFN")) AFN</td>
-                <td dir="ltr">@Money(Total(day.Items, "USD")) USD</td>
+                <td dir="ltr">@Money(Total(day.Items, "AFN")) <CurrencyBadge Code="AFN" /></td>
+                <td dir="ltr">@Money(Total(day.Items, "USD")) <CurrencyBadge Code="USD" /></td>
                 <td dir="ltr">@OtherCurrencies(day.Items)</td>
-                <td dir="ltr">@Money(day.Items.Sum(x => x.AfnEquivalent)) USD</td>
-                <td dir="ltr">@Money(day.Items.Sum(x => x.CommissionAfn)) USD</td>
+                <td dir="ltr">@Money(day.Items.Sum(x => x.AfnEquivalent)) <CurrencyBadge Code="USD" /></td>
+                <td dir="ltr">@Money(day.Items.Sum(x => x.CommissionAfn)) <CurrencyBadge Code="USD" /></td>
             </tr>
             @if (selectedDay == day.Date)
             {
@@ -32,19 +32,19 @@
                     <h6>حواله‌های @DisplayDates.Date(day.Date)</h6>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover align-middle">
-                            <thead><tr><th>نمبر مسلسل</th><th>نمبر حواله</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>روز نرخ</th><th>واحد ارز مبدا به ازای USD</th><th>مبنای USD</th><th>کمیشن USD هر لک</th><th>سهم کمیشن USD</th><th>وضعیت</th></tr></thead>
+                            <thead><tr><th>نمبر مسلسل</th><th>نمبر حواله</th><th>فرستنده</th><th>گیرنده</th><th>محل پرداخت</th><th>مبلغ</th><th>روز نرخ</th><th>واحد ارز مبدا به ازای <CurrencyBadge Code="USD" /></th><th>مبنای <CurrencyBadge Code="USD" /></th><th>کمیشن USD هر لک</th><th>سهم کمیشن <CurrencyBadge Code="USD" /></th><th>وضعیت</th></tr></thead>
                             <tbody>
                             @foreach (var item in day.Items)
                             {
                                 <tr class="@(!item.IsActive || item.SourceAmount < 0 ? "table-secondary" : null)">
                                     <td dir="ltr">@item.HawalaNumber.ToString(CultureInfo.InvariantCulture)</td>
                                     <td>@item.ReferenceNumber</td><td>@item.SenderName</td><td>@item.ReceiverName</td><td><RecordDetailsLink Kind="PaymentLocation" Id="item.PaymentLocationId" Text="@item.PaymentLocationName" /></td>
-                                    <td dir="ltr">@Money(item.SourceAmount) @item.CurrencyCode</td>
+                                    <td dir="ltr">@Money(item.SourceAmount) <CurrencyBadge Code="@item.CurrencyCode" /></td>
                                     <td>@DisplayDates.Date(item.ValuationDate)</td>
                                     <td dir="ltr">@AmountValueHelper.Format(item.SourceToAfnRate, 8)</td>
-                                    <td dir="ltr">@Money(item.AfnEquivalent) USD</td>
-                                    <td dir="ltr">@Money(item.PerLakhRate) USD</td>
-                                    <td dir="ltr">@Money(item.CommissionAfn) USD</td>
+                                    <td dir="ltr">@Money(item.AfnEquivalent) <CurrencyBadge Code="USD" /></td>
+                                    <td dir="ltr">@Money(item.PerLakhRate) <CurrencyBadge Code="USD" /></td>
+                                    <td dir="ltr">@Money(item.CommissionAfn) <CurrencyBadge Code="USD" /></td>
                                     <td>@(item.SourceAmount < 0 ? "کسر کمیشن" : item.IsActive ? "فعال" : "برگشت‌شده/کسرشده")</td>
                                 </tr>
                             }
@@ -55,7 +55,7 @@
             }
         }
         </tbody>
-        <tfoot><tr><th>مجموع نهایی دوره</th><th dir="ltr">@Items.Count.ToString(CultureInfo.InvariantCulture)</th><th dir="ltr">@Money(Total(Items, "AFN")) AFN</th><th dir="ltr">@Money(Total(Items, "USD")) USD</th><th dir="ltr">@OtherCurrencies(Items)</th><th dir="ltr">@Money(Items.Sum(x => x.AfnEquivalent)) USD</th><th dir="ltr">@Money(TotalCommissionUsd) USD</th></tr></tfoot>
+        <tfoot><tr><th>مجموع نهایی دوره</th><th dir="ltr">@Items.Count.ToString(CultureInfo.InvariantCulture)</th><th dir="ltr">@Money(Total(Items, "AFN")) <CurrencyBadge Code="AFN" /></th><th dir="ltr">@Money(Total(Items, "USD")) <CurrencyBadge Code="USD" /></th><th dir="ltr">@OtherCurrencies(Items)</th><th dir="ltr">@Money(Items.Sum(x => x.AfnEquivalent)) <CurrencyBadge Code="USD" /></th><th dir="ltr">@Money(TotalCommissionUsd) <CurrencyBadge Code="USD" /></th></tr></tfoot>
     </table>
 </div>
 

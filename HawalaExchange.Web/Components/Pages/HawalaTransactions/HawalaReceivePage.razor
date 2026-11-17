@@ -148,22 +148,22 @@
                                     <td><RecordDetailsLink Kind="Correspondent" Id="hawala.CorrespondentId" Text="@hawala.CorrespondentName" /></td>
 
                                     <td dir="ltr" class="fw-bold text-primary">
-                                        @MoneyFormatHelper.Format(hawala.FromAmount) @hawala.FromCurrencyCode
+                                        @MoneyFormatHelper.Format(hawala.FromAmount) <CurrencyBadge Code="@hawala.FromCurrencyCode" />
                                     </td>
 
                                     <td dir="ltr">
                                         @(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")
-                                        @hawala.CommissionCurrencyCode
+                                        <CurrencyBadge Code="@hawala.CommissionCurrencyCode" />
                                     </td>
 
                                     <td dir="ltr">
                                         @(hawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.AgentCommissionAmount.Value) : "-")
-                                        @hawala.AgentCommissionCurrencyCode
+                                        <CurrencyBadge Code="@hawala.AgentCommissionCurrencyCode" />
                                     </td>
                                     <td dir="ltr">
                                         @if (hawala.PeriodicCommissionAfn.HasValue)
                                         {
-                                            <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) @hawala.PeriodicCommissionCurrencyCode</span>
+                                            <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) <CurrencyBadge Code="@hawala.PeriodicCommissionCurrencyCode" /></span>
                                         }
                                         else { <span>—</span> }
                                     </td>
@@ -408,7 +408,7 @@
                             <div class="info-card">
                                 <span class="info-label">مبلغ</span>
                                 <span class="info-value text-primary fw-bold" dir="ltr">
-                                    @MoneyFormatHelper.Format(selectedHawala.FromAmount) @selectedHawala.FromCurrencyCode
+                                    @MoneyFormatHelper.Format(selectedHawala.FromAmount) <CurrencyBadge Code="@selectedHawala.FromCurrencyCode" />
                                 </span>
                             </div>
                         </div>
@@ -417,7 +417,7 @@
                             <div class="info-card">
                                 <span class="info-label">مبلغ دریافتی/پرداختی</span>
                                 <span class="info-value text-success fw-bold" dir="ltr">
-                                    @(selectedHawala.ToAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.ToAmount.Value) : "-") @selectedHawala.ToCurrencyCode
+                                    @(selectedHawala.ToAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.ToAmount.Value) : "-") <CurrencyBadge Code="@selectedHawala.ToCurrencyCode" />
                                 </span>
                             </div>
                         </div>
@@ -428,7 +428,7 @@
                                 <div class="info-card">
                                     <span class="info-label">معادل دالری برای کمیشن</span>
                                     <span class="info-value text-info fw-bold" dir="ltr">
-                                        @MoneyFormatHelper.Format(selectedHawala.CommissionBaseUsdAmount.Value) USD
+                                        @MoneyFormatHelper.Format(selectedHawala.CommissionBaseUsdAmount.Value) <CurrencyBadge Code="USD" />
                                     </span>
                                     @if (selectedHawala.CommissionUsdToAfnRate.HasValue)
                                     {
@@ -443,7 +443,7 @@
                                 <span class="info-label">کارمزد</span>
                                 <span class="info-value" dir="ltr">
                                     @(selectedHawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.CommissionAmount.Value) : "-")
-                                    @selectedHawala.CommissionCurrencyCode
+                                    <CurrencyBadge Code="@selectedHawala.CommissionCurrencyCode" />
                                 </span>
                             </div>
                         </div>
@@ -453,7 +453,7 @@
                                 <span class="info-label">کمیشن عامل پرداخت</span>
                                 <span class="info-value" dir="ltr">
                                     @(selectedHawala.AgentCommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.AgentCommissionAmount.Value) : "-")
-                                    @selectedHawala.AgentCommissionCurrencyCode
+                                    <CurrencyBadge Code="@selectedHawala.AgentCommissionCurrencyCode" />
                                 </span>
                             </div>
                         </div>

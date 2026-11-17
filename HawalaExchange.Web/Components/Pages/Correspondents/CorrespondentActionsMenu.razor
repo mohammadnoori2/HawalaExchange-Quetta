@@ -27,7 +27,7 @@
                 {
                     <PermissionView Permission="Settlement.Create"><button type="button" class="operation-menu-item" role="menuitem" @onclick="ConvertBalanceAsync">
                         <i class="bi bi-arrow-repeat text-success"></i>
-                        تبدیل مانده به @SettlementCurrencyCode
+                        تبدیل مانده به <CurrencyBadge Code="@SettlementCurrencyCode" />
                     </button></PermissionView>
                 }
                 <PermissionView Permission="Exchanges.Create"><button type="button" class="operation-menu-item" role="menuitem" @onclick="ExchangeAsync">

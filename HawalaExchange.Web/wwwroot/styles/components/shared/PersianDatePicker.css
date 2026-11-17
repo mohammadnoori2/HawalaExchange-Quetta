@@ -40,7 +40,7 @@
     border: 0;
     border-radius: 4px;
     background: transparent;
-    color: var(--text-muted, #64748b);
+    color: var(--text-muted, var(--app-muted, #64748b));
     cursor: pointer;
 }
 
@@ -66,7 +66,7 @@
         margin-bottom: .75rem;
         font-size: .72rem;
         line-height: 16px;
-        color: #64748b;
+        color: var(--app-muted, #64748b);
     }
 
     .calendar-date-equivalents > span {
@@ -87,7 +87,7 @@
 
     .calendar-month-equivalent, .calendar-day-legend {
         text-align: center;
-        color: #64748b;
+        color: var(--app-muted, #64748b);
         font-size: .72rem;
         margin-bottom: .5rem;
     }
@@ -121,8 +121,8 @@
         width: min(360px, calc(100vw - 24px));
         max-height: calc(100vh - 40px);
         overflow-y: auto;
-        background: #fff;
-        border: 1px solid #e5e7eb;
+        background: var(--surface, #fff);
+        border: 1px solid var(--app-border, #e5e7eb);
         border-radius: 16px;
         padding: 14px;
         z-index: 99999;
@@ -181,7 +181,7 @@
         grid-template-columns: repeat(7, 1fr);
         text-align: center;
         font-weight: 700;
-        color: #6b7280;
+        color: var(--app-muted, #6b7280);
         font-size: 0.8rem;
         margin-bottom: 6px;
     }
@@ -196,14 +196,14 @@
         border: 0;
         border-radius: 8px;
         padding: 8px 0;
-        background: #f9fafb;
+        background: var(--surface-muted, #f9fafb);
         cursor: pointer;
         font-size: 0.9rem;
         min-height: 36px;
     }
 
         .calendar-day:hover {
-            background: #e0f2fe;
+            background: var(--app-primary-soft, #e0f2fe);
         }
 
         .calendar-day.empty {
@@ -223,7 +223,7 @@
         }
 
     .calendar-time {
-        background: #f9fafb;
+        background: var(--surface-muted, #f9fafb);
         border-radius: 10px;
         padding: 10px;
     }

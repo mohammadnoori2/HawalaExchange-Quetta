@@ -572,7 +572,7 @@
                                 <tbody>
                                     @foreach (var entry in selectedTransaction.LedgerEntries ?? [])
                                     {
-                                        <tr><td>@entry.Id</td><td>@entry.AccountName</td><td>@entry.CurrencyCode</td><td>@MoneyFormatHelper.Format(entry.TalabKar)</td><td>@MoneyFormatHelper.Format(entry.BadehKar)</td><td>@entry.Description</td></tr>
+                                        <tr><td>@entry.Id</td><td>@entry.AccountName</td><td><CurrencyBadge Code="@entry.CurrencyCode" /></td><td>@MoneyFormatHelper.Format(entry.TalabKar)</td><td>@MoneyFormatHelper.Format(entry.BadehKar)</td><td>@entry.Description</td></tr>
                                     }
                                 </tbody>
                             </table>
@@ -601,9 +601,9 @@
                                         var d = selectedTransaction.TransactionDetails[i];
                                         <tr>
                                             <td>@(i + 1)</td>
-                                            <td>@d.FromCurrencyCode</td>
+                                            <td><CurrencyBadge Code="@d.FromCurrencyCode" /></td>
                                             <td>@(d.FromAmount.HasValue ? MoneyFormatHelper.Format(d.FromAmount.Value) : "-")</td>
-                                            <td>@d.ToCurrencyCode</td>
+                                            <td><CurrencyBadge Code="@d.ToCurrencyCode" /></td>
                                             <td>@(d.ToAmount.HasValue ? MoneyFormatHelper.Format(d.ToAmount.Value) : "-")</td>
                                             <td>@(d.ExchangeRate.HasValue ? MoneyFormatHelper.Format(d.ExchangeRate.Value, 8) : "-")</td>
                                             <td>@MoneyFormatHelper.Format(d.CommissionAmount)</td>

@@ -195,17 +195,17 @@
                                     <td><RecordDetailsLink Kind="Correspondent" Id="hawala.CorrespondentId" Text="@hawala.CorrespondentName" /></td>
 
                                     <td dir="ltr" class="fw-bold text-primary">
-                                        @MoneyFormatHelper.Format(hawala.FromAmount) @hawala.FromCurrencyCode
+                                        @MoneyFormatHelper.Format(hawala.FromAmount) <CurrencyBadge Code="@hawala.FromCurrencyCode" />
                                     </td>
 
                                     <td dir="ltr">
                                         @(hawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(hawala.CommissionAmount.Value) : "-")
-                                        @hawala.CommissionCurrencyCode
+                                        <CurrencyBadge Code="@hawala.CommissionCurrencyCode" />
                                     </td>
                                     <td dir="ltr">
                                         @if (hawala.PeriodicCommissionAfn.HasValue)
                                         {
-                                            <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) @hawala.PeriodicCommissionCurrencyCode</span>
+                                            <span class="badge bg-info text-dark">@MoneyFormatHelper.Format(hawala.PeriodicCommissionAfn.Value) <CurrencyBadge Code="@hawala.PeriodicCommissionCurrencyCode" /></span>
                                         }
                                         else { <span>—</span> }
                                     </td>
@@ -281,7 +281,7 @@
                         <thead><tr><th>ارز پرداخت</th><th>اصل حواله</th><th>کمیشن عامل پرداخت</th><th>مجموع پرداخت</th><th>@(bulkPreview.IsCashOrBank ? "موجودی قبل" : "مانده حساب قبل")</th><th>@(bulkPreview.IsCashOrBank ? "موجودی پس از پرداخت" : "مانده حساب پس از ثبت")</th></tr></thead>
                         <tbody>@foreach (var total in bulkPreview.Totals)
                         {
-                            <tr><td>@total.CurrencyCode</td><td dir="ltr">@MoneyFormatHelper.Format(total.Principal)</td><td dir="ltr">@MoneyFormatHelper.Format(total.AgentCommission)</td><td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(total.Total)</td><td dir="ltr">@MoneyFormatHelper.Format(bulkPreview.IsCashOrBank ? -total.AccountBalance : total.AccountBalance)</td><td dir="ltr">@MoneyFormatHelper.Format(bulkPreview.IsCashOrBank ? -total.AccountBalanceAfter : total.AccountBalanceAfter)</td></tr>
+                            <tr><td><CurrencyBadge Code="@total.CurrencyCode" /></td><td dir="ltr">@MoneyFormatHelper.Format(total.Principal)</td><td dir="ltr">@MoneyFormatHelper.Format(total.AgentCommission)</td><td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(total.Total)</td><td dir="ltr">@MoneyFormatHelper.Format(bulkPreview.IsCashOrBank ? -total.AccountBalance : total.AccountBalance)</td><td dir="ltr">@MoneyFormatHelper.Format(bulkPreview.IsCashOrBank ? -total.AccountBalanceAfter : total.AccountBalanceAfter)</td></tr>
                         }</tbody>
                     </table></div>
                     @if (bulkPreview.IsCorrespondent) { <div class="alert alert-info">برای هر حواله، حوالهٔ ارسالی مرتبط به نمایندگی انتخاب‌شده با شماره‌گذاری فعلی ساخته می‌شود.</div> }
@@ -289,7 +289,7 @@
                         <thead><tr><th>نمبر مسلسل</th><th>گیرنده</th><th>مبلغ پرداخت</th><th>بررسی</th></tr></thead>
                         <tbody>@foreach (var item in bulkPreview.Items)
                         {
-                            <tr><td>@item.Number</td><td>@item.ReceiverName</td><td dir="ltr">@MoneyFormatHelper.Format(item.Amount) @item.CurrencyCode</td><td class="@(item.Error == null ? "text-success" : "text-danger")">@(item.Error ?? "آماده اجرا")</td></tr>
+                            <tr><td>@item.Number</td><td>@item.ReceiverName</td><td dir="ltr">@MoneyFormatHelper.Format(item.Amount) <CurrencyBadge Code="@item.CurrencyCode" /></td><td class="@(item.Error == null ? "text-success" : "text-danger")">@(item.Error ?? "آماده اجرا")</td></tr>
                         }</tbody>
                     </table></div>
                 }
@@ -476,7 +476,7 @@
                             <div class="info-card">
                                 <span class="info-label">مبلغ</span>
                                 <span class="info-value text-primary fw-bold" dir="ltr">
-                                    @MoneyFormatHelper.Format(selectedHawala.FromAmount) @selectedHawala.FromCurrencyCode
+                                    @MoneyFormatHelper.Format(selectedHawala.FromAmount) <CurrencyBadge Code="@selectedHawala.FromCurrencyCode" />
                                 </span>
                             </div>
                         </div>
@@ -486,7 +486,7 @@
                                 <span class="info-label">کارمزد</span>
                                 <span class="info-value" dir="ltr">
                                     @(selectedHawala.CommissionAmount.HasValue ? MoneyFormatHelper.Format(selectedHawala.CommissionAmount.Value) : "-")
-                                    @selectedHawala.CommissionCurrencyCode
+                                    <CurrencyBadge Code="@selectedHawala.CommissionCurrencyCode" />
                                 </span>
                             </div>
                         </div>

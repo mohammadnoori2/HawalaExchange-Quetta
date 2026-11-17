@@ -123,8 +123,8 @@
                         @foreach (var position in costPositions)
                         {
                             <tr class="@(position.IsShort ? "table-warning" : "")">
-                                <td>@position.CurrencyCode</td>
-                                <td>@position.ProfitCurrencyCode</td>
+                                <td><CurrencyBadge Code="@position.CurrencyCode" /></td>
+                                <td><CurrencyBadge Code="@position.ProfitCurrencyCode" /></td>
                                 <td dir="ltr">@MoneyFormatHelper.Format(position.Quantity)</td>
                                 <td dir="ltr">@MoneyFormatHelper.Format(position.CarryingAmount)</td>
                                 <td dir="ltr">@MoneyFormatHelper.Format(position.AverageCost)</td>
@@ -228,7 +228,7 @@
                                         <small class="exchange-account-code">@item.FromAccountCode</small>
                                         <span class="exchange-amount text-danger" dir="ltr">
                                             @MoneyFormatHelper.Format(item.FromAmount)
-                                            <b>@item.FromCurrencyCode</b>
+                                            <b><CurrencyBadge Code="@item.FromCurrencyCode" /></b>
                                         </span>
                                     </td>
 
@@ -237,7 +237,7 @@
                                         <small class="exchange-account-code">@item.ToAccountCode</small>
                                         <span class="exchange-amount text-success" dir="ltr">
                                             @MoneyFormatHelper.Format(item.ToAmount)
-                                            <b>@item.ToCurrencyCode</b>
+                                            <b><CurrencyBadge Code="@item.ToCurrencyCode" /></b>
                                         </span>
                                     </td>
 
@@ -250,7 +250,7 @@
                                     <td dir="ltr" title="@($"1 {item.RateBaseCurrencyCode} = {MoneyFormatHelper.Format(item.ExchangeRate, 8)} {item.RateQuoteCurrencyCode}")">
                                         <strong>@MoneyFormatHelper.Format(item.ExchangeRate, 8)</strong>
                                         <small class="exchange-rate-pair">
-                                            @item.RateBaseCurrencyCode → @item.RateQuoteCurrencyCode
+                                            <CurrencyBadge Code="@item.RateBaseCurrencyCode" /> → <CurrencyBadge Code="@item.RateQuoteCurrencyCode" />
                                         </small>
                                     </td>
 
@@ -260,7 +260,7 @@
 
                                     <td dir="ltr" class="exchange-profit-cell">
                                         <span class="fw-bold @(item.RealizedProfit >= 0 ? "text-success" : "text-danger")">
-                                            @MoneyFormatHelper.Format(item.RealizedProfit) @item.ProfitCurrencyCode
+                                            @MoneyFormatHelper.Format(item.RealizedProfit) <CurrencyBadge Code="@item.ProfitCurrencyCode" />
                                         </span>
                                         @if (item.ProfitStatus != "Realized")
                                         {
@@ -354,7 +354,7 @@
                             <div class="info-card">
                                 <span class="info-label">ارز فروش</span>
                                 <span class="info-value" dir="ltr">
-                                    @MoneyFormatHelper.Format(selectedExchange.FromAmount) @selectedExchange.FromCurrencyCode
+                                    @MoneyFormatHelper.Format(selectedExchange.FromAmount) <CurrencyBadge Code="@selectedExchange.FromCurrencyCode" />
                                 </span>
                             </div>
                         </div>
@@ -363,7 +363,7 @@
                             <div class="info-card">
                                 <span class="info-label">ارز خرید</span>
                                 <span class="info-value" dir="ltr">
-                                    @MoneyFormatHelper.Format(selectedExchange.ToAmount) @selectedExchange.ToCurrencyCode
+                                    @MoneyFormatHelper.Format(selectedExchange.ToAmount) <CurrencyBadge Code="@selectedExchange.ToCurrencyCode" />
                                 </span>
                             </div>
                         </div>
@@ -401,7 +401,7 @@
                         <div class="col-md-4">
                             <div class="info-card">
                                 <span class="info-label">مفاد تحقق‌یافته</span>
-                                <span class="info-value" dir="ltr">@MoneyFormatHelper.Format(selectedExchange.RealizedProfit) @selectedExchange.ProfitCurrencyCode</span>
+                                <span class="info-value" dir="ltr">@MoneyFormatHelper.Format(selectedExchange.RealizedProfit) <CurrencyBadge Code="@selectedExchange.ProfitCurrencyCode" /></span>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -417,9 +417,9 @@
                             <div class="info-card">
                                 <span class="info-label">نرخ</span>
                                 <span class="info-value" dir="ltr">
-                                    1 @selectedExchange.RateBaseCurrencyCode =
+                                    1 <CurrencyBadge Code="@selectedExchange.RateBaseCurrencyCode" /> =
                                     @MoneyFormatHelper.Format(selectedExchange.ExchangeRate, 8)
-                                    @selectedExchange.RateQuoteCurrencyCode
+                                    <CurrencyBadge Code="@selectedExchange.RateQuoteCurrencyCode" />
                                 </span>
                             </div>
                         </div>

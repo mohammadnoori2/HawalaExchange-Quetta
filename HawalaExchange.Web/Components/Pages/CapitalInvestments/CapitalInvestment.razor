@@ -151,7 +151,7 @@
 
                                     <td>
                                         <span class="badge-modern badge-secondary">
-                                            @item.CurrencyCode
+                                            <CurrencyBadge Code="@item.CurrencyCode" />
                                         </span>
                                     </td>
 
@@ -160,7 +160,7 @@
                                     </td>
                                     <td dir="ltr">
                                         @MoneyFormatHelper.Format(item.ProfitCurrencyAmount ?? 0)
-                                        <span class="badge-modern badge-info">@item.ProfitCurrencyCode</span>
+                                        <span class="badge-modern badge-info"><CurrencyBadge Code="@item.ProfitCurrencyCode" /></span>
                                     </td>
 
                                     <td>

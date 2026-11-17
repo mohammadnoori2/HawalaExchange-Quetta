@@ -7,8 +7,8 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: .4rem;
     padding: .45rem .6rem;
-    background: var(--card-bg, #fff);
-    border: 1px solid var(--border-color, #e5e7eb);
+    background: var(--card-bg, var(--surface, #fff));
+    border: 1px solid var(--border-color, var(--app-border, #e5e7eb));
     border-radius: .65rem;
     box-shadow: var(--shadow-sm);
 }
@@ -20,7 +20,7 @@
     gap: .45rem;
     min-width: 0;
     padding: .15rem .5rem;
-    border-left: 1px solid var(--border-color, #e5e7eb);
+    border-left: 1px solid var(--border-color, var(--app-border, #e5e7eb));
 }
 
 .account-summary-strip > div:last-child {
@@ -28,7 +28,7 @@
 }
 
 .account-summary-strip span {
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--app-muted, #6b7280));
     font-size: .76rem;
 }
 
@@ -81,9 +81,9 @@
     display: grid;
     grid-template-columns: minmax(78px, .8fr) minmax(105px, 1fr) minmax(78px, .8fr);
     overflow: hidden;
-    border: 1px solid var(--border-color, #cbd5e1);
+    border: 1px solid var(--border-color, var(--app-border, #cbd5e1));
     border-radius: .35rem;
-    background: var(--card-bg, #fff);
+    background: var(--card-bg, var(--surface, #fff));
     transition: border-color .15s ease, box-shadow .15s ease;
 }
 
@@ -110,11 +110,11 @@
 }
 
 .initial-balance-currency {
-    border-left: 1px solid var(--border-color, #e2e8f0);
+    border-left: 1px solid var(--border-color, var(--app-border, #e2e8f0));
 }
 
 .initial-balance-direction {
-    border-right: 1px solid var(--border-color, #e2e8f0);
+    border-right: 1px solid var(--border-color, var(--app-border, #e2e8f0));
     text-align: center;
 }
 
@@ -146,7 +146,7 @@
     margin-top: .12rem;
     padding-inline: .2rem;
     overflow: hidden;
-    color: var(--text-muted, #6b7280);
+    color: var(--text-muted, var(--app-muted, #6b7280));
     font-size: .64rem;
     line-height: 1.25;
     text-align: center;
@@ -179,8 +179,8 @@
 }
 
 .initial-balance-delete {
-    border-color: var(--border-color, #cbd5e1);
-    color: var(--text-muted, #64748b);
+    border-color: var(--border-color, var(--app-border, #cbd5e1));
+    color: var(--text-muted, var(--app-muted, #64748b));
 }
 
 .initial-balance-delete:hover {

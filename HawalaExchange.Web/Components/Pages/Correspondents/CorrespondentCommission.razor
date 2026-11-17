@@ -112,11 +112,11 @@
                     <thead><tr><th>محل پرداخت</th><th>ارز</th><th>تعداد حواله</th><th>مجموع مبلغ</th><th>کمیشن هر لک</th><th>کمیشن</th></tr></thead>
                     <tbody>@foreach (var currencyRate in request.LocationCurrencyRates)
                     {
-                        <tr><td><RecordDetailsLink Kind="PaymentLocation" Id="currencyRate.PaymentLocationId" Text="@currencyRate.PaymentLocationName" /></td><td>@currencyRate.CurrencyCode</td><td>@currencyRate.HawalaCount</td>
-                            <td dir="ltr">@currencyRate.TotalAmount.ToWholeMoney() @currencyRate.CurrencyCode</td>
+                        <tr><td><RecordDetailsLink Kind="PaymentLocation" Id="currencyRate.PaymentLocationId" Text="@currencyRate.PaymentLocationName" /></td><td><CurrencyBadge Code="@currencyRate.CurrencyCode" /></td><td>@currencyRate.HawalaCount</td>
+                            <td dir="ltr">@currencyRate.TotalAmount.ToWholeMoney() <CurrencyBadge Code="@currencyRate.CurrencyCode" /></td>
                             <td style="width:180px"><input type="number" lang="en" min="0.0001" step="0.0001" class="form-control"
                                    data-commission-rate disabled="@busy" @bind="currencyRate.PerLakhRate" @bind:after="InvalidatePreview" @oninput="InvalidatePreview" /></td>
-                            <td dir="ltr">@(calculated ? currencyRate.CommissionAmount.ToWholeMoney() : "—") @currencyRate.CurrencyCode</td></tr>
+                            <td dir="ltr">@(calculated ? currencyRate.CommissionAmount.ToWholeMoney() : "—") <CurrencyBadge Code="@currencyRate.CurrencyCode" /></td></tr>
                     }</tbody>
                 </table></div>
             </div>
@@ -142,13 +142,13 @@
                     <button class="btn btn-outline-primary" disabled="@busy" @onclick="ApplyOriginRateToAll">اعمال به همه</button>
                 </div>
                 <div class="table-responsive"><table class="table table-sm align-middle">
-                    <thead><tr><th>محل پرداخت</th><th>حواله</th><th>مجموع افغانی (AFN)</th><th>مجموع دالر (USD)</th><th>مبلغ مبنا USD</th><th>کمیشن USD هر لک</th><th>کمیشن USD</th></tr></thead>
+                    <thead><tr><th>محل پرداخت</th><th>حواله</th><th>مجموع افغانی (AFN)</th><th>مجموع دالر (USD)</th><th>مبلغ مبنا <CurrencyBadge Code="USD" /></th><th>کمیشن USD هر لک</th><th>کمیشن <CurrencyBadge Code="USD" /></th></tr></thead>
                     <tbody>@foreach (var locationRate in request.PaymentLocationRates)
                     {
                         var amounts = amountsByLocation?.GetValueOrDefault(locationRate.PaymentLocationId);
                         <tr><td><RecordDetailsLink Kind="PaymentLocation" Id="locationRate.PaymentLocationId" Text="@locationRate.PaymentLocationName" /></td><td>@locationRate.HawalaCount</td>
-                            <td dir="ltr">@((amounts?.Afn ?? 0m).ToWholeMoney()) AFN</td>
-                            <td dir="ltr">@((amounts?.Usd ?? 0m).ToWholeMoney()) USD</td>
+                            <td dir="ltr">@((amounts?.Afn ?? 0m).ToWholeMoney()) <CurrencyBadge Code="AFN" /></td>
+                            <td dir="ltr">@((amounts?.Usd ?? 0m).ToWholeMoney()) <CurrencyBadge Code="USD" /></td>
                             <td dir="ltr">@locationRate.TotalDebitUsd.ToWholeMoney()</td>
                             <td><input type="number" lang="en" min="0.0001" step="0.0001" class="form-control" data-commission-rate disabled="@busy" @bind="locationRate.PerLakhRate" @bind:after="InvalidatePreview" @oninput="InvalidatePreview" /></td>
                             <td dir="ltr">@(calculated ? locationRate.TotalCommissionUsd.ToWholeMoney() : "—")</td></tr>
@@ -180,8 +180,8 @@
                     <div class="col-md-3"><div class="modern-card p-3"><small>تعداد حواله</small><h4>@preview.HawalaCount</h4></div></div>
                     @if (!isOutgoing && !isOrigin)
                     {
-                        <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های دریافتی (USD)</small><h4 dir="ltr">@preview.TotalSourceUsd.ToWholeMoney() USD</h4></div></div>
-                        <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های دریافتی (AFN)</small><h4 dir="ltr">@preview.TotalSourceAfn.ToWholeMoney() AFN</h4></div></div>
+                        <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های دریافتی (USD)</small><h4 dir="ltr">@preview.TotalSourceUsd.ToWholeMoney() <CurrencyBadge Code="USD" /></h4></div></div>
+                        <div class="col-md-3"><div class="modern-card p-3"><small>مجموع حواله‌های دریافتی (AFN)</small><h4 dir="ltr">@preview.TotalSourceAfn.ToWholeMoney() <CurrencyBadge Code="AFN" /></h4></div></div>
                     }
                     @if (!isOutgoing)
                     { <div class="col-md-3"><div class="modern-card p-3"><small>مجموع مبنا (USD)</small><h4>@preview.TotalBaseAfn.ToWholeMoney()</h4></div></div> }
@@ -214,7 +214,7 @@
                 <div class="table-card mb-4">
                     <div class="table-card-body"><div class="table-scroll-wrapper">
                         <GlobalDataGrid class="table-modern table-striped-modern">
-                            <thead><tr><th>نمبر مسلسل</th><th>تاریخ</th>@if (isOutgoing || isOrigin){<th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th>@if (!isOutgoing){<th>روز تبدیل</th><th>معادل 1 USD به ارز اصلی</th><th>مبنای USD</th>}<th>@(isOutgoing ? "کمیشن به ارز اصلی" : "سهم کمیشن USD")</th></tr></thead>
+                            <thead><tr><th>نمبر مسلسل</th><th>تاریخ</th>@if (isOutgoing || isOrigin){<th>محل پرداخت</th><th>کمیشن هر لک</th>}<th>مبلغ</th>@if (!isOutgoing){<th>روز تبدیل</th><th>معادل 1 USD به ارز اصلی</th><th>مبنای <CurrencyBadge Code="USD" /></th>}<th>@(isOutgoing ? "کمیشن به ارز اصلی" : "سهم کمیشن USD")</th></tr></thead>
                             <tbody>
                             @foreach (var item in preview.Items)
                             {
@@ -223,15 +223,15 @@
                                     {
                                         <td><RecordDetailsLink Kind="PaymentLocation" Id="item.PaymentLocationId" Text="@item.PaymentLocationName" /></td><td dir="ltr">@item.PerLakhRate.ToWholeMoney()</td>
                                     }
-                                    <td dir="ltr">@item.SourceAmount.ToWholeMoney() @item.CurrencyCode</td>
+                                    <td dir="ltr">@item.SourceAmount.ToWholeMoney() <CurrencyBadge Code="@item.CurrencyCode" /></td>
                                     @if (isOutgoing)
                                     {
-                                        <td dir="ltr">@item.CommissionAfn.ToWholeMoney() @item.CurrencyCode</td>
+                                        <td dir="ltr">@item.CommissionAfn.ToWholeMoney() <CurrencyBadge Code="@item.CurrencyCode" /></td>
                                     }
                                     else
                                     {
                                         <td>@DisplayDates.Date(item.ValuationDate)</td><td dir="ltr">@item.SourceToAfnRate.ToString("N4")</td>
-                                        <td dir="ltr">@item.AfnEquivalent.ToWholeMoney() USD</td><td dir="ltr">@item.CommissionAfn.ToWholeMoney() USD</td>
+                                        <td dir="ltr">@item.AfnEquivalent.ToWholeMoney() <CurrencyBadge Code="USD" /></td><td dir="ltr">@item.CommissionAfn.ToWholeMoney() <CurrencyBadge Code="USD" /></td>
                                     }
                                 </tr>
                             }
@@ -270,7 +270,7 @@
                                 <td>@if (isOutgoing)
                                     {<span dir="ltr">@(batch.CurrencyTotals.Count>0 ? string.Join(" / ",batch.CurrencyTotals.Select(x=>$"{x.CommissionAmount.ToWholeMoney()} {x.CurrencyCode}")) : $"{batch.TotalCommissionAfn.ToWholeMoney()} AFN / {batch.TotalCommissionUsd.ToWholeMoney()} USD")</span>}
                                     else
-                                    {<span>@batch.TotalCommissionUsd.ToWholeMoney() USD</span>}</td>
+                                    {<span>@batch.TotalCommissionUsd.ToWholeMoney() <CurrencyBadge Code="USD" /></span>}</td>
                                 <td><span class="badge @(batch.Status == "Posted" ? "bg-success" : "bg-secondary")">@(batch.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></td>
                                 <td><div class="d-flex gap-2">
                                     <button class="btn btn-sm btn-outline-primary" disabled="@busy" @onclick="() => ShowDetails(batch.Id)">
@@ -321,23 +321,23 @@
                     <div class="col-md-3"><div class="border rounded p-3"><small class="text-muted">وضعیت</small><div><span class="badge @(selectedDetails.Status == "Posted" ? "bg-success" : "bg-secondary")">@(selectedDetails.Status == "Posted" ? "ثبت‌شده" : "برگشت‌شده")</span></div></div></div>
                     @if (!detailsOutgoing && !detailsOrigin)
                     {
-                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های دریافتی USD</small><div class="fw-bold" dir="ltr">@selectedDetails.TotalSourceUsd.ToWholeMoney() USD</div></div></div>
-                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های دریافتی AFN</small><div class="fw-bold" dir="ltr">@selectedDetails.TotalSourceAfn.ToWholeMoney() AFN</div></div></div>
+                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های دریافتی <CurrencyBadge Code="USD" /></small><div class="fw-bold" dir="ltr">@selectedDetails.TotalSourceUsd.ToWholeMoney() <CurrencyBadge Code="USD" /></div></div></div>
+                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های دریافتی <CurrencyBadge Code="AFN" /></small><div class="fw-bold" dir="ltr">@selectedDetails.TotalSourceAfn.ToWholeMoney() <CurrencyBadge Code="AFN" /></div></div></div>
                     }
                     @if (detailsOutgoing)
                     {
-                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های ارسالی USD</small><div class="fw-bold">@selectedDetails.TotalSourceUsd.ToWholeMoney() USD</div></div></div>
-                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های ارسالی AFN</small><div class="fw-bold">@selectedDetails.TotalSourceAfn.ToWholeMoney() AFN</div></div></div>
+                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های ارسالی <CurrencyBadge Code="USD" /></small><div class="fw-bold">@selectedDetails.TotalSourceUsd.ToWholeMoney() <CurrencyBadge Code="USD" /></div></div></div>
+                        <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">مجموع حواله‌های ارسالی <CurrencyBadge Code="AFN" /></small><div class="fw-bold">@selectedDetails.TotalSourceAfn.ToWholeMoney() <CurrencyBadge Code="AFN" /></div></div></div>
                     }
                     @if (!detailsOutgoing || legacyOutgoing)
-                    { <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">@(legacyOutgoing ? "بدهی فرستنده در ثبت قبلی" : "مبنای محاسبه")</small><div class="fw-bold">@selectedDetails.TotalBaseAfn.ToWholeMoney() USD</div></div></div> }
+                    { <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">@(legacyOutgoing ? "بدهی فرستنده در ثبت قبلی" : "مبنای محاسبه")</small><div class="fw-bold">@selectedDetails.TotalBaseAfn.ToWholeMoney() <CurrencyBadge Code="USD" /></div></div></div> }
                     @if(detailsOutgoing)
                     {
                         @foreach(var total in selectedDetails.Items.GroupBy(x=>x.CurrencyCode))
                         { <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن @total.Key</small><div class="fw-bold" dir="ltr">@total.Sum(x=>x.CommissionAfn).ToWholeMoney() @total.Key</div></div></div> }
                     }
                     else
-                    { <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن USD</small><div class="fw-bold" dir="ltr">@selectedDetails.TotalCommissionUsd.ToWholeMoney() USD</div></div></div> }
+                    { <div class="col-md-4"><div class="border rounded p-3"><small class="text-muted">کمیشن <CurrencyBadge Code="USD" /></small><div class="fw-bold" dir="ltr">@selectedDetails.TotalCommissionUsd.ToWholeMoney() <CurrencyBadge Code="USD" /></div></div></div> }
                 </div>
 
                 <div class="row g-3 mb-4">
@@ -363,10 +363,10 @@
                             .GroupBy(x => new { x.PaymentLocationId, x.PaymentLocationName, x.CurrencyCode, x.PerLakhRate })
                             .OrderBy(x => x.Key.PaymentLocationName).ThenBy(x => x.Key.CurrencyCode).ThenBy(x => x.Key.PerLakhRate))
                         {
-                            <tr><td><RecordDetailsLink Kind="PaymentLocation" Id="location.Key.PaymentLocationId" Text="@location.Key.PaymentLocationName" /></td><td>@location.Key.CurrencyCode</td><td>@location.Count()</td>
-                                <td dir="ltr">@location.Sum(x => x.SourceAmount).ToWholeMoney() @location.Key.CurrencyCode</td>
+                            <tr><td><RecordDetailsLink Kind="PaymentLocation" Id="location.Key.PaymentLocationId" Text="@location.Key.PaymentLocationName" /></td><td><CurrencyBadge Code="@location.Key.CurrencyCode" /></td><td>@location.Count()</td>
+                                <td dir="ltr">@location.Sum(x => x.SourceAmount).ToWholeMoney() <CurrencyBadge Code="@location.Key.CurrencyCode" /></td>
                                 <td dir="ltr">@location.Key.PerLakhRate.ToWholeMoney()</td>
-                                <td dir="ltr">@location.Sum(x => x.CommissionAfn).ToWholeMoney() @location.Key.CurrencyCode</td></tr>
+                                <td dir="ltr">@location.Sum(x => x.CommissionAfn).ToWholeMoney() <CurrencyBadge Code="@location.Key.CurrencyCode" /></td></tr>
                         }</tbody>
                     </table></div>
                 }
@@ -379,14 +379,14 @@
                 {
                     <h6 class="fw-bold mb-3">خلاصه به تفکیک محل پرداخت</h6>
                     <div class="table-responsive mb-4"><table class="table table-sm table-bordered align-middle">
-                        <thead><tr><th>محل پرداخت</th><th>تعداد</th><th>مجموع افغانی (AFN)</th><th>مجموع دالر (USD)</th><th>مبنای USD</th><th>کمیشن USD</th></tr></thead>
+                        <thead><tr><th>محل پرداخت</th><th>تعداد</th><th>مجموع افغانی (AFN)</th><th>مجموع دالر (USD)</th><th>مبنای <CurrencyBadge Code="USD" /></th><th>کمیشن <CurrencyBadge Code="USD" /></th></tr></thead>
                         <tbody>@foreach (var location in selectedDetails.Items
                             .GroupBy(x => new { x.PaymentLocationId, x.PaymentLocationName })
                             .OrderBy(x => x.Key.PaymentLocationName))
                         {
                             <tr><td><RecordDetailsLink Kind="PaymentLocation" Id="location.Key.PaymentLocationId" Text="@location.Key.PaymentLocationName" /></td><td>@location.Count()</td>
-                                <td dir="ltr">@location.Where(x => x.CurrencyCode == "AFN").Sum(x => x.SourceAmount).ToWholeMoney() AFN</td>
-                                <td dir="ltr">@location.Where(x => x.CurrencyCode == "USD").Sum(x => x.SourceAmount).ToWholeMoney() USD</td>
+                                <td dir="ltr">@location.Where(x => x.CurrencyCode == "AFN").Sum(x => x.SourceAmount).ToWholeMoney() <CurrencyBadge Code="AFN" /></td>
+                                <td dir="ltr">@location.Where(x => x.CurrencyCode == "USD").Sum(x => x.SourceAmount).ToWholeMoney() <CurrencyBadge Code="USD" /></td>
                                 <td dir="ltr">@location.Sum(x => x.AfnEquivalent).ToWholeMoney()</td>
                                 <td dir="ltr">@location.Sum(x => x.CommissionAfn).ToWholeMoney()</td></tr>
                         }</tbody>
@@ -415,17 +415,17 @@
                                 <td><span class="badge @(item.SourceType == "OwnOffice" ? "bg-primary" : "bg-info text-dark")"><RecordDetailsLink Kind="Correspondent" Id="item.SourceCorrespondentId" Text="@item.SourceName" /></span></td>
                                 <td><RecordDetailsLink Kind="PaymentLocation" Id="item.PaymentLocationId" Text="@item.PaymentLocationName" /></td><td dir="ltr">@item.PerLakhRate.ToWholeMoney()</td>
                             }
-                            <td dir="ltr">@item.SourceAmount.ToWholeMoney() @item.CurrencyCode</td>
+                            <td dir="ltr">@item.SourceAmount.ToWholeMoney() <CurrencyBadge Code="@item.CurrencyCode" /></td>
                             @if (!detailsOutgoing || legacyOutgoing)
                             { <td>@DisplayDates.Date(item.ValuationDate)</td><td dir="ltr">@item.SourceToAfnRate.ToString("N4")</td> }
                             @if (detailsOutgoing)
                             {
-                                <td dir="ltr">@item.CommissionAfn.ToWholeMoney() @item.CurrencyCode</td>
-                                @if (legacyOutgoing) { <td dir="ltr">@item.AfnEquivalent.ToWholeMoney() USD</td> }
+                                <td dir="ltr">@item.CommissionAfn.ToWholeMoney() <CurrencyBadge Code="@item.CurrencyCode" /></td>
+                                @if (legacyOutgoing) { <td dir="ltr">@item.AfnEquivalent.ToWholeMoney() <CurrencyBadge Code="USD" /></td> }
                             }
                             else
                             {
-                                <td dir="ltr">@item.AfnEquivalent.ToWholeMoney() USD</td><td dir="ltr">@item.CommissionAfn.ToWholeMoney() USD</td>
+                                <td dir="ltr">@item.AfnEquivalent.ToWholeMoney() <CurrencyBadge Code="USD" /></td><td dir="ltr">@item.CommissionAfn.ToWholeMoney() <CurrencyBadge Code="USD" /></td>
                             }
                             <td><span class="badge @(item.IsActive ? "bg-success" : "bg-secondary")">@(item.IsActive ? "فعال" : "برگشت‌شده/کسرشده")</span></td>
                         </tr>
@@ -438,7 +438,7 @@
                     <thead><tr><th>سند</th><th>حساب</th><th>ارز</th><th>طلبکار</th><th>بدهکار</th><th>شرح</th></tr></thead>
                     <tbody>@foreach (var entry in selectedDetails.LedgerEntries)
                     {
-                        <tr><td>@entry.TransactionNo</td><td><RecordDetailsLink Kind="Account" Id="entry.AccountId" Text="@($"{entry.AccountCode} — {entry.AccountName}")" /></td><td>@entry.CurrencyCode</td>
+                        <tr><td>@entry.TransactionNo</td><td><RecordDetailsLink Kind="Account" Id="entry.AccountId" Text="@($"{entry.AccountCode} — {entry.AccountName}")" /></td><td><CurrencyBadge Code="@entry.CurrencyCode" /></td>
                             <td dir="ltr">@entry.TalabKar.ToWholeMoney()</td><td dir="ltr">@entry.BadehKar.ToWholeMoney()</td><td>@entry.Description</td></tr>
                     }</tbody>
                 </table></div>

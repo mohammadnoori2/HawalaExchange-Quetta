@@ -52,7 +52,7 @@
         {
             <div class="currency-chip">
                 ارز اصلی گزارش:
-                <strong>@report.Header.CurrencyName (@report.Header.CurrencyCode)</strong>
+                <strong>@report.Header.CurrencyName (<CurrencyBadge Code="@report.Header.CurrencyCode" />)</strong>
             </div>
         }
     </div>
@@ -102,7 +102,7 @@
                 </div>
                 <div class="net-profit @(report.NetProfit >= 0 ? "profit" : "loss")">
                     <span>مفاد/ضرر خالص</span>
-                    <strong>@FormatAmount(report.NetProfit) @report.Header.CurrencyCode</strong>
+                    <strong>@FormatAmount(report.NetProfit) <CurrencyBadge Code="@report.Header.CurrencyCode" /></strong>
                 </div>
             </div>
 

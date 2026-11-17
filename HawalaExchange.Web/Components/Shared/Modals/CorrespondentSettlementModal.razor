@@ -18,7 +18,7 @@
                         <h5 class="modal-title">تبدیل به ارز توافقی</h5>
                         @if (preview != null)
                         {
-                            <small class="text-muted">@preview.CorrespondentName · ارز توافقی: @preview.TargetCurrencyCode</small>
+                            <small class="text-muted">@preview.CorrespondentName · ارز توافقی: <CurrencyBadge Code="@preview.TargetCurrencyCode" /></small>
                         }
                     </div>
                     <button type="button" class="btn-close" disabled="@saving" @onclick="CloseAsync"></button>
@@ -67,7 +67,7 @@
                         }
                         <div class="table-responsive">
                             <GlobalDataGrid class="table table-sm align-middle">
-                                <thead><tr>@if (AccountMode) { <th class="text-center">انتخاب</th> }<th>تاریخ نرخ</th><th>ارز فعلی</th><th>تعداد حواله</th><th>مجموع مبلغ فعلی</th><th>نرخ تبدیل</th><th>مجموع به @preview.TargetCurrencyCode</th>@if (!AccountMode){<th>ثبت روز</th>}</tr></thead>
+                                <thead><tr>@if (AccountMode) { <th class="text-center">انتخاب</th> }<th>تاریخ نرخ</th><th>ارز فعلی</th><th>تعداد حواله</th><th>مجموع مبلغ فعلی</th><th>نرخ تبدیل</th><th>مجموع به <CurrencyBadge Code="@preview.TargetCurrencyCode" /></th>@if (!AccountMode){<th>ثبت روز</th>}</tr></thead>
                                 <tbody>
                                     @foreach (var group in rateGroups)
                                     {
@@ -79,9 +79,9 @@
                                                 </td>
                                             }
                                             <td>@DisplayDates.Date(group.RateDate)</td>
-                                            <td class="fw-bold">@group.CurrencyCode</td>
+                                            <td class="fw-bold"><CurrencyBadge Code="@group.CurrencyCode" /></td>
                                             <td>@(AccountMode ? "مانده حساب" : $"{group.Items.Select(x => x.HawalaId).Distinct().Count()} حواله")</td>
-                                            <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(GetSourceTotal(group)) @group.CurrencyCode</td>
+                                            <td dir="ltr" class="fw-bold">@MoneyFormatHelper.Format(GetSourceTotal(group)) <CurrencyBadge Code="@group.CurrencyCode" /></td>
                                             <td style="min-width:9rem">
                                                 <input type="number" lang="en" min="0.00000001" step="any" class="form-control form-control-sm financial-value-input"
                                                        disabled="@(saving || AccountMode && !group.IsSelected)"
@@ -104,7 +104,7 @@
                         {
                             <div class="alert alert-success py-2 d-flex justify-content-between align-items-center">
                                 <span>مجموع نهایی به ارز توافقی</span>
-                                <strong dir="ltr">@MoneyFormatHelper.Format(GetOverallTargetTotal()) @preview.TargetCurrencyCode</strong>
+                                <strong dir="ltr">@MoneyFormatHelper.Format(GetOverallTargetTotal()) <CurrencyBadge Code="@preview.TargetCurrencyCode" /></strong>
                             </div>
                         }
                         <label class="form-label">یادداشت (اختیاری)</label>

@@ -74,17 +74,17 @@
             <div class="col-lg-4"><div class="card h-100 border-success"><div class="card-body">
                 <small class="text-muted">تمام حواله‌های دریافتی</small><div class="fs-4 fw-bold">@result.ImportedCount.ToString("N0")</div>
                 @foreach (var total in result.ReceivedTotals)
-                { <div class="d-flex justify-content-between border-top pt-1 mt-1"><span>@total.CurrencyCode</span><strong dir="ltr">@total.Amount.ToString("N0")</strong></div> }
+                { <div class="d-flex justify-content-between border-top pt-1 mt-1"><span><CurrencyBadge Code="@total.CurrencyCode" /></span><strong dir="ltr">@total.Amount.ToString("N0")</strong></div> }
             </div></div></div>
             <div class="col-lg-4"><div class="card h-100 border-primary"><div class="card-body">
                 <small class="text-muted">حواله‌های ارسالی خودکار</small><div class="fs-4 fw-bold">@result.GeneratedSendCount.ToString("N0")</div>
                 @foreach (var total in result.SentTotals)
-                { <div class="d-flex justify-content-between border-top pt-1 mt-1"><span>@total.CurrencyCode</span><strong dir="ltr">@total.Amount.ToString("N0")</strong></div> }
+                { <div class="d-flex justify-content-between border-top pt-1 mt-1"><span><CurrencyBadge Code="@total.CurrencyCode" /></span><strong dir="ltr">@total.Amount.ToString("N0")</strong></div> }
             </div></div></div>
             <div class="col-lg-4"><div class="card h-100 border-secondary"><div class="card-body">
                 <small class="text-muted">اجراشده در دفتر خود ما</small><div class="fs-4 fw-bold">@result.OwnOfficeCount.ToString("N0")</div>
                 @foreach (var total in result.OwnOfficeTotals)
-                { <div class="d-flex justify-content-between border-top pt-1 mt-1"><span>@total.CurrencyCode</span><strong dir="ltr">@total.Amount.ToString("N0")</strong></div> }
+                { <div class="d-flex justify-content-between border-top pt-1 mt-1"><span><CurrencyBadge Code="@total.CurrencyCode" /></span><strong dir="ltr">@total.Amount.ToString("N0")</strong></div> }
             </div></div></div>
         </div>
         @if (result.DestinationSummaries.Count > 0)
@@ -96,7 +96,7 @@
                     {
                         <tr><td><RecordDetailsLink Kind="Correspondent" Id="summary.CorrespondentId" Text="@summary.CorrespondentName" Class="fw-bold" /></td><td>@summary.HawalaCount.ToString("N0")</td><td>
                             @foreach (var total in summary.Totals)
-                            { <span class="badge text-bg-primary ms-2">@total.Amount.ToString("N0") @total.CurrencyCode (@total.RowCount.ToString("N0"))</span> }
+                            { <span class="badge text-bg-primary ms-2">@total.Amount.ToString("N0") <CurrencyBadge Code="@total.CurrencyCode" /> (@total.RowCount.ToString("N0"))</span> }
                         </td></tr>
                     }</tbody>
                 </table></div>
@@ -244,7 +244,7 @@
                 <tbody><Virtualize Items="@preview.Rows" Context="row" ItemSize="58" SpacerElement="tr">
                     <tr class="@(row.IsValid ? string.Empty : "table-danger")">
                         <td>@row.ExcelRowNumber</td><td><strong>@row.HawalaNumber</strong><br/><small>@row.ReferenceNumber</small></td><td>@row.SenderName<br/><small>@row.ReceiverName</small></td>
-                        <td><RecordDetailsLink Kind="PaymentLocation" Id="row.PaymentLocationId" Text="@row.PaymentLocationText" /> @if (!row.PaymentLocationId.HasValue){<span class="badge bg-warning text-dark">جدید</span>}</td><td dir="ltr">@row.Amount?.ToString("N0") @row.CurrencyCode</td>
+                        <td><RecordDetailsLink Kind="PaymentLocation" Id="row.PaymentLocationId" Text="@row.PaymentLocationText" /> @if (!row.PaymentLocationId.HasValue){<span class="badge bg-warning text-dark">جدید</span>}</td><td dir="ltr">@row.Amount?.ToString("N0") <CurrencyBadge Code="@row.CurrencyCode" /></td>
                         <td>@if (row.RequiresOutgoingHawala){<span class="badge bg-primary">دریافتی + ارسالی</span><div class="small mt-1">به <RecordDetailsLink Kind="Correspondent" Id="row.DestinationCorrespondentId" Text="@(row.DestinationCorrespondentName ?? row.PaymentLocationText)" /></div>}else{<span class="badge bg-secondary">فقط دریافتی</span>}</td>
                         <td>@if (row.RequiresOutgoingHawala){<InputNumber class="form-control form-control-sm" @bind-Value="row.AgentCommissionAmount" placeholder="اختیاری" disabled="@(!preview.LocationsPrepared || isBusy)"/>}else{<span>—</span>}</td>
                         <td>@if (row.RequiresOutgoingHawala){<select class="form-select form-select-sm" @bind="row.AgentCommissionCurrencyId" disabled="@(!preview.LocationsPrepared || isBusy)"><option value="">انتخاب ارز</option>@foreach (var currency in currencies){<option value="@currency.Id">@currency.Code</option>}</select>}else{<span>—</span>}</td>
@@ -316,9 +316,9 @@
             </div>
             <div class="card-body">
                 <div class="row g-3 mb-3">
-                    <div class="col-md-4"><div class="border rounded p-2"><small class="text-muted">حواله دریافتی ثبت‌شده</small><div class="fs-5 fw-bold">@selectedHistory.ImportedCount.ToString("N0")</div>@foreach(var total in selectedHistory.ReceivedTotals){<span class="badge text-bg-success ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</div></div>
-                    <div class="col-md-4"><div class="border rounded p-2"><small class="text-muted">حواله ارسالی خودکار</small><div class="fs-5 fw-bold">@selectedHistory.GeneratedSendCount.ToString("N0")</div>@foreach(var total in selectedHistory.SentTotals){<span class="badge text-bg-primary ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</div></div>
-                    <div class="col-md-4"><div class="border rounded p-2"><small class="text-muted">اجرا در دفتر خود ما</small><div class="fs-5 fw-bold">@selectedHistory.OwnOfficeCount.ToString("N0")</div>@foreach(var total in selectedHistory.Groups.FirstOrDefault(x => x.IsOwnOffice)?.Totals ?? []){<span class="badge text-bg-secondary ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</div></div>
+                    <div class="col-md-4"><div class="border rounded p-2"><small class="text-muted">حواله دریافتی ثبت‌شده</small><div class="fs-5 fw-bold">@selectedHistory.ImportedCount.ToString("N0")</div>@foreach(var total in selectedHistory.ReceivedTotals){<span class="badge text-bg-success ms-1">@total.Amount.ToString("N0") <CurrencyBadge Code="@total.CurrencyCode" /></span>}</div></div>
+                    <div class="col-md-4"><div class="border rounded p-2"><small class="text-muted">حواله ارسالی خودکار</small><div class="fs-5 fw-bold">@selectedHistory.GeneratedSendCount.ToString("N0")</div>@foreach(var total in selectedHistory.SentTotals){<span class="badge text-bg-primary ms-1">@total.Amount.ToString("N0") <CurrencyBadge Code="@total.CurrencyCode" /></span>}</div></div>
+                    <div class="col-md-4"><div class="border rounded p-2"><small class="text-muted">اجرا در دفتر خود ما</small><div class="fs-5 fw-bold">@selectedHistory.OwnOfficeCount.ToString("N0")</div>@foreach(var total in selectedHistory.Groups.FirstOrDefault(x => x.IsOwnOffice)?.Totals ?? []){<span class="badge text-bg-secondary ms-1">@total.Amount.ToString("N0") <CurrencyBadge Code="@total.CurrencyCode" /></span>}</div></div>
                 </div>
                 <div class="table-responsive"><table class="table table-sm align-middle mb-0">
                     <thead class="table-light"><tr><th>نمایندگی/محل اجرا</th><th>تعداد حواله</th><th>مجموع به تفکیک ارز</th><th></th></tr></thead>
@@ -326,7 +326,7 @@
                     {
                         <tr class="@(selectedHistoryGroup == group ? "table-info" : string.Empty)">
                             <td><RecordDetailsLink Kind="Correspondent" Id="group.CorrespondentId" Text="@group.CorrespondentName" Class="fw-bold" />@if(group.IsOwnOffice){<span class="badge text-bg-secondary me-2">دفتر</span>}</td>
-                            <td>@group.HawalaCount.ToString("N0")</td><td>@foreach(var total in group.Totals){<span class="badge @(group.IsOwnOffice ? "text-bg-secondary" : "text-bg-primary") ms-1">@total.Amount.ToString("N0") @total.CurrencyCode</span>}</td>
+                            <td>@group.HawalaCount.ToString("N0")</td><td>@foreach(var total in group.Totals){<span class="badge @(group.IsOwnOffice ? "text-bg-secondary" : "text-bg-primary") ms-1">@total.Amount.ToString("N0") <CurrencyBadge Code="@total.CurrencyCode" /></span>}</td>
                             <td><button class="btn btn-sm btn-outline-info" @onclick="() => OpenShareGroup(group, false)">جزئیات حواله‌ها</button>
                                 <button class="btn btn-sm btn-outline-success" @onclick="() => OpenShareGroup(group, true)">انتخاب همه و خروجی</button></td>
                         </tr>
@@ -353,7 +353,7 @@
                         <div class="row g-3">
                             <div class="col-md-3"><div class="history-summary-box"><small>تعداد حواله‌ها</small><strong>@selectedHistoryGroup.HawalaCount.ToString("N0")</strong></div></div>
                             @foreach (var total in selectedHistoryGroup.Totals)
-                            { <div class="col-md-3"><div class="history-summary-box"><small>مجموع @total.CurrencyCode</small><strong dir="ltr">@total.Amount.ToString("N0")</strong><span>@total.RowCount.ToString("N0") حواله</span></div></div> }
+                            { <div class="col-md-3"><div class="history-summary-box"><small>مجموع <CurrencyBadge Code="@total.CurrencyCode" /></small><strong dir="ltr">@total.Amount.ToString("N0")</strong><span>@total.RowCount.ToString("N0") حواله</span></div></div> }
                         </div>
                         <div class="alert alert-info py-2 mt-3 mb-0">
                             @if (selectedHistoryGroup.IsOwnOffice)
@@ -379,7 +379,7 @@
                                     @if (hawala.GeneratedSendHawalaNumber.HasValue) { <br/><strong>ارسالی: @hawala.GeneratedSendHawalaNumber</strong> }
                                     <br/><small class="text-muted">@hawala.ReferenceNumber</small></td>
                                 <td><div><i class="bi bi-person-up ms-1 text-muted"></i>@hawala.SenderName</div><small><i class="bi bi-person-down ms-1 text-muted"></i>@hawala.ReceiverName</small></td>
-                                <td><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@hawala.PaymentLocationName" /></td><td><strong dir="ltr">@hawala.Amount.ToString("N0") @hawala.CurrencyCode</strong></td>
+                                <td><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@hawala.PaymentLocationName" /></td><td><strong dir="ltr">@hawala.Amount.ToString("N0") <CurrencyBadge Code="@hawala.CurrencyCode" /></strong></td>
                                 <td>@if(hawala.GeneratedSendHawalaId.HasValue){<span class="badge text-bg-primary">دریافتی + ارسالی</span>}else{<span class="badge text-bg-secondary">فقط دریافتی</span>}</td>
                                 <td><span class="badge text-bg-light border text-dark">@AppDisplayText.Status(hawala.Status, "HawalaReceive")</span></td>
                                 <td>
@@ -425,12 +425,12 @@
                     <p>فایل <strong>@deleteBatch.FileName</strong> از تاریخچه حذف شود؟</p>
                     @if (deleteImpact is not null)
                     {
-                        <div class="mb-2">مجموع حواله‌های دریافتی: @foreach (var total in deleteImpact.Totals) { <span class="badge bg-light text-dark mx-1" dir="ltr">@total.Amount.ToString("N0") @total.CurrencyCode</span> }</div>
+                        <div class="mb-2">مجموع حواله‌های دریافتی: @foreach (var total in deleteImpact.Totals) { <span class="badge bg-light text-dark mx-1" dir="ltr">@total.Amount.ToString("N0") <CurrencyBadge Code="@total.CurrencyCode" /></span> }</div>
                         @if (deleteImpact.Commissions.Count > 0)
                         {
                             <div class="table-responsive"><table class="table table-sm"><thead><tr><th>نمایندگی / کمیشن</th><th>قبل</th><th>باقی‌مانده برای سایر فایل‌ها</th></tr></thead><tbody>
                                 @foreach (var item in deleteImpact.Commissions)
-                                { <tr><td><RecordDetailsLink Kind="Correspondent" Id="item.CorrespondentId" Text="@item.CorrespondentName" /> / @CommissionScopeLabel(item.Scope)</td><td dir="ltr">@item.PreviousAfn.ToString("N0") AFN / @item.PreviousUsd.ToString("N0") USD</td><td dir="ltr">@item.RemainingAfn.ToString("N0") AFN / @item.RemainingUsd.ToString("N0") USD</td></tr> }
+                                { <tr><td><RecordDetailsLink Kind="Correspondent" Id="item.CorrespondentId" Text="@item.CorrespondentName" /> / @CommissionScopeLabel(item.Scope)</td><td dir="ltr">@item.PreviousAfn.ToString("N0") AFN / @item.PreviousUsd.ToString("N0") <CurrencyBadge Code="USD" /></td><td dir="ltr">@item.RemainingAfn.ToString("N0") AFN / @item.RemainingUsd.ToString("N0") <CurrencyBadge Code="USD" /></td></tr> }
                             </tbody></table></div>
                         }
                         @if (deleteImpact.HasClosedPeriod) { <div class="alert alert-warning">حواله در دوره بسته‌شده وجود دارد؛ سوابق دوره حفظ و اصلاحیه در دوره باز ثبت می‌شود.</div> }

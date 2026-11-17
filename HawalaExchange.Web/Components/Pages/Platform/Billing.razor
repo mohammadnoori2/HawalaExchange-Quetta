@@ -29,7 +29,7 @@
     {
         @foreach (var summary in ManagedTenantId.HasValue ? Array.Empty<BillingCurrencySummaryDto>() : dashboard.Currencies)
         {
-            <div class="mb-2 fw-bold text-muted">گزارش به واحد @summary.CurrencyCode</div>
+            <div class="mb-2 fw-bold text-muted">گزارش به واحد <CurrencyBadge Code="@summary.CurrencyCode" /></div>
             <PageHeaderStats AriaLabel="@($"آمار مالی {summary.CurrencyCode}")">
                 <PageHeaderStat Label="درآمد تکرارشونده ماهانه" Value="@Money(summary.Mrr, summary.CurrencyCode)" Icon="bi-graph-up-arrow" />
                 <PageHeaderStat Label="درآمد سالانه برآوردی" Value="@Money(summary.Arr, summary.CurrencyCode)" Icon="bi-calendar2-check" Tone="info" />

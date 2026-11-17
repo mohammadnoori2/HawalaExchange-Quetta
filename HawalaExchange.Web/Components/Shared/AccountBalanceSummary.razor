@@ -13,7 +13,7 @@
         @foreach (var balance in balances)
         {
             <span class="account-balance-summary-chip @(balance.Balance < 0 ? "negative" : "positive")" dir="ltr">
-                @MoneyFormatHelper.Format(balance.Balance) @balance.CurrencyCode
+                @MoneyFormatHelper.Format(balance.Balance) <CurrencyBadge Code="@balance.CurrencyCode" />
             </span>
         }
     }

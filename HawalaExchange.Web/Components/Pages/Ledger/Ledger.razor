@@ -186,7 +186,7 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="badge-modern badge-info">@entry.CurrencyCode</span>
+                                        <span class="badge-modern badge-info"><CurrencyBadge Code="@entry.CurrencyCode" /></span>
                                     </td>
                                     <td class="text-success fw-bold">
                                         @(entry.TalabKar > 0 ? MoneyFormatHelper.Format(entry.TalabKar) : "-")
@@ -407,7 +407,7 @@
                         <div class="col-md-6">
                             <div class="info-card">
                                 <span class="info-label">ارز</span>
-                                <span class="info-value">@selectedEntry.CurrencyCode</span>
+                                <span class="info-value"><CurrencyBadge Code="@selectedEntry.CurrencyCode" /></span>
                             </div>
                         </div>
                         <div class="col-md-6">

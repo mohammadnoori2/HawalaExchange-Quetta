@@ -10,6 +10,25 @@ namespace HawalaExchange.PerformanceTests;
 
 public sealed class UserPermissionTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Agent_bill_account_lookup_without_arguments_checks_permission_without_indexing_empty_arguments(bool allowed)
+    {
+        var permission = new Mock<IUserPermissionService>();
+        permission.Setup(x => x.RequireAsync("HawalaExecution.View", It.IsAny<CancellationToken>()))
+            .Returns(allowed ? Task.CompletedTask : Task.FromException(new UnauthorizedAccessException()));
+        var target = new Mock<IHawalaService>();
+        target.Setup(x => x.GetAgentBillPaymentAccountsAsync()).ReturnsAsync(new List<AccountDto> { new() { Id = 1, AccountType = "Cash" } });
+        using var provider = new ServiceCollection().AddSingleton(permission.Object)
+            .AddSingleton(Mock.Of<IDbContextFactory<ApplicationDbContext>>()).BuildServiceProvider();
+        var guarded = (IHawalaService)PermissionServiceProxy.Wrap(typeof(IHawalaService), target.Object, provider);
+        if (allowed) Assert.Equal(1, Assert.Single(await guarded.GetAgentBillPaymentAccountsAsync()).Id);
+        else await Assert.ThrowsAsync<UnauthorizedAccessException>(() => guarded.GetAgentBillPaymentAccountsAsync());
+        permission.Verify(x => x.RequireAsync("HawalaExecution.View", It.IsAny<CancellationToken>()), Times.Once);
+        target.Verify(x => x.GetAgentBillPaymentAccountsAsync(), allowed ? Times.Once() : Times.Never());
+    }
+
     [Fact]
     public async Task Read_only_customer_user_cannot_change_opening_balances()
     {

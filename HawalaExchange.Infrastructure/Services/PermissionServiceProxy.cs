@@ -128,11 +128,12 @@ public class PermissionServiceProxy : DispatchProxy, IDisposable
         }
         if(service=="IHawalaService")
         {
+            var firstArgument=args.FirstOrDefault();
             if(name=="CompleteCancellationAsync" || name=="CancelHawalaAsync" && args[1] is CancelHawalaDto { CompensationMode: "Automatic" })
                 await permissions.RequireAsync("Hawalas.Create");
-            if(args[0] is CreateHawalaDto {Status:"Paid",HawalaType:"HawalaReceive"}
+            if(firstArgument is CreateHawalaDto {Status:"Paid",HawalaType:"HawalaReceive"}
                 || args.Any(x=>x is UpdateHawalaDto {Status:"Paid"}))await permissions.RequireAsync("HawalaExecution.Execute");
-            if(args[0] is IReadOnlyCollection<CreateHawalaDto> items && items.Any(x=>x.Status=="Paid" && x.HawalaType=="HawalaReceive"))await permissions.RequireAsync("HawalaExecution.Execute");
+            if(firstArgument is IReadOnlyCollection<CreateHawalaDto> items && items.Any(x=>x.Status=="Paid" && x.HawalaType=="HawalaReceive"))await permissions.RequireAsync("HawalaExecution.Execute");
         }
         var key=PermissionOperationMap.Resolve(service,name,module);
         await permissions.RequireAsync(key);

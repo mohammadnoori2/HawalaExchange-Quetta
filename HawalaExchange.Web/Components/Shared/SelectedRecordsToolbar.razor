@@ -9,6 +9,7 @@
 @using HawalaExchange.Application.Interfaces.Services
 @inject ISelectedRecordsService RecordsService
 @inject IJSRuntime JS
+@inject IHawalaService Hawalas
 @implements IAsyncDisposable
 
 <PermissionView Permission="@(ExportPermission ?? (Transactions ? "Transactions.Export":"Hawalas.Export"))">
@@ -87,6 +88,9 @@
     [Parameter] public bool SelectAllOnOpen { get; set; }
     [Parameter] public bool ShowActions { get; set; } = true;
     [Parameter] public EventCallback<IReadOnlyList<long>> SelectionChanged { get; set; }
+    [Parameter] public bool EnableAmountSummary { get; set; }
+    [Parameter] public IReadOnlyList<HawalaBrowserAmountRow> AmountRows { get; set; } = [];
+    [Parameter] public string AmountEpoch { get; set; } = "";
     private readonly HashSet<long> selected = [];
     private readonly HashSet<long> seen = [];
     private List<long> visible = [];
@@ -125,12 +129,20 @@
                 module=imported;
             }
             reference ??= DotNetObjectReference.Create(this);
-            await module.InvokeVoidAsync("mount", ScopeId, reference, selected.ToArray(), visible, ResetKey);
+            await module.InvokeVoidAsync("mount", ScopeId, reference, selected.ToArray(), visible, ResetKey, EnableAmountSummary ? AmountRows : null, AmountEpoch);
         }
         catch (JSDisconnectedException) { }
         catch (OperationCanceledException) { }
         catch (InvalidOperationException) { }
         finally { initializing=false; }
+    }
+
+    [JSInvokable]
+    public async Task<List<HawalaBrowserAmountRow>> ReadAmountRows(long[] ids,string resetKey)
+    {
+        if(disposed || !EnableAmountSummary || resetKey!=ResetKey || ids is null || ids.Length>200)return [];
+        var allowed=ids.Distinct().Where(selected.Contains).ToArray();
+        return allowed.Length==0?[]:await Hawalas.GetSelectionAmountsAsync(allowed);
     }
 
     [JSInvokable]
@@ -154,6 +166,14 @@
         selected.Clear(); AddSelection(ids); seen.UnionWith(selected);
         await SelectionChanged.InvokeAsync(selected.ToArray());
         StateHasChanged();
+    }
+    public async Task SeedAmountsAsync(IReadOnlyList<HawalaBrowserAmountRow> rows)
+    {
+        if(disposed || !EnableAmountSummary || module is null)return;
+        try{await module.InvokeVoidAsync("rememberAmounts",ScopeId,rows);}
+        catch(JSDisconnectedException){}
+        catch(OperationCanceledException){}
+        catch(JSException){}
     }
     private async Task Clear() { selected.Clear(); records = []; error = message = ""; await SelectionChanged.InvokeAsync(selected.ToArray()); }
     private async Task PreviewAsync()

@@ -1,13 +1,14 @@
+import { paintAmountStatus } from './selection-amounts.js';
 const scopes = new Map();
 
-export function mount(id, dotnet, selectedIds, visibleIds, resetKey = '') {
+export function mount(id, dotnet, selectedIds, visibleIds, resetKey = '', amountRows = null, amountEpoch = '') {
     const table = document.getElementById(id);
     if (!table) return;
     let state = scopes.get(id);
     if (state && state.table !== table) { unmount(id); state = null; }
     if (!state) {
         const controller = new AbortController();
-        state = { table, controller, selected: new Set(), visible: new Set(), anchor: null, dragging: false, frame: 0 };
+        state = { table, controller, selected: new Set(), visible: new Set(), anchor: null, dragging: false, frame: 0, amounts: new Map(), amountFrame: 0 };
         scopes.set(id, state);
         const options = { signal: controller.signal };
         const cells = () => [...table.querySelectorAll('.record-selection-cell[data-record-id]')];
@@ -26,6 +27,10 @@ export function mount(id, dotnet, selectedIds, visibleIds, resetKey = '') {
                 header.indeterminate = count > 0 && count < state.visible.size;
                 header.disabled = state.visible.size === 0;
             }
+            if (state.amountEnabled) {
+                cancelAnimationFrame(state.amountFrame);
+                state.amountFrame = requestAnimationFrame(() => paintAmountStatus(id, state.selected, state.amounts, state.amountError));
+            }
         };
         const notify = () => {
             const added = [...state.selected].filter(x => state.visible.has(x) && !state.synced.has(x));
@@ -36,6 +41,7 @@ export function mount(id, dotnet, selectedIds, visibleIds, resetKey = '') {
             state.queue = (state.queue || Promise.resolve()).then(async () => {
                 for (let index = 0; index < Math.max(added.length, removed.length); index += 200)
                     await ref.invokeMethodAsync('UpdateVisibleSelection', added.slice(index, index + 200), removed.slice(index, index + 200), version);
+                await completeAmounts(state);
             }).catch(() => {});
         };
         const range = end => {
@@ -127,17 +133,46 @@ export function mount(id, dotnet, selectedIds, visibleIds, resetKey = '') {
         state.paint = paint; state.finish = finish;
     }
     state.dotnet = dotnet;
+    if (state.resetKey !== resetKey || state.amountEpoch !== amountEpoch) { state.amounts.clear(); state.amountError = false; state.amountVersion = (state.amountVersion || 0) + 1; }
+    state.amountEpoch = amountEpoch;
+    state.amountEnabled = amountRows !== null;
+    if (amountRows) for (const row of amountRows) state.amounts.set(Number(row.id), row);
     state.resetKey = resetKey;
     state.synced = new Set(selectedIds);
     state.visible = new Set(visibleIds);
     if (!state.dragging) state.selected = new Set(selectedIds);
     state.paint();
+    if (state.amountEnabled) state.queue = (state.queue || Promise.resolve()).then(() => completeAmounts(state)).catch(() => {});
 }
 
+async function completeAmounts(state) {
+    if (!state.amountEnabled || state.controller.signal.aborted || state.amountError) return;
+    const missing = [...state.selected].filter(id => !state.amounts.has(id));
+    const version = state.amountVersion;
+    for (let index = 0; index < missing.length; index += 200) {
+        if (state.controller.signal.aborted || version !== state.amountVersion) return;
+        const batch = missing.slice(index, index + 200).filter(id => state.selected.has(id));
+        if (!batch.length) continue;
+        try {
+            const rows = await state.dotnet.invokeMethodAsync('ReadAmountRows', batch, state.resetKey);
+            if (state.controller.signal.aborted || version !== state.amountVersion) return;
+            for (const row of rows) state.amounts.set(Number(row.id), row);
+            if (batch.some(id => !state.amounts.has(id))) { state.amountError = true; break; }
+        } catch { state.amountError = true; break; }
+    }
+    if (missing.length) state.paint();
+}
+
+export function rememberAmounts(id, rows) {
+    const state = scopes.get(id);
+    if (!state || !state.amountEnabled) return;
+    for (const row of rows) state.amounts.set(Number(row.id), row);
+    state.paint();
+}
 export function unmount(id) {
     const state = scopes.get(id);
     if (!state) return;
-    state.finish(); state.controller.abort(); cancelAnimationFrame(state.frame); scopes.delete(id);
+    state.finish(); state.controller.abort(); cancelAnimationFrame(state.frame); cancelAnimationFrame(state.amountFrame); scopes.delete(id);
 }
 export async function copy(text) {
     if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return; }

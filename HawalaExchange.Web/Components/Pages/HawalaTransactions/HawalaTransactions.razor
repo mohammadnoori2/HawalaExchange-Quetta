@@ -152,7 +152,7 @@
         </div>
 
         <div class="table-card-body">
-            <SelectedRecordsToolbar ScopeId="hawala-record-selection" VisibleIds="@filteredHawalas.Select(x => x.Id)" />
+            <SelectedRecordsToolbar ScopeId="hawala-record-selection" VisibleIds="@filteredHawalas.Select(x => x.Id)" EnableAmountSummary="true" AmountRows="browserAmountRows" AmountEpoch="@amountEpoch.ToString()" />
             <div class="table-scroll-wrapper">
                 <GlobalDataGrid id="hawala-record-selection" class="table-modern table-striped-modern">
                     <thead>
@@ -334,6 +334,7 @@
             </div>
         </div>
 
+        <RecordAmountStatus ScopeId="hawala-record-selection" />
         <div class="table-card-footer">
             <div class="table-card-footer-left">
                 <span class="text-muted small">نمایش <strong>@filteredHawalas.Count</strong> از <strong>@totalCount</strong> حواله</span>
@@ -1099,16 +1100,10 @@
             .ToList();
     }
 
-    private async Task LoadHawalas(
-        bool refreshStatistics = false,
-        CancellationToken cancellationToken = default)
+    private List<HawalaBrowserAmountRow> browserAmountRows = [];
+    private long amountEpoch;
+    private HawalaFilterDto BuildListFilter()
     {
-        var loadVersion = ++hawalaLoadVersion;
-        try
-        {
-            isLoading = true;
-            StateHasChanged();
-
             decimal? searchAmount = null;
             long searchNumber = 0;
 
@@ -1123,8 +1118,9 @@
                 }
             }
 
-            var filter = new HawalaFilterDto
+            return new HawalaFilterDto
             {
+                IncludeBrowserAmounts = true,
                 Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrEmpty(searchTerm) ? null : searchTerm,
                 SearchAmount = searchAmount,
@@ -1143,12 +1139,27 @@
                 SortColumn = sortColumn,
                 SortDirection = sortAscending ? "asc" : "desc"
             };
+    }
+
+    private async Task LoadHawalas(
+        bool refreshStatistics = false,
+        CancellationToken cancellationToken = default)
+    {
+        var loadVersion = ++hawalaLoadVersion;
+        if(refreshStatistics){amountEpoch++;browserAmountRows=[];}
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var filter = BuildListFilter();
 
             var result = await HawalaService.GetHawalasAsync(filter, cancellationToken);
             if (loadVersion != hawalaLoadVersion)
                 return;
 
             filteredHawalas = result.Items.ToList();
+            browserAmountRows = result.AmountRows;
             totalCount = result.TotalCount;
             totalPages = result.TotalPages;
 

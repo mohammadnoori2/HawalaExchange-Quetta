@@ -1,0 +1,28 @@
+const {chromium}=require('playwright');const fs=require('node:fs');const path=require('node:path');const assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'../../HawalaExchange.Web/wwwroot');
+const table=ids=>`<thead><tr><th><input class="record-selection-all" type="checkbox"></th><th>حواله</th></tr></thead><tbody>${ids.map(id=>`<tr><td class="record-selection-cell" data-record-id="${id}"><input type="checkbox"></td><td>Hawala ${id}</td></tr>`).join('')}</tbody>`;
+const html=`<!doctype html><html dir="rtl"><head><meta charset="utf-8"><link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap.rtl.min.css"><link rel="stylesheet" href="/styles/app.css"><link rel="stylesheet" href="/styles/foundation/themes.css"></head><body><div class="table-card p-3"><table id="records" class="table">${table([1])}</table><div id="records-amount-status" class="record-amount-status" hidden role="status"></div><footer>نمایش تعداد حواله‌ها</footer></div></body></html>`;
+(async()=>{const browser=await chromium.launch({channel:'msedge',headless:true});try{
+const page=await browser.newPage();await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.hostname!=='selection.test')return route.abort();if(url.pathname==='/')return route.fulfill({body:html,contentType:'text/html'});const file=path.resolve(root,'.'+url.pathname);return file.startsWith(root+path.sep)&&fs.existsSync(file)?route.fulfill({path:file,contentType:file.endsWith('.js')?'application/javascript':'text/css'}):route.abort();});
+await page.goto('http://selection.test/');await page.evaluate(async()=>{
+window.selection=await import('/js/record-selection.js');window.reads=0;window.block=true;window.releases=[];
+window.row=(id,currency,original,converted,correspondent='Agent',correspondentId=1)=>({id,currency,original,converted,settlementCurrency:'USD',correspondentId,correspondent,cancelled:false});
+window.ref={invokeMethodAsync(name,added){if(name==='ReadAmountRows'){window.reads++;return Promise.resolve([window.row(3,'PKR','22800','100')]);}return window.block?new Promise(resolve=>window.releases.push(resolve)):Promise.resolve();}};
+selection.mount('records',ref,[],[1],'tenant', [row(1,'AFN','6500','100')],'v1');});
+await page.locator('[data-record-id="1"]').click();await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('100 USD'));
+assert.equal(await page.evaluate(()=>reads),0);assert.ok(await page.evaluate(()=>releases.length>0),'Summary renders while the selection synchronization is still awaiting the server');
+await page.evaluate(()=>{block=false;releases.forEach(resolve=>resolve());});
+await page.locator('#records').evaluate((element,markup)=>element.innerHTML=markup,table([2,3]));
+await page.evaluate(()=>selection.mount('records',ref,[1],[2,3],'tenant',[row(2,'USD','100',null)],'v1'));
+await page.locator('[data-record-id="2"]').click();await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('200 USD'));assert.equal(await page.evaluate(()=>reads),0);
+await page.locator('[data-record-id="3"]').click();await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('300 USD'));assert.equal(await page.evaluate(()=>reads),1);
+await page.locator('[data-record-id="3"]').click();await page.locator('[data-record-id="3"]').click();await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('300 USD'));assert.equal(await page.evaluate(()=>reads),1,'Cached rows are not fetched again');
+await page.evaluate(()=>selection.mount('records',ref,[],[2,3],'tenant',[],'v1'));await page.waitForFunction(()=>document.querySelector('#records-amount-status').hidden);assert.equal(await page.locator('#records-amount-status').isHidden(),true);
+await page.locator('#records').evaluate((element,markup)=>element.innerHTML=markup,table([4,5]));await page.evaluate(()=>selection.mount('records',ref,[5],[4,5],'other',[row(4,'USD','10',null,'<img src=x onerror=alert(1)>'),row(5,'USD','10',null,'Safe',2)],'v2'));
+await page.locator('[data-record-id="4"]').click();await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('20 USD'));assert.equal(await page.locator('#records-amount-status img').count(),0);assert.ok((await page.locator('#records-amount-status').textContent()).includes('<img'));
+await page.evaluate(()=>selection.mount('records',ref,[4],[4,5],'other',[row(4,'AFN','3250',null)],'v3'));
+await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('3,250 AFN'));
+assert.ok((await page.locator('#records-amount-status').textContent()).includes('مبلغ تبدیل‌نشده:'));
+await page.setViewportSize({width:375,height:800});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+console.log('PASS: immediate browser totals without database reads, cross-page selection, single fetch for unknown rows, cache reuse, clear/reset, escaped names and narrow layout.');
+}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

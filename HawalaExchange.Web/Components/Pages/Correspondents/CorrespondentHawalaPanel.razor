@@ -123,7 +123,7 @@
     </div>
 
     <SelectedRecordsToolbar @ref="recordToolbar" ScopeId="@recordSelectionScope" VisibleIds="@hawalas.Select(x => x.Id)" ResetKey="@($"{CorrespondentId}:{HawalaType}")"
-                            ShowActions="@ShowRecordActions" SelectionChanged="HandleRecordSelection" />
+                            ShowActions="@ShowRecordActions" SelectionChanged="HandleRecordSelection" EnableAmountSummary="true" AmountRows="browserAmountRows" AmountEpoch="@amountEpoch.ToString()" />
     <div class="table-responsive panel-table-wrap">
         <GlobalDataGrid id="@recordSelectionScope" class="table table-sm align-middle mb-0">
             <thead>
@@ -242,13 +242,15 @@
         </GlobalDataGrid>
     </div>
 
+    <RecordAmountStatus ScopeId="@recordSelectionScope" />
     <footer class="panel-pagination">
+        <span class="small text-muted">نمایش @hawalas.Count از @totalCount حواله</span>
         <CompactPagination CurrentPage="currentPage"
                            TotalPages="totalPages"
                            PageChanged="GoToPageAsync" />
         <PageSizeSelector @bind-Value="pageSize"
                           @bind-CurrentPage="currentPage"
-                          Changed="() => LoadHawalasAsync()"
+                          Changed="() => LoadHawalasAsync(preserveAmountCache: true)"
                           AriaLabel="تعداد حواله در هر صفحه" />
     </footer>
 </section>
@@ -517,8 +519,9 @@
         await LoadHawalasAsync();
     }
 
-    private async Task LoadHawalasAsync(CancellationToken cancellationToken = default)
+    private async Task LoadHawalasAsync(CancellationToken cancellationToken = default, bool preserveAmountCache = false)
     {
+        if(!preserveAmountCache){amountEpoch++;browserAmountRows=[];}
         var loadVersion = ++panelLoadVersion;
         try
         {
@@ -530,6 +533,7 @@
                 return;
 
             hawalas = result.Items.ToList();
+            browserAmountRows = result.AmountRows;
             directCommissionTotals = result.DirectCommissionTotals;
             foreach (var selected in hawalas.Where(x => selectedSettlementIds.Contains(x.Id)))
             {
@@ -913,6 +917,8 @@
         }
     }
 
+    private List<HawalaBrowserAmountRow> browserAmountRows = [];
+    private long amountEpoch;
     private async Task OnFilterChangedAsync()
     {
         CancelPendingFilterChange();
@@ -930,7 +936,7 @@
 
         currentPage = 1;
         allMatchingSettlementSelected = false;
-        await LoadHawalasAsync(debounceCts.Token);
+        await LoadHawalasAsync(debounceCts.Token, preserveAmountCache: true);
     }
 
     private IReadOnlyList<HawalaDto> SelectedSettlementHawalas => selectedSettlementHawalas.Values.ToList();
@@ -960,6 +966,7 @@
             settlementSelectionLoading = true;
             errors.Clear();
             var result = await HawalaService.GetHawalasAsync(BuildFilter(1, int.MaxValue));
+            if(recordToolbar is not null)await recordToolbar.SeedAmountsAsync(result.AmountRows);
             var eligible = result.Items
                 .Where(x => x.SettlementState == "Pending")
                 .ToList();
@@ -1004,6 +1011,7 @@
 
         return new HawalaFilterDto
             {
+                IncludeBrowserAmounts = true,
                 Extra = extraFilters.Copy(),
                   IncludeDirectCommissionTotals = includeDirectCommissionTotals,
             CorrespondentId = CorrespondentId,
@@ -1093,7 +1101,7 @@
         statusFilter = string.Empty;
         currentPage = 1;
         allMatchingSettlementSelected = false;
-        await LoadHawalasAsync();
+        await LoadHawalasAsync(preserveAmountCache: true);
     }
 
     private async Task GoToPageAsync(int page)
@@ -1104,7 +1112,7 @@
             return;
 
         currentPage = targetPage;
-        await LoadHawalasAsync();
+        await LoadHawalasAsync(preserveAmountCache: true);
     }
 
     private void ClearErrors() => errors.Clear();

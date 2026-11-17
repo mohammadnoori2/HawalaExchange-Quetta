@@ -41,64 +41,18 @@
         </div>
     </div>
 
-    <div class="dashboard-header">
-        <div class="header-center">
-            <div class="currency-selector">
-                <select @onchange="OnCurrencyChanged" value="@selectedCurrency">
-                    @foreach (var currency in currencies)
-                    {
-                        <option value="@currency.Code">@currency.Code</option>
-                    }
-                </select>
-            </div>
-        </div>
-
-        <div class="header-right">
-            <span class="badge-live">نرخ‌های ثبت‌شده</span>
-        </div>
-    </div>
-
-    <div class="currency-rates-grid">
-        @if (dashboard?.Rates.Any() == true)
-        {
-            @foreach (var rate in dashboard.Rates)
-            {
-                <div class="rate-card">
-                    <div class="rate-pair">@rate.Pair</div>
-                    <div class="rate-value">
-                        <span>خرید @MoneyFormatHelper.Format(rate.BuyRate, 8)</span>
-                        <span>فروش @MoneyFormatHelper.Format(rate.SellRate, 8)</span>
-                    </div>
-                    <div class="rate-change"><AppDateTime Value="@rate.EffectiveDate" /></div>
-                </div>
-            }
-        }
-        else
-        {
-            <div class="rate-card">
-                <div class="rate-pair">نرخی ثبت نشده است</div>
-                <div class="rate-change">نرخ‌ها را از بخش نرخ تبادله ثبت کنید.</div>
-            </div>
-        }
-    </div>
-
-    <div class="table-card mb-4">
-        <div class="table-card-header">
+    <div class="dashboard-summary-row">
+        <section class="dashboard-summary-card dashboard-cash-summary" aria-label="موجودی صندوق">
+        <div class="dashboard-summary-heading">
             <div class="table-card-header-left">
-                <h6 class="mb-0 text-primary">
+                <h2>
                     <i class="bi bi-safe2"></i>
                     موجودی فعلی صندوق‌ها
-                </h6>
-            </div>
-            <div class="table-card-header-right">
-                <a class="btn btn-sm btn-outline-primary" href="/daily-journal">
-                    مدیریت آغاز و پایان روز
-                </a>
+                </h2>
             </div>
         </div>
-        <div class="table-card-body">
-            <div class="table-scroll-wrapper">
-                <GlobalDataGrid class="table-modern table-striped-modern">
+        <div class="dashboard-summary-body">
+                <table class="table table-sm mb-0">
                     <thead>
                         <tr>
                             <th>صندوق</th>
@@ -121,7 +75,7 @@
                             {
                                 <tr>
                                     <td class="fw-bold"><RecordDetailsLink Kind="Account" Id="balance.AccountId" Text="@balance.AccountName" /></td>
-                                    <td><span class="badge-modern badge-info">@balance.CurrencyCode</span></td>
+                                    <td><span class="badge-modern badge-info"><CurrencyBadge Code="@balance.CurrencyCode" /></span></td>
                                     <td dir="ltr" class="fw-bold @(balance.Balance >= 0 ? "text-success" : "text-danger")">
                                         @MoneyFormatHelper.Format(balance.Balance)
                                     </td>
@@ -129,9 +83,22 @@
                             }
                         }
                     </tbody>
-                </GlobalDataGrid>
-            </div>
+                </table>
         </div>
+        </section>
+        <section class="dashboard-summary-card dashboard-profit-summary" aria-label="مفاد و ضرر دوره">
+            <div class="dashboard-summary-heading"><h2>مفاد/ضرر واقعی دوره</h2>
+                <select class="form-select form-select-sm dashboard-profit-currency" aria-label="ارز محاسبه مفاد و ضرر" @onchange="OnCurrencyChanged" value="@selectedCurrency">
+                    @foreach(var currency in currencies){<option value="@currency.Code">@currency.Code</option>}
+                </select>
+            </div>
+            <div class="dashboard-summary-body"><table class="table table-sm mb-0"><tbody>
+                <tr><th>مفاد / ضرر</th><td dir="ltr" class="dashboard-profit-value @(NetProfit >= 0 ? "text-success" : "text-danger")">@MoneyFormatHelper.Format(NetProfit)</td></tr>
+                <tr><th>از تاریخ</th><td dir="ltr">@DisplayDates.Date(startDate)</td></tr>
+                <tr><th>تا تاریخ</th><td dir="ltr">@DisplayDates.Date(endDate)</td></tr>
+            </tbody></table></div>
+        </section>
+        <DashboardRatesPanel @ref="ratesPanel" Currencies="currencies" OnSaved="LoadDashboardAsync" />
     </div>
 
     <div class="charts-row">
@@ -150,23 +117,12 @@
     </div>
 
     <div class="provision-row">
-        <div class="provision-card">
-            <div class="provision-label">مفاد/ضرر واقعی دوره (@selectedCurrency)</div>
-            <div class="provision-amount @(NetProfit >= 0 ? "text-success" : "text-danger")">
-                @MoneyFormatHelper.Format(NetProfit)
-            </div>
-            <div class="provision-sub">از حساب‌های عواید و مصارف لیجر</div>
-            <a class="btn btn-sm btn-outline-primary mt-3" href="/reports/profit-loss">
-                مشاهده صورت حساب مفاد و ضرر
-            </a>
-        </div>
-
         <div class="top-remain-card">
             <div class="top-remain-header">
                 <div class="top-remain-heading">
                     <span class="top-remain-title">@CounterpartyListTitle</span>
                     <span class="top-remain-sub">
-                        مجموع به @selectedCurrency: @MoneyFormatHelper.Format(CurrentCounterpartyTotal)
+                        ماندهٔ اصلی حساب‌ها به تفکیک ارز
                     </span>
                 </div>
                 <div class="top-remain-switch" role="group" aria-label="انتخاب نوع مانده حساب">
@@ -184,33 +140,7 @@
                     </button>
                 </div>
             </div>
-            <div class="top-remain-list">
-                <div class="remain-header-row">
-                    <span>نام حساب</span>
-                    <span>نوع حساب</span>
-                    <span>مبلغ</span>
-                </div>
-                @if (CurrentCounterpartyItems.Any())
-                {
-                    @foreach (var item in CurrentCounterpartyItems)
-                    {
-                        <div class="remain-item">
-                            <span class="remain-name">
-                                <span class="remain-initial">@item.Initial</span>
-                                <RecordDetailsLink Kind="Account" Id="item.AccountId" Text="@item.Name" />
-                            </span>
-                            <span class="remain-account-type">@item.AccountTypeName</span>
-                            <span class="remain-amount @(counterpartyListMode == "debtors" ? "debtors" : "creditors")">
-                                @MoneyFormatHelper.Format(item.Amount)
-                            </span>
-                        </div>
-                    }
-                }
-                else
-                {
-                    <div class="remain-empty">@CounterpartyEmptyMessage</div>
-                }
-            </div>
+            <DashboardCounterpartyTable Groups="@(dashboard?.CounterpartiesByCurrency ?? [])" Creditors="@(counterpartyListMode == "creditors")" />
         </div>
     </div>
 
@@ -257,7 +187,7 @@
                     @foreach (var item in currentLiquidityItems)
                     {
                         <div class="liquidity-item">
-                            <span class="liquidity-currency">@item.AccountName (@item.CurrencyCode)</span>
+                            <span class="liquidity-currency">@item.AccountName (<CurrencyBadge Code="@item.CurrencyCode" />)</span>
                             <span class="liquidity-percent">@item.Percentage.ToString("N1")%</span>
                         </div>
                     }
@@ -309,6 +239,7 @@
     private async Task RefreshPageDataAsync()
     {
         currencies = (await CurrencyService.GetAllAsync()).Where(x => x.IsActive).OrderBy(x => x.Code).ToList(); await LoadDashboardAsync();
+        if (ratesPanel is not null) await ratesPanel.RefreshAsync();
     }
     private DateTime startDate = DateTime.Today.AddDays(-27);
     private DateTime endDate = DateTime.Today;
@@ -322,6 +253,7 @@
     private bool showExchangeModal;
     private bool showDepositWithdrawModal;
     private List<CurrencyDto> currencies = new();
+    private DashboardRatesPanel? ratesPanel;
     private DashboardSummaryDto? dashboard;
     private List<DashboardLiquidityDto> currentLiquidityItems = new();
     private List<CurrentCashBalanceDto> currentCashBalances = new();

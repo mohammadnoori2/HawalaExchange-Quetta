@@ -4,6 +4,12 @@ using System.Text;
 
 namespace HawalaExchange.Application.DTOs
 {
+    public class DashboardExchangeRatesDto
+    {
+        public DateTime LocalNow { get; set; }
+        public DateTime Today => LocalNow.Date;
+        public List<ExchangeRateDto> Rates { get; set; } = new();
+    }
     public class ExchangeRateDto
     {
         public long Id { get; set; }

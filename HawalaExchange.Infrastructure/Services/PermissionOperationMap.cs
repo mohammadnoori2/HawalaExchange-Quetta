@@ -34,6 +34,7 @@ public static class PermissionOperationMap
         Add("Reverse","ReverseAsync ReverseConversionAsync");
         Add("Export","ExportAsync ExportInputFormatAsync DownloadDocumentAsync ExportCustomerActivitiesAsync ExportCustomerActivitiesPreviewAsync");
         Actions["ReadAsync"]="Export";
+        Actions["GetDashboardRatesAsync"]="View";
         Actions["GetDeletionPreviewAsync"]="Delete";
         Actions["ConfirmQueuedAsync"]="Create";
         Actions["GetCancellationPreviewAsync"]="Delete";

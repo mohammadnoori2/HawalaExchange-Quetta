@@ -12,6 +12,23 @@ namespace HawalaExchange.Application.Services
         public ExchangeRateService(ApplicationDbContext context, IMapper mapper)
             : base(context, mapper) { }
 
+        public async Task<DashboardExchangeRatesDto> GetDashboardRatesAsync()
+        {
+            var zoneId=await (_context.Database.IsNpgsql()
+                ?_context.Database.SqlQuery<string>($"SELECT \"TimeZoneId\" AS \"Value\" FROM public.\"TenantOperationalControls\" WHERE \"TenantId\"={_context.CurrentTenantId}")
+                :_context.Database.SqlQuery<string>($"SELECT TimeZoneId AS [Value] FROM dbo.TenantOperationalControls WHERE TenantId={_context.CurrentTenantId}")).SingleOrDefaultAsync();
+            var now=TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow,TimeZoneInfo.FindSystemTimeZoneById(string.IsNullOrWhiteSpace(zoneId)?"Asia/Kabul":zoneId));
+            var end=now.Date.AddDays(1);
+            var latest=await _dbSet.AsNoTracking().Where(x=>x.EffectiveDate<end && x.FromCurrency!.IsActive && x.ToCurrency!.IsActive)
+                .GroupBy(x=>new{x.FromCurrencyId,x.ToCurrencyId})
+                .Select(g=>g.OrderByDescending(x=>x.EffectiveDate).ThenByDescending(x=>x.Id).First()).ToListAsync();
+            var ids=latest.SelectMany(x=>new[]{x.FromCurrencyId,x.ToCurrencyId}).Distinct().ToArray();
+            var codes=await _context.Currencies.AsNoTracking().Where(x=>ids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,x=>x.Code);
+            return new(){LocalNow=now,Rates=latest.Select(x=>new ExchangeRateDto{Id=x.Id,FromCurrencyId=x.FromCurrencyId,ToCurrencyId=x.ToCurrencyId,
+                FromCurrencyCode=codes[x.FromCurrencyId],ToCurrencyCode=codes[x.ToCurrencyId],BuyRate=x.BuyRate,SellRate=x.SellRate,EffectiveDate=x.EffectiveDate})
+                .OrderBy(x=>x.FromCurrencyCode).ThenBy(x=>x.ToCurrencyCode).ToList()};
+        }
+
         // ✅ Override CreateAsync to set CreatedBy
         public override async Task<ExchangeRateDto> CreateAsync(CreateExchangeRateDto createDto)
         {

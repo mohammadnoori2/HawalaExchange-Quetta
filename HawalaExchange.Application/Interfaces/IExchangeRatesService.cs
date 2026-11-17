@@ -5,6 +5,7 @@ namespace HawalaExchange.Application.Interfaces.Services
 {
     public interface IExchangeRateService : IBaseService<ExchangeRate, ExchangeRateDto, CreateExchangeRateDto, UpdateExchangeRateDto>
     {
+        Task<DashboardExchangeRatesDto> GetDashboardRatesAsync();
         Task<ExchangeRateDto?> GetLatestRateAsync(long fromCurrencyId, long toCurrencyId);
         Task<decimal> ConvertAsync(long fromCurrencyId, long toCurrencyId, decimal amount);
         Task<ExchangeRateDto?> GetRateByDateAsync(long fromCurrencyId, long toCurrencyId, DateTime date);

@@ -1,0 +1,158 @@
+@inherits ComponentBase
+@using HawalaExchange.Application.DTOs
+@if (Visible)
+{
+    <div class="modal show d-block modal-modern" tabindex="-1" style="background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px);" dir="rtl">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content exchange-rate-entry-modal">
+                <div class="modal-header gradient">
+                    <h5 class="modal-title text-white">
+                        <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
+                        @(IsEditMode ? "ویرایش نرخ ارز" : "ایجاد نرخ ارز جدید")
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => OnClose.InvokeAsync()"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- پیام‌های خطا -->
+                    @if (Errors.Any())
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i> لطفاً خطاهای زیر را اصلاح کنید:</h6>
+                            <ul class="mb-0">
+                                @foreach (var error in Errors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(SuccessMessage))
+                    {
+                        <div class="alert alert-success alert-dismissible fade show">
+                            <i class="bi bi-check-circle me-2"></i> @SuccessMessage
+                        </div>
+                    }
+
+                    <!-- اطلاعات نرخ ارز -->
+                    <div class="modern-card mb-4">
+                        <div class="card-header">
+                            <h6 class="text-primary">
+                                <i class="bi bi-currency-exchange me-2"></i> اطلاعات نرخ ارز
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-arrow-right text-muted me-1"></i> از ارز <span class="text-danger">*</span>
+                                    </label>
+                                    @if (IsEditMode)
+                                    {
+                                        <input type="text" class="form-control bg-light" value="@(Currencies.FirstOrDefault(c => c.Id == CurrentRate.FromCurrencyId)?.Name ?? "نامشخص")" disabled readonly />
+                                        <small class="text-muted">ارز مبدأ قابل تغییر نیست</small>
+                                    }
+                                    else
+                                    {
+                                        <select class="form-select"
+                                                @bind="CurrentRate.FromCurrencyId">
+                                            <option value="0">انتخاب ارز مبدأ</option>
+                                            @foreach (var currency in Currencies)
+                                            {
+                                                <option value="@currency.Id">@currency.Name</option>
+                                            }
+                                        </select>
+                                    }
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-arrow-left text-muted me-1"></i> به ارز <span class="text-danger">*</span>
+                                    </label>
+                                    @if (IsEditMode)
+                                    {
+                                        <input type="text" class="form-control bg-light" value="@(Currencies.FirstOrDefault(c => c.Id == CurrentRate.ToCurrencyId)?.Name ?? "نامشخص")" disabled readonly />
+                                        <small class="text-muted">ارز مقصد قابل تغییر نیست</small>
+                                    }
+                                    else
+                                    {
+                                        <select class="form-select"
+                                                @bind="CurrentRate.ToCurrencyId">
+                                            <option value="0">انتخاب ارز مقصد</option>
+                                            @foreach (var currency in Currencies)
+                                            {
+                                                <option value="@currency.Id">@currency.Name</option>
+                                            }
+                                        </select>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-coin text-muted me-1"></i> نرخ خرید <span class="text-danger">*</span>
+                                    </label>
+                                    <MoneyInput DecimalPlaces="4" class="form-control"
+                                                @bind-Value="CurrentRate.BuyRate" placeholder="مثال: 75.5" />
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-coin text-muted me-1"></i> نرخ فروش <span class="text-danger">*</span>
+                                    </label>
+                                    <MoneyInput DecimalPlaces="4" class="form-control"
+                                                @bind-Value="CurrentRate.SellRate" placeholder="مثال: 76.0" />
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">
+                                        <i class="bi bi-calendar-date text-muted me-1"></i> تاریخ مؤثر <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="exchange-rate-date-field">
+                                        <PersianDatePicker @bind-Value="CurrentRate.EffectiveDate"
+                                                           IncludeTime="true"
+                                                           Placeholder="انتخاب تاریخ و زمان" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (IsEditMode)
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <small>در حال ویرایش نرخ ارز از <strong>@(Currencies.FirstOrDefault(c => c.Id == CurrentRate.FromCurrencyId)?.Code ?? "نامشخص")</strong> به <strong>@(Currencies.FirstOrDefault(c => c.Id == CurrentRate.ToCurrencyId)?.Code ?? "نامشخص")</strong></small>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-modern btn-light-modern" @onclick="() => OnClose.InvokeAsync()">
+                        <i class="bi bi-x-circle"></i> انصراف
+                    </button>
+                    <PermissionView Permission="@(IsEditMode ? "Rates.Edit" : "Rates.Create")"><button type="button" class="btn-modern btn-primary-modern" @onclick="() => OnSave.InvokeAsync()" disabled="@Busy">
+                        @if (Busy)
+                        {
+                            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-save"></i>
+                        }
+                        @(IsEditMode ? "به‌روزرسانی" : "ایجاد")
+                    </button></PermissionView>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public bool IsEditMode { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public CreateExchangeRateDto CurrentRate { get; set; } = new();
+    [Parameter] public List<CurrencyDto> Currencies { get; set; } = [];
+    [Parameter] public List<string> Errors { get; set; } = [];
+    [Parameter] public string? SuccessMessage { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+}

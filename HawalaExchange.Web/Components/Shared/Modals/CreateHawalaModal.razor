@@ -821,7 +821,8 @@
     private string? destinationEditSnapshot;
     private HawalaDto? editingDocument;
     private bool CanCorrectPaymentLocation => IsEditMode && EditData is not null &&
-        ((EditData.HawalaType == "HawalaReceive" && EditData.Status == "Paid") ||
+        ((EditData.HawalaType == "HawalaReceive" && (EditData.Status == "Paid" ||
+          EditData.Status == "Pending" && editingDocument?.GeneratedSendHawalaNumber.HasValue == true)) ||
          (EditData.HawalaType == "HawalaSend" && editingDocument?.IsSystemGenerated == true &&
           editingDocument.SourceHawalaId.HasValue && EditData.Status != "Cancel"));
     private List<CorrespondentDto> CorrespondentsList { get; set; } = new();

@@ -173,6 +173,79 @@ public abstract class LocationCorrectionScenarios
         var count=await db.LedgerEntries.CountAsync();await Service(db).ChangePaymentLocationAsync(s.Root,s.NewLocation);Assert.Equal(count,await db.LedgerEntries.CountAsync());
         await tx.RollbackAsync();
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ChangingLocationWithSameResponsibleAccountRefreshesExecutionPolicy(bool manual)
+    {
+        await using var db=Context();using var bypass=db.BypassSubscriptionEnforcement();await using var tx=await db.Database.BeginTransactionAsync();
+        var s=await Seed(db);
+        await db.PaymentLocationCorrespondentAssignments.Where(x=>x.PaymentLocationId==s.NewLocation)
+            .ExecuteUpdateAsync(x=>x.SetProperty(a=>a.CorrespondentId,s.OldOwner));
+        await db.Correspondents.Where(x=>x.Id==s.OldOwner).ExecuteUpdateAsync(x=>x.SetProperty(a=>a.RequiresManualExecution,manual));
+        await db.Hawalas.Where(x=>x.Id==s.Child).ExecuteUpdateAsync(x=>x.SetProperty(h=>h.Status,manual?"Paid":"Pending")
+            .SetProperty(h=>h.PaidAt,(DateTime?)null).SetProperty(h=>h.PaidBy,(long?)null));
+        var count=await db.LedgerEntries.CountAsync();
+        await Service(db).ChangePaymentLocationAsync(s.Child,s.NewLocation);
+        var sent=await db.Hawalas.AsNoTracking().SingleAsync(x=>x.Id==s.Child);
+        Assert.Equal(manual?"Pending":"Paid",sent.Status);
+        Assert.Equal(manual,sent.PaidAt is null);Assert.Equal(manual,sent.PaidBy is null);
+        Assert.Equal(count,await db.LedgerEntries.CountAsync());
+        await tx.RollbackAsync();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ImportedEditUpdatesRetainedOutgoingExecutionPolicy(bool manual)
+    {
+        await using var db=Context();using var bypass=db.BypassSubscriptionEnforcement();await using var tx=await db.Database.BeginTransactionAsync();
+        var s=await Seed(db);
+        var batch=new HawalaImportBatch{CorrespondentId=s.Source,FileName="policy.xlsx",FileHash=Guid.NewGuid().ToString("N"),CreatedBy=db.RequireCurrentUserId()};
+        db.HawalaImportBatches.Add(batch);await db.SaveChangesAsync();
+        db.HawalaImportRows.Add(new(){BatchId=batch.Id,HawalaId=s.Root,GeneratedSendHawalaId=s.Child,ExcelRowNumber=1});
+        await db.SaveChangesAsync();
+        await db.Correspondents.Where(x=>x.Id==s.NewOwner).ExecuteUpdateAsync(x=>x.SetProperty(a=>a.RequiresManualExecution,manual));
+        await db.Hawalas.Where(x=>x.Id==s.Child).ExecuteUpdateAsync(x=>x.SetProperty(h=>h.Status,manual?"Paid":"Pending"));
+        var h=await db.Hawalas.AsNoTracking().SingleAsync(x=>x.Id==s.Root);
+        await tx.CommitAsync();
+        await tx.DisposeAsync();
+        db.ChangeTracker.Clear();
+        await Service(db).UpdateHawalaAsync(s.Root,new(){CorrespondentId=h.CorrespondentId,FromCurrencyId=h.FromCurrencyId,ToCurrencyId=h.ToCurrencyId,
+            FromAmount=h.FromAmount,ToAmount=h.ToAmount,ExchangeRate=h.ExchangeRate,PaymentLocationId=s.NewLocation,Status="Paid",SenderName=h.SenderName,ReceiverName=h.ReceiverName,ReferenceNumber=h.ReferenceNumber});
+        var sent=await db.Hawalas.AsNoTracking().SingleAsync(x=>x.Id==s.Child);
+        Assert.Equal(manual?"Pending":"Paid",sent.Status);Assert.Equal(manual,sent.PaidAt is null);Assert.Equal(s.NewOwner,sent.CorrespondentId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OfficeDestinationWaitsForActualPaymentAndCanBeForwardedAgainWithoutCashEntries(bool manual)
+    {
+        await using var db=Context();using var bypass=db.BypassSubscriptionEnforcement();await using var tx=await db.Database.BeginTransactionAsync();
+        var s=await Seed(db);var own=await db.CompanySettings.Select(x=>x.OwnPaymentLocationId).FirstAsync();
+        await db.Correspondents.Where(x=>x.Id==s.NewOwner).ExecuteUpdateAsync(x=>x.SetProperty(c=>c.RequiresManualExecution,manual));
+        var conversion=await new CorrespondentSettlementService(db).ConvertHawalasAsync(new(){CorrespondentId=s.Source,HawalaIds=[s.Root],
+            HawalaRates=[new(){HawalaId=s.Root,SourceCurrencyId=s.Currency,Rate=70}]});
+        var sourceConversion=await SourceFootprint(db,s,conversion.TransactionId);
+        var source=await db.LedgerEntries.AsNoTracking().Where(x=>x.HawalaId==s.Root).OrderBy(x=>x.Id).Select(x=>new{x.Id,x.BadehKar,x.TalabKar}).ToListAsync();
+        var cashCount=await db.LedgerEntries.CountAsync(x=>x.Account!.AccountType=="Cash");
+        await Service(db).ChangePaymentLocationAsync(s.Child,own!.Value);
+        Assert.Equal("Pending",await db.Hawalas.Where(x=>x.Id==s.Root).Select(x=>x.Status).SingleAsync());
+        Assert.True(await db.Hawalas.Where(x=>x.Id==s.Child).Select(x=>x.IsDeleted).SingleAsync());
+        Assert.Equal(0,await db.LedgerEntries.Where(x=>x.HawalaId==s.Child && x.AccountId==s.OldAccount).SumAsync(x=>x.TalabKar-x.BadehKar));
+        var afterOffice=await db.LedgerEntries.CountAsync();
+        await Service(db).ChangePaymentLocationAsync(s.Root,own.Value);
+        Assert.Equal(afterOffice,await db.LedgerEntries.CountAsync());
+        await Service(db).ChangePaymentLocationAsync(s.Root,s.NewLocation);
+        var sent=await db.Hawalas.AsNoTracking().SingleAsync(x=>x.Id==s.Child);
+        Assert.False(sent.IsDeleted);Assert.Equal(manual?"Pending":"Paid",sent.Status);Assert.Equal(s.NewOwner,sent.CorrespondentId);
+        Assert.Equal(cashCount,await db.LedgerEntries.CountAsync(x=>x.Account!.AccountType=="Cash"));
+        Assert.Equal(source,await db.LedgerEntries.AsNoTracking().Where(x=>x.HawalaId==s.Root).OrderBy(x=>x.Id).Select(x=>new{x.Id,x.BadehKar,x.TalabKar}).ToListAsync());
+        Assert.Equal(sourceConversion,await SourceFootprint(db,s,conversion.TransactionId));
+        await tx.RollbackAsync();
+    }
     [Fact]
     public async Task InvalidDestinationCannotChangeEitherHawalaOrLedger()
     {

@@ -805,6 +805,8 @@
                             !_context.CorrespondentAccountPeriodHawalas.Any(closed => closed.HawalaId == x.Id)))
                             throw new InvalidOperationException("نمبر حواله ارسالی در نمایندگی مقصد قبلاً ثبت شده است.");
                         sent.Number = nextNumber;
+                        if (paymentLocationChanged || sent.CorrespondentId != payingAccount.CorrespondentId)
+                            await ApplyDestinationExecutionPolicyAsync(sent, payingAccount, DateTime.UtcNow);
                         sent.CorrespondentId = payingAccount.CorrespondentId;
                         sent.PaidFromAccountId = payingAccount.Id;
                         if (sent.Status == "Paid")

@@ -26,9 +26,16 @@ public partial class HawalaService
             await DatabaseLocks.AcquireAsync(_context,$"HawalaPaymentLocation:{_context.CurrentTenantId}:{rootId}");
             var root=await _context.Hawalas.SingleAsync(x=>x.Id==rootId && !x.IsDeleted);
             await _context.Entry(root).ReloadAsync();
-            var sent=await _context.Hawalas.SingleOrDefaultAsync(x=>x.SourceHawalaId==rootId && !x.IsDeleted)
+            var sent=await _context.Hawalas.SingleOrDefaultAsync(x=>x.SourceHawalaId==rootId)
                 ??throw new InvalidOperationException("این حواله، حواله ارسالی وابسته برای اصلاح مقصد ندارد.");
             await _context.Entry(sent).ReloadAsync();
+            var ownLocation=await _context.CompanySettings.Select(x=>x.OwnPaymentLocationId).FirstOrDefaultAsync();
+            if(ownLocation==paymentLocationId || root.Status=="Pending" && sent.IsDeleted)
+            {
+                await ChangeForwardingOfficeDestinationAsync(root,sent,paymentLocationId,ownLocation==paymentLocationId);
+                if(transaction is not null)await transaction.CommitAsync();
+                return (await GetHawalaByIdAsync(root.Id))!;
+            }
             if(root.HawalaType!="HawalaReceive" || root.Status!="Paid" || sent.HawalaType!="HawalaSend" || !sent.IsSystemGenerated ||
                sent.Status=="Cancel" || root.CompensatesHawalaId.HasValue || sent.CompensatesHawalaId.HasValue ||
                root.CancellationAccountingMode is not null || sent.CancellationAccountingMode is not null)
@@ -89,13 +96,7 @@ public partial class HawalaService
             sent.PaymentLocationId=paymentLocationId;
             root.PaymentLocationId=paymentLocationId;
             root.PaidFromAccountId=newAccountId;
-            if(oldAccountId!=newAccountId)
-            {
-                var manual=await _context.Correspondents.Where(x=>x.Id==newAccount.CorrespondentId).Select(x=>x.RequiresManualExecution).SingleAsync();
-                sent.Status=manual?"Pending":"Paid";
-                sent.PaidAt=manual?null:now;
-                sent.PaidBy=manual?null:_context.RequireCurrentUserId();
-            }
+            await ApplyDestinationExecutionPolicyAsync(sent,newAccount,now);
             var locationName=await _context.PaymentLocations.Where(x=>x.Id==paymentLocationId).Select(x=>x.Name).SingleAsync();
             var rows=await _context.HawalaImportRows.Where(x=>x.HawalaId==root.Id || x.GeneratedSendHawalaId==sent.Id).ToListAsync();
             foreach(var row in rows)
@@ -121,6 +122,78 @@ public partial class HawalaService
             _context.ChangeTracker.Clear();
             throw;
         }
+    }
+
+    private async Task ApplyDestinationExecutionPolicyAsync(Hawala sent,Account destination,DateTime now)
+    {
+        var manual=await _context.Correspondents.Where(x=>x.Id==destination.CorrespondentId)
+            .Select(x=>x.RequiresManualExecution).SingleAsync();
+        sent.Status=manual?"Pending":"Paid";
+        sent.PaidAt=manual?null:now;
+        sent.PaidBy=manual?null:_context.RequireCurrentUserId();
+    }
+
+    private async Task ChangeForwardingOfficeDestinationAsync(Hawala root,Hawala sent,long locationId,bool toOffice)
+    {
+        if(root.HawalaType!="HawalaReceive" || root.Status is not ("Paid" or "Pending") || sent.HawalaType!="HawalaSend" ||
+            !sent.IsSystemGenerated || root.CancellationAccountingMode is not null || sent.CancellationAccountingMode is not null ||
+            root.CompensatesHawalaId.HasValue || sent.CompensatesHawalaId.HasValue)
+            throw new InvalidOperationException("این حواله برای اصلاح مقصد معتبر نیست.");
+        if(toOffice && root.Status=="Pending" && sent.IsDeleted && root.PaymentLocationId==locationId)return;
+        if(await _context.AgentPaymentBillItems.AnyAsync(x=>x.HawalaId==sent.Id && x.IsActive) ||
+            await _context.MoneyExchangeOperations.AnyAsync(x=>x.LinkedHawalaId==sent.Id && !x.IsDeleted))
+            throw new InvalidOperationException("ابتدا بیل یا تبدیل مستقل حواله ارسالی را برگشت دهید.");
+        if(!sent.IsDeleted && sent.Status=="Paid" && sent.PaidAt.HasValue &&
+            await _context.Correspondents.AnyAsync(x=>x.Id==sent.CorrespondentId && x.RequiresManualExecution))
+            throw new InvalidOperationException("ابتدا اجرای تأییدشده مقصد قبلی را برگشت دهید.");
+        Account? destination=null;
+        if(!toOffice)
+        {
+            var accountId=await ResolvePaymentLocationAccountCoreAsync(_context,locationId);
+            destination=await _context.Accounts.SingleAsync(x=>x.Id==accountId);
+        }
+        var owners=new[]{root.CorrespondentId,sent.CorrespondentId,destination?.CorrespondentId}.Where(x=>x.HasValue).Select(x=>x!.Value).Distinct().OrderBy(x=>x).ToArray();
+        await LockOutgoingNumbersAsync(owners);
+        var now=DateTime.UtcNow;
+        if(await _context.CorrespondentAccountPeriods.AnyAsync(x=>owners.Contains(x.CorrespondentId) && x.PeriodTo>=now))
+            throw new InvalidOperationException("برای اصلاح مقصد، دوره باز در تاریخ امروز لازم است.");
+        var correction=new ImportCommissionCorrectionService(_context);
+        var commissions=await correction.ReverseAsync([sent.Id]);
+        var legacy=await correction.ReverseAsync([root.Id],scope:"Origin");
+        if(toOffice)
+        {
+            await DetachOutgoingSettlementForLocationAsync(sent);
+            var entries=await _context.LedgerEntries.AsNoTracking().Where(x=>x.HawalaId==sent.Id)
+                .GroupBy(x=>new{x.AccountId,x.CurrencyId}).Select(g=>new{g.Key.AccountId,g.Key.CurrencyId,Net=g.Sum(x=>x.TalabKar-x.BadehKar)}).ToListAsync();
+            var expected=new Dictionary<long,decimal>{{root.ToCurrencyId,root.ToAmount??root.FromAmount}};
+            if(sent.AgentCommissionAmount is > 0){var c=sent.AgentCommissionCurrencyId??root.ToCurrencyId;expected[c]=expected.GetValueOrDefault(c)+sent.AgentCommissionAmount.Value;}
+            var actual=entries.Where(x=>x.AccountId==sent.PaidFromAccountId && x.Net!=0).ToDictionary(x=>x.CurrencyId,x=>x.Net);
+            if(actual.Count!=expected.Count || expected.Any(x=>actual.GetValueOrDefault(x.Key)!=x.Value))
+                throw new InvalidOperationException("مانده مقصد قبلی با حواله مطابقت ندارد.");
+            foreach(var entry in entries.Where(x=>x.Net!=0))
+                await CreateLedgerEntry(sent.Id,entry.AccountId,entry.CurrencyId,Math.Max(-entry.Net,0),Math.Max(entry.Net,0),"اصلاح محل پرداخت — برگشت ارجاع و انتظار پرداخت در دفتر",now);
+            root.Status="Pending";root.PaidAt=null;root.PaidBy=null;root.PaidFromAccountId=null;
+            sent.IsDeleted=true;sent.Status="Cancel";sent.PaidAt=null;sent.PaidBy=null;
+        }
+        else
+        {
+            if(!sent.IsDeleted || root.Status!="Pending")throw new InvalidOperationException("حواله در انتظار پرداخت دفتر نیست.");
+            if(sent.CorrespondentId!=destination!.CorrespondentId)sent.Number=await GetNextNumberAsync(destination.CorrespondentId!.Value,"HawalaSend");
+            sent.CorrespondentId=destination.CorrespondentId;sent.PaidFromAccountId=destination.Id;sent.IsDeleted=false;
+            await ApplyDestinationExecutionPolicyAsync(sent,destination,now);
+            root.Status="Paid";root.PaidAt=now;root.PaidBy=_context.RequireCurrentUserId();root.PaidFromAccountId=destination.Id;
+            await ProcessHawalaReceivePaymentLedgerAsync(root,destination,sent.Id,sent.AgentCommissionAmount,sent.AgentCommissionCurrencyId,now);
+        }
+        root.PaymentLocationId=locationId;sent.PaymentLocationId=locationId;
+        var name=await _context.PaymentLocations.Where(x=>x.Id==locationId && x.IsActive).Select(x=>x.Name).SingleAsync();
+        foreach(var row in await _context.HawalaImportRows.Where(x=>x.HawalaId==root.Id).ToListAsync())
+        {row.PaymentLocationId=locationId;row.PaymentLocationText=name;row.DestinationCorrespondentId=destination?.CorrespondentId;}
+        await _context.SaveChangesAsync();
+        await correction.RepostAsync(commissions,[sent.Id],toOffice,resolveLocationRates:true);
+        await correction.RepostAsync(legacy,[root.Id],toOffice,resolveLocationRates:true);
+        _context.AuditLogs.Add(new(){UserId=_context.RequireCurrentUserId(),Action="CHANGE_PAYMENT_LOCATION",TableName="Hawalas",RecordId=root.Id,
+            NewValue=JsonSerializer.Serialize(new{PaymentLocationId=locationId,SentId=sent.Id,root.Status,SourceSettlementPreserved=true})});
+        await _context.SaveChangesAsync();
     }
 
     private async Task<SettlementReconversionState?> DetachOutgoingSettlementForLocationAsync(Hawala sent)

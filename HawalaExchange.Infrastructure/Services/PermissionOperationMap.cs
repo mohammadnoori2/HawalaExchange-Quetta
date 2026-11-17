@@ -35,6 +35,8 @@ public static class PermissionOperationMap
         Add("Export","ExportAsync ExportInputFormatAsync DownloadDocumentAsync ExportCustomerActivitiesAsync ExportCustomerActivitiesPreviewAsync");
         Actions["ReadAsync"]="Export";
         Actions["GetDashboardRatesAsync"]="View";
+        Actions["GetAmountSummaryAsync"]="View";
+        Actions["GetSelectionAmountsAsync"]="View";
         Actions["GetDeletionPreviewAsync"]="Delete";
         Actions["ConfirmQueuedAsync"]="Create";
         Actions["GetCancellationPreviewAsync"]="Delete";

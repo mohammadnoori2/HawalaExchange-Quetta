@@ -359,9 +359,7 @@
                 return result;
             }
 
-            public async Task<HawalaListResultDto> GetHawalasAsync(
-                HawalaFilterDto filter,
-                CancellationToken cancellationToken = default)
+            private IQueryable<Hawala> BuildHawalaListQuery(HawalaFilterDto filter)
             {
                 var query = _context.Hawalas
                     .AsNoTracking()
@@ -448,6 +446,15 @@
                     query = query.Where(h => h.CreatedAt < toDateExclusive);
                 }
 
+                return query;
+            }
+
+            public async Task<HawalaListResultDto> GetHawalasAsync(
+                HawalaFilterDto filter,
+                CancellationToken cancellationToken = default)
+            {
+                var query = BuildHawalaListQuery(filter);
+
                 var totalCount = await query.CountAsync(cancellationToken);
                 var totalFromAmount = filter.IncludeTotalAmount && totalCount > 0
                     ? await query.SumAsync(h => h.FromAmount, cancellationToken)
@@ -507,6 +514,7 @@
                 }
                 return new HawalaListResultDto
                 {
+                    AmountRows = filter.IncludeBrowserAmounts ? await GetSelectionAmountsAsync(items.Take(10000).Select(x=>x.Id).ToArray(),cancellationToken) : [],
                     DirectCommissionTotals = directCommissionTotals,
                     Items = items,
                     TotalCount = totalCount,

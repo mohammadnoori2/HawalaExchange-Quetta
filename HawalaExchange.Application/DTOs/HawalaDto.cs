@@ -241,10 +241,12 @@ namespace HawalaExchange.Application.DTOs
         public string SortDirection { get; set; } = "desc";
         public bool IncludeTotalAmount { get; set; }
         public bool IncludeDirectCommissionTotals { get; set; }
+        public bool IncludeBrowserAmounts { get; set; }
     }
 
     public class HawalaListResultDto
     {
+        public List<HawalaBrowserAmountRow> AmountRows { get; set; } = [];
         public List<HawalaDirectCommissionTotalDto> DirectCommissionTotals { get; set; } = [];
         public List<HawalaDto> Items { get; set; } = new();
         public int TotalCount { get; set; }

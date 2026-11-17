@@ -1,4 +1,4 @@
-@page "/hawala-pending"
+﻿@page "/hawala-pending"
 
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
@@ -126,7 +126,7 @@
         </div>
 
         <div class="table-card-body">
-            <SelectedRecordsToolbar @ref="pendingSelectionToolbar" ScopeId="pending-record-selection" VisibleIds="@pagedHawalas.Select(x => x.Id)" SelectionChanged="OnPendingSelectionChanged" ExportPermission="HawalaExecution.Export" />
+            <SelectedRecordsToolbar @ref="pendingSelectionToolbar" ScopeId="pending-record-selection" EnableAmountSummary="true" AmountRows="browserAmountRows" AmountEpoch="@amountEpoch.ToString()" VisibleIds="@pagedHawalas.Select(x => x.Id)" SelectionChanged="OnPendingSelectionChanged" ExportPermission="HawalaExecution.Export" />
             <div class="d-flex gap-2 align-items-center mb-2">
                 <PermissionAction Actions="Execute" Module="HawalaExecution"><button type="button" class="btn-modern btn-primary-modern" disabled="@(bulkBusy || isLoading || selectedPendingIds.Count == 0)" @onclick="OpenBulkPay">
                     <i class="bi bi-check2-all"></i> اجرای گروهی (@selectedPendingIds.Count)
@@ -237,6 +237,7 @@
             </div>
         </div>
 
+        <RecordAmountStatus ScopeId="pending-record-selection" />
         <div class="table-card-footer">
             <div class="table-card-footer-left">
                 <span class="text-muted small">
@@ -703,6 +704,8 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
 
+    private List<HawalaBrowserAmountRow> browserAmountRows = [];
+    private long amountEpoch;
     private bool isLoading = false;
     private bool showPayModal = false;
     private bool showDetailModal = false;
@@ -838,6 +841,7 @@
 
             var filter = new HawalaFilterDto
             {
+                IncludeBrowserAmounts = true,
                 Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm,
                 SearchAmount = searchAmount,
@@ -861,6 +865,8 @@
             var result = await HawalaService.GetHawalasAsync(filter);
 
             hawalas = result.Items.ToList();
+            browserAmountRows = result.AmountRows;
+            amountEpoch++;
             totalCount = result.TotalCount;
             totalPages = Math.Max(1, result.TotalPages);
             totalFromAmount = result.TotalFromAmount;

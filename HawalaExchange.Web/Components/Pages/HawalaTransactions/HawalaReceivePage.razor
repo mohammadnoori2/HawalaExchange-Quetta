@@ -1,4 +1,4 @@
-@page "/hawala-receive"
+﻿@page "/hawala-receive"
 
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
@@ -84,7 +84,7 @@
         </div>
 
         <div class="table-card-body">
-            <SelectedRecordsToolbar ScopeId="received-record-selection" VisibleIds="@pagedHawalas.Select(x => x.Id)" />
+            <SelectedRecordsToolbar ScopeId="received-record-selection" EnableAmountSummary="true" AmountRows="browserAmountRows" AmountEpoch="@amountEpoch.ToString()" VisibleIds="@pagedHawalas.Select(x => x.Id)" />
             <div class="table-scroll-wrapper">
                 <GlobalDataGrid id="received-record-selection" class="table-modern table-striped-modern">
                     <thead>
@@ -206,6 +206,7 @@
             </div>
         </div>
 
+        <RecordAmountStatus ScopeId="received-record-selection" />
         <div class="table-card-footer">
             <div class="table-card-footer-left">
                 <span class="text-muted small">
@@ -669,6 +670,8 @@
     private List<string> validationErrors = new();
     private string successMessage = string.Empty;
 
+    private List<HawalaBrowserAmountRow> browserAmountRows = [];
+    private long amountEpoch;
     private bool isLoading = false;
     private bool showPayModal = false;
     private bool showEditModal = false;
@@ -760,6 +763,7 @@
 
             var filter = new HawalaFilterDto
             {
+                IncludeBrowserAmounts = true,
                 Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm.Trim(),
                 SearchAmount = searchAmount,
@@ -776,6 +780,8 @@
             if (loadVersion != dataLoadVersion)
                 return;
             hawalas = result.Items.ToList();
+            browserAmountRows = result.AmountRows;
+            amountEpoch++;
             totalCount = result.TotalCount;
             totalPages = Math.Max(1, result.TotalPages);
         }

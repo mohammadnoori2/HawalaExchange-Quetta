@@ -73,7 +73,7 @@ public sealed class HawalaLocationEditTests
     private static CreateHawalaDto Model(Probe modal) => Field<CreateHawalaDto>(modal, "CurrentHawala");
     private static T Field<T>(Probe modal, string name) => (T)typeof(CreateHawalaModal).GetProperty(name, Hidden)!.GetValue(modal)!;
     private static Task Change(Probe modal, long id) => (Task)typeof(CreateHawalaModal).GetMethod("OnPaymentLocationChanged", Hidden)!
-        .Invoke(modal, [new ChangeEventArgs { Value = id.ToString() }])!;
+        .Invoke(modal, [(long?)id])!;
 
     private static async Task Run(Func<Setup, Probe, Task> test)
     {

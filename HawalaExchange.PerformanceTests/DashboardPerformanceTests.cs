@@ -34,6 +34,35 @@ public sealed class DashboardPerformanceTests(
         await tx.RollbackAsync();
     }
     [Fact]
+    public async Task Weekly_profit_keeps_four_weeks_when_activity_filter_is_one_week()
+    {
+        await using var context = fixture.CreateContext();
+        using var bypass = context.BypassSubscriptionEnforcement();
+        await using var tx = await context.Database.BeginTransactionAsync();
+        var end = new DateTime(2091, 6, 28);
+        var income = await context.Accounts.SingleAsync(x => x.AccountCode == "3001");
+        for (var week = 0; week < 4; week++)
+        {
+            var day = end.AddDays(-27 + week * 7).AddHours(12);
+            context.LedgerEntries.Add(Entry(income.Id, 2, 0, (week + 1) * 10, day));
+            context.Hawalas.Add(NewHawala(9_100_001 + week, day, "Paid"));
+        }
+        // Just outside the four-week chart must not leak into week 1.
+        context.LedgerEntries.Add(Entry(income.Id, 2, 0, 999, end.AddDays(-28).AddHours(12)));
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var result = await fixture.CreateFinancialReportService(context)
+            .GetDashboardSummaryAsync(end.AddDays(-6), end, 2);
+        Assert.Equal(new decimal[] { -10, -20, -30, -40 }, result.WeeklyProfit.Select(x => x.Value));
+        Assert.Equal(-40, result.NetProfit);
+        Assert.Equal(1, result.HawalaCount);
+        Assert.Equal(1, result.TotalActivityCount);
+        Assert.Equal(7, result.DailyActivities.Count);
+        Assert.Equal(1, result.DailyActivities.Sum(x => x.Value));
+        await tx.RollbackAsync();
+    }
+
+    [Fact]
     public async Task Dashboard_procedure_preserves_counts_profit_balances_and_tenant_scope()
     {
         await using var context = fixture.CreateContext();

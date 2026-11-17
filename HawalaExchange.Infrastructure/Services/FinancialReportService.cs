@@ -56,16 +56,19 @@ public class FinancialReportService : IFinancialReportService
         var start = fromDate.Date;
         var endExclusive = toDate.Date.AddDays(1);
         var reporting = await GetReportingContextAsync(endExclusive, reportingCurrencyId);
-        var data = await ReadDashboardDataAsync(start, endExclusive);
+        // The weekly chart always needs four full weeks, even when activity filters cover fewer days.
+        var weeklyStart = toDate.Date.AddDays(-27);
+        var data = await ReadDashboardDataAsync(start < weeklyStart ? start : weeklyStart, endExclusive);
+        var filteredActivities = data.Activities.Where(x => x.ActivityDate >= start).ToList();
 
         var result = new DashboardSummaryDto
         {
             ReportingCurrencyCode = reporting.Currency.Code,
-            HawalaCount = data.Activities.Sum(x => x.HawalaCount),
-            ExchangeCount = data.Activities.Sum(x => x.ExchangeCount),
-            AccountOperationCount = data.Activities.Sum(x => x.AccountOperationCount),
-            ExpenseCount = data.Activities.Sum(x => x.ExpenseCount),
-            CapitalInvestmentCount = data.Activities.Sum(x => x.CapitalInvestmentCount)
+            HawalaCount = filteredActivities.Sum(x => x.HawalaCount),
+            ExchangeCount = filteredActivities.Sum(x => x.ExchangeCount),
+            AccountOperationCount = filteredActivities.Sum(x => x.AccountOperationCount),
+            ExpenseCount = filteredActivities.Sum(x => x.ExpenseCount),
+            CapitalInvestmentCount = filteredActivities.Sum(x => x.CapitalInvestmentCount)
         };
 
         result.TotalActivityCount =
@@ -75,12 +78,12 @@ public class FinancialReportService : IFinancialReportService
             result.ExpenseCount +
             result.CapitalInvestmentCount;
 
-        result.LastActivityAt = data.Activities.Count == 0
+        result.LastActivityAt = filteredActivities.Count == 0
             ? null
-            : data.Activities.Max(x => x.LastActivityAt);
+            : filteredActivities.Max(x => x.LastActivityAt);
 
         var profitWarnings = new List<string>();
-        result.NetProfit = CalculateNetProfit(data.RangeEntries, reporting, profitWarnings);
+        result.NetProfit = CalculateNetProfit(data.RangeEntries.Where(x => x.CreatedAt >= start), reporting, profitWarnings);
         result.Warnings.AddRange(profitWarnings);
 
         result.Rates = await GetLatestRatesAsync(reporting.Currency.Id, endExclusive);
@@ -190,8 +193,6 @@ public class FinancialReportService : IFinancialReportService
         {
             var weekEnd = toDate.AddDays(-(index * 7));
             var weekStart = weekEnd.AddDays(-6);
-            if (weekStart < fromDate)
-                weekStart = fromDate;
             var warnings = new List<string>();
             var profit = CalculateNetProfit(
                 data.RangeEntries.Where(x => x.CreatedAt >= weekStart && x.CreatedAt < weekEnd.AddDays(1)),
@@ -555,8 +556,6 @@ public class FinancialReportService : IFinancialReportService
         {
             var weekEnd = toDate.AddDays(-(index * 7));
             var weekStart = weekEnd.AddDays(-6);
-            if (weekStart < fromDate)
-                weekStart = fromDate;
 
             var warnings = new List<string>();
             var profit = CalculateNetProfit(

@@ -116,7 +116,7 @@
         </div>
     </div>
 
-    <div class="provision-row">
+    <div class="dashboard-lower-row">
         <div class="top-remain-card">
             <div class="top-remain-header">
                 <div class="top-remain-heading">
@@ -142,9 +142,7 @@
             </div>
             <DashboardCounterpartyTable Groups="@(dashboard?.CounterpartiesByCurrency ?? [])" Creditors="@(counterpartyListMode == "creditors")" />
         </div>
-    </div>
-
-    <div class="bottom-row">
+        <div class="dashboard-side-column">
         <div class="transactions-card">
             <div class="section-title">فعالیت‌های ثبت‌شده</div>
             <div class="date-filter">
@@ -199,6 +197,7 @@
             </div>
             <div class="liquidity-chart-container"><canvas id="liquidityChart"></canvas></div>
         </div>
+        </div>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
@@ -241,7 +240,7 @@
         currencies = (await CurrencyService.GetAllAsync()).Where(x => x.IsActive).OrderBy(x => x.Code).ToList(); await LoadDashboardAsync();
         if (ratesPanel is not null) await ratesPanel.RefreshAsync();
     }
-    private DateTime startDate = DateTime.Today.AddDays(-27);
+    private DateTime startDate = DateTime.Today.AddDays(-6);
     private DateTime endDate = DateTime.Today;
     private string selectedCurrency = "AFN";
     private string liquidityFilter = "all";

@@ -94,6 +94,18 @@
 .dashboard-summary-body thead th { position: sticky; top: 0; background: var(--surface-muted); z-index: 1; }
 .dashboard-profit-value { font-size: 1.4rem; font-weight: 700; white-space: nowrap; }
 .dashboard-profit-currency { width: auto; max-width: 7rem; }
+.dashboard-lower-row { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1.1fr); gap: 1rem; align-items: stretch; margin-bottom: 1.25rem; }
+.dashboard-side-column { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr) minmax(0,1fr); gap: 1rem; min-width: 0; }
+.dashboard-side-column > :is(.transactions-card,.liquidity-card) { min-height: 0; overflow: auto; }
+.dashboard-side-column > :is(.transactions-card,.liquidity-card) { display: flex; flex-direction: column; }
+.dashboard-side-column :is(.mini-chart-container,.liquidity-chart-container) { flex: 1 1 10rem; min-height: 10rem; height: 10rem; }
+.dashboard-side-column :is(.section-title,.date-filter,.page-header-stats,.liquidity-tabs,.liquidity-items) { flex-shrink: 0; }
+.dashboard-side-column .date-filter { display: flex; flex-wrap: wrap; gap: .5rem; }
+.dashboard-side-column .date-input-group { min-width: 0; flex: 1 1 9rem; }
+@media (max-width: 1100px) {
+    .dashboard-lower-row { grid-template-columns: minmax(0,1fr); align-items: start; }
+    .dashboard-side-column { grid-template-rows: auto auto; }
+}
 @media (max-width: 1000px) { .dashboard-summary-row { grid-template-columns: minmax(0,1fr); } }
 .dashboard-wrapper .provision-row { grid-template-columns: minmax(0,1fr); }
 .dashboard-wrapper .provision-card { display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; justify-content: normal; gap: .25rem 1.25rem; padding: .9rem 1.25rem; }

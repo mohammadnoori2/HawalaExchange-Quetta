@@ -13,6 +13,27 @@ public sealed class DashboardPerformanceTests(
     ITestOutputHelper output)
 {
     [Fact]
+    public async Task Counterparties_are_ranked_and_totalled_in_each_original_currency_without_exchange_rates()
+    {
+        await using var db=fixture.CreateContext();using var bypass=db.BypassSubscriptionEnforcement();
+        await using var tx=await db.Database.BeginTransactionAsync();
+        var key=Guid.NewGuid().ToString("N");
+        var customer=new Customer{CustomerCode=key,FullName=key};db.Customers.Add(customer);await db.SaveChangesAsync();
+        var account=new Account{AccountCode=key,AccountName=key,AccountType="Customer",CustomerId=customer.Id};
+        var currency=new Currency{Code="TST",Name="No rate",IsActive=true};db.AddRange(account,currency);await db.SaveChangesAsync();
+        var date=new DateTime(2084,1,1);
+        db.LedgerEntries.AddRange(Entry(account.Id,2,0,500,date),Entry(account.Id,1,9000,0,date),Entry(account.Id,currency.Id,0,250,date));
+        await db.SaveChangesAsync();db.ChangeTracker.Clear();
+        var result=await fixture.CreateFinancialReportService(db).GetDashboardSummaryAsync(date,date,2);
+        Assert.Equal(500,Assert.Single(Assert.Single(result.CounterpartiesByCurrency,x=>x.CurrencyCode=="USD").TopDebtors,x=>x.AccountId==account.Id).Amount);
+        Assert.Equal(9000,Assert.Single(Assert.Single(result.CounterpartiesByCurrency,x=>x.CurrencyCode=="AFN").TopCreditors,x=>x.AccountId==account.Id).Amount);
+        Assert.Equal(250,Assert.Single(Assert.Single(result.CounterpartiesByCurrency,x=>x.CurrencyCode=="TST").TopDebtors,x=>x.AccountId==account.Id).Amount);
+        Assert.Equal(250,Assert.Single(result.CounterpartiesByCurrency,x=>x.CurrencyCode=="TST").TotalReceivables);
+        Assert.Equal(500,Assert.Single(result.CounterpartiesByCurrency,x=>x.CurrencyCode=="USD").AccountBalances[account.Id]);
+        Assert.Equal(-9000,Assert.Single(result.CounterpartiesByCurrency,x=>x.CurrencyCode=="AFN").AccountBalances[account.Id]);
+        await tx.RollbackAsync();
+    }
+    [Fact]
     public async Task Dashboard_procedure_preserves_counts_profit_balances_and_tenant_scope()
     {
         await using var context = fixture.CreateContext();

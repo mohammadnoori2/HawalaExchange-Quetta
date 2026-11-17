@@ -62,6 +62,7 @@ public class DashboardSummaryDto
     public List<DashboardRateDto> Rates { get; set; } = new();
     public List<DashboardDebtorDto> TopDebtors { get; set; } = new();
     public List<DashboardDebtorDto> TopCreditors { get; set; } = new();
+    public List<DashboardCounterpartyCurrencyDto> CounterpartiesByCurrency { get; set; } = new();
     public decimal TotalCustomerReceivables { get; set; }
     public decimal TotalCounterpartyReceivables { get; set; }
     public decimal TotalCounterpartyPayables { get; set; }
@@ -86,6 +87,16 @@ public class DashboardDebtorDto
     public string Initial { get; set; } = string.Empty;
     public string AccountTypeName { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+}
+
+public class DashboardCounterpartyCurrencyDto
+{
+    public string CurrencyCode { get; set; } = string.Empty;
+    public Dictionary<long, decimal> AccountBalances { get; set; } = new();
+    public decimal TotalReceivables { get; set; }
+    public decimal TotalPayables { get; set; }
+    public List<DashboardDebtorDto> TopDebtors { get; set; } = new();
+    public List<DashboardDebtorDto> TopCreditors { get; set; } = new();
 }
 
 public class DashboardLiquidityDto

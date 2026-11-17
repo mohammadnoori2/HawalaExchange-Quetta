@@ -429,6 +429,21 @@ public class FinancialReportService : IFinancialReportService
     {
         var warnings = new List<string>();
         var balances = GetConvertedBalances(entries, reporting, warnings);
+        var nativeBalances=entries.Where(x=>TypeIs(x.Account!.AccountType,"Customer") || TypeIs(x.Account!.AccountType,"Correspondent"))
+            .GroupBy(x=>new{x.AccountId,x.Account!.AccountName,x.Account.AccountType,x.CurrencyId,x.Currency!.Code})
+            .Select(g=>new{g.Key.AccountId,g.Key.AccountName,g.Key.AccountType,g.Key.Code,Net=g.Sum(x=>x.BadehKar-x.TalabKar)}).ToList();
+        result.CounterpartiesByCurrency=nativeBalances.GroupBy(x=>x.Code).OrderBy(x=>x.Key).Select(currency=>
+        {
+            DashboardDebtorDto Item(long id,string name,string type,decimal amount)=>new(){AccountId=id,Name=name,
+                Initial=string.IsNullOrWhiteSpace(name)?"؟":name.Trim()[..1],AccountTypeName=TypeIs(type,"Correspondent")?"نمایندگی":"مشتری",Amount=amount};
+            return new DashboardCounterpartyCurrencyDto{CurrencyCode=currency.Key,
+                TotalReceivables=currency.Sum(x=>Math.Max(x.Net,0)),TotalPayables=currency.Sum(x=>Math.Max(-x.Net,0)),
+                TopDebtors=currency.Where(x=>x.Net>0).OrderByDescending(x=>x.Net).ThenBy(x=>x.AccountId).Take(10).Select(x=>Item(x.AccountId,x.AccountName,x.AccountType,x.Net)).ToList(),
+                TopCreditors=currency.Where(x=>x.Net<0).OrderBy(x=>x.Net).ThenBy(x=>x.AccountId).Take(10).Select(x=>Item(x.AccountId,x.AccountName,x.AccountType,-x.Net)).ToList()};
+        }).ToList();
+        var displayedAccounts=result.CounterpartiesByCurrency.SelectMany(x=>x.TopDebtors.Concat(x.TopCreditors)).Select(x=>x.AccountId).ToHashSet();
+        foreach(var currency in result.CounterpartiesByCurrency)
+            currency.AccountBalances=nativeBalances.Where(x=>x.Code==currency.CurrencyCode && displayedAccounts.Contains(x.AccountId)).ToDictionary(x=>x.AccountId,x=>x.Net);
         var counterpartyBalances = balances
             .Where(x => TypeIs(x.AccountType, "Customer") ||
                         TypeIs(x.AccountType, "Correspondent"))

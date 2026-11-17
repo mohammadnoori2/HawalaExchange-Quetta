@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // متغیرهای سراسری برای نگهداری نمونه‌های نمودار
 // ==========================================
 if (window.Chart) {
@@ -211,7 +211,7 @@ window.renderLiquidityChart = function (canvasId, labels, data) {
             labels: labels,
             datasets: [{
                 data: data,
-                backgroundColor: colors.slice(0, data.length),
+                backgroundColor: data.map((_, index) => colors[index] || `hsl(${(210 + index * 137.508) % 360}, 55%, 48%)`),
                 borderColor: '#ffffff',
                 borderWidth: 2,
                 hoverOffset: 8
@@ -265,7 +265,9 @@ window.renderMiniChart = function (canvasId, labels, data) {
     const colors = [
         '#1a5c8a',
         '#4a8db7',
-        '#8ac7d9'
+        '#8ac7d9',
+        '#d97706',
+        '#7c3aed'
     ];
 
     miniChartInstance = new Chart(ctx, {
@@ -274,14 +276,31 @@ window.renderMiniChart = function (canvasId, labels, data) {
             labels: labels,
             datasets: [{
                 data: data,
-                backgroundColor: colors.slice(0, data.length),
-                borderColor: colors.slice(0, data.length).map(c => c),
+                backgroundColor: data.map((_, index) => colors[index % colors.length]),
+                borderColor: data.map((_, index) => colors[index % colors.length]),
                 borderWidth: 1.5,
                 borderRadius: 4,
                 barPercentage: 0.6
             }]
         },
+        plugins: [{
+            id: 'activityCounts',
+            afterDatasetsDraw(chart) {
+                const {ctx} = chart;
+                const color = getComputedStyle(document.documentElement).getPropertyValue('--app-ink').trim() || '#172033';
+                ctx.save();
+                ctx.fillStyle = color;
+                ctx.font = '10px Tahoma, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                chart.getDatasetMeta(0).data.forEach((bar, index) => {
+                    ctx.fillText(new Intl.NumberFormat('en-US').format(Number(chart.data.datasets[0].data[index]) || 0), bar.x, Math.max(chart.chartArea.top + 12, bar.y - 4));
+                });
+                ctx.restore();
+            }
+        }],
         options: {
+            layout: { padding: { top: 18 } },
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
@@ -315,7 +334,8 @@ window.renderMiniChart = function (canvasId, labels, data) {
                             family: 'IRANSans, Tahoma, sans-serif',
                             size: 10
                         },
-                        stepSize: 10
+                        precision: 0,
+                        maxTicksLimit: 5
                     }
                 },
                 x: {

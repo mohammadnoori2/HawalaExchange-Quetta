@@ -242,6 +242,7 @@ namespace HawalaExchange.Application.DTOs
         public bool IncludeTotalAmount { get; set; }
         public bool IncludeDirectCommissionTotals { get; set; }
         public bool IncludeBrowserAmounts { get; set; }
+        public bool PreferExactIdentifiers { get; set; }
     }
 
     public class HawalaListResultDto

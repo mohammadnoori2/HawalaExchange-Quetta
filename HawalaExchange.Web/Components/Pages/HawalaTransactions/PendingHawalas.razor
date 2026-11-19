@@ -68,6 +68,7 @@
             <input type="text"
                    class="form-control"
                    placeholder="نمبر، مبلغ، فرستنده، گیرنده، نمبر حواله..."
+                   title="نمبر مسلسل یا نمبر حوالهٔ کامل در اولویت است؛ اگر یافت نشد، نام، مبلغ و متن جستجو می‌شود."
                    @bind="searchTerm"
                    @bind:event="oninput"
                    @bind:after="OnFilterChangedAsync" />
@@ -841,6 +842,8 @@
 
             var filter = new HawalaFilterDto
             {
+                PreferExactIdentifiers = true,
+                // Execution-only users receive these page-scoped values through the authorized list call.
                 IncludeBrowserAmounts = true,
                 Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm,

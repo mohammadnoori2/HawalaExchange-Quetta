@@ -18,7 +18,7 @@ public partial class HawalaService
     {
         var ids=(request.SelectedIds??[]).Distinct().ToArray();
         if(ids.Length>50000 || ids.Any(x=>x<=0))throw new InvalidOperationException("تعداد یا شناسه حواله‌های انتخاب‌شده معتبر نیست.");
-        var query=ids.Length==0?BuildHawalaListQuery(request.Filter):_context.Hawalas.AsNoTracking().Where(x=>!x.IsDeleted && ids.Contains(x.Id));
+        var query=ids.Length==0?(await ResolveHawalaSearchAsync(request.Filter,cancellationToken,request.ScopeCorrespondentId,request.ScopeHawalaType)).Query:_context.Hawalas.AsNoTracking().Where(x=>!x.IsDeleted && ids.Contains(x.Id));
         if(request.ScopeCorrespondentId.HasValue)query=query.Where(x=>x.CorrespondentId==request.ScopeCorrespondentId);
         if(!string.IsNullOrWhiteSpace(request.ScopeHawalaType))query=query.Where(x=>x.HawalaType==request.ScopeHawalaType);
         var originals=await query.GroupBy(h=>new{Currency=h.HawalaType=="HawalaSend"?h.ToCurrency.Code:h.FromCurrency.Code,Cancelled=h.Status=="Cancel"})

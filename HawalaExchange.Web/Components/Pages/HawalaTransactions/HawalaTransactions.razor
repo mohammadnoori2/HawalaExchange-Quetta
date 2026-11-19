@@ -56,6 +56,7 @@
                        class="form-control"
                        aria-label="جستجوی حواله‌ها"
                        placeholder="جستجو با نمبر، رفرنس، مبلغ، فرستنده یا گیرنده..."
+                       title="نمبر مسلسل یا نمبر حوالهٔ کامل در اولویت است؛ اگر یافت نشد، نام، مبلغ و متن جستجو می‌شود."
                        @bind="searchTerm"
                        @bind:event="oninput"
                        @bind:after="OnFilterChangedAsync" />
@@ -1120,7 +1121,7 @@
 
             return new HawalaFilterDto
             {
-                IncludeBrowserAmounts = true,
+                PreferExactIdentifiers = true,
                 Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrEmpty(searchTerm) ? null : searchTerm,
                 SearchAmount = searchAmount,

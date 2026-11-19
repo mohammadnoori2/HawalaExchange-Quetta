@@ -369,7 +369,7 @@
                     p.HawalaId == h.Id && p.PeriodId == periodId && p.Period.CorrespondentId == h.CorrespondentId));
             }
 
-            private IQueryable<Hawala> BuildHawalaListQuery(HawalaFilterDto filter)
+            private IQueryable<Hawala> BuildHawalaListQuery(HawalaFilterDto filter, bool identifiersOnly = false)
             {
                 var query = _context.Hawalas
                     .AsNoTracking()
@@ -414,7 +414,17 @@
                 if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
                 {
                     var term = filter.SearchTerm.Trim();
-                    query = query.Where(h =>
+                    if (identifiersOnly)
+                    {
+                        var digits = string.Concat(term.Select(c => char.IsDigit(c)
+                            ? ((int)char.GetNumericValue(c)).ToString(System.Globalization.CultureInfo.InvariantCulture) : c.ToString()));
+                        var serial = filter.Number > 0 ? filter.Number : long.TryParse(digits, System.Globalization.NumberStyles.None,
+                            System.Globalization.CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : 0;
+                        query = serial > 0
+                            ? query.Where(h => h.Number == serial || h.ReferenceNumber == term)
+                            : query.Where(h => h.ReferenceNumber == term);
+                    }
+                    else query = query.Where(h =>
                         (h.SenderName != null && h.SenderName.Contains(term)) ||
                         (h.ReceiverName != null && h.ReceiverName.Contains(term)) ||
                         (h.ReferenceNumber != null && h.ReferenceNumber.Contains(term)) ||
@@ -460,13 +470,31 @@
                 return query;
             }
 
+            private async Task<(IQueryable<Hawala> Query, int? Count)> ResolveHawalaSearchAsync(
+                HawalaFilterDto filter, CancellationToken cancellationToken, long? correspondentId = null, string? hawalaType = null)
+            {
+                IQueryable<Hawala> Scope(IQueryable<Hawala> query)
+                {
+                    if (correspondentId.HasValue) query = query.Where(h => h.CorrespondentId == correspondentId);
+                    if (!string.IsNullOrWhiteSpace(hawalaType)) query = query.Where(h => h.HawalaType == hawalaType);
+                    return query;
+                }
+                if (filter.PreferExactIdentifiers && !string.IsNullOrWhiteSpace(filter.SearchTerm))
+                {
+                    var exact = Scope(BuildHawalaListQuery(filter, identifiersOnly: true));
+                    var count = await exact.CountAsync(cancellationToken);
+                    if (count > 0) return (exact, count);
+                }
+                return (Scope(BuildHawalaListQuery(filter)), null);
+            }
+
             public async Task<HawalaListResultDto> GetHawalasAsync(
                 HawalaFilterDto filter,
                 CancellationToken cancellationToken = default)
             {
-                var query = BuildHawalaListQuery(filter);
-
-                var totalCount = await query.CountAsync(cancellationToken);
+                var search = await ResolveHawalaSearchAsync(filter, cancellationToken);
+                var query = search.Query;
+                var totalCount = search.Count ?? await query.CountAsync(cancellationToken);
                 var totalFromAmount = filter.IncludeTotalAmount && totalCount > 0
                     ? await query.SumAsync(h => h.FromAmount, cancellationToken)
                     : 0;
@@ -493,8 +521,8 @@
                 }
 
                 query = filter.SortDirection == "asc"
-                    ? query.OrderBy(GetSortExpression(filter.SortColumn))
-                    : query.OrderByDescending(GetSortExpression(filter.SortColumn));
+                    ? query.OrderBy(GetSortExpression(filter.SortColumn)).ThenBy(h => h.Id)
+                    : query.OrderByDescending(GetSortExpression(filter.SortColumn)).ThenByDescending(h => h.Id);
 
                 if (filter.PageSize > 0)
                 {
@@ -502,12 +530,13 @@
                                  .Take(filter.PageSize);
                 }
 
-                // Project in SQL so list pages load only the fields used by HawalaDto.
-                // This avoids tracking and materializing the large navigation graph
-                // that was previously loaded by ten Include calls.
-                var items = await query
-                    .Select(GetListProjection())
-                    .ToListAsync(cancellationToken);
+                // Finish filtering and paging before joining display data and conversion history.
+                // The expensive projection then runs only against the page's indexed primary keys.
+                var pageIds = totalCount == 0 ? [] : await query.Select(h => h.Id).ToListAsync(cancellationToken);
+                var items = pageIds.Count == 0 ? new List<HawalaDto>() : await _context.Hawalas.AsNoTracking()
+                    .Where(h => !h.IsDeleted && pageIds.Contains(h.Id)).Select(GetListProjection()).ToListAsync(cancellationToken);
+                var positions = pageIds.Select((id, index) => (id, index)).ToDictionary(x => x.id, x => x.index);
+                items.Sort((left, right) => positions[left.Id].CompareTo(positions[right.Id]));
                 var systemGeneratedIds = items
                     .Where(x => x.IsSystemGenerated)
                     .Select(x => x.Id)

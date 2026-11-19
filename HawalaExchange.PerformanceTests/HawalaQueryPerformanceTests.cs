@@ -93,7 +93,7 @@ public sealed class HawalaQueryPerformanceTests(
         Assert.Equal(1, result.TotalCount);
         Assert.Equal(1, result.TotalPages);
         Assert.Empty(context.ChangeTracker.Entries());
-        Assert.InRange(fixture.Commands.Count, 1, 2);
+        Assert.InRange(fixture.Commands.Count, 1, 3);
 
         var empty = await service.GetHawalasAsync(new HawalaFilterDto
         {

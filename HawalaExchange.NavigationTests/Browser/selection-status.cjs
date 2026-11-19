@@ -23,6 +23,15 @@ await page.locator('[data-record-id="4"]').click();await page.waitForFunction(()
 await page.evaluate(()=>selection.mount('records',ref,[4],[4,5],'other',[row(4,'AFN','3250',null)],'v3'));
 await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('3,250 AFN'));
 assert.ok((await page.locator('#records-amount-status').textContent()).includes('مبلغ تبدیل‌نشده:'));
+await page.evaluate(()=>{reads=0;ref={invokeMethodAsync(name,ids){if(name==='ReadAmountRows'){reads++;return Promise.resolve(ids.map(id=>row(id,'AFN','650','10')));}return Promise.resolve();}};selection.mount('records',ref,[],[4,5],'lazy',[],'v4');});
+await page.waitForFunction(()=>document.querySelector('#records-amount-status').hidden);
+assert.equal(await page.evaluate(()=>reads),0,'Opening a list must not load summary metadata');
+await page.locator('[data-record-id="4"]').click();
+await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('10 USD'));
+assert.equal(await page.evaluate(()=>reads),1,'First selection lazily reads only selected IDs');
+await page.locator('[data-record-id="4"]').click();await page.locator('[data-record-id="4"]').click();
+await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('10 USD'));
+assert.equal(await page.evaluate(()=>reads),1,'The lazily loaded amount is reused');
 await page.setViewportSize({width:375,height:800});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
 console.log('PASS: immediate browser totals without database reads, cross-page selection, single fetch for unknown rows, cache reuse, clear/reset, escaped names and narrow layout.');
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

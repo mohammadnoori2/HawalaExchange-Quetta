@@ -131,7 +131,7 @@
                     <label class="form-label">حداکثر مبلغ</label>
                     <NullableMoneyInput class="form-control" @bind-Value="filterMaxAmount" @bind-Value:after="OnFilterChangedAsync" placeholder="تا مبلغ" />
                 </div>
-            <HawalaExtraFilters Filter="@extraFilters" ShowBasic="false" ShowCorrespondents="false" ShowTextFilters="false" Changed="OnFilterChangedAsync" />
+            <HawalaExtraFilters PeriodCorrespondentId="@filterCorrespondentId" Filter="@extraFilters" ShowBasic="false" ShowCorrespondents="false" ShowTextFilters="false" Changed="OnFilterChangedAsync" />
         </AdvancedFilters>
     </CompactFilterBar>
 

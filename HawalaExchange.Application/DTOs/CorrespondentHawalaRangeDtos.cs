@@ -2,6 +2,8 @@ namespace HawalaExchange.Application.DTOs;
 
 public sealed class CorrespondentHawalaRangeFilterDto
 {
+    // null = all periods; 0 = current (not linked to a closed period); positive = closed period ID.
+    public long? PeriodId { get; set; }
     public long CorrespondentId { get; set; }
     public string HawalaType { get; set; } = "HawalaSend";
     public string RangeType { get; set; } = "Number";

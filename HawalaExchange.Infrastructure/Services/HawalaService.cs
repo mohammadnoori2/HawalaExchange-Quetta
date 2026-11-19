@@ -359,6 +359,16 @@
                 return result;
             }
 
+            private IQueryable<Hawala> ApplyHawalaPeriodFilter(IQueryable<Hawala> query, long? periodId)
+            {
+                if (periodId == null) return query;
+                if (periodId < 0) throw new InvalidOperationException("دوره حواله معتبر نیست.");
+                if (periodId == 0)
+                    return query.Where(h => !_context.CorrespondentAccountPeriodHawalas.Any(p => p.HawalaId == h.Id));
+                return query.Where(h => _context.CorrespondentAccountPeriodHawalas.Any(p =>
+                    p.HawalaId == h.Id && p.PeriodId == periodId && p.Period.CorrespondentId == h.CorrespondentId));
+            }
+
             private IQueryable<Hawala> BuildHawalaListQuery(HawalaFilterDto filter)
             {
                 var query = _context.Hawalas
@@ -367,6 +377,7 @@
                     .AsQueryable();
 
                 var extra = filter.Extra;
+                query = ApplyHawalaPeriodFilter(query, extra.PeriodId);
                 if(!string.IsNullOrEmpty(extra.IndependentExchange)) {
                     var converted=extra.IndependentExchange=="Converted";
                     query=query.Where(h=>_context.MoneyExchangeOperations.Any(x=>x.LinkedHawalaId==h.Id && !x.IsDeleted)==converted);
@@ -2129,6 +2140,8 @@
                     .Include(h => h.PaymentLocation)
                     .Where(h => !h.IsDeleted && h.CorrespondentId == filter.CorrespondentId &&
                                 h.HawalaType == filter.HawalaType);
+
+                query = ApplyHawalaPeriodFilter(query, filter.PeriodId);
 
                 if (filter.RangeType == "Number")
                 {

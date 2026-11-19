@@ -103,7 +103,7 @@
             <div class="compact-filter-field"><label class="form-label">حداکثر مبلغ</label><NullableMoneyInput class="form-control" @bind-Value="filterMaxAmount" @bind-Value:after="OnFilterChangedAsync" placeholder="تا مبلغ" /></div>
             <div class="compact-filter-field"><label class="form-label">از تاریخ ثبت</label><PersianDatePicker @bind-Value="filterFromDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" /></div>
             <div class="compact-filter-field"><label class="form-label">تا تاریخ ثبت</label><PersianDatePicker @bind-Value="filterToDate" @bind-Value:after="OnFilterChangedAsync" AllowEmpty="true" Placeholder="انتخاب تاریخ" /></div>
-            <HawalaExtraFilters Filter="@extraFilters" ShowBasic="false" ShowCorrespondents="false" Changed="OnFilterChangedAsync" />
+            <HawalaExtraFilters PeriodCorrespondentId="@filterCorrespondentId" Filter="@extraFilters" ShowBasic="false" ShowCorrespondents="false" Changed="OnFilterChangedAsync" />
         </AdvancedFilters>
     </CompactFilterBar>
 

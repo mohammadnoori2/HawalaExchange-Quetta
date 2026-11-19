@@ -1,0 +1,72 @@
+@using HawalaExchange.Application.DTOs
+@using Microsoft.EntityFrameworkCore
+@using HawalaExchange.Infrastructure.Data
+@inject DbContextOptions<ApplicationDbContext> DbOptions
+@inject HawalaExchange.Application.Interfaces.ICurrentTenant CurrentTenant
+@implements IDisposable
+
+<select class="form-select @CssClass" aria-label="دوره حواله" value="@Value" @onchange="Change" disabled="@loading">
+    <option value="">همهٔ دوره‌ها</option>
+    <option value="0">دورهٔ جاری</option>
+    @foreach (var period in periods)
+    {
+        <option value="@period.Id">@PeriodLabel(period)</option>
+    }
+</select>
+@if (CorrespondentId.GetValueOrDefault() <= 0)
+{ <small class="text-muted">برای انتخاب دورهٔ بسته‌شده، نمایندگی را انتخاب کنید.</small> }
+@if (error != "") { <small class="text-danger" role="alert">@error</small> }
+
+@code {
+    [Parameter] public long? CorrespondentId { get; set; }
+    [Parameter] public long? Value { get; set; }
+    [Parameter] public EventCallback<long?> ValueChanged { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+    private IReadOnlyList<CorrespondentPeriodDto> periods = [];
+    private long? loadedCorrespondent;
+    private bool initialized, loading, disposed;
+    private int version;
+    private string error = "";
+    private readonly CancellationTokenSource lifetime = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var id = CorrespondentId.GetValueOrDefault();
+        if (initialized && loadedCorrespondent == id) return;
+        var changed = initialized;
+        initialized = true;
+        loadedCorrespondent = id;
+        var request = ++version;
+        periods = [];
+        loading = false;
+        error = "";
+        if (changed && Value > 0) { Value = null; await ValueChanged.InvokeAsync(null); }
+        if (id <= 0) return;
+        loading = true;
+        try
+        {
+            // An independent, tenant-scoped read avoids sharing the parent's in-flight query context.
+            await using var db = new ApplicationDbContext(DbOptions, CurrentTenant);
+            if (CurrentTenant.TenantId <= 0) throw new InvalidOperationException("صرافی جاری مشخص نیست.");
+            var choices = await db.CorrespondentAccountPeriods.AsNoTracking()
+                .Where(x => x.CorrespondentId == id).OrderByDescending(x => x.PeriodNumber)
+                .Select(x => new CorrespondentPeriodDto { Id = x.Id, PeriodNumber = x.PeriodNumber, PeriodFrom = x.PeriodFrom, PeriodTo = x.PeriodTo })
+                .ToListAsync(lifetime.Token);
+            if (!disposed && request == version) periods = choices;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception) { if (!disposed && request == version) error = "فهرست دوره‌ها بارگذاری نشد؛ صفحه را تازه کنید."; }
+        finally { if (!disposed && request == version) loading = false; }
+    }
+    public string SelectedLabel => Value == null ? "همهٔ دوره‌ها" : Value == 0 ? "دورهٔ جاری" : periods.FirstOrDefault(x => x.Id == Value) is { } period ? PeriodLabel(period) : "دورهٔ بسته‌شده";
+    private string PeriodLabel(CorrespondentPeriodDto period) => $"دوره {period.PeriodNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)} · {DisplayDates.Date(period.PeriodFrom)} تا {DisplayDates.Date(period.PeriodTo)}";
+    private async Task Change(ChangeEventArgs args)
+    {
+        var text = args.Value?.ToString();
+        long? selected = long.TryParse(text, out var id) ? id : null;
+        if (selected < 0 || selected > 0 && !periods.Any(x => x.Id == selected)) return;
+        Value = selected;
+        await ValueChanged.InvokeAsync(Value);
+    }
+    public void Dispose() { disposed = true; version++; lifetime.Cancel(); lifetime.Dispose(); }
+}

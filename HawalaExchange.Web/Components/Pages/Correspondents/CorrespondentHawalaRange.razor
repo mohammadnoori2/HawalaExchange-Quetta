@@ -69,6 +69,10 @@
                             <option value="Date">بر اساس تاریخ حواله</option>
                         </select>
                     </div>
+                    <div class="col-lg-2 col-md-4">
+                        <label class="form-label">دوره حواله</label>
+                        <HawalaPeriodSelect @ref="periodSelect" CorrespondentId="@CorrespondentId" @bind-Value="rangeFilter.PeriodId" @bind-Value:after="ClearRangeResult" CssClass="form-select-sm" />
+                    </div>
                     @if (rangeFilter.RangeType == "Number")
                     {
                         <div class="col-lg-2 col-md-4">
@@ -213,6 +217,8 @@
 
 @code {
     private long amountEpoch;
+    private HawalaPeriodSelect? periodSelect;
+    private void ClearRangeResult() { rangeResult = null; rangeError = string.Empty; }
     private async Task RefreshPageDataAsync()
     {
         var hasReport = rangeResult != null;
@@ -276,7 +282,8 @@
         {
             CorrespondentId = CorrespondentId,
             HawalaType = "HawalaSend",
-            RangeType = "Number"
+            RangeType = "Number",
+            PeriodId = 0
         };
         rangeStartDate = DateTime.Today.AddMonths(-1);
         rangeEndDate = DateTime.Today;
@@ -308,7 +315,7 @@
             rangeResult = await HawalaService.GetCorrespondentRangeAsync(rangeFilter);
             amountEpoch++;
             rangeReportHawalaType = AppDisplayText.HawalaType(rangeFilter.HawalaType);
-            rangeReportDescription = GetRangeDescription();
+            rangeReportDescription = $"{periodSelect?.SelectedLabel} · {GetRangeDescription()}";
         }
         catch (Exception ex)
         {

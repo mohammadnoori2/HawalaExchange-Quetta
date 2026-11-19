@@ -156,111 +156,106 @@
                         </div>
                     </div>
 
-                    <!-- اطلاعات فرستنده -->
+                    <!-- اطلاعات فرستنده و گیرنده -->
                     <div class="modern-card mb-4">
-                        <div class="card-header">
-                            <h6 class="text-primary"><i class="bi bi-person me-2"></i> اطلاعات فرستنده</h6>
+                        <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                            <h6 class="text-primary mb-0"><i class="bi bi-people me-2"></i> اطلاعات فرستنده و گیرنده</h6>
+                            <label class="form-check d-flex align-items-center gap-2 mb-0">
+                                <input type="checkbox" class="form-check-input m-0" @bind="showPartyDetails" aria-label="اطلاعات تکمیلی فرستنده و گیرنده" />
+                                <span>اطلاعات تکمیلی</span>
+                            </label>
                         </div>
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">نام فرستنده</label>
                                     <input type="text" class="form-control" @bind="CurrentHawala.SenderName" placeholder="نام فرستنده" />
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">نام پدر فرستنده</label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.SenderFatherName" placeholder="نام پدر" />
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">تلفن فرستنده</label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.SenderPhone" placeholder="تلفن" />
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-card-text text-muted me-1"></i> شماره تذکره فرستنده
-                                    </label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.SenderTazkiraNumber" placeholder="شماره تذکره" />
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-image text-muted me-1"></i> عکس تذکره فرستنده (اختیاری)
-                                    </label>
-                                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                                        <InputFile class="form-control" style="flex:1;" OnChange="OnSenderTazkiraUpload" accept="image/*" />
-                                        @if (!string.IsNullOrEmpty(CurrentHawala.SenderTazkiraImagePath))
-                                        {
-                                            <a href="@CurrentHawala.SenderTazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <button class="btn btn-sm btn-outline-danger" @onclick="RemoveSenderTazkira">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        }
-                                    </div>
-                                    <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر 10 مگابایت)</small>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">آدرس فرستنده</label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.SenderAddress" placeholder="آدرس" />
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-
-                    <!-- اطلاعات گیرنده -->
-                    <div class="modern-card mb-4">
-                        <div class="card-header">
-                            <h6 class="text-primary"><i class="bi bi-person-check me-2"></i> اطلاعات گیرنده</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-6 mb-3">
                                     <label class="form-label fw-bold">نام گیرنده</label>
                                     <input type="text" class="form-control" @bind="CurrentHawala.ReceiverName" placeholder="نام گیرنده" />
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">نام پدر گیرنده</label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.ReceiverFatherName" placeholder="نام پدر" />
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">تلفن گیرنده</label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.ReceiverPhone" placeholder="تلفن" />
-                                </div>
                             </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-card-text text-muted me-1"></i> شماره تذکره گیرنده
-                                    </label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.ReceiverTazkiraNumber" placeholder="شماره تذکره" />
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">
-                                        <i class="bi bi-image text-muted me-1"></i> عکس تذکره گیرنده (اختیاری)
-                                    </label>
-                                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                                        <InputFile class="form-control" style="flex:1;" OnChange="OnReceiverTazkiraUpload" accept="image/*" />
-                                        @if (!string.IsNullOrEmpty(CurrentHawala.ReceiverTazkiraImagePath))
-                                        {
-                                            <a href="@CurrentHawala.ReceiverTazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <button class="btn btn-sm btn-outline-danger" @onclick="RemoveReceiverTazkira">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        }
+                            <div class="hawala-party-extra" hidden="@(!showPartyDetails)">
+                                <h6 class="text-primary border-top pt-3 mb-3">اطلاعات تکمیلی فرستنده</h6>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">نام پدر فرستنده</label>
+                                        <input type="text" class="form-control" @bind="CurrentHawala.SenderFatherName" placeholder="نام پدر" />
                                     </div>
-                                    <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر 10 مگابایت)</small>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">تلفن فرستنده</label>
+                                        <input type="text" class="form-control" @bind="CurrentHawala.SenderPhone" placeholder="تلفن" />
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-card-text text-muted me-1"></i> شماره تذکره فرستنده
+                                        </label>
+                                        <input type="text" class="form-control" @bind="CurrentHawala.SenderTazkiraNumber" placeholder="شماره تذکره" />
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-image text-muted me-1"></i> عکس تذکره فرستنده (اختیاری)
+                                        </label>
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            <InputFile class="form-control" style="flex:1;" OnChange="OnSenderTazkiraUpload" accept="image/*" />
+                                            @if (!string.IsNullOrEmpty(CurrentHawala.SenderTazkiraImagePath))
+                                            {
+                                                <a href="@CurrentHawala.SenderTazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="RemoveSenderTazkira">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                        <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر 10 مگابایت)</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">آدرس فرستنده</label>
+                                        <input type="text" class="form-control" @bind="CurrentHawala.SenderAddress" placeholder="آدرس" />
+                                    </div>
                                 </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-bold">آدرس گیرنده</label>
-                                    <input type="text" class="form-control" @bind="CurrentHawala.ReceiverAddress" placeholder="آدرس" />
+                                <h6 class="text-primary border-top pt-3 mb-3">اطلاعات تکمیلی گیرنده</h6>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">نام پدر گیرنده</label>
+                                        <input type="text" class="form-control" @bind="CurrentHawala.ReceiverFatherName" placeholder="نام پدر" />
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">تلفن گیرنده</label>
+                                        <input type="text" class="form-control" @bind="CurrentHawala.ReceiverPhone" placeholder="تلفن" />
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-card-text text-muted me-1"></i> شماره تذکره گیرنده
+                                        </label>
+                                        <input type="text" class="form-control" @bind="CurrentHawala.ReceiverTazkiraNumber" placeholder="شماره تذکره" />
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">
+                                            <i class="bi bi-image text-muted me-1"></i> عکس تذکره گیرنده (اختیاری)
+                                        </label>
+                                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                                            <InputFile class="form-control" style="flex:1;" OnChange="OnReceiverTazkiraUpload" accept="image/*" />
+                                            @if (!string.IsNullOrEmpty(CurrentHawala.ReceiverTazkiraImagePath))
+                                            {
+                                                <a href="@CurrentHawala.ReceiverTazkiraImagePath" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-eye"></i>
+                                                </a>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="RemoveReceiverTazkira">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                        <small class="text-muted">فرمت‌های مجاز: jpg, png, jpeg (حداکثر 10 مگابایت)</small>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">آدرس گیرنده</label>
+                                        <input type="text" class="form-control" @bind="CurrentHawala.ReceiverAddress" placeholder="آدرس" />
+                                    </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
@@ -818,6 +813,18 @@
 
     // ===== متغیرها =====
     private CreateHawalaDto CurrentHawala { get; set; } = new();
+    private bool showPartyDetails;
+
+    private void InitializePartyDetails()
+    {
+        showPartyDetails = IsEditMode && new[] { CurrentHawala.SenderFatherName, CurrentHawala.SenderPhone,
+            CurrentHawala.SenderTazkiraNumber, CurrentHawala.SenderTazkiraImagePath, CurrentHawala.SenderAddress,
+            CurrentHawala.ReceiverFatherName, CurrentHawala.ReceiverPhone, CurrentHawala.ReceiverTazkiraNumber,
+            CurrentHawala.ReceiverTazkiraImagePath, CurrentHawala.ReceiverAddress }
+            .Any(value => !string.IsNullOrWhiteSpace(value));
+    }
+
+
     private string? destinationEditSnapshot;
     private HawalaDto? editingDocument;
     private bool CanCorrectPaymentLocation => IsEditMode && EditData is not null &&
@@ -953,6 +960,8 @@
                 CurrentHawala.Status = InitialHawalaType == "HawalaSend" ? "Paid" : "Pending";
             }
         }
+
+        InitializePartyDetails();
 
         pendingSenderTazkiraPath = null;
         pendingReceiverTazkiraPath = null;
@@ -1537,6 +1546,7 @@
 
     private void ResetHawala()
     {
+        showPartyDetails = false;
         CurrentHawala = new CreateHawalaDto
         {
             Status = "Pending",

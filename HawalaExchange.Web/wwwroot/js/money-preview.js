@@ -81,6 +81,13 @@ export function refreshMoneyPreview(trigger, edited = false) {
         const node = input(key), value = decimal(node?.value);
         return value && node.dataset.moneyDecimals === '0' ? rounded(value.n, value.d).toString() : node?.value || '';
     };
+    // Same-currency hawalas follow the source immediately, including while SignalR is in flight.
+    const conversion = scope.querySelector('[data-live-conversion]');
+    if (scope.dataset.liveFinance === 'hawala' && conversion && !conversion.checked) {
+        const source = scope.querySelector('[data-live-currency="from"]');
+        const target = scope.querySelector('[data-live-currency="to"]');
+        if (source && target) target.value = source.value;
+    }
     const from = currency('from'), to = currency('to'), rate = input('rate');
     const set = (key, value, isRate = false) => {
         const node = input(key);
@@ -97,6 +104,9 @@ export function refreshMoneyPreview(trigger, edited = false) {
     if (from && to && rate) {
         const mode = scope.querySelector('[data-live-mode]:checked')?.value || 'RateToAmount';
         if (scope.dataset.liveFinance === 'hawala') {
+            if (conversion?.checked && from.id !== to.id && ['from', 'to'].includes(trigger.dataset?.liveCurrency)) {
+                set('rate', null, true); set('to', null);
+            }
             if (from.id === to.id) { set('to', convertPreview(amount('from'), '1', from, to)); set('rate', '1', true); }
             else if (mode === 'AmountToRate') set('rate', quotePreview(amount('from'), amount('to'), from, to), true);
             else set('to', convertPreview(amount('from'), rate.value, from, to));

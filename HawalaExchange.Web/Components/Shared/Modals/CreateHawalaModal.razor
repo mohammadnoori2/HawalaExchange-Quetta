@@ -260,12 +260,16 @@
                     </div>
 
                     <!-- اطلاعات مالی -->
-                    <div class="modern-card mb-4">
-                        <div class="card-header">
-                            <h6 class="text-primary"><i class="bi bi-currency-exchange me-2"></i> اطلاعات مالی</h6>
+                    <div class="modern-card mb-4" data-live-finance="hawala">
+                        <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                            <h6 class="text-primary mb-0"><i class="bi bi-currency-exchange me-2"></i> اطلاعات مالی</h6>
+                            <label class="form-check d-flex align-items-center gap-2 mb-0">
+                                <input type="checkbox" class="form-check-input m-0" data-live-conversion checked="@showCurrencyConversion" @onchange="OnConversionChanged" />
+                                <span>تبدیل ارز</span>
+                            </label>
                         </div>
                         <div class="card-body">
-                            <div class="row g-3 hawala-financial-grid" data-live-finance="hawala">
+                            <div class="row g-3 hawala-financial-grid">
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-right text-muted me-1"></i> مبلغ حواله و ارز <span class="text-danger">*</span>
@@ -294,7 +298,7 @@
                                             @DariNumberToWords.ToWords(CurrentHawala.FromAmount) @GetCurrencyName(CurrentHawala.FromCurrencyId)
                                         </small>
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-4 mb-3 hawala-conversion-extra" hidden="@(!showCurrencyConversion)">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-calculator text-muted me-1"></i> روش محاسبه
                                     </label>
@@ -323,7 +327,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-4 mb-3 hawala-conversion-extra" hidden="@(!showCurrencyConversion)">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-left-right text-muted me-1"></i> نرخ تبدیل
                                         @if (!AreCurrenciesSame())
@@ -347,7 +351,7 @@
                                         <small class="text-muted">@ConversionRateMeaning</small>
                                     }
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-4 mb-3 hawala-conversion-extra" hidden="@(!showCurrencyConversion)">
                                     <label class="form-label fw-bold">
                                         <i class="bi bi-arrow-left text-muted me-1"></i> مبلغ پرداختی و ارز <span class="text-danger">*</span>
                                     </label>
@@ -433,72 +437,36 @@
                                             </small>
                                     </div>
                                 }
-                                <div class="col-md-4 mb-3">
+
+                            </div>
+
+                            <div class="row g-2 hawala-account-notes-row">
+                                @if (NeedsPaymentAccount)
+                                {
+                                    <div class="@(ShouldShowGeneratedSendHawalaNumber() ? "col-md-4 mb-3" : "col-md-6 mb-3")">
+                                        <label class="form-label fw-bold"><i class="bi bi-wallet2 text-muted me-1"></i>
+                                            @(CurrentHawala.HawalaType == "HawalaSend" ? "حساب مبدأ (بدهکار)" : "حساب پرداخت‌کننده") <span class="text-danger">*</span>
+                                        </label>
+                                        <AccountSearchSelect Accounts="@AccountsList" Value="@(CurrentHawala.FromAccountId ?? 0)"
+                                            ValueChanged="FromAccountChanged" OnSelected="SelectFromAccount" ShowBalanceSummary="false" ShowAccountCode="false"
+                                            Placeholder="جستجوی حساب..." />
+                                        <AccountBalanceSummary AccountId="@(CurrentHawala.FromAccountId ?? 0)" />
+                                    </div>
+                                }
+                                <div class="@(NeedsPaymentAccount ? (ShouldShowGeneratedSendHawalaNumber() ? "col-md-4 mb-3" : "col-md-6 mb-3") : "col-12 mb-3")">
                                     <label class="form-label fw-bold"><i class="bi bi-chat text-muted me-1"></i> یادداشت</label>
                                     <input type="text" class="form-control" @bind="CurrentHawala.Notes" placeholder="یادداشت" />
                                 </div>
+                                @if (ShouldShowGeneratedSendHawalaNumber())
+                                {
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label fw-bold">نمبر مسلسل ارسالی نمایندگی <span class="text-danger">*</span></label>
+                                        <input type="number" lang="en" min="1" class="form-control" @bind="CurrentHawala.GeneratedSendHawalaNumber"
+                                            readonly="@(!IsEditMode)" placeholder="نمبر مسلسل ارسالی"
+                                            title="نمبر پیشنهادی ادامه حواله‌های ارسالی نمایندگی مقصد است؛ در ثبت جدید، نمبر نهایی هنگام ذخیره تعیین می‌شود." />
+                                    </div>
+                                }
                             </div>
-
-                            <!-- انتخاب حساب مبدأ (فقط برای حواله ارسالی) -->
-                            @if (CurrentHawala.HawalaType == "HawalaSend")
-                            {
-                                <div class="row mt-2">
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label fw-bold">
-                                            <i class="bi bi-wallet2 text-muted me-1"></i> حساب مبدأ (بدهکار) <span class="text-danger">*</span>
-                                        </label>
-                                        <AccountSearchSelect Accounts="@AccountsList"
-                                                             Value="@(CurrentHawala.FromAccountId ?? 0)"
-                                                             ValueChanged="FromAccountChanged"
-                                                             OnSelected="SelectFromAccount"
-                                                             ShowBalanceSummary="false"
-                                                             ShowAccountCode="false"
-                                                             Placeholder="جستجوی حساب مبدأ..." />
-                                        <AccountBalanceSummary AccountId="@(CurrentHawala.FromAccountId ?? 0)" />
-                                        <small class="text-muted">این حساب به مبلغ حواله و کارمزد بدهکار می‌شود.</small>
-                                    </div>
-                                </div>
-                            }
-
-                            <!-- انتخاب حساب پرداخت‌کننده (فقط برای حواله دریافتی) -->
-                            @if (CurrentHawala.HawalaType == "HawalaReceive" && CurrentHawala.Status == "Paid")
-                            {
-                                <div class="row mt-2">
-                                    <div class="col-md-4 mb-3">
-                                        <label class="form-label fw-bold">
-                                            <i class="bi bi-wallet2 text-muted me-1"></i> حساب پرداخت‌کننده <span class="text-danger">*</span>
-                                        </label>
-                                        <AccountSearchSelect Accounts="@AccountsList"
-                                                             Value="@(CurrentHawala.FromAccountId ?? 0)"
-                                                             ValueChanged="FromAccountChanged"
-                                                             OnSelected="SelectFromAccount"
-                                                             ShowBalanceSummary="false"
-                                                             ShowAccountCode="false"
-                                                             Placeholder="جستجوی حساب پرداخت‌کننده..." />
-                                        <AccountBalanceSummary AccountId="@(CurrentHawala.FromAccountId ?? 0)" />
-                                        <small class="text-muted">این حساب به مبلغ حواله بدهکار می‌شود.</small>
-                                    </div>
-                                    @if (ShouldShowGeneratedSendHawalaNumber())
-                                    {
-                                        <div class="col-md-4 mb-3">
-                                            <label class="form-label fw-bold">
-                                                <i class="bi bi-hash text-muted me-1"></i>
-                                                نمبر مسلسل ارسالی نمایندگی <span class="text-danger">*</span>
-                                            </label>
-                                            <input type="number" lang="en"
-                                                   min="1"
-                                                   class="form-control"
-                                                   @bind="CurrentHawala.GeneratedSendHawalaNumber"
-                                                   readonly="@(!IsEditMode)"
-                                                   placeholder="نمبر مسلسل ارسالی" />
-                                            <small class="text-muted">
-                                                نمبر پیشنهادی ادامه حواله‌های ارسالی نمایندگی مقصد است؛ در ثبت جدید، نمبر نهایی هنگام ذخیره تعیین می‌شود.
-                                            </small>
-                                        </div>
-                                    }
-                                </div>
-                            }
-
                         </div>
                     </div>
 
@@ -814,6 +782,24 @@
     // ===== متغیرها =====
     private CreateHawalaDto CurrentHawala { get; set; } = new();
     private bool showPartyDetails;
+    private bool showCurrencyConversion;
+    private bool NeedsPaymentAccount => CurrentHawala.HawalaType == "HawalaSend" ||
+        CurrentHawala.HawalaType == "HawalaReceive" && CurrentHawala.Status == "Paid";
+
+    private void SynchronizeSameCurrency()
+    {
+        CurrentHawala.ToCurrencyId = CurrentHawala.FromCurrencyId;
+        CurrentHawala.ToAmount = CurrentHawala.FromAmount;
+        CurrentHawala.ExchangeRate = 1;
+        CalculationMode = "RateToAmount";
+        ConversionRateMeaning = "ارزها یکسان هستند، نرخ برابر 1 است.";
+    }
+    private void OnConversionChanged(ChangeEventArgs args)
+    {
+        showCurrencyConversion = args.Value is true;
+        if (!showCurrencyConversion) SynchronizeSameCurrency();
+    }
+
 
     private void InitializePartyDetails()
     {
@@ -823,7 +809,6 @@
             CurrentHawala.ReceiverTazkiraImagePath, CurrentHawala.ReceiverAddress }
             .Any(value => !string.IsNullOrWhiteSpace(value));
     }
-
 
     private string? destinationEditSnapshot;
     private HawalaDto? editingDocument;
@@ -1547,6 +1532,7 @@
     private void ResetHawala()
     {
         showPartyDetails = false;
+        showCurrencyConversion = false;
         CurrentHawala = new CreateHawalaDto
         {
             Status = "Pending",
@@ -1944,6 +1930,7 @@
     private void OnFromAmountChanged(decimal amount)
     {
         CurrentHawala.FromAmount = amount;
+        if (!showCurrencyConversion) { SynchronizeSameCurrency(); return; }
 
         if (AreCurrenciesSame())
         {
@@ -1988,7 +1975,9 @@
 
     private void OnFromCurrencyChanged(ChangeEventArgs e)
     {
+        var previousCurrency = CurrentHawala.FromCurrencyId;
         CurrentHawala.FromCurrencyId = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        if (!showCurrencyConversion) { SynchronizeSameCurrency(); return; }
         if (AreCurrenciesSame())
         {
             CurrentHawala.ExchangeRate = 1;
@@ -1996,12 +1985,20 @@
         }
         else
         {
+            if (previousCurrency != CurrentHawala.FromCurrencyId)
+            {
+                CurrentHawala.ExchangeRate = null;
+                CurrentHawala.ToAmount = null;
+                ConversionRateMeaning = "نرخ تبدیل این دو ارز را وارد کنید.";
+            }
             CalculateFinancialValues();
         }
     }
 
     private void OnToCurrencyChanged(ChangeEventArgs e)
     {
+        if (!showCurrencyConversion) { SynchronizeSameCurrency(); return; }
+        var previousCurrency = CurrentHawala.ToCurrencyId;
         CurrentHawala.ToCurrencyId = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
         if (AreCurrenciesSame())
         {
@@ -2010,12 +2007,19 @@
         }
         else
         {
+            if (previousCurrency != CurrentHawala.ToCurrencyId)
+            {
+                CurrentHawala.ExchangeRate = null;
+                CurrentHawala.ToAmount = null;
+                ConversionRateMeaning = "نرخ تبدیل این دو ارز را وارد کنید.";
+            }
             CalculateFinancialValues();
         }
     }
 
     private void CalculateFinancialValues()
     {
+        if (!showCurrencyConversion) { SynchronizeSameCurrency(); return; }
         if (AreCurrenciesSame())
         {
             CurrentHawala.ExchangeRate = 1;
@@ -2061,6 +2065,7 @@
 
     private void InitializeHawalaConversion()
     {
+        showCurrencyConversion = CurrentHawala.FromCurrencyId > 0 && CurrentHawala.ToCurrencyId > 0 && !AreCurrenciesSame();
         if (AreCurrenciesSame())
         {
             CurrentHawala.ExchangeRate = 1;

@@ -12,6 +12,19 @@ namespace HawalaExchange.PerformanceTests;
 
 public sealed class RecordFilterSetTests
 {
+    [Theory]
+    [InlineData("name ")]
+    [InlineData(" name")]
+    [InlineData("\tname\n")]
+    public void Exact_text_choices_ignore_surrounding_whitespace_on_both_sides(string stored)
+    {
+        var rows = new[] { new AccountMoneyOperationDto { Id = 1, AccountName = stored }, new AccountMoneyOperationDto { Id = 2, AccountName = "other" } };
+        var filters = new RecordFilterSet();
+        filters.For("AccountName", exact: true).Text = " NAME ";
+        Assert.Equal(1, Assert.Single(filters.Apply(rows)).Id);
+        Assert.Equal(stored, rows[0].AccountName);
+    }
+
     [Fact]
     public void Multiple_conditions_apply_before_pagination_and_preserve_null_safety()
     {

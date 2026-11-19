@@ -62,7 +62,7 @@ public sealed class RecordFilterSet
             if (date.Kind == DateTimeKind.Utc) date = date.ToLocalTime();
             return (!rule.From.HasValue || date.Date >= rule.From.Value.Date) && (!rule.To.HasValue || date.Date <= rule.To.Value.Date);
         }
-        var text = Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+        var text = (Convert.ToString(value, CultureInfo.InvariantCulture) ?? "").Trim();
         return rule.Exact || field.IsBoolean ? text.Equals(rule.Text.Trim(), StringComparison.OrdinalIgnoreCase) : text.Contains(rule.Text.Trim(), StringComparison.OrdinalIgnoreCase);
     }
     public static IReadOnlyList<RecordFilterField> Fields<T>() => Catalog<T>.Fields;

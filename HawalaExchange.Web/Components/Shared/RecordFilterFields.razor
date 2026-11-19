@@ -89,7 +89,7 @@
     }
     private Task Notify() => Changed.InvokeAsync();
     private IEnumerable<string> Options(RecordFilterField field) => field.IsBoolean ? ["True", "False"] :
-        Items.Select(x => Convert.ToString(field.Property.GetValue(x), CultureInfo.InvariantCulture) ?? "")
+        Items.Select(x => (Convert.ToString(field.Property.GetValue(x), CultureInfo.InvariantCulture) ?? "").Trim())
              .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Order();
     private static string OptionLabel(RecordFilterField field, string option) => field.IsBoolean ? (option == "True" ? "بله" : "خیر") : RecordFilterSet.DisplayOption(field.Name, option);
 }

@@ -41,8 +41,8 @@
     </div>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر عملیات حساب"
-                      ActiveFilterCount="@advancedFilters.Count"
-                      HasActiveFilters="@(advancedFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterOperationType) || filterCurrencyId != 0))"
+                      ActiveFilterCount="@(advancedFilters.Count + (filterAccountId > 0 ? 1 : 0) + (filterCashAccountId > 0 ? 1 : 0))"
+                      HasActiveFilters="@(advancedFilters.Count > 0 || filterAccountId > 0 || filterCashAccountId > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(filterOperationType) || filterCurrencyId != 0))"
                       Reset="ClearSearch">
         <SearchContent>
             <input class="form-control" placeholder="جستجو با حساب، ارز یا توضیحات..."
@@ -61,10 +61,20 @@
                     <option value="@currency.Id">@currency.Code - @currency.Name</option>
                 }
             </select>
-            <RecordFilterFields TItem="AccountMoneyOperationDto" Items="@operations" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="OperationType,CurrencyCode" Quick="true" QuickLimit="0" />
+            <select class="form-select compact-quick-filter" aria-label="حساب" @bind="filterAccountId">
+                <option value="0">همه — حساب</option>
+                @foreach (var account in operations.GroupBy(x => x.AccountId).Select(x => x.First()).OrderBy(x => x.AccountName.Trim()))
+                { <option value="@account.AccountId">@account.AccountName.Trim() · @(string.IsNullOrWhiteSpace(account.AccountCode) ? $"#{account.AccountId}" : account.AccountCode)</option> }
+            </select>
+            <select class="form-select compact-quick-filter" aria-label="صندوق / بانک" @bind="filterCashAccountId">
+                <option value="0">همه — صندوق / بانک</option>
+                @foreach (var account in operations.GroupBy(x => x.CashOrBankAccountId).Select(x => x.First()).OrderBy(x => x.CashOrBankAccountName.Trim()))
+                { <option value="@account.CashOrBankAccountId">@account.CashOrBankAccountName.Trim() · @(string.IsNullOrWhiteSpace(account.CashOrBankAccountCode) ? $"#{account.CashOrBankAccountId}" : account.CashOrBankAccountCode)</option> }
+            </select>
+            <RecordFilterFields TItem="AccountMoneyOperationDto" Items="@operations" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="OperationType,CurrencyCode,AccountName,CashOrBankAccountName" Quick="true" QuickLimit="0" />
         </QuickFilters>
         <AdvancedFilters>
-            <RecordFilterFields TItem="AccountMoneyOperationDto" Items="@operations" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="OperationType,CurrencyCode" QuickLimit="0" />
+            <RecordFilterFields TItem="AccountMoneyOperationDto" Items="@operations" State="@advancedFilters" Changed="@(() => currentPage = 1)"  Exclude="OperationType,CurrencyCode,AccountName,CashOrBankAccountName" QuickLimit="0" />
         </AdvancedFilters>
     </CompactFilterBar>
     @if (advancedFilters.Error != "") { <div class="alert alert-danger py-2" role="alert">@advancedFilters.Error</div> }
@@ -519,6 +529,19 @@
         }
     }
 
+    private long _filterAccountId;
+    private long filterAccountId
+    {
+        get => _filterAccountId;
+        set { if (_filterAccountId != value) { _filterAccountId = value; SearchOperations(); } }
+    }
+    private long _filterCashAccountId;
+    private long filterCashAccountId
+    {
+        get => _filterCashAccountId;
+        set { if (_filterCashAccountId != value) { _filterCashAccountId = value; SearchOperations(); } }
+    }
+
     private long _filterCurrencyId = 0;
     private long filterCurrencyId
     {
@@ -640,8 +663,7 @@
             var result = await AccountMoneyOperationService.GetAllAsync();
 
             operations = result.ToList();
-            filteredOperations = operations.ToList();
-            currentPage = 1;
+            SearchOperations();
         }
         catch (Exception ex)
         {
@@ -657,6 +679,9 @@
     private void SearchOperations()
     {
         var query = operations.AsEnumerable();
+        if (_filterAccountId > 0) query = query.Where(x => x.AccountId == _filterAccountId);
+        if (_filterCashAccountId > 0) query = query.Where(x => x.CashOrBankAccountId == _filterCashAccountId);
+
 
         if (!string.IsNullOrWhiteSpace(_searchTerm))
         {
@@ -704,6 +729,8 @@
         _searchTerm = string.Empty;
         _filterOperationType = string.Empty;
         _filterCurrencyId = 0;
+        _filterAccountId = 0;
+        _filterCashAccountId = 0;
         filteredOperations = operations.ToList();
         currentPage = 1;
         StateHasChanged();

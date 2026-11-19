@@ -52,34 +52,6 @@
                 <span>@correspondent.Name · @correspondent.Code</span>
             </div>
             <div class="correspondent-header-actions">
-                @if (!correspondent.IsArchived)
-                {
-                    <button class="btn btn-outline-primary" @onclick="OpenDailyRateAsync">
-                        <i class="bi bi-currency-exchange me-1"></i> مشاهده نرخ‌های نمایندگی
-                    </button>
-                }
-                <PermissionAction Actions="Create" Module="Settlement"><button class="btn btn-outline-primary" @onclick="OpenSettlementHistory"><i class="bi bi-clock-history me-1"></i> تاریخچه تبدیل به ارز توافقی</button></PermissionAction>
-                <button class="btn btn-outline-primary" @onclick="OpenPeriods">
-                    <i class="bi bi-calendar-check me-1"></i> بستن دوره
-                </button>
-                <button class="btn btn-outline-primary" @onclick="OpenActivityReport">
-                    <i class="bi bi-clipboard-data me-1"></i> گزارش فعالیت نمایندگی
-                </button>
-                @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
-                {
-                    <PermissionAction Actions="View" Module="IncomingCommission"><button class="btn btn-success" @onclick="OpenCommissionPage">
-                        <i class="bi bi-calculator me-1"></i> کمیشن دریافتی
-                    </button></PermissionAction>
-                }
-                @if (!correspondent.IsArchived)
-                {
-                    <PermissionAction Actions="View" Module="DestinationCommission"><button class="btn btn-warning" @onclick="OpenOutgoingCommissionPage">
-                        <i class="bi bi-calculator-fill me-1"></i> کمیشن پرداختی به نمایندگی‌ها
-                    </button></PermissionAction>
-                        <button class="btn btn-primary" @onclick="OpenOriginCommissionPage">
-                            <i class="bi bi-cash-coin me-1"></i> کمیشن پرداختی ولایات
-                        </button>
-                }
                 <CorrespondentActionsMenu IsArchived="@correspondent.IsArchived"
                                            CorrespondentId="CorrespondentId"
                                            CanUseFinancialActions="@(correspondentAccountId.HasValue && !correspondent.IsArchived)"
@@ -95,7 +67,38 @@
                                            OnReceiptOrWithdrawal="OpenAccountOperation"
                                            OnEdit="OpenEdit"
                                            OnArchive="OpenArchiveConfirmation"
-                                           OnBack="BackToList" />
+                                           OnBack="BackToList">
+                    <AdditionalActions>
+                        @if (!correspondent.IsArchived)
+                        {
+                            <button type="button" class="operation-menu-item" role="menuitem" @onclick="OpenDailyRateAsync">
+                                <i class="bi bi-currency-exchange me-1"></i> مشاهده نرخ‌های نمایندگی
+                            </button>
+                        }
+                        <PermissionAction Actions="Create" Module="Settlement"><button type="button" class="operation-menu-item" role="menuitem" @onclick="OpenSettlementHistory"><i class="bi bi-clock-history me-1"></i> تاریخچه تبدیل به ارز توافقی</button></PermissionAction>
+                        <button type="button" class="operation-menu-item" role="menuitem" @onclick="OpenPeriods">
+                            <i class="bi bi-calendar-check me-1"></i> بستن دوره
+                        </button>
+                        <button type="button" class="operation-menu-item" role="menuitem" @onclick="OpenActivityReport">
+                            <i class="bi bi-clipboard-data me-1"></i> گزارش فعالیت نمایندگی
+                        </button>
+                        @if (!correspondent.IsArchived && correspondent.CommissionMethod == "PeriodicPerLakh")
+                        {
+                            <PermissionAction Actions="View" Module="IncomingCommission"><button type="button" class="operation-menu-item" role="menuitem" @onclick="OpenCommissionPage">
+                                <i class="bi bi-calculator me-1"></i> کمیشن دریافتی
+                            </button></PermissionAction>
+                        }
+                        @if (!correspondent.IsArchived)
+                        {
+                            <PermissionAction Actions="View" Module="DestinationCommission"><button type="button" class="operation-menu-item" role="menuitem" @onclick="OpenOutgoingCommissionPage">
+                                <i class="bi bi-calculator-fill me-1"></i> کمیشن پرداختی به نمایندگی‌ها
+                            </button></PermissionAction>
+                                <button type="button" class="operation-menu-item" role="menuitem" @onclick="OpenOriginCommissionPage">
+                                    <i class="bi bi-cash-coin me-1"></i> کمیشن پرداختی ولایات
+                                </button>
+                        }
+                    </AdditionalActions>
+                </CorrespondentActionsMenu>
                 <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
             </div>
         </header>

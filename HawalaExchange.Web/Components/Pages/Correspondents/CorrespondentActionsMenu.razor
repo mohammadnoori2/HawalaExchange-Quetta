@@ -1,6 +1,11 @@
 <AppActionMenu Title="عملیات نمایندگی"
                AriaLabel="عملیات نمایندگی"
                MenuCssClass="correspondent-operation-menu">
+            @if (AdditionalActions is not null)
+            {
+                @AdditionalActions
+                <div class="operation-menu-divider"></div>
+            }
             <button type="button" class="operation-menu-item" role="menuitem" @onclick="ViewStatusAsync">
                 <i class="bi bi-bar-chart-line text-info"></i>
                 وضعیت نمایندگی
@@ -77,6 +82,7 @@
 </AppActionMenu>
 
 @code {
+    [Parameter] public RenderFragment? AdditionalActions { get; set; }
     [Parameter] public bool IsArchived { get; set; }
     [Parameter] public long CorrespondentId { get; set; }
     [Parameter] public bool CanUseFinancialActions { get; set; }

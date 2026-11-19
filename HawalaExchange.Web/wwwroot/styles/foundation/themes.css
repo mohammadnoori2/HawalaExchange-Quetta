@@ -53,6 +53,34 @@
         background-color: var(--surface); color: var(--app-ink); border-color: var(--app-border);
     }
     [data-bs-theme="dark"] :is(input,textarea)::placeholder { color: var(--app-muted); opacity: 1; }
+    /* Pair both badge foregrounds and backgrounds; legacy badges retain light-mode ink otherwise. */
+    :root[data-bs-theme="dark"] :is(.badge-active,.badge-success) { background: var(--tone-success-bg) !important; color: var(--tone-success-ink) !important; }
+    :root[data-bs-theme="dark"] :is(.badge-archived,.badge-danger) { background: var(--tone-danger-bg) !important; color: var(--tone-danger-ink) !important; }
+    :root[data-bs-theme="dark"] :is(.badge-pending,.badge-warning) { background: var(--tone-warning-bg) !important; color: var(--tone-warning-ink) !important; }
+    :root[data-bs-theme="dark"] :is(.badge-info,.badge-primary) { background: var(--app-primary-soft) !important; color: var(--app-primary-strong) !important; }
+    :root[data-bs-theme="dark"] :is(.badge-inactive,.badge-secondary) { background: var(--surface-muted) !important; color: var(--app-muted) !important; }
+    :root[data-bs-theme="dark"] :is(.badge-dark,.badge-light) { background: var(--surface-muted) !important; color: var(--app-ink) !important; }
+    /* Legacy component colors and Bootstrap outline actions must also follow the dark palette. */
+    [data-bs-theme="dark"] .page-header-stat { color: var(--app-muted); border-color: var(--app-border); }
+    [data-bs-theme="dark"] .page-header-stat strong { color: var(--app-ink); }
+    [data-bs-theme="dark"] :is(.entity-profile-item span,.account-view-page-header .account-view-title small,.correspondent-title span) { color: var(--app-muted); }
+    [data-bs-theme="dark"] .money-exchange-table-wrap .exchange-type-badge { color: var(--app-primary); }
+    [data-bs-theme="dark"] :is(.text-secondary,.form-text) { color: var(--app-muted) !important; }
+    [data-bs-theme="dark"] .text-info { color: var(--app-info) !important; }
+    [data-bs-theme="dark"] .text-warning { color: var(--app-warning) !important; }
+    [data-bs-theme="dark"] :is(.text-bg-light,.badge.bg-light) { color: var(--app-ink) !important; background-color: var(--surface-muted) !important; }
+    [data-bs-theme="dark"] .btn-outline-primary { --theme-action-ink: var(--app-primary); }
+    [data-bs-theme="dark"] .btn-outline-secondary { --theme-action-ink: var(--app-muted); }
+    [data-bs-theme="dark"] .btn-outline-success { --theme-action-ink: var(--app-success); }
+    [data-bs-theme="dark"] .btn-outline-danger { --theme-action-ink: var(--app-danger); }
+    [data-bs-theme="dark"] .btn-outline-warning { --theme-action-ink: var(--app-warning); }
+    [data-bs-theme="dark"] .btn-outline-info { --theme-action-ink: var(--app-info); }
+    [data-bs-theme="dark"] .btn-outline-dark { --theme-action-ink: var(--app-ink); }
+    [data-bs-theme="dark"] :is(.btn-outline-primary,.btn-outline-secondary,.btn-outline-success,.btn-outline-danger,.btn-outline-warning,.btn-outline-info,.btn-outline-dark) {
+        --bs-btn-color: var(--theme-action-ink); --bs-btn-border-color: var(--theme-action-ink);
+        --bs-btn-hover-color: var(--app-bg); --bs-btn-hover-bg: var(--theme-action-ink); --bs-btn-hover-border-color: var(--theme-action-ink);
+        --bs-btn-active-color: var(--app-bg); --bs-btn-active-bg: var(--theme-action-ink); --bs-btn-active-border-color: var(--theme-action-ink);
+    }
     [data-bs-theme="dark"] .text-muted { color: var(--app-muted) !important; }
     [data-bs-theme="dark"] .text-dark { color: var(--app-ink) !important; }
     [data-bs-theme="dark"] .text-primary { color: var(--app-primary) !important; }

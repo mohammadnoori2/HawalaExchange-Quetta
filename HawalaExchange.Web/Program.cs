@@ -241,6 +241,7 @@ builder.Services.AddScoped<ICorrespondentDailyRateService, CorrespondentDailyRat
         builder.Services.AddScoped<ICompanySettingService, CompanySettingService>();
         builder.Services.AddScoped<HawalaExchange.Web.Services.AppDateDisplay>();
         builder.Services.AddScoped<UiReferenceDataCache>();
+        builder.Services.AddScoped<IFinancialReceiptPreview, FinancialReceiptPreview>();
         builder.Services.AddScoped<ITenantAdministrationService, TenantAdministrationService>();
         builder.Services.AddScoped<ISaasAdministrationService, SaasAdministrationService>();
         builder.Services.AddScoped<HawalaExchange.Web.Services.PlatformActivityService>();

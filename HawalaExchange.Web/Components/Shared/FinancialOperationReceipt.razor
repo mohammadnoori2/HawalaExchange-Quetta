@@ -1,0 +1,29 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Web.Services
+@inherits HawalaExchange.Web.Components.DateAwareComponent
+<article class="hawala-receipt execution-receipt" dir="rtl">
+    <header class="receipt-brand @(string.IsNullOrWhiteSpace(Company.LogoPath) ? "receipt-no-logo" : "")">
+        <div class="receipt-brand-copy"><h3>@Company.CompanyName</h3><div class="receipt-kind">@Document.Title</div></div>
+        @if (!string.IsNullOrWhiteSpace(Company.LogoPath)) { <img src="@Company.LogoPath" class="receipt-logo" alt="لوگوی صرافی" /> }
+    </header>
+    <table class="receipt-table"><tbody>
+        <tr><th>نمبر سند:</th><td dir="ltr">@Document.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)</td></tr>
+        <tr><th>تاریخ و ساعت:</th><td dir="ltr">@DisplayDates.DateTime(Document.Date,true)</td></tr>
+        @foreach(var row in Document.Rows)
+        { <tr><th>@row.Label:</th><td class="@(row.Amount ? "receipt-amount" : null)" dir="@(row.Ltr ? "ltr" : "rtl")">@row.Value</td></tr> }
+        @if (!string.IsNullOrWhiteSpace(Document.Note)) { <tr><th>یادداشت:</th><td>@Document.Note</td></tr> }
+    </tbody></table>
+    <section class="execution-signature"><strong>@Document.Signature</strong></section>
+    @if (!string.IsNullOrWhiteSpace(Company.Address)||!string.IsNullOrWhiteSpace(Company.PhoneNumber))
+    {
+        <section class="receipt-company-contact">
+            @if (!string.IsNullOrWhiteSpace(Company.Address)) { <div class="receipt-company-address">آدرس: @Company.Address</div> }
+            @if (!string.IsNullOrWhiteSpace(Company.PhoneNumber)) { <div class="receipt-company-phone">شماره تلفون: <bdi>@Company.PhoneNumber</bdi></div> }
+        </section>
+    }
+    @if (!string.IsNullOrWhiteSpace(Company.FooterNote)) { <div class="receipt-custom-note">@Company.FooterNote</div> }
+</article>
+@code {
+    [Parameter,EditorRequired] public FinancialReceiptDocument Document {get;set;}=default!;
+    [Parameter] public CompanySettingDto Company {get;set;}=new();
+}

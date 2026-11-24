@@ -1,0 +1,55 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Application.Interfaces.Services
+@using HawalaExchange.Web.Services
+@inherits ComponentBase
+@implements IDisposable
+@inject IFinancialReceiptPreview Preview
+@inject UiReferenceDataCache ReferenceData
+@inject IUserPermissionService Permissions
+@inject IJSRuntime JS
+@if (Preview.Current is { } document)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-label="پیش‌نمایش رسید" dir="rtl" style="background:rgba(0,0,0,.5);z-index:1090">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">@document.Title</h5><button type="button" class="btn-close" aria-label="بستن" @onclick="Preview.Close"></button></div>
+            <div class="modal-body">
+                @if(error!=""){<div class="alert alert-danger" role="alert">@error</div>}
+                @if(!ready){<p class="text-muted">در حال آماده‌سازی رسید…</p>}
+                <div id="@printId"><FinancialOperationReceipt Document="document" Company="company" /></div>
+            </div>
+            <div class="modal-footer">
+                <PermissionView Permission="@(document.Module+".Export")"><button type="button" class="btn btn-primary" disabled="@(!ready)" @onclick="PrintAsync"><i class="bi bi-printer"></i> چاپ رسید</button></PermissionView>
+                <button type="button" class="btn btn-outline-secondary" @onclick="Preview.Close">بستن</button>
+            </div>
+        </div></div>
+    </div>
+}
+@code {
+    private readonly string printId="financial-receipt-"+Guid.NewGuid().ToString("N");
+    private CompanySettingDto company=new();
+    private string error="";
+    private bool ready,disposed;
+    protected override void OnInitialized() { Preview.Changed+=Changed;if(Preview.Current is not null)Changed(); }
+    private void Changed()
+    {
+        if(disposed)return;
+        _=InvokeAsync(async()=>{
+            var document=Preview.Current;ready=false;error="";company=new();StateHasChanged();
+            if(document is null)return;
+            try { var setting=await ReferenceData.GetCompanySettingAsync();if(!disposed&&ReferenceEquals(document,Preview.Current)){company=setting;ready=true;} }
+            catch(OperationCanceledException) { }
+            catch(Exception) { if(!disposed&&ReferenceEquals(document,Preview.Current))error="تنظیمات رسید بارگذاری نشد؛ رسید را دوباره باز کنید."; }
+            if(!disposed)StateHasChanged();
+        });
+    }
+    private async Task PrintAsync()
+    {
+        if(!ready||Preview.Current is not {} document)return;
+        try { await Permissions.RequireAsync(document.Module+".Export");await JS.InvokeVoidAsync("hawalaTools.printElement",printId,72,true); }
+        catch(JSDisconnectedException) { }
+        catch(OperationCanceledException) { }
+        catch(UnauthorizedAccessException) { error="شما صلاحیت چاپ این رسید را ندارید."; }
+        catch(JSException) { error="چاپ رسید باز نشد؛ دوباره تلاش کنید."; }
+    }
+    public void Dispose(){disposed=true;Preview.Changed-=Changed;}
+}

@@ -29,7 +29,7 @@ public class DepositAccountFilterTests
         };
         var operations=new Mock<IAccountMoneyOperationService>();operations.Setup(x=>x.GetAllAsync()).ReturnsAsync(rows);
         using var services=new ServiceCollection().AddLogging()
-            .AddSingleton(operations.Object).AddSingleton(Mock.Of<IAccountService>()).AddSingleton(Mock.Of<ICurrencyService>())
+            .AddSingleton(Mock.Of<IFinancialReceiptPreview>()).AddSingleton(operations.Object).AddSingleton(Mock.Of<IAccountService>()).AddSingleton(Mock.Of<ICurrencyService>())
             .AddSingleton(new AppDateDisplay(new DbContextOptionsBuilder<ApplicationDbContext>().Options,Mock.Of<ICurrentTenant>())).BuildServiceProvider();
         using var renderer=new LifecycleRenderer(services,services.GetRequiredService<ILoggerFactory>());
         await renderer.Dispatcher.InvokeAsync(async()=>{

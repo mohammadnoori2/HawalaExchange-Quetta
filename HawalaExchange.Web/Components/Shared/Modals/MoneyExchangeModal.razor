@@ -1,4 +1,6 @@
-﻿@* Components/Shared/Modals/MoneyExchangeModal.razor *@
+﻿@using HawalaExchange.Web.Services
+@inject IFinancialReceiptPreview ReceiptPreview
+@* Components/Shared/Modals/MoneyExchangeModal.razor *@
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using HawalaExchange.Application.Services
@@ -568,6 +570,7 @@
 
     private async Task SaveExchange()
     {
+        FinancialReceiptDocument? receipt = null;
         ValidationErrors.Clear();
         SuccessMessage = string.Empty;
 
@@ -612,13 +615,15 @@
             }
             else
             {
-                await MoneyExchangeOperationService.CreateAsync(CurrentExchange);
+                var saved = await MoneyExchangeOperationService.CreateAsync(CurrentExchange);
+                if (saved is not null) receipt = FinancialReceiptFactory.Exchange(saved);
                 SuccessMessage = "تبدیل پول با موفقیت ثبت شد.";
                 await OnSaveSuccess.InvokeAsync(CurrentExchange);
             }
 
-            await Task.Delay(1500);
+            if (receipt is null) await Task.Delay(1500);
             await CloseModal();
+            if (receipt is not null) ReceiptPreview.Show(receipt);
         }
         catch (InvalidOperationException ex)
         {

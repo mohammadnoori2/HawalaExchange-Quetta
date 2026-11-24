@@ -1,3 +1,5 @@
+@using HawalaExchange.Web.Services
+@inject IFinancialReceiptPreview ReceiptPreview
 @page "/expenses"
 
 @using HawalaExchange.Application.DTOs
@@ -211,6 +213,7 @@
 
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات مصرف {expense.Title}")">
+                                            <PermissionAction Actions="Export"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenFinancialReceiptAsync(expense.Id)"><i class="bi bi-printer"></i> چاپ رسید</button></PermissionAction>
                                             <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewExpense(expense.Id)">
                                                 <i class="bi bi-eye text-primary"></i>
                                                 مشاهده
@@ -633,6 +636,12 @@
 }
 
 @code {
+    private async Task OpenFinancialReceiptAsync(long id)
+    {
+        try { var saved=await ExpenseService.GetByIdAsync(id);if(saved is null){validationErrors.Add("سند یافت نشد؛ فهرست را تازه کنید.");return;}ReceiptPreview.Show(FinancialReceiptFactory.Expense(saved)); }
+        catch(Exception) { validationErrors.Add("رسید بارگذاری نشد؛ دوباره تلاش کنید."); }
+    }
+
     private async Task RefreshPageDataAsync()
     {
         await LoadLookupData(); await LoadExpenses();
@@ -994,6 +1003,7 @@
 
     private async Task SaveExpense()
     {
+        FinancialReceiptDocument? receipt = null;
         validationErrors.Clear();
         successMessage = string.Empty;
 
@@ -1046,12 +1056,14 @@
             }
             else
             {
-                await ExpenseService.CreateExpenseAsync(currentExpense);
+                var saved = await ExpenseService.CreateExpenseAsync(currentExpense);
+                if (saved is not null) receipt = FinancialReceiptFactory.Expense(saved);
                 successMessage = "مصرف با موفقیت ایجاد شد.";
             }
 
             showModal = false;
             await LoadExpenses();
+            if (receipt is not null) ReceiptPreview.Show(receipt);
         }
         catch (InvalidOperationException ex)
         {

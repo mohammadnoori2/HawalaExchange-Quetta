@@ -1,4 +1,6 @@
-﻿@* Components/Shared/Modals/DepositWithdrawModal.razor *@
+﻿@using HawalaExchange.Web.Services
+@inject IFinancialReceiptPreview ReceiptPreview
+@* Components/Shared/Modals/DepositWithdrawModal.razor *@
 @using System.Globalization
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
@@ -394,6 +396,7 @@
 
     private async Task SaveOperation()
     {
+        FinancialReceiptDocument? receipt = null;
         ValidationErrors.Clear();
         SuccessMessage = string.Empty;
 
@@ -431,13 +434,15 @@
             }
             else
             {
-                await AccountMoneyOperationService.CreateAsync(CurrentOperation);
+                var saved = await AccountMoneyOperationService.CreateAsync(CurrentOperation);
+                if (saved is not null) receipt = FinancialReceiptFactory.Operation(saved);
                 SuccessMessage = "عملیات با موفقیت ثبت شد.";
                 await OnSaveSuccess.InvokeAsync(CurrentOperation);
             }
 
-            await Task.Delay(1500);
+            if (receipt is null) await Task.Delay(1500);
             await CloseModal();
+            if (receipt is not null) ReceiptPreview.Show(receipt);
         }
         catch (InvalidOperationException ex)
         {

@@ -1,3 +1,5 @@
+@using HawalaExchange.Web.Services
+@inject IFinancialReceiptPreview ReceiptPreview
 @page "/deposit-withdraw"
 
 @using HawalaExchange.Application.DTOs
@@ -241,6 +243,7 @@
 
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات رسید و برد {item.Id}")">
+                                            <PermissionAction Actions="Export"><button type="button" class="operation-menu-item" role="menuitem" @onclick="() => OpenFinancialReceiptAsync(item.Id)"><i class="bi bi-printer"></i> چاپ رسید</button></PermissionAction>
                                             <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewOperation(item.Id)">
                                                 <i class="bi bi-eye text-primary"></i>
                                                 مشاهده
@@ -489,6 +492,12 @@
 }
 
 @code {
+    private async Task OpenFinancialReceiptAsync(long id)
+    {
+        try { var saved=await AccountMoneyOperationService.GetByIdAsync(id);if(saved is null){validationErrors.Add("سند یافت نشد؛ فهرست را تازه کنید.");return;}ReceiptPreview.Show(FinancialReceiptFactory.Operation(saved)); }
+        catch(Exception) { validationErrors.Add("رسید بارگذاری نشد؛ دوباره تلاش کنید."); }
+    }
+
     private async Task RefreshPageDataAsync()
     {
         await LoadLookupData(); await LoadOperations();

@@ -21,6 +21,59 @@ namespace HawalaExchange.NavigationTests;
 
 public sealed class PageLoadingTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Canceling_a_running_hawala_search_keeps_its_source_alive_until_completion(bool ignoreCancellation, bool leavePage)
+    {
+        using var setup = new Setup(typeof(HawalaProbe));
+        await setup.Render<HawalaProbe>();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken token = default;
+        setup.Hawalas.Setup(x => x.GetHawalasAsync(It.IsAny<HawalaFilterDto>(), It.IsAny<CancellationToken>()))
+            .Returns(async (HawalaFilterDto _, CancellationToken ct) =>
+            {
+                token = ct;
+                started.TrySetResult();
+                await release.Task;
+                if (!ignoreCancellation) ct.ThrowIfCancellationRequested();
+                return new HawalaListResultDto { Items = [], TotalCount = 999 };
+            });
+        var pending = setup.Invoke("OnFilterChangedAsync");
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var source = setup.Field<CancellationTokenSource>("filterChangeCts");
+        try
+        {
+            if (leavePage) await setup.DisposePage();
+            else await setup.Invoke("CancelPendingFilterChange");
+            Assert.True(token.IsCancellationRequested);
+            Assert.Equal(token, source.Token); // An in-flight search still owns its source.
+        }
+        finally { release.TrySetResult(); await pending; }
+        Assert.Empty(setup.Field<List<string>>("validationErrors"));
+        Assert.Null(setup.Field<CancellationTokenSource?>("filterChangeCts"));
+        Assert.Equal(0, setup.Field<int>("totalCount"));
+        Assert.Throws<ObjectDisposedException>(() => source.Token);
+    }
+
+    [Fact]
+    public async Task Rapid_hawala_input_only_queries_the_latest_search()
+    {
+        using var setup = new Setup(typeof(HawalaProbe));
+        await setup.Render<HawalaProbe>();
+        setup.Hawalas.Invocations.Clear();
+        setup.Set("searchTerm", "9");
+        var first = setup.Invoke("OnFilterChangedAsync");
+        setup.Set("searchTerm", "955");
+        var latest = setup.Invoke("OnFilterChangedAsync");
+        await Task.WhenAll(first, latest);
+        setup.Hawalas.Verify(x => x.GetHawalasAsync(It.Is<HawalaFilterDto>(f => f.SearchTerm == "955"), It.IsAny<CancellationToken>()), Times.Once);
+        setup.Hawalas.Verify(x => x.GetHawalasAsync(It.IsAny<HawalaFilterDto>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Null(setup.Field<CancellationTokenSource?>("filterChangeCts"));
+    }
+
     [Fact]
     public async Task Accounts_are_ready_without_loading_form_options_then_create_loads_them()
     {
@@ -303,6 +356,7 @@ public sealed class PageLoadingTests
 
         public Task Render<T>() where T : IComponent => renderer.Dispatcher.InvokeAsync(() => renderer.Render(typeof(T)));
         public Task Render(Type type) => renderer.Dispatcher.InvokeAsync(() => renderer.Render(type));
+        public Task DisposePage() => renderer.Dispatcher.InvokeAsync(() => ((IDisposable)component).Dispose());
         public void Set(string name, object value) => page.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(component, value);
         public Task Invoke(string name, params object[] args) => renderer.Dispatcher.InvokeAsync(async () =>
         {

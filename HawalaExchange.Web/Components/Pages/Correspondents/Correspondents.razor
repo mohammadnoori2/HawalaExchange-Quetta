@@ -1,4 +1,4 @@
-@page "/correspondents"
+﻿@page "/correspondents"
 @using HawalaExchange.Application.DTOs
 @using HawalaExchange.Application.Interfaces.Services
 @using Microsoft.AspNetCore.Authorization
@@ -10,23 +10,17 @@
 @inject IHawalaService HawalaService
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
+@inject IBalanceService BalanceService
+@inject IUserPermissionService Permissions
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "TenantBusiness")]
 
 <PageTitle>مدیریت نمایندگی‌ها</PageTitle>
 
-<div class="page-wrapper">
+<div class="page-wrapper reference-correspondents-page">
     <AppPageHeader Title="مدیریت نمایندگی‌ها"
                    Subtitle="لیست و جستجوی نمایندگی‌ها"
                    Icon="bi-globe-americas">
-        <Stats>
-            <PageHeaderStats AriaLabel="آمار نمایندگی‌ها">
-                <PageHeaderStat Label="کل" Value="@correspondents.Count" Icon="bi-globe-americas" />
-                <PageHeaderStat Label="فعال" Value="@correspondents.Count(c => !c.IsArchived)" Icon="bi-check-circle" Tone="success" />
-                <PageHeaderStat Label="بایگانی" Value="@correspondents.Count(c => c.IsArchived)" Icon="bi-archive" Tone="danger" />
-                <PageHeaderStat Label="امروز" Value="@correspondents.Count(c => c.CreatedAt.Date == DateTime.Today)" Icon="bi-clock-history" Tone="info" />
-            </PageHeaderStats>
-        </Stats>
         <Actions>
             <ArchiveViewToggle @bind-ShowArchived="showArchived"
                                ArchivedCount="@correspondents.Count(c => c.IsArchived)"
@@ -37,6 +31,13 @@
             <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </Actions>
     </AppPageHeader>
+
+    <div class="reference-kpi-row" aria-label="خلاصه نمایندگی‌ها">
+        <section class="reference-kpi tone-blue"><i class="bi bi-shop" aria-hidden="true"></i><div><span>کل نمایندگی‌ها</span><strong>@correspondents.Count</strong></div></section>
+        <section class="reference-kpi tone-teal"><i class="bi bi-check-circle" aria-hidden="true"></i><div><span>نمایندگی‌های فعال</span><strong>@correspondents.Count(x => !x.IsArchived)</strong></div></section>
+        <section class="reference-kpi tone-green"><i class="bi bi-cash-stack" aria-hidden="true"></i><div><span>طلب ما</span><div class="reference-kpi-balances">@if(!balancesReady){<strong>—</strong>}else if(!BalanceTotals(true).Any()){<strong>0</strong>}else{foreach(var total in BalanceTotals(true)){<strong dir="ltr">@MoneyFormatHelper.Format(total.Amount) <CurrencyBadge Code="@total.Currency" /></strong>}}</div></div></section>
+        <section class="reference-kpi tone-red"><i class="bi bi-database" aria-hidden="true"></i><div><span>بدهی ما</span><div class="reference-kpi-balances">@if(!balancesReady){<strong>—</strong>}else if(!BalanceTotals(false).Any()){<strong>0</strong>}else{foreach(var total in BalanceTotals(false)){<strong dir="ltr">@MoneyFormatHelper.Format(total.Amount) <CurrencyBadge Code="@total.Currency" /></strong>}}</div></div></section>
+    </div>
 
     <CompactFilterBar AriaLabel="جستجوی نمایندگی‌ها"
                       ActiveFilterCount="@advancedFilters.Count"
@@ -72,38 +73,19 @@
                 <GlobalDataGrid class="table-modern table-striped-modern">
                     <thead>
                         <tr>
-                            <th style="width: 50px;">#</th>
-                            <th class="sortable-header @(sortColumn == "Name" ? "active" : "")" @onclick="@(() => SortBy("Name"))">
-                                نام
-                                @if (sortColumn == "Name")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
-                            <th class="sortable-header @(sortColumn == "Country" ? "active" : "")" @onclick="@(() => SortBy("Country"))">
-                                کشور
-                                @if (sortColumn == "Country")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
-                            <th class="sortable-header @(sortColumn == "City" ? "active" : "")" @onclick="@(() => SortBy("City"))">
-                                شهر
-                                @if (sortColumn == "City")
-                                {
-                                    <i class="bi @(sortAscending ? "bi-chevron-up" : "bi-chevron-down")"></i>
-                                }
-                            </th>
-                            <th>تلفن</th>
-                            <th>وضعیت</th>
-                            <th class="text-center">عملیات</th>
+                            <th rowspan="2">#</th><th rowspan="2">کد</th>
+                            <th rowspan="2" class="sortable-header" @onclick='() => SortBy("Name")'>نام نمایندگی</th>
+                            <th rowspan="2" class="sortable-header" @onclick='() => SortBy("Country")'>کشور</th>
+                            <th rowspan="2">وضعیت</th><th colspan="2" class="reference-group-heading">بیلانس نمایندگی</th>
+                            <th rowspan="2">ارزهای دیگر</th><th rowspan="2">عملیات</th>
                         </tr>
+                        <tr><th><CurrencyBadge Code="AFN" /></th><th><CurrencyBadge Code="USD" /></th></tr>
                     </thead>
                     <tbody>
                         @if (isLoading && correspondents == null)
                         {
                             <tr>
-                                <td colspan="7" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
                                     <div class="loading-state">
                                         <div class="spinner-border text-primary" role="status">
                                             <span class="visually-hidden">در حال بارگذاری...</span>
@@ -116,7 +98,7 @@
                         else if (!pagedCorrespondents.Any())
                         {
                             <tr>
-                                <td colspan="7" class="text-center py-5">
+                                <td colspan="9" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <span class="fs-5 text-muted">هیچ نماینده‌ای یافت نشد</span>
@@ -132,16 +114,9 @@
                             {
                                 <tr class="@(correspondent.IsArchived ? "table-row-archived" : "")">
                                     <td><span class="fw-bold text-muted">@rowIndex</span></td>
-                                    <td>
-                                        <RecordDetailsLink Kind="Correspondent" Id="correspondent.Id" Text="@correspondent.Name" Class="fw-semibold" />
-                                    </td>
-                                    <td>
-                                        <span class="badge-modern badge-info">@correspondent.Country</span>
-                                    </td>
-                                    <td>@correspondent.City</td>
-                                    <td>
-                                        <span class="phone-number">@correspondent.PhoneNumber</span>
-                                    </td>
+                                    <td><bdi class="reference-record-code">@correspondent.Code</bdi></td>
+                                    <td><div class="reference-name-cell"><span class="reference-initials">@Initials(correspondent.Name)</span><RecordDetailsLink Kind="Correspondent" Id="correspondent.Id" Text="@correspondent.Name" Class="fw-semibold" /></div></td>
+                                    <td>@correspondent.Country</td>
                                     <td>
                                         @if (correspondent.IsArchived)
                                         {
@@ -156,6 +131,9 @@
                                             </span>
                                         }
                                     </td>
+                                    <td><ReferenceBalanceCell Value='@BalanceFor(correspondent.Id,"AFN")' /></td>
+                                    <td><ReferenceBalanceCell Value='@BalanceFor(correspondent.Id,"USD")' /></td>
+                                    <td><details class="reference-other-currencies"><summary aria-label="مانده سایر ارزها">@OtherCurrenciesLabel(correspondent.Id) <i class="bi bi-chevron-down" aria-hidden="true"></i></summary><div>@foreach(var balance in OtherBalances(correspondent.Id)){<div><CurrencyBadge Code="@balance.CurrencyCode" /><ReferenceBalanceCell Value="balance.Balance" /></div>}</div></details></td>
                                     <td class="text-center operation-cell">
                                         <AppActionMenu AriaLabel="@($"عملیات نمایندگی {correspondent.Name}")">
                                             <button type="button" class="operation-menu-item" role="menuitem" @onclick="() => ViewCorrespondent(correspondent.Id)">
@@ -686,6 +664,24 @@
 }
 
 @code {
+    private Dictionary<long, List<BalanceDto>> listBalances = new();
+    private bool balancesReady;
+    private async Task LoadBalancesAsync()
+    {
+        listBalances.Clear(); balancesReady=false;
+        await Permissions.RefreshAsync();
+        if(!Permissions.Can("Accounts.View")) return;
+        try { listBalances=(await BalanceService.GetAllCorrespondentBalancesAsync()).ToDictionary(x=>x.CorrespondentId,x=>x.Balances??new List<BalanceDto>()); balancesReady=true; }
+        catch(Exception) { validationErrors.Add("مانده نمایندگی‌ها بارگذاری نشد؛ فهرست را تازه کنید."); }
+    }
+    private decimal? BalanceFor(long id,string currency) => listBalances.TryGetValue(id,out var rows) ? rows.Where(x=>x.CurrencyCode==currency).Sum(x=>x.Balance) : null;
+    private IEnumerable<BalanceDto> OtherBalances(long id) => listBalances.GetValueOrDefault(id)?.Where(x=>x.CurrencyCode is not ("AFN" or "USD") && x.Balance!=0) ?? Enumerable.Empty<BalanceDto>();
+    private string OtherCurrenciesLabel(long id) { var codes=OtherBalances(id).Select(x=>x.CurrencyCode).ToArray();return codes.Length==0?"—":string.Join(", ",codes); }
+    private static string Initials(string? name) => string.Concat((name??"").Split(' ',StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x=>x[0]));
+    private sealed record CurrencyTotal(string Currency,decimal Amount);
+    private IEnumerable<CurrencyTotal> BalanceTotals(bool claim) => filteredCorrespondents.SelectMany(x=>listBalances.GetValueOrDefault(x.Id)??new List<BalanceDto>())
+        .Where(x=>claim?x.Balance<0:x.Balance>0).GroupBy(x=>x.CurrencyCode).OrderBy(x=>x.Key).Select(g=>new CurrencyTotal(g.Key,g.Sum(x=>Math.Abs(x.Balance))));
+
     private void OpenOpeningBalances(long id) => NavigationManager.NavigateTo($"/correspondents/{id}/opening-balances");
     private async Task RefreshPageDataAsync()
     {
@@ -824,6 +820,7 @@
             isLoading = true;
             var result = await CorrespondentService.GetAllAsync();
             correspondents = result.ToList();
+            await LoadBalancesAsync();
             SearchCorrespondents();
             currentPage = 1;
         }

@@ -140,7 +140,7 @@ function refreshStandaloneWords(trigger) {
         if (inputs.length !== 1) return;
         const input = inputs[0], value = decimal(input.value);
         const amount = value && input.dataset.moneyDecimals === '0' ? rounded(value.n, value.d).toString() : input.value;
-        const select = group.querySelector('select');
+        const select = trigger.closest('.reference-deposit-fields')?.querySelector('select.deposit-withdraw-money-currency') || group.querySelector('select');
         const currency = select?.value !== '0' ? select?.selectedOptions?.[0]?.textContent.trim() : '';
         const words = value && value.n > 0n ? moneyWords(amount) : '';
         const text = words ? `${words}${currency ? ' ' + currency : ''}` : '';

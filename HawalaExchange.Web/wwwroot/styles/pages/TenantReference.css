@@ -1,0 +1,183 @@
+/* Shared tenant UI. Platform pages and printed documents keep their own styles. */
+.app-shell:not(:has(.platform-workspace)) { --tenant-panel: #f9fbff; --tenant-border: #c9d5e6; --tenant-heading: #101c32; --tenant-soft: #edf3fc; background: #eaf0fa; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper { padding: 12px !important; background: transparent; font-family: var(--ui-font-family); font-size: 13px; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper > .page-header { border: 1px solid var(--tenant-border); border-radius: 13px !important; background: var(--tenant-panel); min-height: 64px; padding: 11px 16px !important; margin-bottom: 10px !important; box-shadow: 0 2px 6px #1d355710; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .page-title { color: var(--tenant-heading); font-size: 22px !important; font-weight: 800 !important; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .page-title > i { color: #1268db; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .page-subtitle { color: #56657a; font-size: 11px; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .page-actions { gap: 8px; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper :is(.table-card,.modern-card,.compact-filter-bar) { background: var(--tenant-panel); border: 1px solid var(--tenant-border) !important; border-radius: 12px !important; box-shadow: 0 2px 5px #24375409; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper :is(.btn-modern,.btn-rounded,.page-link) { border-radius: 9px !important; min-height: 34px; font-size: 12px !important; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper :is(.btn-primary-modern,.btn-primary):not(:disabled) { background: linear-gradient(135deg,#177aff,#0757e5) !important; border-color: #1768e8 !important; color: white !important; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .compact-filter-bar { padding: 8px 10px; margin-bottom: 9px !important; --filter-control-height: 36px; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper :is(.form-control,.form-select) { border-radius: 9px; border-color: #bdcbe0; background: #f8faff; color: #182437; font-size: 12px; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .table-card { overflow: visible; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .table-card-header { min-height: 34px; padding: 6px 12px; background: transparent; border-bottom: 1px solid #dce5f1; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .table-card-body { padding: 0 !important; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper :is(.table-modern,.table) { --bs-table-bg: transparent; font-size: 12px; border-collapse: collapse; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper table thead th { font-size: 12px !important; font-weight: 750 !important; color: #25334b !important; background: #e7effc !important; padding: 8px 10px !important; height: 38px !important; border-bottom: 1px solid #cad8ee !important; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper table tbody :is(td,th) { height: 39px; padding: 7px 10px !important; font-size: 12px !important; vertical-align: middle; border-bottom: 1px solid #dce5f1 !important; background: transparent; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper table tbody tr:not(.hawala-cancelled):not(.table-row-archived):not(.table-danger):not(.table-info):not(.settlement-converted-row):not(.settlement-pending-row) { background: #f9fbff !important; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper table tbody tr:nth-child(even):not(.hawala-cancelled):not(.table-row-archived):not(.table-danger):not(.table-info):not(.settlement-converted-row):not(.settlement-pending-row) { background: #eef4fc !important; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper table tbody tr:hover:not(.hawala-cancelled) { box-shadow: inset 0 0 0 999px #2b7aff08; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .table-card-footer { padding: 12px; border-top: 1px solid #dce5f1; background: transparent; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .operation-dot-btn { border-radius: 7px; border-color: #c7d5e9; background: #edf3fc; color: #25334b; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .operation-cell :is(button,a) { border-radius: 7px; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .page-header-stat { padding-inline: 15px; }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .page-header-stat strong { font-size: 17px; font-weight: 800; color: var(--tenant-heading); }
+.app-shell:not(:has(.platform-workspace)) .page-wrapper .page-header-stat span { font-size: 10px; }
+.reference-kpi-row { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-bottom: 14px; }
+.reference-kpi { min-height: 91px; padding: 15px; border: 1px solid #d1e0f2; border-radius: 13px; display: flex; flex-direction: row-reverse; justify-content: space-between; align-items: center; gap: 10px; box-shadow: 0 3px 7px #2146700b; }
+.reference-kpi > i { width: 47px; height: 47px; display: grid; place-items: center; border-radius: 50%; font-size: 25px; background: #ffffff85; }
+.reference-kpi > div { min-width: 0; }
+.reference-kpi > div > span { display: block; color: #172437; font-size: 15px; font-weight: 800; }
+.reference-kpi strong { display: block; font-size: 24px; color: #111d30; font-weight: 800; margin-top: 3px; }
+.reference-kpi .reference-kpi-balances { max-height: 53px; overflow: auto; }
+.reference-kpi .reference-kpi-balances strong { font-size: 16px; white-space: nowrap; }
+.tone-blue { background: linear-gradient(110deg,#f3f8ff,#dceaff); color: #2479e2; }
+.tone-teal { background: linear-gradient(110deg,#eefbf9,#d8f5ec); color: #129d85; }
+.tone-green { background: linear-gradient(110deg,#effbf4,#d7f7e5); color: #169956; }
+.tone-red { background: linear-gradient(110deg,#fff5f7,#ffe2e9); color: #c52e4b; }
+.reference-name-cell { display: flex; gap: 9px; align-items: center; justify-content: flex-start; min-width: 140px; }
+.reference-initials { width: 32px; height: 32px; display: grid; place-items: center; flex-shrink: 0; border-radius: 50%; background: #d9eaff; color: #1b61b5; font-size: 12px; font-weight: 800; }
+.reference-record-code { color: #5c6c81; font-size: 11px; }
+.reference-correspondents-page .reference-group-heading { border-radius: 12px 12px 0 0; background: #d8e6ff !important; text-align: center; }
+.reference-correspondents-page .table-modern thead tr:nth-child(2) th { height: 30px !important; padding-block: 4px !important; }
+.reference-balance-cell { display: inline-flex; gap: 8px; align-items: center; justify-content: center; white-space: nowrap; }
+.reference-balance-cell .reference-balance-value { font-size: 14px; font-weight: 750; color: var(--tenant-heading,#172337); }
+.reference-balance-cell small { padding: 2px 7px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+.reference-balance-cell.is-credit small { background: #d5f5e2; color: #157045; }
+.reference-balance-cell.is-debit small { background: #ffe1e8; color: #aa2344; }
+.reference-balance-cell.is-zero small { background: #e8eef7; color: #65748a; }
+.reference-other-currencies { position: relative; min-width: 60px; }
+.reference-other-currencies summary { cursor: pointer; list-style: none; color: #52637c; font-size: 11px; }
+.reference-other-currencies > div { padding: 5px; }
+.reference-other-currencies > div > div { display: flex; justify-content: space-between; gap: 10px; padding: 4px; }
+/* Form surfaces match the reference without affecting receipt content or permissions. */
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-modern { background: #091b3ac2 !important; backdrop-filter: blur(7px) !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-content { border-radius: 19px !important; border: 1px solid #cbd8eb !important; background: #f9fbff !important; color: #142039; box-shadow: 0 24px 80px #03132e55; overflow: hidden; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-header { background: linear-gradient(120deg,#f9fbff,#edf3ff) !important; color: #13213a !important; border-bottom: 1px solid #cfdced !important; padding: 17px 23px !important; min-height: 67px; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-header .modal-title { color: #111c33 !important; font-size: 23px !important; font-weight: 800 !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-header .modal-title i { color: #075cef !important; font-size: 27px; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-header .btn-close { filter: none !important; opacity: .85; padding: 9px; border-radius: 9px; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-body { padding: 18px 23px !important; overflow-y: auto; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-content { max-height: calc(100dvh - 32px); }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-body { min-height: 0; }
+body:has(.app-shell):not(:has(.platform-workspace)) :is(.modal-header,.modal-footer) { flex-shrink: 0; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-footer { background: #f3f7ff; border-top: 1px solid #d2ddee !important; padding: 12px 22px !important; gap: 9px; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-footer :is(.btn,.btn-modern) { min-height: 42px; border-radius: 10px !important; padding: 8px 21px !important; font-size: 15px !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-footer :is(.btn-primary-modern,.btn-primary):not(:disabled) { background: linear-gradient(135deg,#117aff,#044ee7) !important; color: #fff !important; border-color: #1267ec !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal :is(.form-label,.form-check-label) { color: #17233a; font-size: 14px; font-weight: 650; margin-bottom: 6px; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal :is(.form-control,.form-select,.searchable-dropdown-input input) { border: 1px solid #aebed5; border-radius: 10px; background: #fbfcff; color: #17233a; min-height: 39px; font-size: 14px; box-shadow: 0 2px 3px #152e5508; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal :is(input,select,textarea):focus-visible { outline: 3px solid #9dc3ff; outline-offset: 1px; border-color: #237aff; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .date-picker-control { min-height: 39px; background: #fbfcff; border-color: #aebed5; border-radius: 10px; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .date-picker-control input { background: transparent; box-shadow: none; border: 0; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .modern-card { border-radius: 11px !important; background: transparent !important; box-shadow: none; border: 1px solid #d0dced !important; margin-bottom: 14px !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .card-header { background: #e8f0fd !important; border-bottom: 1px solid #ccdaed; padding: 9px 13px !important; border-radius: 10px 10px 0 0; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .card-header :is(h6,strong) { color: #0959d3 !important; font-size: 16px; font-weight: 750; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .card-body { padding: 12px !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .alert { border-radius: 10px; font-size: 13px; padding: 10px 13px; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .alert-info { background: #e0efff; color: #174071; border-color: #c6ddfa; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .alert-warning { background: #fff1ce; color: #6e4a12; border-color: #f4dfac; }
+.reference-segmented { display: flex; padding: 3px; border: 1px solid #acbcd3; border-radius: 11px; background: #f0f4fa; gap: 3px; min-height: 43px; }
+.reference-segmented > button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 11px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #43516a; font-size: 15px; font-weight: 750; }
+.reference-segmented > button i { font-size: 20px; }
+.reference-segmented .is-buy.is-active { background: #d9f5e6; color: #127443; border-color: #38ad72; }
+.reference-segmented .is-sell.is-active { background: #c32643; color: white; border-color: #ac1b38; }
+.modal-dialog:has(.hawala-create-modal) { --bs-modal-width: 1200px; max-width: min(1200px,calc(100vw - 48px)) !important; }
+.modal-dialog:has(.money-exchange-modal) { --bs-modal-width: 1100px; max-width: min(1100px,calc(100vw - 48px)) !important; }
+.modal-dialog:has(.deposit-withdraw-entry-modal) { --bs-modal-width: 850px; max-width: min(850px,calc(100vw - 48px)) !important; }
+.modal-dialog:has(.receiver-payment-card) { --bs-modal-width: 1050px; max-width: min(1050px,calc(100vw - 48px)) !important; }
+.hawala-create-modal .hawala-basics-card { border: 0 !important; }
+.hawala-create-modal .hawala-basics-card > .card-header { display: none; }
+.hawala-create-modal .hawala-basics-card > .card-body { padding: 0 !important; }
+.hawala-create-modal .hawala-basics-card .row { --bs-gutter-x: 24px; }
+.hawala-create-modal .hawala-parties-card { border-color: #c5d5f0 !important; }
+.hawala-create-modal .hawala-parties-card .card-header { display: flex; align-items: center; justify-content: space-between; }
+.hawala-create-modal :is(.hawala-money-field,.hawala-money-field select,.hawala-money-field input) { min-height: 39px; font-size: 14px; }
+.hawala-create-modal .hawala-money-field { border-color: #aebed5; }
+.hawala-create-modal .hawala-money-field input { font-weight: 700; }
+.money-exchange-modal .exchange-sell-panel,.money-exchange-modal .exchange-buy-panel { border-radius: 13px !important; padding: 12px 15px !important; overflow: hidden; }
+.money-exchange-modal .modern-card { border: 0 !important; }
+.money-exchange-modal .modern-card > .card-header { display: none; }
+.money-exchange-modal .modern-card > .card-body { padding: 0 !important; }
+.money-exchange-modal .exchange-sell-panel { border-color: #d7798c !important; background: #fffafd; }
+.money-exchange-modal .exchange-buy-panel { border-color: #68b99a !important; background: #f7fefa; }
+.money-exchange-modal :is(.exchange-sell-panel,.exchange-buy-panel) > h6 { margin: -12px -15px 13px !important; padding: 11px 15px; font-size: 18px; font-weight: 800; }
+.money-exchange-modal .exchange-sell-panel > h6 { color: #af2140 !important; background: #ffebf0; }
+.money-exchange-modal .exchange-buy-panel > h6 { color: #10714a !important; background: #dcf7ed; }
+.money-exchange-modal :is(.money-exchange-amount-field,.money-exchange-amount-field select,.money-exchange-amount-field input) { min-height: 39px; font-size: 14px; }
+.deposit-withdraw-entry-modal .modern-card { border: 0 !important; }
+.deposit-withdraw-entry-modal .modern-card > .card-header { display: none; }
+.deposit-withdraw-entry-modal .modern-card > .card-body { padding: 0 !important; }
+.deposit-withdraw-entry-modal .reference-deposit-fields { margin-bottom: 18px; --bs-gutter-x: 24px; --bs-gutter-y: 18px; }
+.deposit-withdraw-entry-modal[data-operation='Deposit'] .alert-info { background: #dcf5e9 !important; color: #145d3c !important; border-color: #c8ebda !important; }
+.deposit-withdraw-entry-modal[data-operation='Withdraw'] .alert-info { background: #ffe4eb !important; color: #92223d !important; border-color: #f5c7d3 !important; }
+.receiver-payment-card > .card-header { border-inline-start: 5px solid #0c64e8 !important; }
+.receiver-payment-card .receiver-payment-body { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 24px; }
+.receiver-payment-card .receiver-search-field { grid-column: 1; grid-row: 1; margin: 0 !important; }
+.receiver-payment-card .receiver-identity-grid { display: contents; }
+.receiver-payment-card .receiver-identity-grid > div { width: 100%; padding: 0; margin: 0; }
+.receiver-payment-card .receiver-identity-grid > div:nth-child(1) { grid-column: 2; grid-row: 1; }
+.receiver-payment-card .receiver-identity-grid > div:nth-child(2) { grid-column: 1; grid-row: 2; }
+.receiver-payment-card .receiver-identity-grid > div:nth-child(3) { grid-column: 2; grid-row: 2; }
+.receiver-payment-card .receiver-identity-grid > div:nth-child(4) { grid-column: 1; grid-row: 3; }
+.receiver-payment-card .receiver-identity-grid > div:nth-child(5) { grid-column: 2; grid-row: 3; }
+.receiver-payment-card .receiver-identity-grid > div:nth-child(6) { grid-column: 1; grid-row: 4; }
+.receiver-payment-card .receiver-payment-body > .form-check { grid-column: 2; grid-row: 4; align-self: center; }
+.receiver-payment-card textarea { height: 39px; min-height: 39px; }
+.payout-agent-card { border: 1px solid #cbdcf1 !important; border-radius: 11px; overflow: hidden; }
+.modal-content:has(.receiver-payment-card) .modal-footer .btn-primary-modern:not(:disabled) { background: #08ad58 !important; border-color: #079749 !important; }
+@media (max-width: 1000px) { .reference-kpi-row { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 767px) {
+    body:has(.app-shell):not(:has(.platform-workspace)) .modal-dialog { max-width: calc(100vw - 18px) !important; margin-inline: auto !important; }
+    body:has(.app-shell):not(:has(.platform-workspace)) .modal-header { padding: 12px 15px !important; }
+    body:has(.app-shell):not(:has(.platform-workspace)) .modal-header .modal-title { font-size: 20px !important; }
+    body:has(.app-shell):not(:has(.platform-workspace)) .modal-body { padding: 14px !important; }
+    .receiver-payment-card .receiver-payment-body { display: block; }
+    .receiver-payment-card .receiver-identity-grid { display: flex; }
+    .receiver-payment-card .receiver-identity-grid > div { margin-top: 10px; }
+    .receiver-payment-card .receiver-identity-grid > div:nth-child(6) { padding: 0; }
+    .reference-kpi { padding: 11px; min-height: 88px; }
+    .reference-kpi > div > span { font-size: 12px; }
+    .reference-kpi > i { width: 34px; height: 34px; font-size: 19px; }
+    .reference-kpi strong { font-size: 21px; }
+}
+:root[data-bs-theme='dark'] .app-shell:not(:has(.platform-workspace)) { --tenant-panel: #1b2735; --tenant-border: #46596e; --tenant-heading: #e5edf5; --tenant-soft: #243345; background: #111923; }
+:root[data-bs-theme='dark'] .app-shell:not(:has(.platform-workspace)) .page-wrapper :is(.form-control,.form-select) { background: #1b2735; color: #e5edf5; border-color: #46596e; }
+:root[data-bs-theme='dark'] .app-shell:not(:has(.platform-workspace)) .page-wrapper table thead th { background: #243345 !important; color: #c8d9ed !important; }
+:root[data-bs-theme='dark'] .app-shell:not(:has(.platform-workspace)) .page-wrapper table tbody tr:not(.hawala-cancelled):not(.table-danger):not(.table-info):not(.settlement-converted-row):not(.settlement-pending-row):not(.table-row-archived) { background: #1b2735 !important; }
+:root[data-bs-theme='dark'] .app-shell:not(:has(.platform-workspace)) .page-wrapper table tbody tr:nth-child(even):not(.hawala-cancelled):not(.table-danger):not(.table-info):not(.settlement-converted-row):not(.settlement-pending-row):not(.table-row-archived) { background: #203043 !important; }
+:root[data-bs-theme='dark'] .reference-kpi { background: #243345; border-color: #46596e; }
+:root[data-bs-theme='dark'] .reference-kpi :is(strong,div>span) { color: #e5edf5; }
+:root[data-bs-theme='dark'] .reference-kpi > i { background: #ffffff12; }
+:root[data-bs-theme='dark'] body:has(.app-shell):not(:has(.platform-workspace)) .modal :is(.modal-content,.modern-card) { background: #1b2735 !important; color: #e5edf5; border-color: #46596e !important; }
+:root[data-bs-theme='dark'] body:has(.app-shell):not(:has(.platform-workspace)) .modal :is(.modal-header,.modal-footer,.card-header) { background: #243345 !important; border-color: #46596e !important; }
+:root[data-bs-theme='dark'] body:has(.app-shell):not(:has(.platform-workspace)) .modal :is(.modal-title,.form-label,.form-check-label,.card-header h6,.card-header strong) { color: #e5edf5 !important; }
+:root[data-bs-theme='dark'] body:has(.app-shell):not(:has(.platform-workspace)) .modal :is(.form-control,.form-select,.searchable-dropdown-input input,.date-picker-control,.money-exchange-amount-field,.hawala-money-field) { background: #1b2735 !important; color: #e5edf5 !important; border-color: #526a85 !important; }
+:root[data-bs-theme='dark'] .reference-segmented { background: #1b2735; border-color: #526a85; }
+:root[data-bs-theme='dark'] .reference-segmented > button { color: #c8d9ed; }
+:root[data-bs-theme='dark'] .reference-segmented .is-buy.is-active { background: #1e503a; color: #a1efc2; }
+:root[data-bs-theme='dark'] .reference-balance-cell small { filter: brightness(.85); }
+:root[data-bs-theme='dark'] .reference-balance-cell .reference-balance-value { color: #e5edf5; }
+:root[data-bs-theme='dark'] body:has(.app-shell):not(:has(.platform-workspace)) .modal .btn-close { filter: invert(1) !important; }
+/* Explicit close glyph: the legacy modal reset removes Bootstrap's background icon. */
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-header .btn-close { background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath stroke='%23172239' stroke-width='1.7' stroke-linecap='round' d='m3 3 10 10M13 3 3 13'/%3E%3C/svg%3E") center/20px no-repeat !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .alert-info { background: #e0efff !important; color: #174071 !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal .alert-info :is(strong,div,small) { color: inherit !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal-content:has(.receiver-payment-card) .modal-footer .btn-primary-modern:not(:disabled) { background: #08ad58 !important; border-color: #079749 !important; }
+:root[data-bs-theme='dark'] body:has(.app-shell):not(:has(.platform-workspace)) .modal .alert-info { background: #203d5b !important; color: #d3e8ff !important; }
+:root[data-bs-theme='dark'] .money-exchange-modal .exchange-sell-panel { background: #34232e; }
+:root[data-bs-theme='dark'] .money-exchange-modal .exchange-buy-panel { background: #19372f; }
+:root[data-bs-theme='dark'] .money-exchange-modal .exchange-sell-panel > h6 { background: #552737; color: #ffb5c5 !important; }
+:root[data-bs-theme='dark'] .money-exchange-modal .exchange-buy-panel > h6 { background: #204e3e; color: #a2edc6 !important; }
+@media (min-width: 768px) and (max-height: 850px) {
+ body:has(.app-shell):not(:has(.platform-workspace)) .hawala-create-modal > .modal-header { padding: 10px 20px !important; min-height: 52px; }
+ body:has(.app-shell):not(:has(.platform-workspace)) .hawala-create-modal > .modal-body { padding: 8px 18px !important; }
+ body:has(.app-shell):not(:has(.platform-workspace)) .hawala-create-modal > .modal-footer { padding: 8px 18px !important; }
+ body:has(.app-shell):not(:has(.platform-workspace)) .hawala-create-modal .modern-card { margin-bottom: 7px !important; }
+ body:has(.app-shell):not(:has(.platform-workspace)) .hawala-create-modal .card-header { padding: 6px 11px !important; }
+ body:has(.app-shell):not(:has(.platform-workspace)) .hawala-create-modal .card-body { padding: 7px 11px !important; }
+}
+body:has(.app-shell):not(:has(.platform-workspace)) .modal :is(.hawala-basics-card,.deposit-withdraw-entry-modal .modern-card,.money-exchange-modal .modern-card) { border: 0 !important; box-shadow: none !important; }
+body:has(.app-shell):not(:has(.platform-workspace)) .modal :is(.hawala-basics-card,.deposit-withdraw-entry-modal .modern-card,.money-exchange-modal .modern-card) > .card-body { padding: 0 !important; }

@@ -21,6 +21,23 @@ namespace HawalaExchange.NavigationTests;
 
 public sealed class PageLoadingTests
 {
+    [Fact]
+    public async Task Correspondent_balances_load_once_as_a_batch_only_with_account_view_permission()
+    {
+        using var setup=new Setup(typeof(CorrespondentProbe));
+        setup.Permissions.Setup(x=>x.Can("Accounts.View")).Returns(true);
+        setup.Balances.Setup(x=>x.GetAllCorrespondentBalancesAsync()).ReturnsAsync(new[]{new CorrespondentBalanceDto { CorrespondentId=1,Balances=[new(){CurrencyCode="AFN",Balance=1500}] }});
+        await setup.Render<CorrespondentProbe>();
+        setup.Balances.Verify(x=>x.GetAllCorrespondentBalancesAsync(),Times.Once);
+        setup.Balances.Verify(x=>x.GetCorrespondentBalanceAsync(It.IsAny<long>()),Times.Never);
+        Assert.True(setup.Field<bool>("balancesReady"));
+        setup.Permissions.Setup(x=>x.Can("Accounts.View")).Returns(false);
+        await setup.Invoke("LoadBalancesAsync");
+        Assert.False(setup.Field<bool>("balancesReady"));
+        Assert.Empty(setup.Field<Dictionary<long,List<BalanceDto>>>("listBalances"));
+        setup.Balances.Verify(x=>x.GetAllCorrespondentBalancesAsync(),Times.Once);
+    }
+
     [Theory]
     [InlineData("Pending")]
     [InlineData("Received")]
@@ -345,6 +362,8 @@ public sealed class PageLoadingTests
         public Mock<ICorrespondentService> Correspondents { get; } = new();
         public Mock<ICurrencyService> Currencies { get; } = new();
         public Mock<IHawalaService> Hawalas { get; } = new();
+        public Mock<IBalanceService> Balances { get; } = new();
+        public Mock<IUserPermissionService> Permissions { get; } = new();
         private readonly ServiceProvider services;
         private readonly LifecycleRenderer renderer;
         private object component = null!;
@@ -373,7 +392,7 @@ public sealed class PageLoadingTests
                     var mock = (Mock)Activator.CreateInstance(typeof(Mock<>).MakeGenericType(property.PropertyType))!;
                     collection.AddSingleton(property.PropertyType, mock.Object);
                 }
-            collection.AddSingleton(Accounts.Object).AddSingleton(Customers.Object).AddSingleton(Correspondents.Object)
+            collection.AddSingleton(Balances.Object).AddSingleton(Permissions.Object).AddSingleton(Accounts.Object).AddSingleton(Customers.Object).AddSingleton(Correspondents.Object)
                 .AddSingleton(Currencies.Object).AddSingleton(Hawalas.Object).AddSingleton<NavigationManager>(new TestNavigation())
                 .AddSingleton(new AppDateDisplay(new DbContextOptionsBuilder<ApplicationDbContext>().Options, tenant))
                 .AddSingleton(new UiReferenceDataCache(tenant, Currencies.Object, locations.Object, Mock.Of<ICompanySettingService>()))

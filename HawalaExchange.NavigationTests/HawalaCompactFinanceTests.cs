@@ -58,7 +58,7 @@ public class HawalaCompactFinanceTests
             foreach(var property in t.GetProperties(Hidden|BindingFlags.Public|BindingFlags.DeclaredOnly).Where(p=>p.GetCustomAttribute<InjectAttribute>() is not null && p.PropertyType.IsInterface))
             {var mock=(Mock)Activator.CreateInstance(typeof(Mock<>).MakeGenericType(property.PropertyType))!;collection.AddSingleton(property.PropertyType,mock.Object);}
         var permissions=new Mock<IUserPermissionService>();permissions.Setup(x=>x.Can(It.IsAny<string>())).Returns(true);
-        using var services=collection.AddSingleton(permissions.Object).AddSingleton<NavigationManager>(new TestNavigation())
+        using var services=collection.AddSingleton(Mock.Of<IFinancialReceiptPreview>()).AddSingleton(permissions.Object).AddSingleton<NavigationManager>(new TestNavigation())
             .AddSingleton(new AppDateDisplay(new DbContextOptionsBuilder<ApplicationDbContext>().Options,Mock.Of<ICurrentTenant>())).BuildServiceProvider();
         await using var renderer=new HtmlRenderer(services,services.GetRequiredService<ILoggerFactory>());
         await renderer.Dispatcher.InvokeAsync(async()=>{

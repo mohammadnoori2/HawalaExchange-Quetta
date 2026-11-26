@@ -1,4 +1,4 @@
-﻿@using HawalaExchange.Web.Services
+@using HawalaExchange.Web.Services
 @inject IFinancialReceiptPreview ReceiptPreview
 @* Components/Shared/Modals/MoneyExchangeModal.razor *@
 @using HawalaExchange.Application.DTOs
@@ -27,8 +27,8 @@
             <div class="modal-content money-exchange-modal" data-live-finance="exchange" data-linked-rate="@(LinkedHawalaId.HasValue ? "true" : "false")" data-live-source="@(LastEditedAmount == AmountInputSource.From ? "from" : "to")">
                 <div class="modal-header gradient">
                     <h5 class="modal-title text-white">
-                        <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-plus-circle") me-2"></i>
-                        @(IsEditMode ? "ویرایش تبادله" : "ایجاد تبادله جدید")
+                        <i class="bi @(IsEditMode ? "bi-pencil-square" : "bi-arrow-left-right") me-2"></i>
+                        @(IsEditMode ? "ویرایش تبادله" : "ثبت تبادله اسعار")
                     </h5>
 
                     <button type="button"
@@ -99,13 +99,16 @@
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label fw-bold">گزینه خرید و فروش</label>
-                                        <select class="form-select"
+                                        <select class="form-select visually-hidden" tabindex="-1" aria-hidden="true"
                                                 data-live-trade
                                                 value="@TradeOption"
                                                 @onchange="OnTradeOptionChanged">
                                             <option value="@ExchangeTradeOption.Sell">فروش</option>
                                             <option value="@ExchangeTradeOption.Buy">خرید</option>
-                                        </select>
+                                        </select><div class="reference-segmented trade-segmented" role="group" aria-label="نوع معامله">
+                                            <button type="button" class="@(TradeOption == ExchangeTradeOption.Buy ? "is-active is-buy" : "")" aria-pressed="@(TradeOption == ExchangeTradeOption.Buy)" @onclick="() => OnTradeOptionChanged(new ChangeEventArgs { Value = ExchangeTradeOption.Buy })"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i> خرید</button>
+                                            <button type="button" class="@(TradeOption == ExchangeTradeOption.Sell ? "is-active is-sell" : "")" aria-pressed="@(TradeOption == ExchangeTradeOption.Sell)" @onclick="() => OnTradeOptionChanged(new ChangeEventArgs { Value = ExchangeTradeOption.Sell })"><i class="bi bi-graph-down-arrow" aria-hidden="true"></i> فروش</button>
+                                        </div>
                                         <small class="text-muted">@TradeOptionHelp</small>
                                     </div>
                                     }
@@ -139,7 +142,7 @@
 
                                 <div class="row">
                                     <div class="col-md-6">
-                                        <div class="border rounded p-3 h-100">
+                                        <div class="border rounded p-3 h-100 exchange-sell-panel">
                                             <h6 class="text-danger mb-3">
                                                 <i class="bi bi-arrow-up-circle"></i>
                                                 ارز فروش
@@ -202,7 +205,7 @@
                                     </div>
 
                                     <div class="col-md-6">
-                                        <div class="border rounded p-3 h-100">
+                                        <div class="border rounded p-3 h-100 exchange-buy-panel">
                                             <h6 class="text-success mb-3">
                                                 <i class="bi bi-arrow-down-circle"></i>
                                                 ارز خرید

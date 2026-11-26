@@ -3,12 +3,12 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inject IFileService FileService
 
-<div class="modern-card mb-3">
+<div class="modern-card mb-3 receiver-payment-card">
     <div class="card-header">
         <h6 class="mb-0"><i class="bi bi-person-check me-2"></i>تکمیل مشخصات گیرنده</h6>
     </div>
-    <div class="card-body">
-        <div class="mb-3 position-relative">
+    <div class="card-body receiver-payment-body">
+        <div class="mb-3 position-relative receiver-search-field">
             <label class="form-label fw-bold">جستجوی مشتری ثبت‌شده</label>
             <input type="search" class="form-control" @bind="searchTerm" @bind:event="oninput"
                    placeholder="نام، کد مشتری، تلفن یا شماره تذکره" autocomplete="off" />
@@ -27,7 +27,7 @@
             }
         </div>
 
-        <div class="row g-3">
+        <div class="row g-3 receiver-identity-grid">
             <div class="col-md-6">
                 <label class="form-label fw-bold">نام گیرنده <span class="text-danger">*</span></label>
                 <input class="form-control" @bind="Model.ReceiverName" />

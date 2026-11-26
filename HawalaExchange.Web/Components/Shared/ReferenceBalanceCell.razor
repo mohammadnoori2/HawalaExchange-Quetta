@@ -1,0 +1,11 @@
+@using HawalaExchange.Web.Helpers
+@inherits ComponentBase
+@if (Value.HasValue)
+{
+    <span class="reference-balance-cell @(Value > 0 ? "is-credit" : Value < 0 ? "is-debit" : "is-zero")">
+        <bdi class="reference-balance-value">@(Value > 0 ? "+" : "")@MoneyFormatHelper.Format(Value.Value)</bdi>
+        <small>@(Value > 0 ? "طلبکار" : Value < 0 ? "بدهکار" : "—")</small>
+    </span>
+}
+else { <span class="text-muted" title="مانده در دسترس نیست">—</span> }
+@code { [Parameter] public decimal? Value { get; set; } }

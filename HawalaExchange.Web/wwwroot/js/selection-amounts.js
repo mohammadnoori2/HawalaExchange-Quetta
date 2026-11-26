@@ -12,6 +12,8 @@ export function money(units) {
 }
 export function summarize(ids, cache) {
     const originals = new Map(), conversions = new Map(), agreements = new Map(), grand = new Map(), unconverted = new Map();
+    const effectiveTotals = new Map(), independentConversions = new Map();
+    let independentIncomplete = 0;
     let missing = 0, pending = 0, incomplete = 0, withoutAgreement = 0;
     for (const id of ids) {
         const row = cache.get(id);
@@ -19,6 +21,17 @@ export function summarize(ids, cache) {
         let exact = exactAmounts.get(row);
         if (!exact) { exact = { original: decimalUnits(row.original), converted: row.converted == null ? null : decimalUnits(row.converted) }; exactAmounts.set(row, exact); }
         const amount = exact.original, cancelled = !!row.cancelled;
+        const hasIndependent = !!row.hasIndependentExchange;
+        if (hasIndependent && row.independentConverted != null && row.independentCurrency) {
+            const converted = decimalUnits(row.independentConverted);
+            const key = JSON.stringify([row.currency, row.independentCurrency, cancelled]);
+            const conversion = independentConversions.get(key) || { from: row.currency, to: row.independentCurrency, cancelled, source: 0n, target: 0n };
+            conversion.source += amount; conversion.target += converted; independentConversions.set(key, conversion);
+            if (!cancelled) effectiveTotals.set(row.independentCurrency, (effectiveTotals.get(row.independentCurrency) || 0n) + converted);
+        } else if (!cancelled) {
+            if (hasIndependent) independentIncomplete++;
+            else effectiveTotals.set(row.currency, (effectiveTotals.get(row.currency) || 0n) + amount);
+        }
         const originalKey = JSON.stringify([row.currency, cancelled]);
         const original = originals.get(originalKey) || { currency: row.currency, cancelled, amount: 0n };
         original.amount += amount; originals.set(originalKey, original);
@@ -41,7 +54,7 @@ export function summarize(ids, cache) {
     }
     for (const row of agreements.values()) if (!row.cancelled)
         grand.set(row.currency, (grand.get(row.currency) || 0n) + row.native + row.converted);
-    return { count: ids.size, missing, pending, incomplete, withoutAgreement, unconverted: [...unconverted].map(([currency, amount]) => ({ currency, amount })), originals: [...originals.values()], conversions: [...conversions.values()], agreements: [...agreements.values()], grand: [...grand].map(([currency, amount]) => ({ currency, amount })) };
+    return { effectiveTotals: [...effectiveTotals].map(([currency, amount]) => ({currency, amount})), independentConversions: [...independentConversions.values()], independentIncomplete, count: ids.size, missing, pending, incomplete, withoutAgreement, unconverted: [...unconverted].map(([currency, amount]) => ({ currency, amount })), originals: [...originals.values()], conversions: [...conversions.values()], agreements: [...agreements.values()], grand: [...grand].map(([currency, amount]) => ({ currency, amount })) };
 }
 export function paintAmountStatus(scopeId, ids, cache, unavailable = false) {
     const target = document.getElementById(`${scopeId}-amount-status`);
@@ -64,11 +77,13 @@ export function paintAmountStatus(scopeId, ids, cache, unavailable = false) {
         line('', [{ text: unavailable ? 'اطلاعات بعضی انتخاب‌ها در دسترس نیست؛ فهرست را تازه کنید.' : `در حال دریافت اطلاعات ${result.missing} انتخاب…` }]);
     } else {
         line('اصل مبالغ:', result.originals.map(x => ({ text: `${money(x.amount)} ${x.currency}${x.cancelled ? ' (لغوشده)' : ''}`, cancelled: x.cancelled, ltr: true })));
-        if (result.unconverted.length) line('مبلغ تبدیل‌نشده:', result.unconverted.map(x => ({ text: `${money(x.amount)} ${x.currency}`, ltr: true })));
-        if (result.conversions.length) line('تبدیل‌شده:', result.conversions.map(x => ({ text: `${money(x.source)} ${x.from} → ${money(x.target)} ${x.to}${x.cancelled ? ' (لغوشده)' : ''}`, cancelled: x.cancelled, ltr: true })));
+        if (result.unconverted.length) line('مبلغ تبدیل‌نشده به ارز توافقی:', result.unconverted.map(x => ({ text: `${money(x.amount)} ${x.currency}`, ltr: true })));
+        if (result.conversions.length) line('تبدیل به ارز توافقی:', result.conversions.map(x => ({ text: `${money(x.source)} ${x.from} → ${money(x.target)} ${x.to}${x.cancelled ? ' (لغوشده)' : ''}`, cancelled: x.cancelled, ltr: true })));
+        if (result.independentConversions.length) line('تبدیل مستقل:', result.independentConversions.map(x => ({ text: `${money(x.source)} ${x.from} → ${money(x.target)} ${x.to}${x.cancelled ? ' (لغوشده)' : ''}`, cancelled: x.cancelled, ltr: true })));
         const activeAgreements = result.agreements.filter(x => !x.cancelled);
         if (activeAgreements.length > 1) line('به تفکیک نمایندگی:', activeAgreements.map(x => ({ text: `${x.correspondent}: ${money(x.native + x.converted)} ${x.currency}` })));
         line('مجموع کل به ارز توافقی:', result.grand.length ? result.grand.map(x => ({ text: `${money(x.amount)} ${x.currency}`, ltr: true })) : [{ text: '—' }], true);
+        line('مجموع نهایی مبالغ:', result.independentIncomplete ? [{ text: 'اطلاعات تبدیل بعضی حواله‌ها ناقص است؛ فهرست را تازه کنید.' }] : result.effectiveTotals.length ? result.effectiveTotals.map(x => ({ text: `${money(x.amount)} ${x.currency}`, ltr: true })) : [{ text: '—' }], true);
         if (result.pending || result.incomplete || result.withoutAgreement) line('', [{ text: `تبدیل‌نشده: ${result.pending} · اطلاعات تبدیل ناقص: ${result.incomplete} · بدون ارز توافقی: ${result.withoutAgreement}` }]);
     }
     target.replaceChildren(content);

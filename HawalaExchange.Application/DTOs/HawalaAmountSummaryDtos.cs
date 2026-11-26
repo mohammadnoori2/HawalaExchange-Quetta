@@ -11,6 +11,9 @@ public sealed class HawalaBrowserAmountRow
     public string? Converted { get; set; }
     public bool Cancelled { get; set; }
     public bool HasConversion { get; set; }
+    public bool HasIndependentExchange { get; set; }
+    public string? IndependentCurrency { get; set; }
+    public string? IndependentConverted { get; set; }
 }
 
 public sealed class HawalaAmountSummaryRequest

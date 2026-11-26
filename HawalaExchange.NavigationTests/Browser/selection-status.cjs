@@ -22,7 +22,7 @@ await page.locator('#records').evaluate((element,markup)=>element.innerHTML=mark
 await page.locator('[data-record-id="4"]').click();await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('20 USD'));assert.equal(await page.locator('#records-amount-status img').count(),0);assert.ok((await page.locator('#records-amount-status').textContent()).includes('<img'));
 await page.evaluate(()=>selection.mount('records',ref,[4],[4,5],'other',[row(4,'AFN','3250',null)],'v3'));
 await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('3,250 AFN'));
-assert.ok((await page.locator('#records-amount-status').textContent()).includes('مبلغ تبدیل‌نشده:'));
+assert.ok((await page.locator('#records-amount-status').textContent()).includes('مبلغ تبدیل‌نشده به ارز توافقی:'));
 await page.evaluate(()=>{reads=0;ref={invokeMethodAsync(name,ids){if(name==='ReadAmountRows'){reads++;return Promise.resolve(ids.map(id=>row(id,'AFN','650','10')));}return Promise.resolve();}};selection.mount('records',ref,[],[4,5],'lazy',[],'v4');});
 await page.waitForFunction(()=>document.querySelector('#records-amount-status').hidden);
 assert.equal(await page.evaluate(()=>reads),0,'Opening a list must not load summary metadata');
@@ -32,6 +32,13 @@ assert.equal(await page.evaluate(()=>reads),1,'First selection lazily reads only
 await page.locator('[data-record-id="4"]').click();await page.locator('[data-record-id="4"]').click();
 await page.waitForFunction(()=>document.querySelector('#records-amount-status').textContent.includes('10 USD'));
 assert.equal(await page.evaluate(()=>reads),1,'The lazily loaded amount is reused');
+await page.evaluate(()=>selection.mount('records',ref,[],[4,5],'independent',[
+ {...row(4,'USD','28000',null),hasIndependentExchange:true,independentCurrency:'AFN',independentConverted:'1864800'},
+ row(5,'AFN','100000',null)
+],'independent-v1'));
+await page.locator('[data-record-id="4"]').click();await page.locator('[data-record-id="5"]').click();
+await page.waitForFunction(()=>[...document.querySelectorAll('.record-amount-status-line')].some(x=>x.textContent.startsWith('مجموع نهایی مبالغ:')&&x.textContent.includes('1,964,800 AFN')));
+const finalLine=await page.locator('.record-amount-status-line').filter({hasText:'مجموع نهایی مبالغ:'}).textContent();assert.ok(!finalLine.includes('USD'),'Converted principal must not be added again');
 await page.setViewportSize({width:375,height:800});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
 console.log('PASS: immediate browser totals without database reads, cross-page selection, single fetch for unknown rows, cache reuse, clear/reset, escaped names and narrow layout.');
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

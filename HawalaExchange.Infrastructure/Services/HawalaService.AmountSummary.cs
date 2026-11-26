@@ -5,6 +5,31 @@ namespace HawalaExchange.Application.Services;
 
 public partial class HawalaService
 {
+    private sealed class IndependentAmount
+    {
+        public long HawalaId { get; set; }
+        public decimal Amount { get; set; }
+        public string Currency { get; set; } = "";
+    }
+    private async Task<Dictionary<long, IndependentAmount>> ReadIndependentAmountsAsync(long[] ids, CancellationToken ct)
+    {
+        if (ids.Length == 0) return [];
+        var rows = await _context.MoneyExchangeOperations.AsNoTracking()
+            .Where(x => !x.IsDeleted && x.LinkedHawalaId.HasValue && ids.Contains(x.LinkedHawalaId.Value))
+            .Select(x => new IndependentAmount { HawalaId=x.LinkedHawalaId!.Value, Amount=x.ToAmount, Currency=x.ToCurrency.Code })
+            .ToListAsync(ct);
+        return rows.ToDictionary(x => x.HawalaId);
+    }
+    private async Task FillIndependentAmountsAsync(List<HawalaDto> items, CancellationToken ct)
+    {
+        var amounts = await ReadIndependentAmountsAsync(items.Where(x => x.HasIndependentExchange).Select(x => x.Id).ToArray(), ct);
+        foreach (var item in items)
+            if (amounts.TryGetValue(item.Id, out var converted))
+            {
+                item.IndependentExchangeAmount = converted.Amount;
+                item.IndependentExchangeCurrency = converted.Currency;
+            }
+    }
     // Unmapped read model: the stored principal valuation excludes commissions.
     public sealed class SummaryValuation
     {
@@ -86,10 +111,14 @@ public partial class HawalaService
         if(ids.Length>50000 || ids.Any(x=>x<=0))throw new InvalidOperationException("انتخاب حواله‌ها معتبر نیست.");
         if(ids.Length==0)return [];
         var rows=await BuildAmountRows(_context.Hawalas.AsNoTracking().Where(x=>!x.IsDeleted && ids.Contains(x.Id))).ToListAsync(cancellationToken);
+        var independent = await ReadIndependentAmountsAsync(rows.Select(x => x.HawalaId).Distinct().ToArray(), cancellationToken);
         return rows.Select(x=>new HawalaBrowserAmountRow{Id=x.HawalaId,CorrespondentId=x.CorrespondentId,Correspondent=x.Correspondent,
             Currency=x.Currency,Original=x.Principal.ToString(System.Globalization.CultureInfo.InvariantCulture),
             SettlementCurrency=x.TargetCurrencyCode,Converted=x.Converted?.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            Cancelled=x.Cancelled,HasConversion=x.HasConversion}).ToList();
+            Cancelled=x.Cancelled,HasConversion=x.HasConversion,
+            HasIndependentExchange=independent.ContainsKey(x.HawalaId),
+            IndependentCurrency=independent.TryGetValue(x.HawalaId,out var converted)?converted.Currency:null,
+            IndependentConverted=independent.TryGetValue(x.HawalaId,out var value)?value.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture):null}).ToList();
     }
 
 }

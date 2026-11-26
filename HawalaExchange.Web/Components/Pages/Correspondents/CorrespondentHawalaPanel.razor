@@ -164,7 +164,7 @@
                             <td>@(hawala.SenderName ?? "—")</td>
                             <td>@(hawala.ReceiverName ?? "—")</td>
                             <td title="@GetPaymentLocation(hawala)"><RecordDetailsLink Kind="PaymentLocation" Id="hawala.PaymentLocationId" Text="@GetPaymentLocationName(hawala)" /></td>
-                            <td class="fw-bold text-primary" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount) <CurrencyBadge Code="@hawala.FromCurrencyCode" /></td>
+                            <td class="fw-bold text-primary" dir="ltr">@MoneyFormatHelper.Format(hawala.FromAmount) <CurrencyBadge Code="@hawala.FromCurrencyCode" /><HawalaIndependentAmount Hawala="hawala" /></td>
                             <td dir="ltr">
                                 @if (HawalaType == "HawalaSend")
                                 {
@@ -222,7 +222,7 @@
                             <td><AppDateTime Value="@hawala.CreatedAt" /></td>
                             <td class="text-center operation-cell">
                                 <HawalaOperationMenu Hawala="hawala"
-                                                     OnExchangeSaved="StateHasChanged"
+                                                     OnExchangeSaved="RefreshIndependentConversionAsync"
                                                      ShowEdit="true"
                                                      ShowPay="true"
                                                      ShowCancel="true"
@@ -439,6 +439,7 @@
 <HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
 
 @code {
+    private async Task RefreshIndependentConversionAsync() { amountEpoch++; browserAmountRows=[]; await LoadHawalasAsync(); }
     private Task GeneralSearchChangedAsync() { identifierSearch = new(); return OnFilterChangedAsync(); }
     private HawalaIdentifierSearch identifierSearch = new();
     private async Task SearchIdentifierAsync(HawalaIdentifierSearch search)

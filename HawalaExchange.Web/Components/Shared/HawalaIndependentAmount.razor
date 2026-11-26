@@ -1,0 +1,10 @@
+@using HawalaExchange.Application.DTOs
+@using HawalaExchange.Web.Helpers
+@inherits ComponentBase
+@if (Hawala.HasIndependentExchange && Hawala.IndependentExchangeAmount.HasValue)
+{
+    <small class="d-block fw-semibold" dir="rtl">تبدیل‌شده: <bdi>@MoneyFormatHelper.Format(Hawala.IndependentExchangeAmount.Value) <CurrencyBadge Code="@Hawala.IndependentExchangeCurrency" /></bdi></small>
+}
+@code {
+    [Parameter, EditorRequired] public HawalaDto Hawala { get; set; } = default!;
+}

@@ -542,6 +542,7 @@
                 var items = pageIds.Count == 0 ? new List<HawalaDto>() : await _context.Hawalas.AsNoTracking()
                     .Where(h => !h.IsDeleted && pageIds.Contains(h.Id)).Select(GetListProjection()).ToListAsync(cancellationToken);
                 var positions = pageIds.Select((id, index) => (id, index)).ToDictionary(x => x.id, x => x.index);
+                await FillIndependentAmountsAsync(items, cancellationToken);
                 items.Sort((left, right) => positions[left.Id].CompareTo(positions[right.Id]));
                 var systemGeneratedIds = items
                     .Where(x => x.IsSystemGenerated)

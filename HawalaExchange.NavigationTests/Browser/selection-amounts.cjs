@@ -26,5 +26,19 @@ assert.equal(pending.incomplete,1);
 assert.equal(money(pending.grand.find(x=>x.currency==='USD').amount),'1,000');
 assert.equal(summarize(new Set([99]),cache).missing,1);
 assert.equal(summarize(new Set(),cache).count,0);
+const independent = new Map([
+ {...row(20,'USD','28000'),hasIndependentExchange:true,independentCurrency:'AFN',independentConverted:'1864800'},
+ row(21,'AFN','100000'),
+ {...row(22,'USD','100',null,'USD',true),hasIndependentExchange:true,independentCurrency:'AFN',independentConverted:'6660'},
+ row(23,'USD','50')
+].map(x=>[x.id,x]));
+const effective=summarize(new Set([20,21,22,23]),independent);
+assert.equal(money(effective.effectiveTotals.find(x=>x.currency==='AFN').amount),'1,964,800');
+assert.equal(money(effective.effectiveTotals.find(x=>x.currency==='USD').amount),'50');
+assert.equal(effective.independentConversions.length,2);
+assert.equal(money(effective.originals.find(x=>x.currency==='USD'&&!x.cancelled).amount),'28,050');
+// A reversed independent exchange has no active metadata and returns to its original currency.
+independent.set(20,row(20,'USD','28000'));
+assert.equal(money(summarize(new Set([20,21]),independent).effectiveTotals.find(x=>x.currency==='USD').amount),'28,000');
 console.log('PASS: exact decimal totals, final-only rounding, large values, native plus converted without double counting, canceled exclusions, currency separation and missing metadata.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

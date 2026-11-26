@@ -152,7 +152,7 @@
                                     <td><RecordDetailsLink Kind="Correspondent" Id="hawala.CorrespondentId" Text="@hawala.CorrespondentName" /></td>
 
                                     <td dir="ltr" class="fw-bold text-primary">
-                                        @MoneyFormatHelper.Format(hawala.FromAmount) <CurrencyBadge Code="@hawala.FromCurrencyCode" />
+                                        @MoneyFormatHelper.Format(hawala.FromAmount) <CurrencyBadge Code="@hawala.FromCurrencyCode" /><HawalaIndependentAmount Hawala="hawala" />
                                     </td>
 
                                     <td dir="ltr">
@@ -185,7 +185,7 @@
                                     <td><RecordDetailsLink Kind="Account" Id="@(hawala.PaidFromAccountId ?? hawala.FromAccountId)" Text="@GetExecutionAccountText(hawala)" /></td>
 
                                     <td class="text-center operation-cell">
-                                        <HawalaOperationMenu Hawala="hawala"
+                                        <HawalaOperationMenu OnExchangeSaved="RefreshIndependentConversionAsync" Hawala="hawala"
                                                              ShowEdit="true"
                                                              ShowPay="true"
                                                              ShowCancel="true"
@@ -656,6 +656,7 @@
 <HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
 
 @code {
+    private async Task RefreshIndependentConversionAsync() { amountEpoch++; browserAmountRows=[]; await LoadData(); }
     private Task GeneralSearchChangedAsync() { identifierSearch = new(); return OnSearchChangedAsync(); }
     private HawalaIdentifierSearch identifierSearch = new();
     private async Task SearchIdentifierAsync(HawalaIdentifierSearch search)

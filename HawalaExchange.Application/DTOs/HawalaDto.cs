@@ -18,6 +18,8 @@ namespace HawalaExchange.Application.DTOs
     public class HawalaDto
     {
         public bool HasIndependentExchange { get; set; }
+        public decimal? IndependentExchangeAmount { get; set; }
+        public string? IndependentExchangeCurrency { get; set; }
         public string? CancellationAccountingMode { get; set; }
         public long? CompensatesHawalaId { get; set; }
         public long Id { get; set; }

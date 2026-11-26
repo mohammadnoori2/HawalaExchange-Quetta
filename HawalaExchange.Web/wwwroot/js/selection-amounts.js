@@ -10,6 +10,11 @@ export function money(units) {
     const value = ((negative ? -units : units) + scale / 2n) / scale;
     return (negative && value ? '-' : '') + new Intl.NumberFormat('en-US').format(value);
 }
+function currencyTone(code) {
+    const known = { USD: 0, AFN: 1, PKR: 2, EUR: 3, AED: 4, IRR: 5, IRT: 5, GBP: 6, SAR: 7 };
+    if (Object.hasOwn(known, code)) return known[code];
+    return [...code].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 8, 0);
+}
 export function summarize(ids, cache) {
     const originals = new Map(), conversions = new Map(), agreements = new Map(), grand = new Map(), unconverted = new Map();
     const effectiveTotals = new Map(), independentConversions = new Map();
@@ -62,12 +67,17 @@ export function paintAmountStatus(scopeId, ids, cache, unavailable = false) {
     target.hidden = ids.size === 0;
     if (!ids.size) { target.replaceChildren(); return; }
     const result = summarize(ids, cache), content = document.createDocumentFragment();
-    const line = (title, values, strong = false) => {
-        const element = document.createElement('div'); element.className = 'record-amount-status-line';
+    const line = (title, values, strong = false, highlight = false) => {
+        const element = document.createElement('div'); element.className = highlight ? 'record-amount-status-line record-amount-status-total' : 'record-amount-status-line';
         const label = document.createElement(strong ? 'strong' : 'span'); label.textContent = title; element.append(label);
         for (const value of values) {
             const text = document.createElement(strong ? 'strong' : 'span');
             text.textContent = value.text; text.className = value.cancelled ? 'text-danger' : '';
+            if (highlight && value.currency) {
+                const code = value.currency.trim().toUpperCase();
+                text.classList.add('currency-badge', `currency-tone-${currencyTone(code)}`);
+                text.dataset.currency = code;
+            }
             if (value.ltr) text.dir = 'ltr'; element.append(text);
         }
         content.append(element);
@@ -83,7 +93,7 @@ export function paintAmountStatus(scopeId, ids, cache, unavailable = false) {
         const activeAgreements = result.agreements.filter(x => !x.cancelled);
         if (activeAgreements.length > 1) line('به تفکیک نمایندگی:', activeAgreements.map(x => ({ text: `${x.correspondent}: ${money(x.native + x.converted)} ${x.currency}` })));
         line('مجموع کل به ارز توافقی:', result.grand.length ? result.grand.map(x => ({ text: `${money(x.amount)} ${x.currency}`, ltr: true })) : [{ text: '—' }], true);
-        line('مجموع نهایی مبالغ:', result.independentIncomplete ? [{ text: 'اطلاعات تبدیل بعضی حواله‌ها ناقص است؛ فهرست را تازه کنید.' }] : result.effectiveTotals.length ? result.effectiveTotals.map(x => ({ text: `${money(x.amount)} ${x.currency}`, ltr: true })) : [{ text: '—' }], true);
+        line('مجموع نهایی مبالغ:', result.independentIncomplete ? [{ text: 'اطلاعات تبدیل بعضی حواله‌ها ناقص است؛ فهرست را تازه کنید.' }] : result.effectiveTotals.length ? result.effectiveTotals.map(x => ({ text: `${money(x.amount)} ${x.currency}`, currency: x.currency, ltr: true })) : [{ text: '—' }], true, true);
         if (result.pending || result.incomplete || result.withoutAgreement) line('', [{ text: `تبدیل‌نشده: ${result.pending} · اطلاعات تبدیل ناقص: ${result.incomplete} · بدون ارز توافقی: ${result.withoutAgreement}` }]);
     }
     target.replaceChildren(content);

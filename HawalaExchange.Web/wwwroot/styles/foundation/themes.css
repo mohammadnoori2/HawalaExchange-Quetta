@@ -107,10 +107,13 @@
 .counterparty-currency-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem; background: var(--surface-muted); color: var(--app-ink); }
 .counterparty-currency-group + .counterparty-currency-group { border-top: 1px solid var(--app-border); margin-top: .75rem; }
 .dashboard-counterparty-scroll { overflow-x: auto; max-width: 100%; margin-top: .75rem; }
-.record-amount-status { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: .25rem 1.5rem; padding: .6rem 1rem; background: var(--surface-muted); color: var(--app-ink); border-top: 1px solid var(--app-border); box-shadow: 0 -2px 8px #0001; max-height: 13rem; overflow: auto; font-size: .8rem; }
+.record-amount-status { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: nowrap; align-items: center; gap: 1.5rem; padding: .6rem 1rem; background: var(--surface-muted); color: var(--app-ink); border-top: 1px solid var(--app-border); box-shadow: 0 -2px 8px #0001; min-width: 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; white-space: nowrap; font-size: .8rem; }
 .record-amount-status[hidden] { display: none; }
-.record-amount-status-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem 1rem; line-height: 1.8; }
+.record-amount-status-line { display: flex; flex: 0 0 auto; flex-wrap: nowrap; align-items: baseline; gap: 1rem; line-height: 1.8; }
 .record-amount-status-line > :first-child { font-weight: 600; }
+.record-amount-status-total { color: #fff; background: #1e40af; border: 1px solid #3b82f6; border-radius: .4rem; padding: .2rem .65rem; }
+.record-amount-status-total > strong { font-weight: 700; }
+.record-amount-status-total .currency-badge { padding: .15rem .55rem; font-size: inherit; }
 .top-remain-card:has(> .dashboard-counterparty-scroll) { min-width: 0; }
 .dashboard-counterparty-table :is(th,td) { text-align: center; vertical-align: middle; padding: .65rem .75rem; white-space: nowrap; }
 .dashboard-counterparty-table thead th, .dashboard-counterparty-table tfoot { background: var(--surface-muted); }

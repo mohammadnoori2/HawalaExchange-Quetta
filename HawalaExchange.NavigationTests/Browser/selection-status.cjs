@@ -39,6 +39,32 @@ await page.evaluate(()=>selection.mount('records',ref,[],[4,5],'independent',[
 await page.locator('[data-record-id="4"]').click();await page.locator('[data-record-id="5"]').click();
 await page.waitForFunction(()=>[...document.querySelectorAll('.record-amount-status-line')].some(x=>x.textContent.startsWith('مجموع نهایی مبالغ:')&&x.textContent.includes('1,964,800 AFN')));
 const finalLine=await page.locator('.record-amount-status-line').filter({hasText:'مجموع نهایی مبالغ:'}).textContent();assert.ok(!finalLine.includes('USD'),'Converted principal must not be added again');
-await page.setViewportSize({width:375,height:800});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+const total=page.locator('.record-amount-status-total').filter({hasText:'مجموع نهایی مبالغ:'});
+const agreementTotal=page.locator('.record-amount-status-line').filter({hasText:'مجموع کل به ارز توافقی:'});
+assert.equal(await agreementTotal.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)');
+assert.equal(await total.evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(30, 64, 175)');
+assert.equal(await total.evaluate(e=>getComputedStyle(e).color),'rgb(255, 255, 255)');
+await page.evaluate(()=>document.documentElement.dataset.bsTheme='dark');
+assert.equal(await total.evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(30, 64, 175)');
+assert.equal(await total.evaluate(e=>getComputedStyle(e).color),'rgb(255, 255, 255)');
+await page.evaluate(()=>document.documentElement.dataset.bsTheme='light');
+await page.evaluate(()=>selection.mount('records',ref,[4,5],[4,5],'currency-colors',[
+ row(4,'AFN','100000',null),row(5,'USD','100',null)
+],'currency-colors-v1'));
+await page.waitForFunction(()=>document.querySelectorAll('.record-amount-status-total .currency-badge').length===2);
+const afn=page.locator('.record-amount-status-total [data-currency="AFN"]'),usd=page.locator('.record-amount-status-total [data-currency="USD"]');
+for(const theme of ['light','dark']) {
+ await page.evaluate(t=>document.documentElement.dataset.bsTheme=t,theme);
+ assert.notEqual(await afn.evaluate(e=>getComputedStyle(e).backgroundColor),await usd.evaluate(e=>getComputedStyle(e).backgroundColor));
+ assert.ok((await afn.textContent()).includes('100,000 AFN'));
+}
+assert.equal(await agreementTotal.locator('.currency-badge').count(),0,'Agreement total stays without background badges');
+for(const width of [1550,375]) {
+ await page.setViewportSize({width,height:800});
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ const centers=await page.locator('#records-amount-status > .record-amount-status-line').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return r.y+r.height/2}));
+ assert.ok(Math.max(...centers)-Math.min(...centers)<1,'Summary must stay in one row');
+ assert.equal(await page.locator('#records-amount-status').evaluate(e=>getComputedStyle(e).overflowX),'auto');
+}
 console.log('PASS: immediate browser totals without database reads, cross-page selection, single fetch for unknown rows, cache reuse, clear/reset, escaped names and narrow layout.');
 }finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

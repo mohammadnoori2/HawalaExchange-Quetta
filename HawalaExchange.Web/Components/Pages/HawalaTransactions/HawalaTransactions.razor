@@ -48,7 +48,7 @@
     </div>
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر حواله‌ها"
-                      HasActiveFilters="@(extraFilters.Count > 0 || (HasActiveFilters))"
+                      HasActiveFilters="@(identifierSearch.IsActive || extraFilters.Count > 0 || (HasActiveFilters))"
                       ActiveFilterCount="@(extraFilters.Count + (AdvancedFilterCount))"
                       Reset="ResetFilters">
         <SearchContent>
@@ -59,9 +59,11 @@
                        title="نمبر مسلسل یا نمبر حوالهٔ کامل در اولویت است؛ اگر یافت نشد، نام، مبلغ و متن جستجو می‌شود."
                        @bind="searchTerm"
                        @bind:event="oninput"
-                       @bind:after="OnFilterChangedAsync" />
+                       @bind:after="GeneralSearchChangedAsync" />
         </SearchContent>
         <QuickFilters>
+            <HawalaIdentifierSearchBox Value="identifierSearch" Changed="SearchIdentifierAsync" />
+
             <select class="form-select compact-quick-filter"
                     aria-label="نوع حواله"
                     @bind="filterHawalaType"
@@ -771,6 +773,18 @@
 <HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
 
 @code {
+    private Task GeneralSearchChangedAsync() { identifierSearch = new(); return OnFilterChangedAsync(); }
+    private HawalaIdentifierSearch identifierSearch = new();
+    private async Task SearchIdentifierAsync(HawalaIdentifierSearch search)
+    {
+        CancelPendingFilterChange();
+        identifierSearch = search;
+        searchTerm = string.Empty;
+        currentPage = 1;
+
+        await LoadHawalas();
+    }
+
     private bool showReceiptCorrespondent;
     private HawalaDto? executedHawala;
     private async Task RefreshPageDataAsync()
@@ -1123,6 +1137,7 @@
             return new HawalaFilterDto
             {
                 PreferExactIdentifiers = true,
+                Identifier = identifierSearch,
                 Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrEmpty(searchTerm) ? null : searchTerm,
                 SearchAmount = searchAmount,
@@ -1251,6 +1266,7 @@
 
     private async Task ResetFilters()
     {
+        identifierSearch = new();
         extraFilters = new();
         CancelPendingFilterChange();
         searchTerm = "";

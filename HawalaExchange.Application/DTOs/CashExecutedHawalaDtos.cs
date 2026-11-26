@@ -1,6 +1,8 @@
 namespace HawalaExchange.Application.DTOs;
 public sealed class CashExecutedHawalaFilter
 {
+    public HawalaIdentifierSearch Identifier { get; set; } = new();
+    public long? PeriodId { get; set; }
     public DateTime From { get; set; } = DateTime.Today;
     public DateTime To { get; set; } = DateTime.Today;
     public long? AccountId { get; set; }

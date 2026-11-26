@@ -1,4 +1,4 @@
-﻿@page "/hawala-cash-executed"
+@page "/hawala-cash-executed"
 @using System.Globalization
 @using System.Text.Json
 @using HawalaExchange.Application.DTOs
@@ -22,11 +22,13 @@
 <CompactFilterBar AriaLabel="فیلتر حواله‌های اجراشده از صندوق" Reset="Reset" HasActiveFilters="@HasFilters" ActiveFilterCount="@FilterCount">
 <SearchContent><input class="form-control" placeholder="نمبر مسلسل، نمبر حواله، فرستنده یا گیرنده" @bind="filter.Search" /></SearchContent>
 <QuickFilters>
+<HawalaIdentifierSearchBox Value="filter.Identifier" Changed="SearchIdentifierAsync" />
 <div class="compact-filter-field"><label class="form-label">از تاریخ پرداخت</label><PersianDatePicker @bind-Value="filter.From" /></div>
 <div class="compact-filter-field"><label class="form-label">تا تاریخ پرداخت</label><PersianDatePicker @bind-Value="filter.To" /></div>
 <select class="form-select compact-quick-filter" aria-label="صندوق" @bind="filter.AccountId"><option value="">همه صندوق‌ها</option>@foreach(var x in lookups.Accounts){<option value="@x.Id">@x.Name</option>}</select>
 </QuickFilters>
 <AdvancedFilters>
+<div class="compact-filter-field"><label class="form-label">دوره حواله</label><HawalaPeriodSelect CorrespondentId="filter.CorrespondentId" @bind-Value="filter.PeriodId" /></div>
 <div class="compact-filter-field"><label class="form-label">نمایندگی</label><select class="form-select" @bind="filter.CorrespondentId"><option value="">همه</option>@foreach(var x in lookups.Correspondents){<option value="@x.Id">@x.Name</option>}</select></div>
 <div class="compact-filter-field"><label class="form-label">محل پرداخت</label><select class="form-select" @bind="filter.LocationId"><option value="">همه</option><option value="0">نامشخص</option>@foreach(var x in lookups.Locations){<option value="@x.Id">@x.Name</option>}</select></div>
 <div class="compact-filter-field"><label class="form-label">ارز پرداخت</label><select class="form-select" @bind="filter.CurrencyId"><option value="">همه</option>@foreach(var x in lookups.Currencies){<option value="@x.Id">@x.Name</option>}</select></div>
@@ -56,6 +58,7 @@
 }
 </div>
 @code {
+    private Task SearchIdentifierAsync(HawalaIdentifierSearch search) { filter.Identifier=search; filter.Search=""; return Reload(); }
     private CashExecutedHawalaLookups lookups=new();
     private CashExecutedHawalaFilter filter=new();
     private CashExecutedHawalaFilter? applied;
@@ -66,7 +69,7 @@
     private readonly CancellationTokenSource lifetime=new();
     private IJSObjectReference? module;
     private int FilterCount=>new[]{filter.From.Date!=lookups.Today,filter.To.Date!=lookups.Today,filter.AccountId.HasValue,filter.CorrespondentId.HasValue,filter.LocationId.HasValue,filter.CurrencyId.HasValue,filter.Mode!="",filter.State!="Paid"}.Count(x=>x);
-    private bool HasFilters=>FilterCount>0 || !string.IsNullOrWhiteSpace(filter.Search);
+    private bool HasFilters=>filter.Identifier.IsActive || filter.PeriodId.HasValue || FilterCount>0 || !string.IsNullOrWhiteSpace(filter.Search);
     protected override async Task OnInitializedAsync(){try{lookups=await Service.GetLookupsAsync(lifetime.Token); if(disposed)return; Reset(); await Reload();}catch(OperationCanceledException) when(lifetime.IsCancellationRequested){}catch(Exception ex){error=ex.Message;}}
     private void Reset()=>filter=new(){From=lookups.Today,To=lookups.Today};
     private Task Reload()=>Load(1,true);

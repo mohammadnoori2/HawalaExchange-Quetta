@@ -1,0 +1,36 @@
+@using HawalaExchange.Application.DTOs
+@inherits ComponentBase
+<div class="hawala-identifier-search" role="group" aria-label="جستجوی دقیق حواله" aria-busy="@submitting">
+    <div class="d-flex gap-1">
+        <select class="form-select" aria-label="نوع شماره برای جستجوی دقیق" @bind="kind" disabled="@submitting">
+            <option value="Reference">نمبر حواله</option><option value="Serial">نمبر مسلسل</option>
+        </select>
+        <input class="form-control" aria-label="شماره دقیق حواله" placeholder="شماره کامل + Enter" title="فقط تطبیق دقیق؛ برای جستجو Enter بزنید" maxlength="200" inputmode="@(kind == "Serial" ? "numeric" : "text")" disabled="@submitting" @bind="draft" @bind:event="oninput" @onkeydown="KeyDown" />
+        @if (Value.IsActive) { <button type="button" class="btn btn-outline-secondary" aria-label="پاک‌کردن جستجوی دقیق" disabled="@submitting" @onclick="Clear">×</button> }
+    </div>
+    @if (error != "") { <small class="text-danger" role="alert">@error</small> }
+</div>
+@code {
+    [Parameter] public HawalaIdentifierSearch Value { get; set; } = new();
+    [Parameter] public EventCallback<HawalaIdentifierSearch> Changed { get; set; }
+    private HawalaIdentifierSearch? previous;
+    private string kind = "Reference", draft = "", error = "";
+    private bool submitting;
+    protected override void OnParametersSet()
+    {
+        if (!Equals(previous, Value)) { previous = Value; kind = Value.Kind; draft = Value.Value; error = ""; }
+    }
+    private Task KeyDown(KeyboardEventArgs e) => e.Key == "Enter" && !e.Repeat ? Submit() : Task.CompletedTask;
+    private async Task Submit()
+    {
+        if (submitting) return;
+        HawalaIdentifierSearch search;
+        try { search = HawalaIdentifierSearch.Create(kind, draft); }
+        catch (ArgumentException ex) { error = ex.Message; return; }
+        error = "";
+        submitting = true;
+        try { await Changed.InvokeAsync(search); }
+        finally { submitting = false; }
+    }
+    private Task Clear() { draft = ""; return Submit(); }
+}

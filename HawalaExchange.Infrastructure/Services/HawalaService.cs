@@ -3,6 +3,7 @@
     using HawalaExchange.Application.Interfaces.Services;
     using HawalaExchange.Domain.Entities;
     using HawalaExchange.Infrastructure.Data;
+    using HawalaExchange.Infrastructure.Services;
     using Microsoft.Data.SqlClient;
     using Microsoft.EntityFrameworkCore;
     using Microsoft.EntityFrameworkCore.Storage;
@@ -408,32 +409,37 @@
                     query = query.Where(h => (h.CommissionAmount > 0 || h.AgentCommissionAmount > 0 || _context.CorrespondentCommissionBatchItems.Any(i => i.HawalaId == h.Id && i.IsActive && i.Batch.Status == "Posted")) == has);
                 }
 
-                if (filter.Number > 0 && string.IsNullOrWhiteSpace(filter.SearchTerm))
-                    query = query.Where(h => h.Number == filter.Number);
-
-                if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+                if (filter.Identifier?.IsActive == true)
+                    query = query.WhereIdentifier(filter.Identifier, h => h.Number, h => h.ReferenceNumber);
+                else
                 {
-                    var term = filter.SearchTerm.Trim();
-                    if (identifiersOnly)
-                    {
-                        var digits = string.Concat(term.Select(c => char.IsDigit(c)
-                            ? ((int)char.GetNumericValue(c)).ToString(System.Globalization.CultureInfo.InvariantCulture) : c.ToString()));
-                        var serial = filter.Number > 0 ? filter.Number : long.TryParse(digits, System.Globalization.NumberStyles.None,
-                            System.Globalization.CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : 0;
-                        query = serial > 0
-                            ? query.Where(h => h.Number == serial || h.ReferenceNumber == term)
-                            : query.Where(h => h.ReferenceNumber == term);
-                    }
-                    else query = query.Where(h =>
-                        (h.SenderName != null && h.SenderName.Contains(term)) ||
-                        (h.ReceiverName != null && h.ReceiverName.Contains(term)) ||
-                        (h.ReferenceNumber != null && h.ReferenceNumber.Contains(term)) ||
-                        (h.Correspondent != null && h.Correspondent.Name.Contains(term)) ||
-                        (filter.Number > 0 && h.Number == filter.Number) ||
-                        (filter.SearchAmount.HasValue && h.FromAmount == filter.SearchAmount.Value)
-                    );
-                }
+                    if (filter.Number > 0 && string.IsNullOrWhiteSpace(filter.SearchTerm))
+                        query = query.Where(h => h.Number == filter.Number);
 
+                    if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+                    {
+                        var term = filter.SearchTerm.Trim();
+                        if (identifiersOnly)
+                        {
+                            var digits = string.Concat(term.Select(c => char.IsDigit(c)
+                                ? ((int)char.GetNumericValue(c)).ToString(System.Globalization.CultureInfo.InvariantCulture) : c.ToString()));
+                            var serial = filter.Number > 0 ? filter.Number : long.TryParse(digits, System.Globalization.NumberStyles.None,
+                                System.Globalization.CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : 0;
+                            query = serial > 0
+                                ? query.Where(h => h.Number == serial || h.ReferenceNumber == term)
+                                : query.Where(h => h.ReferenceNumber == term);
+                        }
+                        else query = query.Where(h =>
+                            (h.SenderName != null && h.SenderName.Contains(term)) ||
+                            (h.ReceiverName != null && h.ReceiverName.Contains(term)) ||
+                            (h.ReferenceNumber != null && h.ReferenceNumber.Contains(term)) ||
+                            (h.Correspondent != null && h.Correspondent.Name.Contains(term)) ||
+                            (filter.Number > 0 && h.Number == filter.Number) ||
+                            (filter.SearchAmount.HasValue && h.FromAmount == filter.SearchAmount.Value)
+                        );
+                    }
+
+                }
                 if (!string.IsNullOrEmpty(filter.HawalaType))
                     query = query.Where(h => h.HawalaType == filter.HawalaType);
 
@@ -479,7 +485,7 @@
                     if (!string.IsNullOrWhiteSpace(hawalaType)) query = query.Where(h => h.HawalaType == hawalaType);
                     return query;
                 }
-                if (filter.PreferExactIdentifiers && !string.IsNullOrWhiteSpace(filter.SearchTerm))
+                if (filter.Identifier?.IsActive != true && filter.PreferExactIdentifiers && !string.IsNullOrWhiteSpace(filter.SearchTerm))
                 {
                     var exact = Scope(BuildHawalaListQuery(filter, identifiersOnly: true));
                     var count = await exact.CountAsync(cancellationToken);

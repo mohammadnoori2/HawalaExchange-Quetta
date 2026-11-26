@@ -22,6 +22,34 @@ namespace HawalaExchange.NavigationTests;
 public sealed class PageLoadingTests
 {
     [Theory]
+    [InlineData("Pending")]
+    [InlineData("Received")]
+    [InlineData("Correspondent")]
+    public async Task Other_hawala_lists_apply_exact_search_with_their_existing_scope(string list)
+    {
+        var type=list=="Pending"?typeof(PendingPaymentProbe):list=="Received"?typeof(ReceivedPaymentProbe):typeof(CorrespondentPaymentProbe);
+        using var setup=new Setup(type);
+        await setup.Render(type);
+        setup.Set("extraFilters",new HawalaExtraFilter { PeriodId=7, CorrespondentId=10 });
+        await setup.Invoke("SearchIdentifierAsync",HawalaIdentifierSearch.Create("Reference","REF-955"));
+        setup.Hawalas.Verify(x=>x.GetHawalasAsync(It.Is<HawalaFilterDto>(f=>f.Identifier.Value=="REF-955" && f.Identifier.Kind=="Reference" && f.Extra.PeriodId==7 && f.Extra.CorrespondentId==10 && f.PageNumber==1),It.IsAny<CancellationToken>()),Times.Once);
+    }
+
+    [Fact]
+    public async Task Exact_hawala_search_keeps_period_and_correspondent_and_resets_page()
+    {
+        using var setup = new Setup(typeof(HawalaProbe));
+        await setup.Render<HawalaProbe>();
+        setup.Hawalas.Invocations.Clear();
+        setup.Set("extraFilters",new HawalaExtraFilter { PeriodId=7 });
+        setup.Set("filterCorrespondentId",10L);
+        setup.Set("currentPage",3);
+        setup.Set("searchTerm","old general text");
+        await setup.Invoke("SearchIdentifierAsync",HawalaIdentifierSearch.Create("Serial","955"));
+        setup.Hawalas.Verify(x=>x.GetHawalasAsync(It.Is<HawalaFilterDto>(f=>f.Identifier.Serial==955 && f.Extra.PeriodId==7 && f.CorrespondentId==10 && f.PageNumber==1 && f.SearchTerm==null),It.IsAny<CancellationToken>()),Times.Once);
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(true, true)]

@@ -40,7 +40,12 @@ public sealed class CashExecutedHawalaService(ApplicationDbContext context, ICon
         if (filter.CorrespondentId.HasValue) query = query.Where(x => x.CorrespondentId == filter.CorrespondentId);
         if (filter.LocationId.HasValue) query = filter.LocationId == 0 ? query.Where(x => x.LocationId == null) : query.Where(x => x.LocationId == filter.LocationId);
         if (filter.CurrencyId.HasValue) query = query.Where(x => x.CurrencyId == filter.CurrencyId);
-        var search = filter.Search?.Trim() ?? "";
+        if (filter.PeriodId.HasValue)
+            query = filter.PeriodId == 0
+                ? query.Where(x => !context.CorrespondentAccountPeriodHawalas.Any(p => p.HawalaId == x.HawalaId))
+                : query.Where(x => context.CorrespondentAccountPeriodHawalas.Any(p => p.HawalaId == x.HawalaId && p.PeriodId == filter.PeriodId && p.Period.CorrespondentId == x.CorrespondentId));
+        query = query.WhereIdentifier(filter.Identifier, x => x.Number, x => x.Reference);
+        var search = filter.Identifier?.IsActive == true ? "" : filter.Search?.Trim() ?? "";
         if (search != "") query = query.Where(x => x.Number.ToString().Contains(search) || x.Reference.Contains(search) || x.Receiver.Contains(search) || x.Sender.Contains(search));
         return query;
     }

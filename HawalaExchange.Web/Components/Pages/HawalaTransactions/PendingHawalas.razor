@@ -61,7 +61,7 @@
     }
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر حواله‌های اجرا نشده"
-                      HasActiveFilters="@(extraFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || filterCorrespondentId != 0 || filterPaymentLocationId != 0 || filterCurrencyId != 0 || filterMinAmount.HasValue || filterMaxAmount.HasValue || filterFromDate != DateTime.MinValue || filterToDate != DateTime.MinValue))"
+                      HasActiveFilters="@(identifierSearch.IsActive || extraFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || filterCorrespondentId != 0 || filterPaymentLocationId != 0 || filterCurrencyId != 0 || filterMinAmount.HasValue || filterMaxAmount.HasValue || filterFromDate != DateTime.MinValue || filterToDate != DateTime.MinValue))"
                       ActiveFilterCount="@(extraFilters.Count + ((filterCurrencyId != 0 ? 1 : 0) + (filterMinAmount.HasValue ? 1 : 0) + (filterMaxAmount.HasValue ? 1 : 0) + (filterFromDate != DateTime.MinValue ? 1 : 0) + (filterToDate != DateTime.MinValue ? 1 : 0)))"
                       Reset="ResetFilters">
         <SearchContent>
@@ -71,9 +71,11 @@
                    title="نمبر مسلسل یا نمبر حوالهٔ کامل در اولویت است؛ اگر یافت نشد، نام، مبلغ و متن جستجو می‌شود."
                    @bind="searchTerm"
                    @bind:event="oninput"
-                   @bind:after="OnFilterChangedAsync" />
+                   @bind:after="GeneralSearchChangedAsync" />
         </SearchContent>
         <QuickFilters>
+            <HawalaIdentifierSearchBox Value="identifierSearch" Changed="SearchIdentifierAsync" />
+
             <select class="form-select compact-quick-filter" aria-label="نمایندگی" @bind="filterCorrespondentId" @bind:after="OnFilterChangedAsync">
                 <option value="0">همه نمایندگان</option>
                 @foreach (var correspondent in correspondents)
@@ -618,6 +620,18 @@
 <HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
 
 @code {
+    private Task GeneralSearchChangedAsync() { identifierSearch = new(); return OnFilterChangedAsync(); }
+    private HawalaIdentifierSearch identifierSearch = new();
+    private async Task SearchIdentifierAsync(HawalaIdentifierSearch search)
+    {
+        filterChangeCts?.Cancel();
+        identifierSearch = search;
+        searchTerm = string.Empty;
+        currentPage = 1;
+
+        await LoadData();
+    }
+
     private bool disposed;
     private bool showReceiptCorrespondent;
     private HawalaDto? executedHawala;
@@ -843,6 +857,7 @@
             var filter = new HawalaFilterDto
             {
                 PreferExactIdentifiers = true,
+                Identifier = identifierSearch,
                 // Execution-only users receive these page-scoped values through the authorized list call.
                 IncludeBrowserAmounts = true,
                 Extra = extraFilters.Copy(),
@@ -923,6 +938,7 @@
 
     private async Task ResetFilters()
     {
+        identifierSearch = new();
         extraFilters = new();
         searchTerm = string.Empty;
         filterCorrespondentId = 0;

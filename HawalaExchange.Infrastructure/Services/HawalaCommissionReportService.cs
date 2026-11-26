@@ -26,7 +26,12 @@ public sealed class HawalaCommissionReportService(ApplicationDbContext context) 
         if (filter.Currency != "") query = query.Where(x => (x.HawalaType == "HawalaSend" ? x.ToCurrency.Code : x.FromCurrency.Code) == filter.Currency);
         if (filter.CorrespondentIds.Count > 0) query = query.Where(x => (x.CorrespondentId.HasValue && filter.CorrespondentIds.Contains(x.CorrespondentId.Value)) ||
             (x.SourceHawala != null && x.SourceHawala.CorrespondentId.HasValue && filter.CorrespondentIds.Contains(x.SourceHawala.CorrespondentId.Value)));
-        var search = filter.Search.Trim();
+        if (filter.PeriodId.HasValue)
+            query = filter.PeriodId == 0
+                ? query.Where(x => !context.CorrespondentAccountPeriodHawalas.Any(p => p.HawalaId == x.Id))
+                : query.Where(x => context.CorrespondentAccountPeriodHawalas.Any(p => p.HawalaId == x.Id && p.PeriodId == filter.PeriodId && p.Period.CorrespondentId == x.CorrespondentId));
+        query = query.WhereIdentifier(filter.Identifier, x => x.Number, x => x.ReferenceNumber);
+        var search = filter.Identifier?.IsActive == true ? "" : filter.Search.Trim();
         if (search != "") query = query.Where(x => x.Number.ToString().Contains(search) || (x.ReferenceNumber != null && x.ReferenceNumber.Contains(search)) ||
             (x.SenderName != null && x.SenderName.Contains(search)) || (x.ReceiverName != null && x.ReceiverName.Contains(search)));
         var transfers = await query.OrderBy(x => x.Id).Select(x => new Transfer

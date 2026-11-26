@@ -2,6 +2,8 @@ namespace HawalaExchange.Application.DTOs;
 
 public sealed class HawalaCommissionReportFilter
 {
+    public HawalaIdentifierSearch Identifier { get; set; } = new();
+    public long? PeriodId { get; set; }
     public DateTime From { get; set; } = DateTime.Today.AddDays(-30);
     public DateTime To { get; set; } = DateTime.Today;
     public List<long> CorrespondentIds { get; set; } = [];

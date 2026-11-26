@@ -59,7 +59,7 @@
 
     <CompactFilterBar AriaLabel="جستجوی حواله‌های دریافتی"
                       ActiveFilterCount="@extraFilters.Count"
-                      HasActiveFilters="@(extraFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm)))"
+                      HasActiveFilters="@(identifierSearch.IsActive || extraFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm)))"
                       Reset="ResetFilter">
         <SearchContent>
             <input class="form-control"
@@ -67,8 +67,11 @@
                    title="نمبر مسلسل یا نمبر حوالهٔ کامل در اولویت است؛ اگر یافت نشد، نام، مبلغ و متن جستجو می‌شود."
                    @bind="searchTerm"
                    @bind:event="oninput"
-                   @bind:after="OnSearchChangedAsync" />
+                   @bind:after="GeneralSearchChangedAsync" />
         </SearchContent>
+        <QuickFilters>
+            <HawalaIdentifierSearchBox Value="identifierSearch" Changed="SearchIdentifierAsync" />
+        </QuickFilters>
         <AdvancedFilters>
             <HawalaExtraFilters Filter="@extraFilters" ShowBasic="true" ShowCorrespondents="true" Changed="OnSearchChangedAsync" />
         </AdvancedFilters>
@@ -653,6 +656,18 @@
 <HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
 
 @code {
+    private Task GeneralSearchChangedAsync() { identifierSearch = new(); return OnSearchChangedAsync(); }
+    private HawalaIdentifierSearch identifierSearch = new();
+    private async Task SearchIdentifierAsync(HawalaIdentifierSearch search)
+    {
+        CancelPendingSearchChange();
+        identifierSearch = search;
+        searchTerm = string.Empty;
+        currentPage = 1;
+
+        await LoadData();
+    }
+
     private bool showReceiptCorrespondent;
     private HawalaDto? executedHawala;
     private async Task RefreshPageDataAsync()
@@ -765,6 +780,7 @@
             var filter = new HawalaFilterDto
             {
                 PreferExactIdentifiers = true,
+                Identifier = identifierSearch,
                 Extra = extraFilters.Copy(),
                 SearchTerm = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm.Trim(),
                 SearchAmount = searchAmount,
@@ -778,6 +794,7 @@
             };
 
             var result = await HawalaService.GetHawalasAsync(filter, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             if (loadVersion != dataLoadVersion)
                 return;
             hawalas = result.Items.ToList();
@@ -805,6 +822,7 @@
 
     private async Task ResetFilter()
     {
+        identifierSearch = new();
         extraFilters = new();
         CancelPendingSearchChange();
         searchTerm = string.Empty;
@@ -815,19 +833,18 @@
     private async Task OnSearchChangedAsync()
     {
         CancelPendingSearchChange();
-        var debounceCts = new CancellationTokenSource();
-        searchChangeCts = debounceCts;
+        using var source = new CancellationTokenSource();
+        var token = source.Token;
+        searchChangeCts = source;
         try
         {
-            await Task.Delay(300, debounceCts.Token);
+            await Task.Delay(300, token);
+            token.ThrowIfCancellationRequested();
+            currentPage = 1;
+            await LoadData(token);
         }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
-        currentPage = 1;
-        await LoadData(debounceCts.Token);
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        finally { if (ReferenceEquals(searchChangeCts, source)) searchChangeCts = null; }
     }
 
     private async Task OnPageSizeChangedAsync()
@@ -1239,9 +1256,9 @@
 
     private void CancelPendingSearchChange()
     {
-        searchChangeCts?.Cancel();
-        searchChangeCts?.Dispose();
+        var pending = searchChangeCts;
         searchChangeCts = null;
+        pending?.Cancel();
     }
 
     private static string GetExecutionAccountText(HawalaDto hawala)

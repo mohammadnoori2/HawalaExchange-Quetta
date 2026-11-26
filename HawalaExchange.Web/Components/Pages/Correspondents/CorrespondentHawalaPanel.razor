@@ -83,7 +83,7 @@
 
     <CompactFilterBar AriaLabel="جستجو و فیلتر حواله‌های نمایندگی"
                       ActiveFilterCount="@extraFilters.Count"
-                      HasActiveFilters="@(extraFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(statusFilter)))"
+                      HasActiveFilters="@(identifierSearch.IsActive || extraFilters.Count > 0 || (!string.IsNullOrWhiteSpace(searchTerm) || !string.IsNullOrWhiteSpace(statusFilter)))"
                       Reset="ResetFiltersAsync">
         <SearchContent>
             <input class="form-control"
@@ -91,9 +91,11 @@
                    title="نمبر مسلسل یا نمبر حوالهٔ کامل در اولویت است؛ اگر یافت نشد، نام، مبلغ و متن جستجو می‌شود."
                    @bind="searchTerm"
                    @bind:event="oninput"
-                   @bind:after="OnFilterChangedAsync" />
+                   @bind:after="GeneralSearchChangedAsync" />
         </SearchContent>
         <QuickFilters>
+            <HawalaIdentifierSearchBox Value="identifierSearch" Changed="SearchIdentifierAsync" />
+
         <select class="form-select compact-quick-filter" @bind="statusFilter" @bind:after="OnFilterChangedAsync">
             <option value="">همه وضعیت‌ها</option>
             <option value="Pending">@(HawalaType == "HawalaReceive" ? "حواله‌های اجرا نشده" : "در انتظار")</option>
@@ -437,6 +439,18 @@
 <HawalaExecutionReceiptPrint Hawala="executedHawala" AutoPrint="true" />
 
 @code {
+    private Task GeneralSearchChangedAsync() { identifierSearch = new(); return OnFilterChangedAsync(); }
+    private HawalaIdentifierSearch identifierSearch = new();
+    private async Task SearchIdentifierAsync(HawalaIdentifierSearch search)
+    {
+        CancelPendingFilterChange();
+        identifierSearch = search;
+        searchTerm = string.Empty;
+        currentPage = 1;
+        allMatchingSettlementSelected = false;
+        await LoadHawalasAsync(preserveAmountCache: true);
+    }
+
     private bool showReceiptCorrespondent;
     private HawalaDto? executedHawala;
     [Parameter, EditorRequired] public long CorrespondentId { get; set; }
@@ -923,21 +937,19 @@
     private async Task OnFilterChangedAsync()
     {
         CancelPendingFilterChange();
-        var debounceCts = new CancellationTokenSource();
-        filterChangeCts = debounceCts;
-
+        using var source = new CancellationTokenSource();
+        var token = source.Token;
+        filterChangeCts = source;
         try
         {
-            await Task.Delay(300, debounceCts.Token);
+            await Task.Delay(300, token);
+            token.ThrowIfCancellationRequested();
+            currentPage = 1;
+            allMatchingSettlementSelected = false;
+            await LoadHawalasAsync(token, preserveAmountCache: true);
         }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
-        currentPage = 1;
-        allMatchingSettlementSelected = false;
-        await LoadHawalasAsync(debounceCts.Token, preserveAmountCache: true);
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        finally { if (ReferenceEquals(filterChangeCts, source)) filterChangeCts = null; }
     }
 
     private IReadOnlyList<HawalaDto> SelectedSettlementHawalas => selectedSettlementHawalas.Values.ToList();
@@ -1015,6 +1027,7 @@
         return new HawalaFilterDto
             {
                 PreferExactIdentifiers = true,
+                Identifier = identifierSearch,
                 Extra = extraFilters.Copy(),
                   IncludeDirectCommissionTotals = includeDirectCommissionTotals,
             CorrespondentId = CorrespondentId,
@@ -1098,6 +1111,7 @@
 
     private async Task ResetFiltersAsync()
     {
+        identifierSearch = new();
         extraFilters = new();
         CancelPendingFilterChange();
         searchTerm = string.Empty;
@@ -1134,9 +1148,9 @@
 
     private void CancelPendingFilterChange()
     {
-        filterChangeCts?.Cancel();
-        filterChangeCts?.Dispose();
+        var pending = filterChangeCts;
         filterChangeCts = null;
+        pending?.Cancel();
     }
 
     private static string GetSettlementRowClass(HawalaDto hawala) => hawala.SettlementState switch

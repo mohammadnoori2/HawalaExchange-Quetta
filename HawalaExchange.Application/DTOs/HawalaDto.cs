@@ -222,6 +222,7 @@ namespace HawalaExchange.Application.DTOs
 
     public class HawalaFilterDto
     {
+        public HawalaIdentifierSearch Identifier { get; set; } = new();
         public HawalaExtraFilter Extra { get; set; } = new();
         public long Number { get; set; }
         public string? SearchTerm { get; set; }

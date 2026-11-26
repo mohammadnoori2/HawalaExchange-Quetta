@@ -24,11 +24,12 @@
     </AppPageHeader>
     <div class="alert alert-info py-2">بازه مربوط به روز ثبت حواله است. کمیشن ثبت‌شده با نرخ ذخیره‌شده خوانده می‌شود؛ برگشت‌ها در خالص ثبت‌شده شامل نیستند. کسرهای ثبت‌شده با علامت منفی نمایش داده می‌شوند. مبالغ دریافتی و ارسالی و همچنین ارزها جدا جمع می‌شوند.</div>
     @if (error != "") { <div class="alert alert-danger" role="alert">@error</div> }
-    <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش حواله‌ها" HasActiveFilters="@(ReportFilterCount > 0 || !string.IsNullOrWhiteSpace(filter.Search))" ActiveFilterCount="@ReportFilterCount" Reset="ResetReportFilters">
+    <CompactFilterBar AriaLabel="جستجو و فیلتر گزارش حواله‌ها" HasActiveFilters="@(filter.Identifier.IsActive || filter.PeriodId.HasValue || ReportFilterCount > 0 || !string.IsNullOrWhiteSpace(filter.Search))" ActiveFilterCount="@ReportFilterCount" Reset="ResetReportFilters">
         <SearchContent><input class="form-control" placeholder="نمبر مسلسل، نمبر حواله، فرستنده یا گیرنده" @bind="filter.Search" @bind:event="oninput" /></SearchContent>
-        <QuickFilters><select class="form-select compact-quick-filter" @bind="filter.HawalaType"><option value="">همه</option><option value="HawalaReceive">دریافتی</option><option value="HawalaSend">ارسالی</option></select>
+        <QuickFilters><HawalaIdentifierSearchBox Value="filter.Identifier" Changed="SearchIdentifierAsync" /><select class="form-select compact-quick-filter" @bind="filter.HawalaType"><option value="">همه</option><option value="HawalaReceive">دریافتی</option><option value="HawalaSend">ارسالی</option></select>
 <select class="form-select compact-quick-filter" @bind="filter.CommissionType"><option value="">همه</option>@foreach (var type in new[] { "Incoming", "Destination", "Forwarding", "Direct", "None" }) { <option value="@type">@HawalaReportLabels.Type(type)</option> }</select></QuickFilters>
         <AdvancedFilters>
+<div class="compact-filter-field"><label class="form-label">دوره حواله</label><HawalaPeriodSelect CorrespondentId="@(filter.CorrespondentIds.Count == 1 ? (long?)filter.CorrespondentIds[0] : null)" @bind-Value="filter.PeriodId" /></div>
             <div class="compact-filter-field"><label class="form-label">از تاریخ</label><PersianDatePicker @bind-Value="filter.From" /></div>
 <div class="compact-filter-field"><label class="form-label">تا تاریخ</label><PersianDatePicker @bind-Value="filter.To" /></div>
 <div class="compact-filter-field"><label class="form-label">محل پرداخت</label><select class="form-select" @bind="filter.PaymentLocationId"><option value="">همه</option>@foreach (var location in locations) { <option value="@location.Id">@location.Name</option> }</select></div>
@@ -144,6 +145,7 @@
     {
         correspondents = (await CorrespondentService.GetAllAsync()).OrderBy(x => x.Name).ToList(); locations = (await LocationService.GetAllAsync()).OrderBy(x => x.Name).ToList(); currencies = (await CurrencyService.GetAllAsync()).ToList(); if (report != null) { var oldPage = page; await LoadReport(); page = oldPage; }
     }
+    private async Task SearchIdentifierAsync(HawalaIdentifierSearch search) { if(busy)return; filter.Identifier=search; filter.Search=""; await LoadReport(); }
     private HawalaCommissionReportFilter filter = new();
     private int ReportFilterCount => new[] { filter.From.Date != DateTime.Today.AddDays(-30), filter.To.Date != DateTime.Today,
         filter.CorrespondentIds.Count > 0, !string.IsNullOrWhiteSpace(filter.HawalaType), !string.IsNullOrWhiteSpace(filter.CommissionType),

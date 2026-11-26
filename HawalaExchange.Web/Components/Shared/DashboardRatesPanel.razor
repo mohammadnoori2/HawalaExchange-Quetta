@@ -4,7 +4,7 @@
 @inject IExchangeRateService RatesService
 @inject IUserPermissionService Permissions
 <section class="dashboard-summary-card" aria-label="نرخ اسعار">
-    <div class="dashboard-summary-heading"><h2>نرخ اسعار</h2></div>
+    <div class="dashboard-summary-heading"><h2><i class="bi bi-coin" aria-hidden="true"></i> نرخ اسعار</h2></div>
     @if(!string.IsNullOrEmpty(error)){<div class="alert alert-danger m-2" role="alert">@error</div>}
     <div class="dashboard-summary-body">
         <table class="table table-sm mb-0"><thead><tr><th>ارزها</th><th>خرید</th><th>فروش</th><th>تاریخ / وضعیت</th></tr></thead><tbody>
@@ -20,7 +20,7 @@
                     </td></tr>
             }
             @if(data.Rates.Count==0)
-            {<tr><td colspan="4"><div class="dashboard-rate-empty-content"><span class="text-muted">هنوز نرخی ثبت نشده است.</span>
+            {<tr><td colspan="4"><div class="dashboard-rate-empty-content"><i class="bi bi-coin dashboard-rate-empty-icon" aria-hidden="true"></i><span class="text-muted">هنوز نرخی ثبت نشده است.</span>
                 <PermissionView Permission="Rates.Create"><button type="button" class="btn btn-sm btn-outline-primary" disabled="@busy" @onclick="() => OpenToday(null)">افزودن نرخ امروز</button></PermissionView>
             </div></td></tr>}
         }

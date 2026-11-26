@@ -3,6 +3,17 @@
 // ==========================================
 if (window.Chart) {
     window.Chart.defaults.locale = "en-US";
+    window.Chart.register({
+        id: 'hawalaDashboardLinePalette',
+        beforeUpdate(chart) {
+            if (chart.canvas.id !== 'dailyChart' || !chart.canvas.closest('.dashboard-reference')) return;
+            const dataset = chart.data.datasets[0];
+            if (!dataset) return;
+            const dark = document.documentElement.dataset.bsTheme === 'dark';
+            dataset.borderColor = dataset.pointBackgroundColor = dark ? '#6bbcf6' : '#1a5c8a';
+            dataset.pointBorderColor = dark ? '#1b2735' : '#ffffff';
+        }
+    });
 }
 
 let dailyChartInstance = null;
@@ -58,10 +69,10 @@ window.renderDailyChart = function (canvasId, labels, data) {
                     borderColor: '#cbd5e1',
                     borderWidth: 1,
                     titleFont: {
-                        family: 'IRANSans, Tahoma, sans-serif'
+                        family: 'Vazirmatn, Tahoma, sans-serif'
                     },
                     bodyFont: {
-                        family: 'IRANSans, Tahoma, sans-serif'
+                        family: 'Vazirmatn, Tahoma, sans-serif'
                     }
                 }
             },
@@ -75,7 +86,7 @@ window.renderDailyChart = function (canvasId, labels, data) {
                     ticks: {
                         color: '#4a5a6e',
                         font: {
-                            family: 'IRANSans, Tahoma, sans-serif',
+                            family: 'Vazirmatn, Tahoma, sans-serif',
                             size: 10
                         },
                         stepSize: 5
@@ -88,7 +99,7 @@ window.renderDailyChart = function (canvasId, labels, data) {
                     ticks: {
                         color: '#4a5a6e',
                         font: {
-                            family: 'IRANSans, Tahoma, sans-serif',
+                            family: 'Vazirmatn, Tahoma, sans-serif',
                             size: 10
                         }
                     }
@@ -147,10 +158,10 @@ window.renderPeriodicChart = function (canvasId, labels, data) {
                     borderColor: '#cbd5e1',
                     borderWidth: 1,
                     titleFont: {
-                        family: 'IRANSans, Tahoma, sans-serif'
+                        family: 'Vazirmatn, Tahoma, sans-serif'
                     },
                     bodyFont: {
-                        family: 'IRANSans, Tahoma, sans-serif'
+                        family: 'Vazirmatn, Tahoma, sans-serif'
                     }
                 }
             },
@@ -164,7 +175,7 @@ window.renderPeriodicChart = function (canvasId, labels, data) {
                     ticks: {
                         color: '#4a5a6e',
                         font: {
-                            family: 'IRANSans, Tahoma, sans-serif',
+                            family: 'Vazirmatn, Tahoma, sans-serif',
                             size: 10
                         },
                         stepSize: 20
@@ -177,7 +188,7 @@ window.renderPeriodicChart = function (canvasId, labels, data) {
                     ticks: {
                         color: '#4a5a6e',
                         font: {
-                            family: 'IRANSans, Tahoma, sans-serif',
+                            family: 'Vazirmatn, Tahoma, sans-serif',
                             size: 10
                         }
                     }
@@ -231,10 +242,10 @@ window.renderLiquidityChart = function (canvasId, labels, data) {
                     borderColor: '#cbd5e1',
                     borderWidth: 1,
                     titleFont: {
-                        family: 'IRANSans, Tahoma, sans-serif'
+                        family: 'Vazirmatn, Tahoma, sans-serif'
                     },
                     bodyFont: {
-                        family: 'IRANSans, Tahoma, sans-serif'
+                        family: 'Vazirmatn, Tahoma, sans-serif'
                     },
                     callbacks: {
                         label: function (context) {
@@ -314,10 +325,10 @@ window.renderMiniChart = function (canvasId, labels, data) {
                     borderColor: '#cbd5e1',
                     borderWidth: 1,
                     titleFont: {
-                        family: 'IRANSans, Tahoma, sans-serif'
+                        family: 'Vazirmatn, Tahoma, sans-serif'
                     },
                     bodyFont: {
-                        family: 'IRANSans, Tahoma, sans-serif'
+                        family: 'Vazirmatn, Tahoma, sans-serif'
                     }
                 }
             },
@@ -331,7 +342,7 @@ window.renderMiniChart = function (canvasId, labels, data) {
                     ticks: {
                         color: '#4a5a6e',
                         font: {
-                            family: 'IRANSans, Tahoma, sans-serif',
+                            family: 'Vazirmatn, Tahoma, sans-serif',
                             size: 10
                         },
                         precision: 0,
@@ -345,7 +356,7 @@ window.renderMiniChart = function (canvasId, labels, data) {
                     ticks: {
                         color: '#4a5a6e',
                         font: {
-                            family: 'IRANSans, Tahoma, sans-serif',
+                            family: 'Vazirmatn, Tahoma, sans-serif',
                             size: 10
                         }
                     }

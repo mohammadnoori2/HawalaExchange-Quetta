@@ -17,28 +17,29 @@
 
 <PageTitle>داشبورد</PageTitle>
 
-<div class="dashboard-wrapper" dir="rtl">
+<div class="dashboard-wrapper dashboard-reference" dir="rtl">
     <div class="page-header">
         <div>
-            <h5 class="page-title dashboard-page-title"><i class="bi bi-speedometer2"></i> داشبورد</h5>
+            <h5 class="page-title dashboard-page-title"><i class="bi bi-bar-chart" aria-hidden="true"></i> داشبورد</h5>
             <span class="page-subtitle">
                 آخرین فعالیت:
                 <AppDateTime Value="@dashboard?.LastActivityAt" EmptyText="ثبت نشده" />
             </span>
         </div>
-        <PageHeaderStats AriaLabel="آمار داشبورد">
-            <PageHeaderStat Label="حواله" Value="@(dashboard?.HawalaCount ?? 0)" Icon="bi-send" />
-            <PageHeaderStat Label="تبدیل پول" Value="@(dashboard?.ExchangeCount ?? 0)" Icon="bi-currency-exchange" Tone="info" />
-            <PageHeaderStat Label="مفاد خالص" Value="@($"{MoneyFormatHelper.Format(NetProfit)} {selectedCurrency}")" Icon="bi-graph-up-arrow" Tone="success" />
-            <PageHeaderStat Label="هشدار صندوق" Value="@cashBalanceAlerts.Count" Icon="bi-exclamation-triangle" Tone="danger" />
-        </PageHeaderStats>
         <div class="page-actions quick-links">
-            <button class="quick-link-btn quick-link-hawala" @onclick="OpenHawalaModal">ثبت حواله</button>
-            <button class="quick-link-btn quick-link-exchange" @onclick="OpenExchangeModal">تبدیل پول</button>
-            <button class="quick-link-btn quick-link-deposit" @onclick="OpenDepositWithdrawModal">رسید / برد</button>
-            <button class="quick-link-btn quick-link-pending" @onclick="NavigateToPendingHawalas">اجرای حواله</button>
+            <button class="quick-link-btn quick-link-hawala" @onclick="OpenHawalaModal"><i class="bi bi-plus-lg" aria-hidden="true"></i> ثبت حواله</button>
+            <button class="quick-link-btn quick-link-exchange" @onclick="OpenExchangeModal"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> تبدیل پول</button>
+            <button class="quick-link-btn quick-link-deposit" @onclick="OpenDepositWithdrawModal"><i class="bi bi-receipt" aria-hidden="true"></i> رسید / برد</button>
+            <button class="quick-link-btn quick-link-pending" @onclick="NavigateToPendingHawalas"><i class="bi bi-send" aria-hidden="true"></i> اجرای حواله</button>
             <PageRefreshButton Refresh="RefreshPageDataAsync" Inline="true" />
         </div>
+    </div>
+
+    <div class="dashboard-kpi-row" aria-label="آمار داشبورد">
+        <section class="dashboard-kpi dashboard-kpi-hawala"><div><i class="bi bi-send" aria-hidden="true"></i><h2>حواله</h2></div><strong>@MoneyFormatHelper.Format(dashboard?.HawalaCount ?? 0)</strong><i class="bi bi-graph-up-arrow kpi-watermark" aria-hidden="true"></i></section>
+        <section class="dashboard-kpi dashboard-kpi-exchange"><div><i class="bi bi-arrow-left-right" aria-hidden="true"></i><h2>تبدیل پول</h2></div><strong>@MoneyFormatHelper.Format(dashboard?.ExchangeCount ?? 0)</strong><i class="bi bi-graph-up-arrow kpi-watermark" aria-hidden="true"></i></section>
+        <section class="dashboard-kpi dashboard-kpi-profit @(NetProfit < 0 ? "is-negative" : "is-positive")"><div><i class="bi bi-database" aria-hidden="true"></i><h2>مفاد خالص</h2></div><strong dir="ltr">@MoneyFormatHelper.Format(NetProfit) @selectedCurrency</strong><i class="bi bi-graph-up-arrow kpi-watermark" aria-hidden="true"></i></section>
+        <section class="dashboard-kpi dashboard-kpi-alert"><div><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><h2>هشدار صندوق</h2></div><strong>@cashBalanceAlerts.Count</strong><i class="bi bi-wallet2 kpi-watermark" aria-hidden="true"></i></section>
     </div>
 
     <div class="dashboard-summary-row">
@@ -87,7 +88,7 @@
         </div>
         </section>
         <section class="dashboard-summary-card dashboard-profit-summary" aria-label="مفاد و ضرر دوره">
-            <div class="dashboard-summary-heading"><h2>مفاد/ضرر واقعی دوره</h2>
+            <div class="dashboard-summary-heading"><h2><i class="bi bi-bar-chart" aria-hidden="true"></i> مفاد/ضرر واقعی دوره</h2>
                 <select class="form-select form-select-sm dashboard-profit-currency" aria-label="ارز محاسبه مفاد و ضرر" @onchange="OnCurrencyChanged" value="@selectedCurrency">
                     @foreach(var currency in currencies){<option value="@currency.Code">@currency.Code</option>}
                 </select>
@@ -106,13 +107,13 @@
             <div class="chart-header">
                 <span class="chart-title"><i class="bi bi-graph-up"></i> فعالیت‌های روزانه واقعی</span>
             </div>
-            <div class="chart-body"><canvas id="dailyChart"></canvas></div>
+            <div class="chart-body"><canvas id="dailyChart" role="img" aria-label="نمودار فعالیت‌های روزانه واقعی"></canvas></div>
         </div>
         <div class="chart-box">
             <div class="chart-header">
                 <span class="chart-title"><i class="bi bi-bar-chart"></i> مفاد/ضرر هفتگی</span>
             </div>
-            <div class="chart-body"><canvas id="periodicChart"></canvas></div>
+            <div class="chart-body"><canvas id="periodicChart" role="img" aria-label="نمودار مفاد و ضرر هفتگی"></canvas></div>
         </div>
     </div>
 
@@ -120,7 +121,7 @@
         <div class="top-remain-card">
             <div class="top-remain-header">
                 <div class="top-remain-heading">
-                    <span class="top-remain-title">@CounterpartyListTitle</span>
+                    <span class="top-remain-title"><i class="bi bi-people" aria-hidden="true"></i> @CounterpartyListTitle</span>
                     <span class="top-remain-sub">
                         ماندهٔ اصلی حساب‌ها به تفکیک ارز
                     </span>
@@ -144,7 +145,7 @@
         </div>
         <div class="dashboard-side-column">
         <div class="transactions-card">
-            <div class="section-title">فعالیت‌های ثبت‌شده</div>
+            <div class="section-title"><i class="bi bi-stack" aria-hidden="true"></i> فعالیت‌های ثبت‌شده</div>
             <div class="date-filter">
                 <div class="date-input-group">
                     <label>از تاریخ:</label>
@@ -169,9 +170,13 @@
                 <PageHeaderStat Label="عملیات حساب" Value="@(dashboard?.AccountOperationCount ?? 0)" Icon="bi-wallet2" Tone="success" />
                 <PageHeaderStat Label="مصارف/سرمایه" Value="@((dashboard?.ExpenseCount ?? 0) + (dashboard?.CapitalInvestmentCount ?? 0))" Icon="bi-cash-stack" Tone="danger" />
             </PageHeaderStats>
-            <div class="mini-chart-container"><canvas id="miniChart"></canvas></div>
+            <div class="mini-chart-container"><canvas id="miniChart" role="img" aria-label="تعداد فعالیت‌های ثبت‌شده به تفکیک عملیات"></canvas></div>
         </div>
 
+        </div>
+    </div>
+
+    <section class="dashboard-liquidity-extra" aria-label="جزئیات نقدینگی">
         <div class="liquidity-card">
             <div class="section-title">نقدینگی به ارزش @selectedCurrency</div>
             <div class="liquidity-tabs">
@@ -195,10 +200,9 @@
                     <div class="liquidity-item">ماندهٔ قابل محاسبه موجود نیست.</div>
                 }
             </div>
-            <div class="liquidity-chart-container"><canvas id="liquidityChart"></canvas></div>
+            <div class="liquidity-chart-container"><canvas id="liquidityChart" role="img" aria-label="سهم حساب‌ها از نقدینگی"></canvas></div>
         </div>
-        </div>
-    </div>
+    </section>
 
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {

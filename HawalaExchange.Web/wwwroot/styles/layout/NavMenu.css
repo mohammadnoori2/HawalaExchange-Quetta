@@ -356,3 +356,21 @@
         inset-block-end: max(0.75rem, env(safe-area-inset-bottom));
     }
 }
+
+/* Tenant navigation stays dark across pages, independently of the content theme. */
+.app-shell:not(:has(.platform-workspace)) .sidebar { background: #101b2d; border-color: #29364a; }
+.app-shell:not(:has(.platform-workspace)) .nav-sidebar { background: linear-gradient(160deg,#142139,#0d1627) !important; }
+.app-shell:not(:has(.platform-workspace)) .nav-scrollable { background: transparent !important; }
+.app-shell:not(:has(.platform-workspace)) .navbar-brand-custom { min-height: 110px; background: transparent !important; border-color: #ffffff20 !important; }
+.app-shell:not(:has(.platform-workspace)) .logo-wrapper { display: flex; flex-direction: column; gap: 5px; text-decoration: none; }
+.app-shell:not(:has(.platform-workspace)) .logo-image { width: 80px !important; height: 32px !important; max-height: none; object-fit: cover; object-position: top; order: 0; }
+.app-shell:not(:has(.platform-workspace)) .logo-wrapper::after { content: 'Kabul Code Lab'; color: #fff; font-size: 14px; font-weight: 800; order: 1; }
+.app-shell:not(:has(.platform-workspace)) .logo-wrapper::before { content: 'Money Transfer & Exchange System'; color: #ced7e5; font-size: 8px; order: 2; }
+.app-shell:not(:has(.platform-workspace)) .nav-sidebar :is(.nav-link-custom,.nav-link-toggle) { color: #e0e7f1 !important; min-height: 37px; font-size: 13px !important; padding: 8px 10px !important; font-weight: 550 !important; }
+.app-shell:not(:has(.platform-workspace)) .nav-sidebar .nav-link-custom.active { background: linear-gradient(110deg,#137cff,#0854d5) !important; color: white !important; box-shadow: 0 3px 12px #0063ff35 !important; }
+.app-shell:not(:has(.platform-workspace)) .nav-sidebar :is(.nav-link-custom,.nav-link-toggle):hover { background: #ffffff0e !important; color: white !important; }
+.app-shell:not(:has(.platform-workspace)) .nav-sidebar :is(.nav-link-custom,.nav-link-toggle) > :is(i,span[class*='bi-']) { color: #d4deeb !important; font-size: 17px !important; }
+.app-shell:not(:has(.platform-workspace)) .nav-divider { background: #ffffff20 !important; }
+.app-shell:not(:has(.platform-workspace)) .user-info-card { background: #1d2b42 !important; color: #fff !important; border-color: #3e4b62 !important; border-radius: 13px; }
+.app-shell:not(:has(.platform-workspace)) .user-name { color: #fff !important; font-size: 13px !important; }
+.app-shell:not(:has(.platform-workspace)) .user-role { color: #c5d0e1 !important; font-size: 10px !important; }
